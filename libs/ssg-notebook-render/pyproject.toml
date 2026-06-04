@@ -1,0 +1,28 @@
+[project]
+name = "ssg-notebook-render"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "jinja2==3.1.6",
+  "markdown-it-py==4.2.0",
+  "markupsafe==3.0.3",
+  "nbformat==5.10.4",
+  "ssg",
+]
+
+[project.entry-points."ssg.renderers"]
+notebook = "ssg_notebook_render.notebook_content_renderer:create_notebook_content_renderer"
+
+[tool.uv.sources]
+ssg = { workspace = true }
+
+[tool.deptry.package_module_name_map]
+ssg = "ssg"
+ssg-notebook-render = "ssg_notebook_render"
+
+[tool.deptry.per_rule_ignores]
+DEP003 = ["ssg_notebook_render"]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"

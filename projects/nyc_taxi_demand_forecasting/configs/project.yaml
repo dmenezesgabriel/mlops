@@ -1,0 +1,29 @@
+project:
+  name: nyc_taxi_demand_forecasting
+paths:
+  raw_data: data/raw
+  interim_data: data/interim
+  processed_data: data/processed
+  models: models
+  reports: reports
+collection:
+  year: 2023
+  months: [1]
+  taxi_type: yellow
+  source_url_template: https://d37ci6vzurychx.cloudfront.net/trip-data/{taxi_type}_tripdata_{year}-{month:02d}.parquet
+features:
+  training_dataset_path: data/processed/training_dataset.parquet
+  offline_features_path: data/processed/hourly_demand_features.parquet
+feast:
+  repo_path: feature_repo
+mlflow:
+  tracking_uri: sqlite:///projects/nyc_taxi_demand_forecasting/mlflow.db
+  experiment_name: nyc_taxi_demand_forecasting
+  registered_model_name: nyc_taxi_demand_forecaster
+training:
+  target_column: next_hour_pickup_count
+  test_size: 0.2
+  random_state: 42
+evaluation:
+  max_mae: 50.0
+  max_rmse: 75.0

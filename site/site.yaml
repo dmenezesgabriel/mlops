@@ -1,0 +1,33 @@
+site:
+  title: MLOps Learning Lab
+  description: Real-world machine learning projects rendered as educational content.
+collections:
+  - name: nyc_taxi_demand_forecasting
+    title: NYC Taxi Demand Forecasting
+    source_root: ../projects/nyc_taxi_demand_forecasting
+    output_slug: nyc-taxi-demand-forecasting
+    pages:
+      - slug: overview
+        title: Overview
+        source: notebooks/index.ipynb
+      - slug: problem-framing
+        title: Problem Framing
+        source: docs/01_problem_framing.md
+      - slug: dataset-collection
+        title: Dataset Collection
+        source: docs/02_dataset_collection.md
+      - slug: event-logs-to-supervised-learning
+        title: Event Logs To Supervised Learning
+        source: docs/03_event_logs_to_supervised_learning.md
+      - slug: feature-store-with-feast-duckdb
+        title: Feature Store With Feast And DuckDB
+        source: docs/05_feature_store_with_feast_duckdb.md
+      - slug: feature-engineering-notebook
+        title: Feature Engineering Notebook
+        source: notebooks/feature_engineering.ipynb
+      - slug: mlflow-model-registry
+        title: MLflow Model Registry
+        source: docs/10_mlflow_model_registry.md
+    assets:
+      videos:
+        mlops_lifecycle: ../videos/output/mlops_lifecycle.mp4

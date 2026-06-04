@@ -1,0 +1,24 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.0
+    hooks:
+      - id: ruff-format
+      - id: ruff
+        args: [--fix]
+  - repo: local
+    hooks:
+      - id: deptry
+        name: deptry
+        entry: make dependencies
+        language: system
+        pass_filenames: false
+      - id: import-linter
+        name: import-linter
+        entry: uv run lint-imports
+        language: system
+        pass_filenames: false
+      - id: radon
+        name: radon complexity
+        entry: make complexity
+        language: system
+        pass_filenames: false

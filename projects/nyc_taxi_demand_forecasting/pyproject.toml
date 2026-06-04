@@ -1,0 +1,33 @@
+[project]
+name = "nyc-taxi-demand-forecasting"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "duckdb>=1.4.0",
+  "feast>=0.56.0",
+  "mlflow>=3.7.0",
+  "mlops-shared",
+  "numpy>=2.0.0",
+  "pandas==2.3.3",
+  "pyarrow==24.0.0",
+  "requests==2.34.2",
+]
+
+[project.optional-dependencies]
+notebooks = ["ipykernel>=7.1.0", "matplotlib>=3.10.0"]
+
+[tool.uv.sources]
+mlops-shared = { workspace = true }
+
+[tool.deptry.package_module_name_map]
+nyc-taxi-demand-forecasting = "nyc_taxi_demand_forecasting"
+mlops-shared = "mlops_shared"
+
+[tool.deptry.per_rule_ignores]
+DEP001 = ["data_sources", "entities"]
+DEP002 = ["duckdb", "mlflow", "pyarrow", "ipykernel", "matplotlib"]
+DEP003 = ["nyc_taxi_demand_forecasting"]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"

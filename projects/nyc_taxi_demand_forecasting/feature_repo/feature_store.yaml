@@ -1,0 +1,10 @@
+project: nyc_taxi_demand_forecasting
+provider: local
+registry: data/registry.db
+offline_store:
+  type: duckdb
+  path: data/offline_store.duckdb
+online_store:
+  type: sqlite
+  path: data/online_store.db
+entity_key_serialization_version: 3
