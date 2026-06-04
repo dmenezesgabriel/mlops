@@ -2407,7 +2407,7 @@ dev = [
 [[package]]
 name = "mlops-shared"
 version = "0.1.0"
-source = { editable = "libs/mlops_shared" }
+source = { editable = "libs/mlops-shared" }
 dependencies = [
     { name = "pyyaml" },
 ]
@@ -2839,7 +2839,7 @@ requires-dist = [
     { name = "ipykernel", marker = "extra == 'notebooks'", specifier = ">=7.1.0" },
     { name = "matplotlib", marker = "extra == 'notebooks'", specifier = ">=3.10.0" },
     { name = "mlflow", specifier = ">=3.7.0" },
-    { name = "mlops-shared", editable = "libs/mlops_shared" },
+    { name = "mlops-shared", editable = "libs/mlops-shared" },
     { name = "numpy", specifier = ">=2.0.0" },
     { name = "pandas", specifier = "==2.3.3" },
     { name = "pyarrow", specifier = "==24.0.0" },
