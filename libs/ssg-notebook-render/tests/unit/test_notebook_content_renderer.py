@@ -45,6 +45,8 @@ def test_render_transcludes_source_and_copies_video(tmp_path: Path) -> None:
     # Assert
     assert "def create_features()" in rendered_content
     assert '<video controls src="assets/videos/demo.mp4"></video>' in rendered_content
+    assert 'class="source-panel story-step"' in rendered_content
+    assert 'class="media-frame video-frame story-step"' in rendered_content
     assert (output_path / "assets" / "videos" / "demo.mp4").exists()
 
 
@@ -80,3 +82,5 @@ def test_render_includes_code_cell_and_stream_output(tmp_path: Path) -> None:
     # Assert
     assert "print(&#x27;hourly demand&#x27;)" in rendered_content
     assert "hourly demand" in rendered_content
+    assert 'class="notebook-cell story-step"' in rendered_content
+    assert 'class="notebook-output"' in rendered_content

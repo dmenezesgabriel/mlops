@@ -10,6 +10,7 @@ from markupsafe import Markup
 from ssg.application.html_headings import demote_top_level_headings
 from ssg.application.ports import ContentRenderer
 from ssg.domain.site import ContentCollection, Page
+from ssg.infrastructure.frontend.media_components import render_source_panel, render_video_frame
 
 
 class MarkdownContentRenderer(ContentRenderer):
@@ -48,7 +49,7 @@ class MarkdownContentRenderer(ContentRenderer):
 
     def _include_source(self, collection: ContentCollection, source_path: str) -> Markup:
         source = collection.source_file(source_path).read_text(encoding="utf-8")
-        return Markup(f"<pre><code>{html.escape(source)}</code></pre>")
+        return render_source_panel(source, source_path)
 
     def _embed_video(
         self,
@@ -65,8 +66,7 @@ class MarkdownContentRenderer(ContentRenderer):
         video_output_path = output_path / "assets" / "videos" / source_path.name
         video_output_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_path, video_output_path)
-        video_source = html.escape(source_path.name)
-        return Markup(f'<video controls src="assets/videos/{video_source}"></video>')
+        return render_video_frame(source_path.name, video_name)
 
     def _render_wikilinks(self, source: str, collection: ContentCollection) -> str:
         pattern = re.compile(r"\[\[([a-zA-Z0-9_-]+)(?:\|([^\]]+))?\]\]")

@@ -12,6 +12,15 @@ from ssg.application.html_headings import demote_top_level_headings
 from ssg.application.ports import ContentRenderer, MarkdownRenderer
 from ssg.domain.site import ContentCollection, Page
 
+from ssg_notebook_render.notebook_components import (
+    render_notebook_code_cell,
+    render_notebook_image_output,
+    render_notebook_stream_output,
+    render_notebook_text_output,
+    render_source_panel,
+    render_video_frame,
+)
+
 
 class NotebookMarkdownRenderer(MarkdownRenderer):
     def __init__(self) -> None:
@@ -42,7 +51,7 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
 
     def _include_source(self, collection: ContentCollection, source_path: str) -> Markup:
         source = collection.source_file(source_path).read_text(encoding="utf-8")
-        return Markup(f"<pre><code>{html.escape(source)}</code></pre>")
+        return render_source_panel(source, source_path)
 
     def _embed_video(
         self, collection: ContentCollection, output_path: Path, video_name: str
@@ -56,9 +65,7 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
         video_path = output_path / "assets" / "videos" / source_path.name
         video_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_path, video_path)
-        return Markup(
-            f'<video controls src="assets/videos/{html.escape(source_path.name)}"></video>'
-        )
+        return render_video_frame(source_path.name, video_name)
 
     def _render_wikilinks(self, source: str, collection: ContentCollection) -> str:
         pattern = re.compile(r"\[\[([a-zA-Z0-9_-]+)(?:\|([^\]]+))?\]\]")
@@ -100,7 +107,7 @@ class NotebookContentRenderer(ContentRenderer):
 
         if cell_type == "code":
             outputs = self._render_outputs(cell, page, output_path, cell_index)
-            return f"<pre><code>{html.escape(source)}</code></pre>\n{outputs}"
+            return render_notebook_code_cell(source, cell_index, outputs)
 
         return ""
 
@@ -128,7 +135,7 @@ class NotebookContentRenderer(ContentRenderer):
     ) -> str:
         output_type = getattr(output, "output_type", "")
         if output_type == "stream":
-            return f"<pre><code>{html.escape(str(getattr(output, 'text', '')))}</code></pre>"
+            return render_notebook_stream_output(str(getattr(output, "text", "")))
 
         data = getattr(output, "data", {})
         if isinstance(data, dict) and "image/png" in data:
@@ -137,7 +144,7 @@ class NotebookContentRenderer(ContentRenderer):
             )
 
         if isinstance(data, dict) and "text/plain" in data:
-            return f"<pre><code>{html.escape(str(data['text/plain']))}</code></pre>"
+            return render_notebook_text_output(str(data["text/plain"]))
 
         return ""
 
@@ -153,7 +160,7 @@ class NotebookContentRenderer(ContentRenderer):
         image_path = output_path / "assets" / "images" / image_name
         image_path.parent.mkdir(parents=True, exist_ok=True)
         image_path.write_bytes(base64.b64decode(str(encoded_png)))
-        return f'<img src="assets/images/{image_name}" alt="Notebook output image">'
+        return render_notebook_image_output(image_name)
 
 
 def create_notebook_content_renderer() -> NotebookContentRenderer:
