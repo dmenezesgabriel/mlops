@@ -9,11 +9,11 @@ The first project is `nyc_taxi_demand_forecasting`, built from public NYC TLC tr
 ```bash
 uv sync --all-packages --dev
 make test
-make build-site PROJECT=nyc_taxi_demand_forecasting
+make build-site
 ```
 
 ## Architecture
 
 Shared libraries and static-site tooling follow clean architecture. Project ML pipeline scripts use standard data science conventions with `argparse`, pandas, scikit-learn, Feast, and MLflow.
 
-Static site generation is owned by `ssg`; notebook rendering is provided by `ssg_notebook_render`. The site config points at project content, while projects remain unaware of publishing. See `docs/ssg.md`.
+Static site generation is owned by `ssg`; notebook rendering is provided by the separate `ssg_notebook_render` plugin package. The site config points at project content, while projects remain unaware of publishing. See `docs/ssg.md`.

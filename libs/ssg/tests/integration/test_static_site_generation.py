@@ -26,11 +26,29 @@ def test_static_site_generation_from_configured_content_collection(tmp_path: Pat
 
     page_path = output_path / "sample-collection" / "feature-engineering.html"
     rendered_html = page_path.read_text(encoding="utf-8")
+    _assert_navigation_rendered(rendered_html)
+    _assert_notebook_content_rendered(rendered_html)
+    _assert_site_files_written(output_path, page_path)
+
+
+def _assert_navigation_rendered(rendered_html: str) -> None:
     assert '<a href="overview.html">Overview</a>' in rendered_html
+    assert '<nav aria-label="Primary">' in rendered_html
+    assert 'href="../sample-collection/overview.html"' in rendered_html
+    assert 'href="../second-collection/overview.html"' in rendered_html
+
+
+def _assert_notebook_content_rendered(rendered_html: str) -> None:
     assert "def create_hourly_features" in rendered_html
     assert '<video controls src="assets/videos/demo.mp4"></video>' in rendered_html
     assert "feature table preview" in rendered_html
     assert '<img src="assets/images/feature-engineering-cell-1-output-1.png"' in rendered_html
+
+
+def _assert_site_files_written(output_path: Path, page_path: Path) -> None:
+    assert (output_path / "index.html").exists()
+    assert (output_path / "assets" / "site.css").exists()
+    assert "Second Collection" in (output_path / "index.html").read_text(encoding="utf-8")
     assert (page_path.parent / "assets" / "videos" / "demo.mp4").exists()
     assert (
         page_path.parent / "assets" / "images" / "feature-engineering-cell-1-output-1.png"
@@ -40,10 +58,13 @@ def test_static_site_generation_from_configured_content_collection(tmp_path: Pat
 def _create_site_with_notebook_collection(tmp_path: Path) -> Path:
     site_path = tmp_path / "site"
     source_root = tmp_path / "content" / "sample_collection"
+    second_source_root = tmp_path / "content" / "second_collection"
     site_path.mkdir()
     source_root.mkdir(parents=True)
+    second_source_root.mkdir(parents=True)
     _write_config(site_path, tmp_path)
     _write_markdown(source_root)
+    _write_second_markdown(second_source_root)
     _write_source_file(source_root)
     _write_rendered_video(tmp_path)
     _write_notebook(source_root)
@@ -67,13 +88,25 @@ def _write_config(site_path: Path, tmp_path: Path) -> None:
         "        title: Feature Engineering\n"
         "        source: notebooks/feature_engineering.ipynb\n"
         "    assets:\n"
-        f"      videos:\n        demo: {tmp_path / 'videos/output/demo.mp4'}\n",
+        f"      videos:\n        demo: {tmp_path / 'videos/output/demo.mp4'}\n"
+        "  - name: second_collection\n"
+        "    title: Second Collection\n"
+        "    source_root: ../content/second_collection\n"
+        "    output_slug: second-collection\n"
+        "    pages:\n"
+        "      - slug: overview\n"
+        "        title: Overview\n"
+        "        source: README.md\n",
         encoding="utf-8",
     )
 
 
 def _write_markdown(source_root: Path) -> None:
     (source_root / "README.md").write_text("# Overview\n\nA content collection.", encoding="utf-8")
+
+
+def _write_second_markdown(source_root: Path) -> None:
+    (source_root / "README.md").write_text("# Overview\n\nAnother collection.", encoding="utf-8")
 
 
 def _write_source_file(source_root: Path) -> None:

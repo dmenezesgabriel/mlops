@@ -64,10 +64,10 @@ mlflow:
 	uv run mlflow server --backend-store-uri sqlite:///projects/$(PROJECT)/mlflow.db --default-artifact-root ./projects/$(PROJECT)/mlruns --host 127.0.0.1 --port 5000
 
 build-site:
-	uv run python -m ssg.presentation.cli build --config $(SITE_CONFIG) --output $(SITE_OUTPUT) --collection $(PROJECT)
+	uv run python -m ssg.presentation.cli build --config $(SITE_CONFIG) --output $(SITE_OUTPUT)
 
 preview-site:
-	uv run python -m ssg.presentation.cli preview --config $(SITE_CONFIG) --output $(SITE_OUTPUT) --collection $(PROJECT)
+	uv run python -m ssg.presentation.cli preview --config $(SITE_CONFIG) --output $(SITE_OUTPUT)
 
 render-video:
 	mkdir -p $(dir $(VIDEO_OUTPUT))

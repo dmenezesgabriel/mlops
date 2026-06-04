@@ -7,6 +7,7 @@ from jinja2 import Environment, StrictUndefined
 from markdown_it import MarkdownIt
 from markupsafe import Markup
 
+from ssg.application.html_headings import demote_top_level_headings
 from ssg.application.ports import ContentRenderer
 from ssg.domain.site import ContentCollection, Page
 
@@ -30,7 +31,7 @@ class MarkdownContentRenderer(ContentRenderer):
     ) -> str:
         transcluded_source = self._render_transclusions(source, collection, output_path)
         linked_source = self._render_wikilinks(transcluded_source, collection)
-        return str(self._markdown.render(linked_source))
+        return demote_top_level_headings(str(self._markdown.render(linked_source)))
 
     def _render_transclusions(
         self,

@@ -1,5 +1,6 @@
 import argparse
 from importlib.metadata import entry_points
+from logging import getLogger
 from pathlib import Path
 
 from ssg.application.ports import ContentRenderer
@@ -11,6 +12,8 @@ from ssg.infrastructure.logging import StructuredLoggingConfigurator
 from ssg.infrastructure.markdown_content_renderer import MarkdownContentRenderer
 from ssg.infrastructure.polling_site_reloader import PollingSiteReloader
 from ssg.infrastructure.site_config_repository import SiteConfigRepository
+
+LOGGER = getLogger(__name__)
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -84,7 +87,15 @@ def preview_site(
 
 
 def load_content_renderers() -> tuple[ContentRenderer, ...]:
-    plugin_renderers = [entry_point.load()() for entry_point in entry_points(group="ssg.renderers")]
+    plugin_renderers = []
+    for entry_point in entry_points(group="ssg.renderers"):
+        renderer = entry_point.load()()
+        LOGGER.info(
+            "content_renderer_loaded",
+            extra={"context": {"renderer": entry_point.name}},
+        )
+        plugin_renderers.append(renderer)
+
     return (MarkdownContentRenderer(), *plugin_renderers)
 
 

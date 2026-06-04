@@ -2,7 +2,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
-from ssg.domain.site import ContentCollection, Page, Site
+from ssg.domain.site import ContentCollection, Page, RenderedIndex, RenderedPage, Site
 
 
 class SiteRepository(Protocol):
@@ -11,13 +11,13 @@ class SiteRepository(Protocol):
 
 
 class PageRenderer(Protocol):
-    def render_page(
-        self,
-        collection: ContentCollection,
-        page_slug: str,
-        title: str,
-        body: str,
-    ) -> str:
+    def render_page(self, rendered_page: RenderedPage) -> str:
+        pass
+
+    def render_index(self, rendered_index: RenderedIndex) -> str:
+        pass
+
+    def assets(self) -> dict[str, str]:
         pass
 
 

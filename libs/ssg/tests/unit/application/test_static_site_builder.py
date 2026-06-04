@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 from ssg.application.static_site_builder import StaticSiteBuilder
-from ssg.domain.site import ContentCollection, Page, Site
+from ssg.domain.site import ContentCollection, Page, RenderedIndex, RenderedPage, Site
 
 
 class SpySiteRepository:
@@ -29,17 +29,19 @@ class SpyContentRenderer:
 
 class SpyPageRenderer:
     def __init__(self) -> None:
-        self.render_page_calls: list[tuple[ContentCollection, str, str, str]] = []
+        self.render_page_calls: list[RenderedPage] = []
+        self.render_index_calls: list[RenderedIndex] = []
 
-    def render_page(
-        self,
-        collection: ContentCollection,
-        page_slug: str,
-        title: str,
-        body: str,
-    ) -> str:
-        self.render_page_calls.append((collection, page_slug, title, body))
-        return f"<html>{body}</html>"
+    def render_page(self, rendered_page: RenderedPage) -> str:
+        self.render_page_calls.append(rendered_page)
+        return f"<html>{rendered_page.article.body}</html>"
+
+    def render_index(self, rendered_index: RenderedIndex) -> str:
+        self.render_index_calls.append(rendered_index)
+        return "<html>Index</html>"
+
+    def assets(self) -> dict[str, str]:
+        return {"site.css": "body {}", "site.js": ""}
 
 
 def test_build_delegates_to_repository_content_renderer_and_page_renderer(
@@ -74,9 +76,12 @@ def test_build_delegates_to_repository_content_renderer_and_page_renderer(
     collection_output_path = output_path / "sample-collection"
     assert site_repository.load_calls == [config_path]
     assert content_renderer.render_calls == [(collection, page, collection_output_path)]
-    assert page_renderer.render_page_calls == [
-        (collection, "overview", "Overview", "<p>Rendered body</p>"),
-    ]
+    assert page_renderer.render_index_calls[0].collections == (collection,)
+    assert page_renderer.render_page_calls[0].collection == collection
+    assert page_renderer.render_page_calls[0].page == page
+    assert page_renderer.render_page_calls[0].article.body == "<p>Rendered body</p>"
+    assert (output_path / "index.html").read_text(encoding="utf-8") == "<html>Index</html>"
+    assert (output_path / "assets" / "site.css").read_text(encoding="utf-8") == "body {}"
     assert (collection_output_path / "overview.html").read_text(encoding="utf-8") == (
         "<html><p>Rendered body</p></html>"
     )
