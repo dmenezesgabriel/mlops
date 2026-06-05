@@ -1,0 +1,20 @@
+[project]
+name = "videos"
+version = "0.1.0"
+description = "Deterministic Python-first ManimCE video production engine for educational ML content"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.deptry.package_module_name_map]
+videos = "videos"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -ra --tb=short --import-mode=importlib"
+markers = [
+    "docker: tests that require Docker with Manim to render scenes",
+]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
