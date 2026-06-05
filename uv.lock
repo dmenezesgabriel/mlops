@@ -23,6 +23,7 @@ resolution-markers = [
 members = [
     "mlops-monorepo",
     "mlops-shared",
+    "mlops-videos",
     "nyc-taxi-demand-forecasting",
     "ssg",
     "ssg-i18n",
@@ -2422,6 +2423,11 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "pyyaml", specifier = "==6.0.3" }]
+
+[[package]]
+name = "mlops-videos"
+version = "0.1.0"
+source = { editable = "videos" }
 
 [[package]]
 name = "mmh3"

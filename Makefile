@@ -1,12 +1,12 @@
 PROJECT ?= nyc_taxi_demand_forecasting
-SCENE ?= videos/concepts/bias_variance_tradeoff.py
-SCENE_NAME ?= BiasVarianceTradeoff
+SCENE ?= videos/src/mlops_videos/concepts/bias_variance_tradeoff.py
+SCENE_NAME ?= BiasVarianceTradeoffScene
 MANIM_IMAGE ?= manimcommunity/manim:v0.20.1
 VIDEO_FILE ?= $(notdir $(basename $(SCENE)))
 VIDEO_OUTPUT ?= videos/output/$(VIDEO_FILE).mp4
 
 .SILENT:
-.PHONY: install format lint type-check test test-bdd test-e2e coverage complexity dependencies architecture security quality build-site preview-site render-video collect preprocess features train tune evaluate deploy monitor mlflow
+.PHONY: install format lint type-check test test-bdd test-e2e coverage complexity dependencies architecture security quality build-site preview-site render-video check-videos collect preprocess features train tune evaluate deploy monitor mlflow
 SITE_CONFIG ?= site/site.yaml
 SITE_OUTPUT ?= site/build
 
@@ -25,7 +25,7 @@ type-check:
 	uv run mypy
 
 test:
-	uv run pytest -m "not playwright"
+	uv run pytest -m "not (playwright or docker)"
 
 test-bdd:
 	uv run pytest projects/$(PROJECT)/tests/bdd
@@ -73,7 +73,35 @@ preview-site:
 render-video:
 	mkdir -p $(dir $(VIDEO_OUTPUT))
 	chmod 777 $(dir $(VIDEO_OUTPUT))
-	docker run --rm -v "$(CURDIR)/$(dir $(SCENE)):/input:ro" -v "$(CURDIR)/$(dir $(VIDEO_OUTPUT)):/output:delegated" $(MANIM_IMAGE) sh -lc '/opt/venv/bin/python -m manim -qm /input/$(notdir $(SCENE)) $(SCENE_NAME) --media_dir /tmp/manim --output_file $(notdir $(VIDEO_OUTPUT)) && find /tmp/manim -name "$(notdir $(VIDEO_OUTPUT))" -type f -exec cp {} /output/$(notdir $(VIDEO_OUTPUT)) \;'
+	docker run --rm \
+	  -v "$(CURDIR)/videos/src:/videos_src:ro" \
+	  -v "$(CURDIR)/videos/output:/output:delegated" \
+	  $(MANIM_IMAGE) sh -lc \
+	  'PYTHONPATH=/videos_src /opt/venv/bin/python -m manim -qm /videos_src/mlops_videos/concepts/$(notdir $(SCENE)) $(SCENE_NAME) \
+	    --media_dir /tmp/manim --output_file $(notdir $(VIDEO_OUTPUT)) && \
+	   find /tmp/manim -name "$(notdir $(VIDEO_OUTPUT))" -type f -exec cp {} /output/$(notdir $(VIDEO_OUTPUT)) \;'
+
+# --- Video quality gate ---
+
+_VIDEO_SCENES := bias_variance_tradeoff:BiasVarianceTradeoffScene crisp_dm:CrispDmScene mlops_lifecycle:MlopsLifecycleScene underfit_vs_overfit:UnderfitVsOverfitScene
+
+check-videos:
+	@echo "=== Rendering all 4 videos ==="
+	for pair in $(_VIDEO_SCENES); do \
+	  scene=$${pair%:*}; \
+	  class=$${pair#*:}; \
+	  $(MAKE) render-video SCENE=videos/src/mlops_videos/concepts/$$scene.py SCENE_NAME=$$class; \
+	done
+	@echo "=== Linting video source ==="
+	uv run ruff format --check --quiet videos/src/mlops_videos/
+	uv run ruff check --quiet videos/src/mlops_videos/
+	@echo "=== Type-checking video source ==="
+	uv run mypy videos/src/mlops_videos/ --no-error-summary
+	@echo "=== Running video unit tests ==="
+	uv run pytest videos/tests/ -m "not docker" -v -q
+	@echo "=== Running Docker visual regression tests ==="
+	uv run pytest videos/tests/integration/ -m docker -v -q
+	@echo "=== All video checks passed ==="
 
 collect preprocess features train tune evaluate deploy monitor:
 	uv run python -m $(PROJECT).interfaces.cli $@ --config projects/$(PROJECT)/configs/project.yaml

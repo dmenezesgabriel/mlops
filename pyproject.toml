@@ -34,6 +34,7 @@ members = [
   "libs/ssg-notebook-render",
   "libs/ssg-syntax-highlighting",
   "projects/nyc_taxi_demand_forecasting",
+  "videos",
 ]
 
 [tool.ruff]
@@ -44,11 +45,12 @@ target-version = "py311"
 select = ["B", "E", "F", "I", "N", "UP", "W"]
 
 [tool.pytest.ini_options]
-testpaths = ["libs", "projects"]
+testpaths = ["libs", "projects", "videos"]
 addopts = "-q -ra --tb=short --import-mode=importlib --strict-markers --strict-config"
 markers = [
   "integration: package-local integration tests",
   "playwright: browser-based static site checks",
+  "docker: tests that require Docker with Manim to render scenes",
 ]
 
 [tool.coverage.run]
@@ -68,8 +70,10 @@ warn_redundant_casts = true
 warn_return_any = true
 warn_unused_ignores = true
 strict_equality = true
+ignore_missing_imports = true
 packages = [
   "mlops_shared",
+  "mlops_videos",
   "nyc_taxi_demand_forecasting",
   "ssg",
   "ssg_i18n",
@@ -78,9 +82,11 @@ packages = [
   "ssg_syntax_highlighting",
 ]
 
+
 [tool.deptry]
 known_first_party = [
   "mlops_shared",
+  "mlops_videos",
   "nyc_taxi_demand_forecasting",
   "ssg",
   "ssg_i18n",
