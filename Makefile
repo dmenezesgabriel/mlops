@@ -72,7 +72,8 @@ preview-site:
 
 render-video:
 	mkdir -p $(dir $(VIDEO_OUTPUT))
-	docker run --rm -v "$(CURDIR)/$(dir $(SCENE)):/input:ro" -v "$(CURDIR)/$(dir $(VIDEO_OUTPUT)):/output" $(MANIM_IMAGE) sh -lc '/opt/venv/bin/python -m manim -qm /input/$(notdir $(SCENE)) $(SCENE_NAME) --media_dir /tmp/manim --output_file $(notdir $(VIDEO_OUTPUT)) && find /tmp/manim -name "$(notdir $(VIDEO_OUTPUT))" -type f -exec cp {} /output/$(notdir $(VIDEO_OUTPUT)) \;'
+	chmod 777 $(dir $(VIDEO_OUTPUT))
+	docker run --rm -v "$(CURDIR)/$(dir $(SCENE)):/input:ro" -v "$(CURDIR)/$(dir $(VIDEO_OUTPUT)):/output:delegated" $(MANIM_IMAGE) sh -lc '/opt/venv/bin/python -m manim -qm /input/$(notdir $(SCENE)) $(SCENE_NAME) --media_dir /tmp/manim --output_file $(notdir $(VIDEO_OUTPUT)) && find /tmp/manim -name "$(notdir $(VIDEO_OUTPUT))" -type f -exec cp {} /output/$(notdir $(VIDEO_OUTPUT)) \;'
 
 collect preprocess features train tune evaluate deploy monitor:
 	uv run python -m $(PROJECT).interfaces.cli $@ --config projects/$(PROJECT)/configs/project.yaml
