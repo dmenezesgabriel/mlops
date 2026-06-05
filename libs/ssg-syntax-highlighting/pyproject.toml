@@ -3,7 +3,7 @@ name = "ssg-syntax-highlighting"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
-  "pygments==2.19.2",
+  "pygments==2.20.0",
   "ssg",
 ]
 

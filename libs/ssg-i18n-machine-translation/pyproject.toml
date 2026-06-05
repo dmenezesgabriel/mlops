@@ -6,30 +6,14 @@ dependencies = [
   "ssg-i18n",
 ]
 
-[project.optional-dependencies]
-transformers = [
-  "torch==2.9.1",
-  "transformers==4.57.3",
-]
-
-[project.entry-points."ssg_i18n.text_translators"]
-transformers = "ssg_i18n_machine_translation.presentation.plugin:create_transformers_text_translator"
-
 [tool.uv.sources]
 ssg-i18n = { workspace = true }
-torch = { index = "pytorch-cpu" }
-
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
 
 [tool.deptry.package_module_name_map]
 ssg-i18n = "ssg_i18n"
 ssg-i18n-machine-translation = "ssg_i18n_machine_translation"
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["torch", "transformers"]
 DEP003 = ["ssg_i18n_machine_translation"]
 
 [build-system]
