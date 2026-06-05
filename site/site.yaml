@@ -2,6 +2,12 @@ site:
   title: MLOps Learning Lab
   description: Real-world machine learning projects rendered as educational content.
 extensions:
+  i18n:
+    default_locale: en
+    locales: en,pt-BR
+    translations_path: i18n
+    generated_path: .ssg/generated-i18n
+    translation_mode: manual
   syntax_highlighting:
     style: gruvbox-dark
 collections:
