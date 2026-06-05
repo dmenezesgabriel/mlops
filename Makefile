@@ -2,7 +2,8 @@ PROJECT ?= nyc_taxi_demand_forecasting
 SCENE ?= videos/concepts/bias_variance_tradeoff.py
 SCENE_NAME ?= BiasVarianceTradeoff
 MANIM_IMAGE ?= manimcommunity/manim:v0.20.1
-VIDEO_OUTPUT ?= videos/output/$(SCENE_NAME).mp4
+VIDEO_FILE ?= $(notdir $(basename $(SCENE)))
+VIDEO_OUTPUT ?= videos/output/$(VIDEO_FILE).mp4
 
 .SILENT:
 .PHONY: install format lint type-check test test-bdd test-e2e coverage complexity dependencies architecture security quality build-site preview-site render-video collect preprocess features train tune evaluate deploy monitor mlflow
