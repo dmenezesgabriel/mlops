@@ -1,38 +1,47 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from pydantic import field_validator
+from pydantic.dataclasses import dataclass
+
+from videos.core.domain._base import PydanticModel
 
 
 @dataclass(frozen=True)
-class ConceptId:
+class ConceptId(PydanticModel):
     value: str
 
-    def __post_init__(self) -> None:
-        if not self.value.strip():
-            raise ValueError(f"ConceptId must not be empty, got {self.value!r}")
+    @field_validator("value")
+    @classmethod
+    def _must_not_be_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError(f"ConceptId must not be empty, got {v!r}")
+        return v
 
     def __repr__(self) -> str:
         return f"ConceptId({self.value!r})"
 
 
 @dataclass(frozen=True)
-class ConceptTitle:
+class ConceptTitle(PydanticModel):
     short: str
-    subtitle: str
+    subtitle: str = ""
 
-    def __post_init__(self) -> None:
-        if not self.short.strip():
-            raise ValueError(f"ConceptTitle.short must not be empty, got {self.short!r}")
+    @field_validator("short")
+    @classmethod
+    def _short_must_not_be_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError(f"ConceptTitle.short must not be empty, got {v!r}")
+        return v
 
 
 @dataclass(frozen=True)
-class ConceptMetadata:
+class ConceptMetadata(PydanticModel):
     title: ConceptTitle
     description: str
     tags: tuple[str, ...]
 
 
 @dataclass(frozen=True)
-class Concept:
+class Concept(PydanticModel):
     id: ConceptId
     metadata: ConceptMetadata

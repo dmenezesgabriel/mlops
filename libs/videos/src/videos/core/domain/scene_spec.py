@@ -1,21 +1,32 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import field
 
+from pydantic import field_validator
+from pydantic.dataclasses import dataclass
+
+from videos.core.domain._base import PydanticModel
 from videos.core.domain.layout import LayoutSpec
 from videos.core.domain.style import StyleSpec
 from videos.core.domain.timeline import TimelineSpec
 
 
 @dataclass(frozen=True)
-class VisualObject:
+class ComponentSpec(PydanticModel):
+    type: str
+    region: str
+    props: dict[str, object] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class VisualObject(PydanticModel):
     object_id: str
     region: str
     semantic_purpose: str
 
 
 @dataclass(frozen=True)
-class SceneSpec:
+class SceneSpec(PydanticModel):
     scene_id: str
     title: str
     goal: str
@@ -24,14 +35,27 @@ class SceneSpec:
     visual_objects: tuple[VisualObject, ...] = ()
     timeline: TimelineSpec | None = None
     style: StyleSpec | None = None
+    components: tuple[ComponentSpec, ...] = ()
 
-    def __post_init__(self) -> None:
-        if not self.scene_id.strip():
-            raise ValueError(f"scene_id must not be empty, got {self.scene_id!r}")
-        if not self.goal.strip():
-            raise ValueError(f"goal must not be empty for scene {self.scene_id!r}")
-        if self.duration_seconds <= 0:
+    @field_validator("scene_id")
+    @classmethod
+    def _scene_id_must_not_be_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError(f"scene_id must not be empty, got {v!r}")
+        return v
+
+    @field_validator("goal")
+    @classmethod
+    def _goal_must_not_be_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError(f"goal must not be empty for scene {v!r}")
+        return v
+
+    @field_validator("duration_seconds")
+    @classmethod
+    def _duration_must_be_positive(cls, v: float) -> float:
+        if v <= 0:
             raise ValueError(
-                f"duration_seconds must be positive for scene {self.scene_id!r}, "
-                f"got {self.duration_seconds}"
+                f"duration_seconds must be positive for scene, got {v}"
             )
+        return v

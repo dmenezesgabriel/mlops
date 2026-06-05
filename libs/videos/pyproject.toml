@@ -3,7 +3,10 @@ name = "videos"
 version = "0.1.0"
 description = "Deterministic Python-first ManimCE video production engine for educational ML content"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+]
 
 [project.optional-dependencies]
 manim = ["manim"]

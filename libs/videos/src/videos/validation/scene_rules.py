@@ -28,7 +28,6 @@ class SceneRules:
             return [
                 RuleViolation(
                     scene_id=scene.scene_id,
-                    object_id=None,
                     rule="scene_needs_title_or_style",
                     actual="no title and no style",
                     expected="title or a title-less style preset",

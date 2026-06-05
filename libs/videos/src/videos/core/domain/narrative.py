@@ -1,8 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import field
 from enum import Enum
 from typing import TYPE_CHECKING
+
+from pydantic import field_validator
+from pydantic.dataclasses import dataclass
+
+from videos.core.domain._base import PydanticModel
 
 if TYPE_CHECKING:
     from videos.core.domain.concept import Concept
@@ -17,27 +22,30 @@ class BeatKind(Enum):
 
 
 @dataclass(frozen=True)
-class NarrationLine:
+class NarrationLine(PydanticModel):
     text: str
     duration_seconds: float
 
-    def __post_init__(self) -> None:
-        if self.duration_seconds <= 0:
+    @field_validator("duration_seconds")
+    @classmethod
+    def _duration_must_be_positive(cls, v: float) -> float:
+        if v <= 0:
             raise ValueError(
-                f"NarrationLine.duration_seconds must be positive, got {self.duration_seconds}"
+                f"NarrationLine.duration_seconds must be positive, got {v}"
             )
-        if self.duration_seconds > 15.0:
+        if v > 15.0:
             raise ValueError(
-                f"NarrationLine.duration_seconds must be <= 15.0, got {self.duration_seconds}"
+                f"NarrationLine.duration_seconds must be <= 15.0, got {v}"
             )
+        return v
 
 
 @dataclass(frozen=True)
-class Beat:
+class Beat(PydanticModel):
     kind: BeatKind
     narration: NarrationLine
     visual_key: str
-    params: dict[str, object]
+    params: dict[str, object] = field(default_factory=dict)
 
 
 class Narrative:

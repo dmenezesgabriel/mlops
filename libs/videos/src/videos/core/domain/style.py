@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from pydantic.dataclasses import dataclass
+
+from videos.core.domain._base import PydanticModel
 
 
 @dataclass(frozen=True)
-class StyleSpec:
+class StyleSpec(PydanticModel):
     typography_preset: str = "default"
     color_palette: str = "default"
     spacing_scale: str = "default"

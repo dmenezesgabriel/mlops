@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from enum import StrEnum
+
+from pydantic import model_validator
+from pydantic.dataclasses import dataclass
+
+from videos.core.domain._base import PydanticModel
 
 
 class LayoutRegion(StrEnum):
@@ -20,15 +24,17 @@ class LayoutRegion(StrEnum):
 
 
 @dataclass(frozen=True)
-class LayoutSpec:
+class LayoutSpec(PydanticModel):
     regions: tuple[LayoutRegion, ...] = ()
 
-    def __post_init__(self) -> None:
+    @model_validator(mode="after")
+    def _no_duplicate_regions(self) -> "LayoutSpec":
         seen: set[str] = set()
         for r in self.regions:
             if r.value in seen:
                 raise ValueError(f"Duplicate region in LayoutSpec: {r.value}")
             seen.add(r.value)
+        return self
 
     @property
     def region_names(self) -> frozenset[str]:

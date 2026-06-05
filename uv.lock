@@ -5560,6 +5560,10 @@ wheels = [
 name = "videos"
 version = "0.1.0"
 source = { editable = "libs/videos" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "pyyaml" },
+]
 
 [package.optional-dependencies]
 manim = [
@@ -5567,7 +5571,11 @@ manim = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "manim", marker = "extra == 'manim'" }]
+requires-dist = [
+    { name = "manim", marker = "extra == 'manim'" },
+    { name = "pydantic", specifier = ">=2.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
+]
 provides-extras = ["manim", "concepts"]
 
 [[package]]
