@@ -6,7 +6,7 @@ VIDEO_FILE ?= $(notdir $(basename $(SCENE)))
 VIDEO_OUTPUT ?= libs/videos/output/$(VIDEO_FILE).mp4
 
 .SILENT:
-.PHONY: install format lint type-check test test-bdd test-e2e coverage complexity dependencies architecture security quality build-site preview-site render-video check-videos collect preprocess features train tune evaluate deploy monitor mlflow
+.PHONY: install format lint type-check test test-bdd test-e2e test-videos-docker coverage complexity dependencies architecture security quality build-site preview-site render-video check-videos collect preprocess features train tune evaluate deploy monitor mlflow
 SITE_CONFIG ?= site/site.yaml
 SITE_OUTPUT ?= site/build
 
@@ -26,6 +26,12 @@ type-check:
 
 test:
 	uv run pytest -m "not (playwright or docker)"
+
+test-videos-docker:
+	docker run --rm -u root \
+	  -v "$(CURDIR)/libs/videos:/app:ro" \
+	  $(MANIM_IMAGE) sh -lc \
+	  '. /opt/venv/bin/activate && pip install -q pytest && PYTHONPATH=/app/src python -m pytest /app/tests/integration/ -m docker -v'
 
 test-bdd:
 	uv run pytest projects/$(PROJECT)/tests/bdd
@@ -100,7 +106,7 @@ check-videos:
 	@echo "=== Running video unit tests ==="
 	uv run pytest libs/videos/tests/ -m "not docker" -v -q
 	@echo "=== Running Docker visual regression tests ==="
-	uv run pytest libs/videos/tests/integration/ -m docker -v -q
+	$(MAKE) test-videos-docker
 	@echo "=== All video checks passed ==="
 
 collect preprocess features train tune evaluate deploy monitor:
