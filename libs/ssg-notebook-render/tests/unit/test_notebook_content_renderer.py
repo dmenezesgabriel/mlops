@@ -138,9 +138,7 @@ def test_notebook_fragment_templates_are_package_files() -> None:
 
     # Act
     code_cell_template = package_files.joinpath("templates", "notebook_code_cell.html")
-    rendered_cell = NotebookFragmentRenderer().render_code_cell(
-        "print('hourly demand')", 0, ""
-    )
+    rendered_cell = NotebookFragmentRenderer().render_code_cell("print('hourly demand')", 0, "")
 
     # Assert
     assert code_cell_template.is_file()

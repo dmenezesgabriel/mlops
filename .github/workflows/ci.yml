@@ -1,0 +1,147 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --all-packages --dev --frozen
+
+      - name: Lint
+        run: make lint
+
+      - name: Type check
+        run: make type-check
+
+      - name: Test
+        run: make test
+
+      - name: Complexity
+        run: make complexity
+
+      - name: Dependency checks
+        run: make dependencies
+
+      - name: Architecture checks
+        run: make architecture
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --all-packages --dev --frozen
+
+      - name: Run Semgrep
+        run: make security
+
+  build-site:
+    name: Build Site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --all-packages --dev --frozen
+
+      - name: Build configured site
+        run: make build-site
+
+      - name: Verify site files
+        run: |
+          test -f site/build/index.html
+          test -f site/build/assets/site.css
+          test -f site/build/assets/site.js
+          test -f site/build/pt-BR/index.html
+          test -f site/build/nyc-taxi-demand-forecasting/overview.html
+
+      - name: Upload built site
+        uses: actions/upload-artifact@v4
+        with:
+          name: built-site
+          path: site/build
+          if-no-files-found: error
+
+  site-smoke:
+    name: Site Browser Smoke Test
+    runs-on: ubuntu-latest
+    needs: build-site
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --all-packages --dev --frozen
+
+      - name: Download built site
+        uses: actions/download-artifact@v4
+        with:
+          name: built-site
+          path: site/build
+
+      - name: Install Playwright Chromium
+        run: uv run playwright install --with-deps chromium
+
+      - name: Run site smoke test
+        run: make test-e2e

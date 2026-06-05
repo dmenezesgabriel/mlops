@@ -173,9 +173,7 @@ class NotebookContentRenderer(ContentRenderer):
     ) -> str:
         output_type = getattr(output, "output_type", "")
         if output_type == "stream":
-            return self._fragment_renderer.render_stream_output(
-                str(getattr(output, "text", ""))
-            )
+            return self._fragment_renderer.render_stream_output(str(getattr(output, "text", "")))
 
         data = getattr(output, "data", {})
         if isinstance(data, dict) and "image/png" in data:

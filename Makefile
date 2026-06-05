@@ -24,7 +24,7 @@ type-check:
 	uv run mypy
 
 test:
-	uv run pytest
+	uv run pytest -m "not playwright"
 
 test-bdd:
 	uv run pytest projects/$(PROJECT)/tests/bdd
