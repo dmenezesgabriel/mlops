@@ -2,7 +2,15 @@ from pathlib import Path
 
 import pytest
 from ssg.application.static_site_builder import StaticSiteBuilder
-from ssg.domain.site import ContentCollection, Page, RenderedIndex, RenderedPage, Site
+from ssg.domain.site import (
+    Article,
+    ArticleHeading,
+    ContentCollection,
+    Page,
+    RenderedIndex,
+    RenderedPage,
+    Site,
+)
 
 
 class SpySiteRepository:
@@ -44,6 +52,19 @@ class SpyPageRenderer:
         return {"site.css": "body {}", "site.js": ""}
 
 
+class SpyArticleOutlineBuilder:
+    def __init__(self) -> None:
+        self.build_calls: list[tuple[str, str]] = []
+
+    def build(self, title: str, body: str) -> Article:
+        self.build_calls.append((title, body))
+        return Article(
+            title=title,
+            body='<h2 id="overview">Overview</h2>',
+            headings=(ArticleHeading(label="Overview", href="#overview", level=2),),
+        )
+
+
 def test_build_delegates_to_repository_content_renderer_and_page_renderer(
     tmp_path: Path,
 ) -> None:
@@ -63,10 +84,12 @@ def test_build_delegates_to_repository_content_renderer_and_page_renderer(
     site_repository = SpySiteRepository(site)
     content_renderer = SpyContentRenderer()
     page_renderer = SpyPageRenderer()
+    article_outline_builder = SpyArticleOutlineBuilder()
     builder = StaticSiteBuilder(
         site_repository=site_repository,
         content_renderers=(content_renderer,),
         page_renderer=page_renderer,
+        article_outline_builder=article_outline_builder,
     )
 
     # Act
@@ -79,11 +102,13 @@ def test_build_delegates_to_repository_content_renderer_and_page_renderer(
     assert page_renderer.render_index_calls[0].collections == (collection,)
     assert page_renderer.render_page_calls[0].collection == collection
     assert page_renderer.render_page_calls[0].page == page
-    assert page_renderer.render_page_calls[0].article.body == "<p>Rendered body</p>"
+    assert article_outline_builder.build_calls == [("Overview", "<p>Rendered body</p>")]
+    assert page_renderer.render_page_calls[0].article.body == '<h2 id="overview">Overview</h2>'
+    assert page_renderer.render_page_calls[0].article.has_table_of_contents() is True
     assert (output_path / "index.html").read_text(encoding="utf-8") == "<html>Index</html>"
     assert (output_path / "assets" / "site.css").read_text(encoding="utf-8") == "body {}"
     assert (collection_output_path / "overview.html").read_text(encoding="utf-8") == (
-        "<html><p>Rendered body</p></html>"
+        '<html><h2 id="overview">Overview</h2></html>'
     )
 
 

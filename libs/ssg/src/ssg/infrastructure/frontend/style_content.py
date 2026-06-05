@@ -243,6 +243,7 @@ RESPONSIVE_STYLES = """
   .site-shell { display: block; }
   .sidebar { display: none; margin: 1rem 0 1.4rem; max-height: none; position: static; }
   .sidebar.is-open { display: block; }
+  .article-toc { margin-top: 1.4rem; max-height: none; position: static; }
   .hero::after { position: static; display: inline-block; margin-top: 1rem; }
 }
 

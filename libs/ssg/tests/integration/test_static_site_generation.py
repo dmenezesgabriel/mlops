@@ -35,7 +35,8 @@ def _assert_navigation_rendered(rendered_html: str) -> None:
     assert '<a href="overview.html">Overview</a>' in rendered_html
     assert '<nav aria-label="Primary">' in rendered_html
     assert 'href="../sample-collection/overview.html"' in rendered_html
-    assert 'href="../second-collection/overview.html"' in rendered_html
+    assert 'href="../second-collection/overview.html"' not in rendered_html
+    assert '<aside class="article-toc" aria-label="On this page">' in rendered_html
 
 
 def _assert_notebook_content_rendered(rendered_html: str) -> None:

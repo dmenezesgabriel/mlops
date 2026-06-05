@@ -1,9 +1,14 @@
 from logging import getLogger
 from pathlib import Path
 
-from ssg.application.ports import ContentRenderer, PageRenderer, SiteRepository
+from ssg.application.html_headings import HtmlArticleOutlineBuilder
+from ssg.application.ports import (
+    ArticleOutlineBuilder,
+    ContentRenderer,
+    PageRenderer,
+    SiteRepository,
+)
 from ssg.domain.site import (
-    Article,
     ContentCollection,
     Page,
     PagerLink,
@@ -21,10 +26,12 @@ class StaticSiteBuilder:
         site_repository: SiteRepository,
         page_renderer: PageRenderer,
         content_renderers: tuple[ContentRenderer, ...],
+        article_outline_builder: ArticleOutlineBuilder | None = None,
     ) -> None:
         self._site_repository = site_repository
         self._page_renderer = page_renderer
         self._content_renderers = content_renderers
+        self._article_outline_builder = article_outline_builder or HtmlArticleOutlineBuilder()
 
     def build(
         self, config_path: Path, output_path: Path, collection_name: str | None = None
@@ -126,7 +133,7 @@ class StaticSiteBuilder:
             site=site,
             collection=collection,
             page=page,
-            article=Article(title=page.title, body=body),
+            article=self._article_outline_builder.build(page.title, body),
             navigation=site.navigation_for(collection, page),
             previous_link=self._pager_link(previous_page, "Previous") if previous_page else None,
             next_link=self._pager_link(next_page, "Next") if next_page else None,

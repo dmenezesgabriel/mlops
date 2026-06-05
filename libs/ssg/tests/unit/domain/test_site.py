@@ -88,6 +88,51 @@ def test_navigation_for_page_marks_current_page_and_links_from_collection_page(
     assert navigation.sections[0].links[1].aria_current() == "page"
 
 
+def test_navigation_for_homepage_lists_projects_without_article_links(tmp_path: Path) -> None:
+    # Arrange
+    first_collection = _collection_with_pages(tmp_path, "first_collection", "First Collection")
+    second_collection = _collection_with_pages(tmp_path, "second_collection", "Second Collection")
+    site = Site(
+        title="Learning Site",
+        description="",
+        collections=(first_collection, second_collection),
+    )
+
+    # Act
+    navigation = site.navigation_for(None, None)
+
+    # Assert
+    assert navigation.home_href == "index.html"
+    assert [section.title for section in navigation.sections] == [
+        "First Collection",
+        "Second Collection",
+    ]
+    assert navigation.sections[0].href == "first-collection/overview.html"
+    assert navigation.sections[0].links == ()
+    assert navigation.sections[1].links == ()
+
+
+def test_navigation_for_project_page_expands_only_current_project(tmp_path: Path) -> None:
+    # Arrange
+    first_collection = _collection_with_pages(tmp_path, "first_collection", "First Collection")
+    second_collection = _collection_with_pages(tmp_path, "second_collection", "Second Collection")
+    current_page = first_collection.page_by_slug("details")
+    site = Site(
+        title="Learning Site",
+        description="",
+        collections=(first_collection, second_collection),
+    )
+
+    # Act
+    navigation = site.navigation_for(first_collection, current_page)
+
+    # Assert
+    assert [section.title for section in navigation.sections] == ["First Collection"]
+    assert navigation.sections[0].href == "../first-collection/overview.html"
+    assert [link.label for link in navigation.sections[0].links] == ["Overview", "Details"]
+    assert navigation.sections[0].links[1].current is True
+
+
 def test_collection_previous_and_next_page_follow_configured_order(tmp_path: Path) -> None:
     # Arrange
     first_page = Page(slug="overview", title="Overview", source_path=tmp_path / "README.md")
@@ -106,3 +151,20 @@ def test_collection_previous_and_next_page_follow_configured_order(tmp_path: Pat
     assert collection.next_page(first_page) == second_page
     assert collection.previous_page(first_page) is None
     assert collection.next_page(second_page) is None
+
+
+def _collection_with_pages(
+    tmp_path: Path,
+    name: str,
+    title: str,
+) -> ContentCollection:
+    overview = Page(slug="overview", title="Overview", source_path=tmp_path / name / "README.md")
+    details = Page(slug="details", title="Details", source_path=tmp_path / name / "details.md")
+    return ContentCollection(
+        name=name,
+        title=title,
+        source_root=tmp_path / name,
+        output_slug=name.replace("_", "-"),
+        pages=(overview, details),
+        videos={},
+    )

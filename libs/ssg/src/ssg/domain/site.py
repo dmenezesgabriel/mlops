@@ -116,11 +116,15 @@ class Site:
         current_collection: ContentCollection | None,
         current_page: Page | None,
     ) -> "SiteNavigation":
+        collections = self.collections
+        if current_collection is not None:
+            collections = (current_collection,)
+
         return SiteNavigation(
             home_href=self._root_relative_href(current_collection, "index.html"),
             sections=tuple(
                 self._navigation_section(collection, current_collection, current_page)
-                for collection in self.collections
+                for collection in collections
             ),
         )
 
@@ -131,14 +135,18 @@ class Site:
         current_page: Page | None,
     ) -> "NavigationSection":
         collection_is_current = current_collection == collection
+        links: tuple[NavigationLink, ...] = ()
+        if collection_is_current:
+            links = tuple(
+                self._navigation_link(collection, page, current_collection, current_page)
+                for page in collection.pages
+            )
+
         return NavigationSection(
             title=collection.title,
             href=self._root_relative_href(current_collection, collection.root_href()),
             current=collection_is_current,
-            links=tuple(
-                self._navigation_link(collection, page, current_collection, current_page)
-                for page in collection.pages
-            ),
+            links=links,
         )
 
     def _navigation_link(
@@ -197,9 +205,23 @@ class SiteNavigation:
 
 
 @dataclass(frozen=True)
+class ArticleHeading:
+    label: str
+    href: str
+    level: int
+
+    def depth_class(self) -> str:
+        return f"article-toc__link--level-{self.level}"
+
+
+@dataclass(frozen=True)
 class Article:
     title: str
     body: str
+    headings: tuple[ArticleHeading, ...] = ()
+
+    def has_table_of_contents(self) -> bool:
+        return bool(self.headings)
 
 
 @dataclass(frozen=True)

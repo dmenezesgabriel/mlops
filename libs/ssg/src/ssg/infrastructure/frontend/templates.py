@@ -32,21 +32,38 @@ TEMPLATE_PARTS = """
         <h2 id="section-{{ loop.index }}">
           <a href="{{ section.href }}">{{ section.title }}</a>
         </h2>
-        <nav aria-label="{{ section.title }} contents">
-          <ol>
-            {% for link in section.links %}
-              <li>
-                <a href="{{ link.href }}"{% if link.current %} aria-current="page"{% endif %}>
-                  {{ link.label }}
-                </a>
-              </li>
-            {% endfor %}
-          </ol>
-        </nav>
+        {% if section.links %}
+          <nav aria-label="{{ section.title }} contents">
+            <ol>
+              {% for link in section.links %}
+                <li>
+                  <a href="{{ link.href }}"{% if link.current %} aria-current="page"{% endif %}>
+                    {{ link.label }}
+                  </a>
+                </li>
+              {% endfor %}
+            </ol>
+          </nav>
+        {% endif %}
       </section>
     {% endfor %}
   </nav>
 </aside>
+{%- endmacro %}
+
+{% macro article_toc(article) -%}
+{% if article.has_table_of_contents() %}
+<aside class="article-toc" aria-label="On this page">
+  <p class="data-label">On this page</p>
+  <ol>
+    {% for heading in article.headings %}
+      <li>
+        <a class="{{ heading.depth_class() }}" href="{{ heading.href }}">{{ heading.label }}</a>
+      </li>
+    {% endfor %}
+  </ol>
+</aside>
+{% endif %}
 {%- endmacro %}
 
 {% macro site_footer() -%}
@@ -105,7 +122,7 @@ PAGE_TEMPLATE = """
   <body data-theme="editorial-lab">
     <a class="skip-link" href="#main-content">Skip to content</a>
     {{ ui.site_header(rendered_page.site, rendered_page.navigation) }}
-    <div class="site-shell sidebar-layout">
+    <div class="site-shell article-layout">
       {{ ui.site_navigation(rendered_page.navigation) }}
       <main class="content" id="main-content" tabindex="-1">
         <article class="article" data-page-slug="{{ rendered_page.page.slug }}">
@@ -118,6 +135,7 @@ PAGE_TEMPLATE = """
         </article>
         {{ ui.pager(rendered_page) }}
       </main>
+      {{ ui.article_toc(rendered_page.article) }}
     </div>
     {{ ui.site_footer() }}
   </body>

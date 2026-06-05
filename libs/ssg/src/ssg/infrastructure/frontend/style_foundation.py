@@ -195,6 +195,7 @@ LAYOUT_STYLES = """
   max-width: 96rem;
   padding: clamp(1rem, 3vw, 2.5rem);
 }
+.article-layout { grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr) minmax(12rem, 16rem); }
 .content { min-width: 0; }
 """.strip()
 
@@ -254,4 +255,26 @@ NAVIGATION_STYLES = """
   color: var(--ink);
   font-weight: 700;
 }
+.article-toc {
+  align-self: start;
+  background: var(--surface);
+  border: 3px solid var(--ink);
+  box-shadow: var(--shadow-hard);
+  max-height: calc(100vh - 7rem);
+  overflow: auto;
+  padding: 1rem;
+  position: sticky;
+  top: 6.2rem;
+}
+.article-toc ol { list-style: none; margin: 0.75rem 0 0; padding: 0; }
+.article-toc li + li { margin-top: 0.45rem; }
+.article-toc a {
+  color: var(--ink-soft);
+  display: block;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  text-decoration: none;
+}
+.article-toc a:hover { color: var(--signal); }
+.article-toc__link--level-3 { padding-left: 0.85rem; }
 """.strip()

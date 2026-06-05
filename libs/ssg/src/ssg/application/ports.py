@@ -2,7 +2,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
-from ssg.domain.site import ContentCollection, Page, RenderedIndex, RenderedPage, Site
+from ssg.domain.site import Article, ContentCollection, Page, RenderedIndex, RenderedPage, Site
 
 
 class SiteRepository(Protocol):
@@ -26,6 +26,11 @@ class ContentRenderer(Protocol):
         pass
 
     def render(self, collection: ContentCollection, page: Page, output_path: Path) -> str:
+        pass
+
+
+class ArticleOutlineBuilder(Protocol):
+    def build(self, title: str, body: str) -> Article:
         pass
 
 
