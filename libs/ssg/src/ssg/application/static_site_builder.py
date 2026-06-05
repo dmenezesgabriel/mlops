@@ -1,5 +1,7 @@
+import os
 from logging import getLogger
 from pathlib import Path
+from uuid import uuid4
 
 from ssg.application.html_headings import HtmlArticleOutlineBuilder
 from ssg.application.ports import (
@@ -8,17 +10,26 @@ from ssg.application.ports import (
     HtmlPostProcessor,
     PageRenderer,
     SiteRepository,
+    SiteVariantProvider,
 )
 from ssg.domain.site import (
+    BuildContext,
     ContentCollection,
+    LanguageLink,
     Page,
     PagerLink,
     RenderedIndex,
     RenderedPage,
     Site,
+    SiteVariant,
 )
 
 LOGGER = getLogger(__name__)
+
+
+class SingleSiteVariantProvider(SiteVariantProvider):
+    def variants(self, site: Site, context: BuildContext) -> tuple[SiteVariant, ...]:
+        return (SiteVariant(site=site, output_path=context.output_path),)
 
 
 class StaticSiteBuilder:
@@ -28,50 +39,86 @@ class StaticSiteBuilder:
         page_renderer: PageRenderer,
         content_renderers: tuple[ContentRenderer, ...],
         html_post_processors: tuple[HtmlPostProcessor, ...] = (),
+        site_variant_provider: SiteVariantProvider | None = None,
         article_outline_builder: ArticleOutlineBuilder | None = None,
     ) -> None:
         self._site_repository = site_repository
         self._page_renderer = page_renderer
         self._content_renderers = content_renderers
         self._html_post_processors = html_post_processors
+        self._site_variant_provider = site_variant_provider or SingleSiteVariantProvider()
         self._article_outline_builder = article_outline_builder or HtmlArticleOutlineBuilder()
 
     def build(
         self, config_path: Path, output_path: Path, collection_name: str | None = None
     ) -> None:
         site = self._site_repository.load(config_path)
-        selected_collections = site.selected_collections(collection_name)
-        output_path.mkdir(parents=True, exist_ok=True)
+        base_selected_collections = site.selected_collections(collection_name)
+        context = BuildContext(
+            config_path=config_path,
+            output_path=output_path,
+            collection_name=collection_name,
+            correlation_id=uuid4().hex,
+        )
+        site_variants = self._site_variant_provider.variants(site, context)
         LOGGER.info(
             "site_build_started",
             extra={
                 "context": {
                     "output_path": str(output_path),
-                    "collections": len(selected_collections),
+                    "collections": len(base_selected_collections),
+                    "variants": len(site_variants),
+                    "correlation_id": context.correlation_id,
                 },
             },
         )
-        self._write_assets(output_path)
-        self._write_index(site, selected_collections, output_path)
-        for collection in selected_collections:
-            self._build_collection(site, collection, output_path)
+        for site_variant in site_variants:
+            self._build_variant(site_variant, site_variants, collection_name, context)
 
         LOGGER.info(
             "site_build_finished",
             extra={
                 "context": {
                     "output_path": str(output_path),
-                    "collections": len(selected_collections),
+                    "collections": len(base_selected_collections),
+                    "variants": len(site_variants),
+                    "correlation_id": context.correlation_id,
                 },
             },
         )
 
+    def _build_variant(
+        self,
+        site_variant: SiteVariant,
+        site_variants: tuple[SiteVariant, ...],
+        collection_name: str | None,
+        context: BuildContext,
+    ) -> None:
+        selected_collections = site_variant.site.selected_collections(collection_name)
+        site_variant.output_path.mkdir(parents=True, exist_ok=True)
+        LOGGER.info(
+            "site_variant_build_started",
+            extra={
+                "context": {
+                    "output_path": str(site_variant.output_path),
+                    "locale": site_variant.site.locale,
+                    "correlation_id": context.correlation_id,
+                },
+            },
+        )
+        self._write_assets(site_variant.output_path)
+        self._write_index(site_variant, site_variants, selected_collections)
+        for collection in selected_collections:
+            self._build_collection(site_variant, site_variants, collection)
+
     def _build_collection(
         self,
-        site: Site,
+        site_variant: SiteVariant,
+        site_variants: tuple[SiteVariant, ...],
         collection: ContentCollection,
-        output_path: Path,
     ) -> None:
+        site = site_variant.site
+        output_path = site_variant.output_path
         collection_output_path = output_path / collection.output_slug
         collection_output_path.mkdir(parents=True, exist_ok=True)
         LOGGER.info(
@@ -86,7 +133,7 @@ class StaticSiteBuilder:
 
         for page in collection.pages:
             body = self._render_body(site, collection, page, collection_output_path)
-            rendered_page = self._rendered_page(site, collection, page, body)
+            rendered_page = self._rendered_page(site_variant, site_variants, collection, page, body)
             rendered_html = self._page_renderer.render_page(rendered_page)
             output_file = collection_output_path / page.file_name()
             output_file.write_text(rendered_html, encoding="utf-8")
@@ -110,26 +157,30 @@ class StaticSiteBuilder:
 
     def _write_index(
         self,
-        site: Site,
+        site_variant: SiteVariant,
+        site_variants: tuple[SiteVariant, ...],
         selected_collections: tuple[ContentCollection, ...],
-        output_path: Path,
     ) -> None:
+        site = site_variant.site
         rendered_index = RenderedIndex(
             site=site,
             collections=selected_collections,
             navigation=site.navigation_for(None, None),
+            language_links=self._index_language_links(site_variant, site_variants),
         )
-        index_path = output_path / "index.html"
+        index_path = site_variant.output_path / "index.html"
         index_path.write_text(self._page_renderer.render_index(rendered_index), encoding="utf-8")
         LOGGER.info("site_index_rendered", extra={"context": {"output_path": str(index_path)}})
 
     def _rendered_page(
         self,
-        site: Site,
+        site_variant: SiteVariant,
+        site_variants: tuple[SiteVariant, ...],
         collection: ContentCollection,
         page: Page,
         body: str,
     ) -> RenderedPage:
+        site = site_variant.site
         previous_page = collection.previous_page(page)
         next_page = collection.next_page(page)
         return RenderedPage(
@@ -138,8 +189,19 @@ class StaticSiteBuilder:
             page=page,
             article=self._article_outline_builder.build(page.title, body),
             navigation=site.navigation_for(collection, page),
-            previous_link=self._pager_link(previous_page, "Previous") if previous_page else None,
-            next_link=self._pager_link(next_page, "Next") if next_page else None,
+            previous_link=self._pager_link(
+                previous_page,
+                site.extension_setting("i18n", "label_previous", "Previous"),
+            )
+            if previous_page
+            else None,
+            next_link=self._pager_link(
+                next_page,
+                site.extension_setting("i18n", "label_next", "Next"),
+            )
+            if next_page
+            else None,
+            language_links=self._page_language_links(site_variant, site_variants, collection, page),
         )
 
     def _pager_link(self, page: Page, relation: str) -> PagerLink:
@@ -169,3 +231,51 @@ class StaticSiteBuilder:
             processed_html = post_processor.process(processed_html, site)
 
         return processed_html
+
+    def _index_language_links(
+        self, current_variant: SiteVariant, site_variants: tuple[SiteVariant, ...]
+    ) -> tuple[LanguageLink, ...]:
+        return tuple(
+            LanguageLink(
+                label=site_variant.site.locale,
+                href=self._relative_href(
+                    current_variant.output_path,
+                    site_variant.output_path / "index.html",
+                ),
+                current=site_variant.site.locale == current_variant.site.locale,
+            )
+            for site_variant in site_variants
+        )
+
+    def _page_language_links(
+        self,
+        current_variant: SiteVariant,
+        site_variants: tuple[SiteVariant, ...],
+        collection: ContentCollection,
+        page: Page,
+    ) -> tuple[LanguageLink, ...]:
+        current_directory = current_variant.output_path / collection.output_slug
+        return tuple(
+            self._page_language_link(
+                current_variant, site_variant, current_directory, collection, page
+            )
+            for site_variant in site_variants
+        )
+
+    def _page_language_link(
+        self,
+        current_variant: SiteVariant,
+        target_variant: SiteVariant,
+        current_directory: Path,
+        collection: ContentCollection,
+        page: Page,
+    ) -> LanguageLink:
+        target_path = target_variant.output_path / collection.output_slug / page.file_name()
+        return LanguageLink(
+            label=target_variant.site.locale,
+            href=self._relative_href(current_directory, target_path),
+            current=target_variant.site.locale == current_variant.site.locale,
+        )
+
+    def _relative_href(self, current_directory: Path, target_path: Path) -> str:
+        return Path(os.path.relpath(target_path, current_directory)).as_posix()

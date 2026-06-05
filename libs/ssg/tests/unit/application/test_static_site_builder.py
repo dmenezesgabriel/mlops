@@ -5,11 +5,13 @@ from ssg.application.static_site_builder import StaticSiteBuilder
 from ssg.domain.site import (
     Article,
     ArticleHeading,
+    BuildContext,
     ContentCollection,
     Page,
     RenderedIndex,
     RenderedPage,
     Site,
+    SiteVariant,
 )
 
 
@@ -72,6 +74,22 @@ class SpyHtmlPostProcessor:
     def process(self, rendered_html: str, site: Site) -> str:
         self.process_calls.append((rendered_html, site))
         return rendered_html.replace("Rendered body", "Processed body")
+
+
+class LocalizedSiteVariantProvider:
+    def variants(self, site: Site, context: BuildContext) -> tuple[SiteVariant, ...]:
+        localized_site = Site(
+            title="Site em Portugues",
+            description=site.description,
+            collections=site.collections,
+            locale="pt-BR",
+            default_locale=site.default_locale,
+            extensions=site.extensions,
+        )
+        return (
+            SiteVariant(site=site, output_path=context.output_path),
+            SiteVariant(site=localized_site, output_path=context.output_path / "pt-BR"),
+        )
 
 
 def test_build_delegates_to_repository_content_renderer_and_page_renderer(
@@ -178,3 +196,80 @@ def test_build_rejects_unsupported_page_source(tmp_path: Path) -> None:
     # Act / Assert
     with pytest.raises(ValueError, match="Unsupported page source"):
         builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+
+def test_build_writes_each_site_variant_to_its_output_path(tmp_path: Path) -> None:
+    # Arrange
+    page = Page(slug="overview", title="Overview", source_path=tmp_path / "README.md")
+    collection = ContentCollection(
+        name="sample_collection",
+        title="Sample Collection",
+        source_root=tmp_path,
+        output_slug="sample-collection",
+        pages=(page,),
+        videos={},
+    )
+    site = Site(title="Learning Site", description="", collections=(collection,))
+    page_renderer = SpyPageRenderer()
+    builder = StaticSiteBuilder(
+        site_repository=SpySiteRepository(site),
+        content_renderers=(SpyContentRenderer(),),
+        page_renderer=page_renderer,
+        site_variant_provider=LocalizedSiteVariantProvider(),
+    )
+
+    # Act
+    builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+    # Assert
+    assert (tmp_path / "build" / "index.html").exists()
+    assert (tmp_path / "build" / "sample-collection" / "overview.html").exists()
+    assert (tmp_path / "build" / "pt-BR" / "index.html").exists()
+    assert (tmp_path / "build" / "pt-BR" / "sample-collection" / "overview.html").exists()
+    assert [call.site.locale for call in page_renderer.render_page_calls] == ["en", "pt-BR"]
+
+
+def test_build_adds_relative_language_links_for_index_and_pages(tmp_path: Path) -> None:
+    # Arrange
+    page = Page(slug="overview", title="Overview", source_path=tmp_path / "README.md")
+    collection = ContentCollection(
+        name="sample_collection",
+        title="Sample Collection",
+        source_root=tmp_path,
+        output_slug="sample-collection",
+        pages=(page,),
+        videos={},
+    )
+    site = Site(title="Learning Site", description="", collections=(collection,))
+    page_renderer = SpyPageRenderer()
+    builder = StaticSiteBuilder(
+        site_repository=SpySiteRepository(site),
+        content_renderers=(SpyContentRenderer(),),
+        page_renderer=page_renderer,
+        site_variant_provider=LocalizedSiteVariantProvider(),
+    )
+
+    # Act
+    builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+    # Assert
+    english_index_links = page_renderer.render_index_calls[0].language_links
+    portuguese_index_links = page_renderer.render_index_calls[1].language_links
+    english_page_links = page_renderer.render_page_calls[0].language_links
+    portuguese_page_links = page_renderer.render_page_calls[1].language_links
+    assert [(link.label, link.href, link.current) for link in english_index_links] == [
+        ("en", "index.html", True),
+        ("pt-BR", "pt-BR/index.html", False),
+    ]
+    assert [(link.label, link.href, link.current) for link in portuguese_index_links] == [
+        ("en", "../index.html", False),
+        ("pt-BR", "index.html", True),
+    ]
+    assert [(link.label, link.href, link.current) for link in english_page_links] == [
+        ("en", "overview.html", True),
+        ("pt-BR", "../pt-BR/sample-collection/overview.html", False),
+    ]
+    assert [(link.label, link.href, link.current) for link in portuguese_page_links] == [
+        ("en", "../../sample-collection/overview.html", False),
+        ("pt-BR", "overview.html", True),
+    ]

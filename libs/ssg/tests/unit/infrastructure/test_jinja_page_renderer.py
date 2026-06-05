@@ -4,6 +4,7 @@ from ssg.domain.site import (
     Article,
     ArticleHeading,
     ContentCollection,
+    LanguageLink,
     Page,
     RenderedIndex,
     RenderedPage,
@@ -88,6 +89,83 @@ def test_render_page_omits_empty_table_of_contents(tmp_path: Path) -> None:
 
     # Assert
     assert "article-toc" not in rendered_html
+
+
+def test_render_page_uses_site_locale_as_html_language(tmp_path: Path) -> None:
+    # Arrange
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path)
+    localized_site = Site(
+        title=site.title,
+        description=site.description,
+        collections=site.collections,
+        locale="pt-BR",
+    )
+    rendered_page = RenderedPage(
+        site=localized_site,
+        collection=collection,
+        page=page,
+        article=Article(title="Visao Geral", body="<p>Conteudo.</p>", headings=()),
+        navigation=localized_site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert '<html lang="pt-BR">' in rendered_html
+
+
+def test_render_index_uses_site_locale_as_html_language(tmp_path: Path) -> None:
+    # Arrange
+    renderer = JinjaPageRenderer()
+    site, collection, _page = _site_with_collection(tmp_path)
+    localized_site = Site(
+        title=site.title,
+        description=site.description,
+        collections=site.collections,
+        locale="pt-BR",
+    )
+    rendered_index = RenderedIndex(
+        site=localized_site,
+        collections=(collection,),
+        navigation=localized_site.navigation_for(None, None),
+    )
+
+    # Act
+    rendered_html = renderer.render_index(rendered_index)
+
+    # Assert
+    assert '<html lang="pt-BR">' in rendered_html
+
+
+def test_render_page_includes_language_switcher(tmp_path: Path) -> None:
+    # Arrange
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path)
+    rendered_page = RenderedPage(
+        site=site,
+        collection=collection,
+        page=page,
+        article=Article(title="Overview", body="<p>Rendered content.</p>", headings=()),
+        navigation=site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+        language_links=(
+            LanguageLink(label="en", href="overview.html", current=True),
+            LanguageLink(label="pt-BR", href="../pt-BR/sample-collection/overview.html"),
+        ),
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert '<details class="language-switcher">' in rendered_html
+    assert '<span class="language-switcher__current">en</span>' in rendered_html
+    assert 'href="../pt-BR/sample-collection/overview.html"' in rendered_html
 
 
 def test_assets_include_stylesheet_and_menu_script() -> None:

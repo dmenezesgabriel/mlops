@@ -3,7 +3,7 @@ from importlib.metadata import entry_points
 from logging import getLogger
 from pathlib import Path
 
-from ssg.application.ports import ContentRenderer, HtmlPostProcessor
+from ssg.application.ports import ContentRenderer, HtmlPostProcessor, SiteVariantProvider
 from ssg.application.site_preview import StaticSitePreview
 from ssg.application.static_site_builder import StaticSiteBuilder
 from ssg.infrastructure.jinja_page_renderer import JinjaPageRenderer
@@ -56,6 +56,7 @@ def build_site(config_path: Path, output_path: Path, collection_name: str | None
         site_repository=SiteConfigRepository(),
         content_renderers=load_content_renderers(),
         html_post_processors=load_html_post_processors(),
+        site_variant_provider=load_site_variant_provider(),
         page_renderer=JinjaPageRenderer(),
     )
     builder.build(config_path, output_path, collection_name)
@@ -111,6 +112,25 @@ def load_html_post_processors() -> tuple[HtmlPostProcessor, ...]:
         html_post_processors.append(html_post_processor)
 
     return tuple(html_post_processors)
+
+
+def load_site_variant_provider() -> SiteVariantProvider | None:
+    providers = []
+    provider_names = []
+    for entry_point in entry_points(group="ssg.site_variant_providers"):
+        providers.append(entry_point.load()())
+        provider_names.append(entry_point.name)
+        LOGGER.info(
+            "site_variant_provider_loaded",
+            extra={"context": {"provider": entry_point.name}},
+        )
+
+    if len(providers) <= 1:
+        return providers[0] if providers else None
+
+    raise ValueError(
+        f"Multiple site variant providers {provider_names}: expected at most one provider",
+    )
 
 
 def _add_build_arguments(parser: argparse.ArgumentParser) -> None:

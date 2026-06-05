@@ -1,6 +1,11 @@
 import pytest
 from ssg.presentation import cli
-from ssg.presentation.cli import create_parser, load_html_post_processors, validate_reload_interval
+from ssg.presentation.cli import (
+    create_parser,
+    load_html_post_processors,
+    load_site_variant_provider,
+    validate_reload_interval,
+)
 
 
 class FakeHtmlPostProcessor:
@@ -13,6 +18,17 @@ class FakeEntryPoint:
 
     def load(self) -> type[FakeHtmlPostProcessor]:
         return FakeHtmlPostProcessor
+
+
+class FakeSiteVariantProvider:
+    pass
+
+
+class FakeSiteVariantEntryPoint:
+    name = "fake-site-variant-provider"
+
+    def load(self) -> type[FakeSiteVariantProvider]:
+        return FakeSiteVariantProvider
 
 
 def test_create_parser_accepts_build_arguments() -> None:
@@ -117,3 +133,23 @@ def test_load_html_post_processors_uses_html_processor_entry_points(
     # Assert
     assert requested_groups == ["ssg.html_post_processors"]
     assert isinstance(processors[0], FakeHtmlPostProcessor)
+
+
+def test_load_site_variant_provider_uses_site_variant_entry_point(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    requested_groups: list[str] = []
+
+    def fake_entry_points(group: str) -> tuple[FakeSiteVariantEntryPoint, ...]:
+        requested_groups.append(group)
+        return (FakeSiteVariantEntryPoint(),)
+
+    monkeypatch.setattr(cli, "entry_points", fake_entry_points)
+
+    # Act
+    provider = load_site_variant_provider()
+
+    # Assert
+    assert requested_groups == ["ssg.site_variant_providers"]
+    assert isinstance(provider, FakeSiteVariantProvider)

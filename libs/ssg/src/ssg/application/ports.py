@@ -2,7 +2,16 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
-from ssg.domain.site import Article, ContentCollection, Page, RenderedIndex, RenderedPage, Site
+from ssg.domain.site import (
+    Article,
+    BuildContext,
+    ContentCollection,
+    Page,
+    RenderedIndex,
+    RenderedPage,
+    Site,
+    SiteVariant,
+)
 
 
 class SiteRepository(Protocol):
@@ -31,6 +40,11 @@ class ContentRenderer(Protocol):
 
 class HtmlPostProcessor(Protocol):
     def process(self, rendered_html: str, site: Site) -> str:
+        pass
+
+
+class SiteVariantProvider(Protocol):
+    def variants(self, site: Site, context: BuildContext) -> tuple[SiteVariant, ...]:
         pass
 
 

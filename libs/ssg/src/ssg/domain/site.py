@@ -95,7 +95,12 @@ class Site:
     title: str
     description: str
     collections: tuple[ContentCollection, ...]
+    locale: str = "en"
+    default_locale: str = "en"
     extensions: dict[str, dict[str, str]] | None = None
+
+    def html_language(self) -> str:
+        return self.locale
 
     def extension_setting(self, extension_name: str, setting_name: str, default: str) -> str:
         extension_settings = (self.extensions or {}).get(extension_name, {})
@@ -237,6 +242,19 @@ class PagerLink:
 
 
 @dataclass(frozen=True)
+class LanguageLink:
+    label: str
+    href: str
+    current: bool = False
+
+    def aria_current(self) -> str:
+        if self.current:
+            return "page"
+
+        return "false"
+
+
+@dataclass(frozen=True)
 class RenderedPage:
     site: Site
     collection: ContentCollection
@@ -245,6 +263,7 @@ class RenderedPage:
     navigation: SiteNavigation
     previous_link: PagerLink | None
     next_link: PagerLink | None
+    language_links: tuple[LanguageLink, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -252,3 +271,18 @@ class RenderedIndex:
     site: Site
     collections: tuple[ContentCollection, ...]
     navigation: SiteNavigation
+    language_links: tuple[LanguageLink, ...] = ()
+
+
+@dataclass(frozen=True)
+class BuildContext:
+    config_path: Path
+    output_path: Path
+    collection_name: str | None
+    correlation_id: str
+
+
+@dataclass(frozen=True)
+class SiteVariant:
+    site: Site
+    output_path: Path
