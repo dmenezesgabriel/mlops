@@ -43,7 +43,7 @@ complexity:
 
 dependencies:
 	tmp=$$(mktemp); \
-	for package in libs/mlops-shared libs/ssg libs/ssg-notebook-render libs/ssg-syntax-highlighting projects/$(PROJECT); do \
+	for package in libs/mlops-shared libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting projects/$(PROJECT); do \
 		(cd $$package && uv run deptry .) >> $$tmp 2>&1 || { cat $$tmp; rm -f $$tmp; exit 1; }; \
 	done; \
 	rm -f $$tmp

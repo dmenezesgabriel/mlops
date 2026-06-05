@@ -29,6 +29,8 @@ dev = [
 members = [
   "libs/mlops-shared",
   "libs/ssg",
+  "libs/ssg-i18n",
+  "libs/ssg-i18n-machine-translation",
   "libs/ssg-notebook-render",
   "libs/ssg-syntax-highlighting",
   "projects/nyc_taxi_demand_forecasting",
@@ -70,6 +72,8 @@ packages = [
   "mlops_shared",
   "nyc_taxi_demand_forecasting",
   "ssg",
+  "ssg_i18n",
+  "ssg_i18n_machine_translation",
   "ssg_notebook_render",
   "ssg_syntax_highlighting",
 ]
@@ -79,6 +83,8 @@ known_first_party = [
   "mlops_shared",
   "nyc_taxi_demand_forecasting",
   "ssg",
+  "ssg_i18n",
+  "ssg_i18n_machine_translation",
   "ssg_notebook_render",
   "ssg_syntax_highlighting",
 ]
@@ -88,6 +94,8 @@ root_packages = [
   "mlops_shared",
   "nyc_taxi_demand_forecasting",
   "ssg",
+  "ssg_i18n",
+  "ssg_i18n_machine_translation",
   "ssg_notebook_render",
   "ssg_syntax_highlighting",
 ]
@@ -95,7 +103,7 @@ root_packages = [
 [[tool.importlinter.contracts]]
 name = "Shared libraries do not import projects"
 type = "forbidden"
-source_modules = ["mlops_shared", "ssg", "ssg_notebook_render", "ssg_syntax_highlighting"]
+source_modules = ["mlops_shared", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting"]
 forbidden_modules = ["nyc_taxi_demand_forecasting"]
 
 [[tool.importlinter.contracts]]
@@ -113,8 +121,21 @@ forbidden_modules = ["ssg.infrastructure", "ssg.presentation"]
 [[tool.importlinter.contracts]]
 name = "Static site generator stays MLOps agnostic"
 type = "forbidden"
-source_modules = ["ssg", "ssg_notebook_render", "ssg_syntax_highlighting"]
+source_modules = ["ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting"]
 forbidden_modules = ["mlops_shared", "nyc_taxi_demand_forecasting"]
+
+[[tool.importlinter.contracts]]
+name = "Machine translation stays an i18n extension"
+type = "forbidden"
+source_modules = ["ssg_i18n_machine_translation"]
+forbidden_modules = ["ssg", "ssg_notebook_render", "ssg_syntax_highlighting"]
+
+[[tool.importlinter.contracts]]
+name = "I18n stays an SSG extension"
+type = "forbidden"
+source_modules = ["ssg_i18n"]
+forbidden_modules = ["ssg.infrastructure", "ssg.presentation"]
+
 
 [[tool.importlinter.contracts]]
 name = "Notebook renderer stays an SSG extension"

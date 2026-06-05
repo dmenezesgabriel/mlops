@@ -14,6 +14,7 @@ mlflow.db
 *.parquet
 site/build/*
 !site/build/.gitkeep
+site/.ssg/
 videos/output/*
 !videos/output/.gitkeep
 projects/*/data/raw/*

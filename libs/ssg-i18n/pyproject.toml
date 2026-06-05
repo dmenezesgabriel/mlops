@@ -1,0 +1,25 @@
+[project]
+name = "ssg-i18n"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "pyyaml==6.0.3",
+  "ssg",
+]
+
+[project.entry-points."ssg.site_variant_providers"]
+i18n = "ssg_i18n.presentation.plugin:create_i18n_site_variant_provider"
+
+[tool.uv.sources]
+ssg = { workspace = true }
+
+[tool.deptry.package_module_name_map]
+ssg = "ssg"
+ssg-i18n = "ssg_i18n"
+
+[tool.deptry.per_rule_ignores]
+DEP003 = ["ssg_i18n"]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"

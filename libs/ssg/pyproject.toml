@@ -10,17 +10,24 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+i18n = ["ssg-i18n"]
+i18n-transformers = ["ssg-i18n", "ssg-i18n-machine-translation[transformers]"]
 syntax-highlighting = ["ssg-syntax-highlighting"]
+all = ["ssg-i18n", "ssg-i18n-machine-translation[transformers]", "ssg-syntax-highlighting"]
 
 [tool.uv.sources]
+ssg-i18n = { workspace = true }
+ssg-i18n-machine-translation = { workspace = true }
 ssg-syntax-highlighting = { workspace = true }
 
 [tool.deptry.package_module_name_map]
 ssg = "ssg"
+ssg-i18n = "ssg_i18n"
+ssg-i18n-machine-translation = "ssg_i18n_machine_translation"
 ssg-syntax-highlighting = "ssg_syntax_highlighting"
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["ssg-syntax-highlighting"]
+DEP002 = ["ssg-i18n", "ssg-i18n-machine-translation", "ssg-syntax-highlighting"]
 DEP003 = ["ssg"]
 
 [build-system]

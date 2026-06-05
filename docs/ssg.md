@@ -7,6 +7,7 @@
 - `ssg.domain`: generic site concepts such as `Site`, `ContentCollection`, and `Page`.
 - `ssg.application`: build and preview use cases plus stable ports.
 - `ssg.infrastructure`: filesystem manifests, Markdown rendering, semantic Jinja HTML rendering, local preview server, polling reload, and SSG-local logging.
+- `ssg_i18n`: optional site-variant plugin for locale-aware builds and translated generated sources.
 - `ssg_notebook_render`: optional `.ipynb` content renderer plugin installed separately.
 - `projects/*`: project-specific notebooks, markdown, scripts, charts, and data science code.
 - `site/site.yaml`: publishing configuration that maps project content to rendered pages and assets.
@@ -47,6 +48,20 @@ Notebook rendering stays outside core. Install the plugin package instead of add
 ```bash
 uv pip install ssg-notebook-render
 ```
+
+Internationalization also stays outside core. Install the i18n extra for manual catalogs:
+
+```bash
+uv pip install "ssg[i18n]"
+```
+
+Install machine translation support only when build-time model translation is needed:
+
+```bash
+uv pip install "ssg[i18n-transformers]"
+```
+
+The i18n plugin translates generated Markdown and notebook markdown cells while preserving fenced code, inline code, Jinja directives, wikilink targets, URLs, and notebook code cells.
 
 ## Commands
 
