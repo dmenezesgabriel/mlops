@@ -2,17 +2,19 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from videos.core.domain._quality import QualityReport, RuleViolation
-from videos.core.domain._scene_spec import SceneSpec
-from videos.validation._layout_rules import LayoutRules
-from videos.validation._scene_rules import SceneRules
-from videos.validation._text_rules import TextRules
-from videos.validation._timeline_rules import TimelineRules
+from videos.core.domain.quality import QualityReport, RuleViolation
+from videos.core.domain.scene_spec import SceneSpec
+from videos.validation.layout_rules import LayoutRules
+from videos.validation.scene_rules import SceneRules
+from videos.validation.text_rules import TextRules
+from videos.validation.timeline_rules import TimelineRules
+
+_Validator = TextRules | LayoutRules | TimelineRules | SceneRules
 
 
 class QualityGate:
     def __init__(self) -> None:
-        self._validators = [
+        self._validators: list[_Validator] = [
             TextRules(),
             LayoutRules(),
             TimelineRules(),

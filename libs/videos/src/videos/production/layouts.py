@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from videos.core.domain._layout import LayoutRegion, LayoutSpec
+from videos.core.domain.layout import LayoutRegion, LayoutSpec
 
 
 @dataclass(frozen=True)

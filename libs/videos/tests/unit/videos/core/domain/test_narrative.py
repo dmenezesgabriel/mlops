@@ -1,6 +1,6 @@
 import pytest
-from videos.core.domain._concept import Concept, ConceptId, ConceptMetadata, ConceptTitle
-from videos.core.domain._narrative import (
+from videos.core.domain.concept import Concept, ConceptId, ConceptMetadata, ConceptTitle
+from videos.core.domain.narrative import (
     Beat,
     BeatKind,
     NarrationLine,

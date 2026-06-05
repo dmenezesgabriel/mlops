@@ -1,4 +1,4 @@
-from videos.production._brand import DEFAULT_BRAND, BrandColors
+from videos.production.brand import DEFAULT_BRAND, BrandColors
 
 
 class TestBrandColors:

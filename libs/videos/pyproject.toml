@@ -5,8 +5,13 @@ description = "Deterministic Python-first ManimCE video production engine for ed
 requires-python = ">=3.11"
 dependencies = []
 
-[tool.deptry.package_module_name_map]
-videos = "videos"
+[project.optional-dependencies]
+manim = ["manim"]
+concepts = []
+
+[tool.deptry]
+known_first_party = ["videos"]
+package_module_name_map = {videos = "videos"}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from videos.core.domain._layout import LayoutRegion, LayoutSpec
-from videos.core.domain._narrative import Narrative
-from videos.core.domain._scene_spec import SceneSpec, VisualObject
-from videos.core.domain._storyboard import Storyboard
-from videos.core.domain._style import StyleSpec
-from videos.core.domain._timeline import TimelineEvent, TimelineSpec
+from videos.core.domain.layout import LayoutRegion, LayoutSpec
+from videos.core.domain.narrative import Narrative
+from videos.core.domain.scene_spec import SceneSpec, VisualObject
+from videos.core.domain.storyboard import Storyboard
+from videos.core.domain.style import StyleSpec
+from videos.core.domain.timeline import TimelineEvent, TimelineSpec
 
 
 class StoryboardPlanner:

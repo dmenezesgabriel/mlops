@@ -1,4 +1,4 @@
-from videos.core.domain._concept import Concept, ConceptId, ConceptMetadata, ConceptTitle
+from videos.core.domain.concept import Concept, ConceptId, ConceptMetadata, ConceptTitle
 
 
 def test_concept_id_rejects_empty_string() -> None:

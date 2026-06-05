@@ -1,7 +1,7 @@
 import json
 import logging
 
-from videos.adapters.logging._structured_logger import StructuredFormatter
+from videos.adapters.logging.structured_logger import StructuredFormatter
 
 
 def test_structured_formatter_includes_basic_fields() -> None:

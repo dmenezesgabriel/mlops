@@ -3,8 +3,9 @@ from pathlib import Path
 import pytest
 
 pytest.importorskip("manim")
+pytestmark = pytest.mark.docker
 
-from videos.adapters.manim._renderer import ManimRenderer  # noqa: E402
+from videos.adapters.manim.renderer import ManimRenderer  # noqa: E402
 
 
 class TestManimRenderer:

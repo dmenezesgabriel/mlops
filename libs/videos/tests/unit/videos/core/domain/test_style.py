@@ -1,4 +1,4 @@
-from videos.core.domain._style import StyleSpec
+from videos.core.domain.style import StyleSpec
 
 
 class TestStyleSpec:

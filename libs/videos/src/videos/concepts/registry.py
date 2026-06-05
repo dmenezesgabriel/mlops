@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import logging
 
-from videos.concepts._base import ConceptExtension
-from videos.core.domain._concept import ConceptId
+from videos.concepts.base import ConceptExtension
+from videos.core.domain.concept import ConceptId
 
 logger = logging.getLogger(__name__)
 

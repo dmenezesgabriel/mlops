@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from videos.adapters.filesystem._artifact_store import FileSystemArtifactStore
+from videos.adapters.filesystem.artifact_store import FileSystemArtifactStore
 
 
 class TestFileSystemArtifactStore:

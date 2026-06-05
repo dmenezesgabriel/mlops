@@ -1,14 +1,16 @@
 from pathlib import Path
+from typing import cast
 
 import pytest
-from videos.core.application._director import Director
-from videos.core.domain._concept import Concept, ConceptId, ConceptMetadata, ConceptTitle
-from videos.core.domain._narrative import Beat, BeatKind, NarrationLine, Narrative
-from videos.core.ports._artifact_store import ArtifactStore
-from videos.core.ports._layout_engine import LayoutEngine
-from videos.core.ports._renderer import Renderer, RenderResult
-from videos.core.ports._scene_builder import SceneBuilder
-from videos.core.ports._telemetry import Telemetry
+from videos.core.application.director import Director
+from videos.core.domain.concept import Concept, ConceptId, ConceptMetadata, ConceptTitle
+from videos.core.domain.narrative import Beat, BeatKind, NarrationLine, Narrative
+from videos.core.domain.scene_spec import SceneSpec
+from videos.core.ports.artifact_store import ArtifactStore
+from videos.core.ports.layout_engine import LayoutEngine
+from videos.core.ports.renderer import Renderer, RenderResult
+from videos.core.ports.scene_builder import SceneBuilder
+from videos.core.ports.telemetry import Telemetry
 
 
 def _minimal_concept() -> Concept:
@@ -60,8 +62,8 @@ class StubSceneBuilder(SceneBuilder):
 
 
 class StubLayoutEngine(LayoutEngine):
-    def apply(self, scene: object) -> object:
-        return scene
+    def apply(self, scene: object) -> SceneSpec:
+        return cast(SceneSpec, scene)
 
     def validate_placement(self, layout: object) -> list[str]:
         return []

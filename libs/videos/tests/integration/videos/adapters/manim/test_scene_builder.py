@@ -1,10 +1,11 @@
 import pytest
 
 pytest.importorskip("manim")
+pytestmark = pytest.mark.docker
 
-from videos.adapters.manim._scene_builder import ManimSceneBuilder  # noqa: E402
-from videos.core.domain._layout import LayoutRegion, LayoutSpec  # noqa: E402
-from videos.core.domain._scene_spec import SceneSpec  # noqa: E402
+from videos.adapters.manim.scene_builder import ManimSceneBuilder  # noqa: E402
+from videos.core.domain.layout import LayoutRegion, LayoutSpec  # noqa: E402
+from videos.core.domain.scene_spec import SceneSpec  # noqa: E402
 
 
 class TestManimSceneBuilder:

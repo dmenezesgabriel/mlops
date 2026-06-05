@@ -1,4 +1,4 @@
-from videos.production._typography import DEFAULT_TYPOGRAPHY, TypographyPreset
+from videos.production.typography import DEFAULT_TYPOGRAPHY, TypographyPreset
 
 
 class TestTypographyPreset:

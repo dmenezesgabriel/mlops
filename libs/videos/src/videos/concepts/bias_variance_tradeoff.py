@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from videos.concepts._base import ConceptExtension
-from videos.concepts._registry import ConceptRegistry
-from videos.core.domain._concept import Concept, ConceptId, ConceptMetadata, ConceptTitle
-from videos.core.domain._narrative import Beat, BeatKind, NarrationLine, Narrative
+from videos.concepts.base import ConceptExtension
+from videos.core.domain.concept import Concept, ConceptId, ConceptMetadata, ConceptTitle
+from videos.core.domain.narrative import Beat, BeatKind, NarrationLine, Narrative
 
 
 class BiasVarianceExtension(ConceptExtension):
@@ -127,6 +126,3 @@ class BiasVarianceExtension(ConceptExtension):
                 ),
             ),
         )
-
-
-ConceptRegistry.register(BiasVarianceExtension())

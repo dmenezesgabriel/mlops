@@ -1,4 +1,4 @@
-from videos.production._render_profiles import BUILTIN_PROFILES, FINAL, PREVIEW
+from videos.production.render_profiles import BUILTIN_PROFILES, FINAL, PREVIEW
 
 
 class TestRenderProfiles:

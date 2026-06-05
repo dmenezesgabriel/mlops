@@ -3,14 +3,18 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from videos.core.ports._renderer import RenderResult
+from videos.core.ports.renderer import RenderResult
+
+if TYPE_CHECKING:
+    from manim import Scene
 
 logger = logging.getLogger(__name__)
 
 
 class ManimRenderer:
-    def render(self, scene_job: object, output_path: Path) -> RenderResult:
+    def render(self, scene_job: Scene, output_path: Path) -> RenderResult:
         start = time.monotonic()
         try:
             from manim import config, tempconfig

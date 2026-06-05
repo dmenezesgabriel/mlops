@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from videos.core.domain._layout import LayoutSpec
-from videos.core.domain._style import StyleSpec
-from videos.core.domain._timeline import TimelineSpec
+from videos.core.domain.layout import LayoutSpec
+from videos.core.domain.style import StyleSpec
+from videos.core.domain.timeline import TimelineSpec
 
 
 @dataclass(frozen=True)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from videos.core.domain._scene_spec import SceneSpec
+from videos.core.domain.scene_spec import SceneSpec
 
 
 class ManimSceneBuilder:

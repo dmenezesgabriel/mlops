@@ -1,10 +1,11 @@
 import pytest
-from videos.concepts._registry import ConceptRegistry, UnknownConceptError
-from videos.core.domain._concept import Concept, ConceptId, ConceptMetadata, ConceptTitle
-from videos.core.domain._narrative import Beat, BeatKind, NarrationLine, Narrative
+from videos.concepts.base import ConceptExtension
+from videos.concepts.registry import ConceptRegistry, UnknownConceptError
+from videos.core.domain.concept import Concept, ConceptId, ConceptMetadata, ConceptTitle
+from videos.core.domain.narrative import Beat, BeatKind, NarrationLine, Narrative
 
 
-class StubExtension:
+class StubExtension(ConceptExtension):
     def __init__(self, concept: Concept) -> None:
         self._concept = concept
 

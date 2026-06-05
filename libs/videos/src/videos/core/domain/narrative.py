@@ -5,7 +5,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from videos.core.domain._concept import Concept
+    from videos.core.domain.concept import Concept
 
 
 class BeatKind(Enum):

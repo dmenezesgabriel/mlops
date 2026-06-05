@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from videos.core.domain._scene_spec import SceneSpec
+from videos.core.domain.scene_spec import SceneSpec
 
 
 class Storyboard:
@@ -17,8 +17,8 @@ class Storyboard:
         self._scenes = list(scenes)
 
     @property
-    def scenes(self) -> Sequence[SceneSpec]:
-        return list(self._scenes)
+    def scenes(self) -> tuple[SceneSpec, ...]:
+        return tuple(self._scenes)
 
     @property
     def total_expected_duration(self) -> float:

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from videos.core.domain._layout import LayoutRegion
-from videos.core.domain._quality import RuleViolation
-from videos.core.domain._scene_spec import SceneSpec
+from videos.core.domain.layout import LayoutRegion
+from videos.core.domain.quality import RuleViolation
+from videos.core.domain.scene_spec import SceneSpec
 
 
 class LayoutRuleValidator(Protocol):

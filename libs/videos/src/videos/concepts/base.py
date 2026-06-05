@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from videos.core.domain._concept import Concept
-from videos.core.domain._narrative import Narrative
+from videos.core.domain.concept import Concept
+from videos.core.domain.narrative import Narrative
 
 
 class ConceptExtension(ABC):

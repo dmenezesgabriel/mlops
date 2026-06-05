@@ -1,6 +1,6 @@
-from videos.core.application._quality_gate import QualityGate
-from videos.core.domain._layout import LayoutRegion, LayoutSpec
-from videos.core.domain._scene_spec import SceneSpec, VisualObject
+from videos.core.application.quality_gate import QualityGate
+from videos.core.domain.layout import LayoutRegion, LayoutSpec
+from videos.core.domain.scene_spec import SceneSpec, VisualObject
 
 
 def _valid_scene() -> SceneSpec:

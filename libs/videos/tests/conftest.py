@@ -1,5 +1,5 @@
 import pytest
-from videos.concepts._registry import ConceptRegistry
+from videos.concepts.registry import ConceptRegistry
 
 
 @pytest.fixture

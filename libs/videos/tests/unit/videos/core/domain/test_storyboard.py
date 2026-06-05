@@ -1,7 +1,7 @@
 import pytest
-from videos.core.domain._layout import LayoutRegion, LayoutSpec
-from videos.core.domain._scene_spec import SceneSpec
-from videos.core.domain._storyboard import Storyboard
+from videos.core.domain.layout import LayoutRegion, LayoutSpec
+from videos.core.domain.scene_spec import SceneSpec
+from videos.core.domain.storyboard import Storyboard
 
 
 def _scene(scene_id: str) -> SceneSpec:
@@ -39,7 +39,8 @@ class TestStoryboard:
         sb = Storyboard(scenes=[s1, s2])
         assert sb.total_expected_duration == 8.0
 
-    def test_scenes_returns_copy(self) -> None:
+    def test_scenes_returns_tuple(self) -> None:
         sb = Storyboard(scenes=[_scene("s1")])
         scenes = sb.scenes
-        assert scenes is not sb._scenes
+        assert isinstance(scenes, tuple)
+        assert scenes == tuple(sb._scenes)

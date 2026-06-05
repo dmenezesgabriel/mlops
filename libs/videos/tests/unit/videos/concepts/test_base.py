@@ -1,9 +1,6 @@
-from videos.concepts._base import ConceptExtension
+from videos.concepts.base import ConceptExtension
 
 
 class TestConceptExtension:
     def test_extension_is_abstract(self) -> None:
-        import pytest
-
-        with pytest.raises(TypeError):
-            ConceptExtension()
+        assert ConceptExtension.__abstractmethods__ != frozenset()

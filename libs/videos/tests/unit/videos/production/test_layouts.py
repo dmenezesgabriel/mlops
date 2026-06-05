@@ -1,4 +1,4 @@
-from videos.production._layouts import (
+from videos.production.layouts import (
     BUILTIN_LAYOUTS,
     COMPARISON,
     DIAGRAM_WITH_LABELS,

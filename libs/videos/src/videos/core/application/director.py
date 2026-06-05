@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 import logging
+import uuid
+from typing import TYPE_CHECKING
 
-from videos.concepts._registry import ConceptRegistry
-from videos.core.domain._concept import ConceptId
-from videos.core.ports._artifact_store import ArtifactStore
-from videos.core.ports._layout_engine import LayoutEngine
-from videos.core.ports._renderer import Renderer
-from videos.core.ports._scene_builder import SceneBuilder
-from videos.core.ports._telemetry import Telemetry
+from videos.concepts.registry import ConceptRegistry
+from videos.core.domain.concept import ConceptId
+from videos.core.ports.artifact_store import ArtifactStore
+from videos.core.ports.layout_engine import LayoutEngine
+from videos.core.ports.renderer import Renderer
+from videos.core.ports.scene_builder import SceneBuilder
+from videos.core.ports.telemetry import Telemetry
+
+if TYPE_CHECKING:
+    from videos.core.application.quality_gate import QualityGate
+    from videos.core.application.storyboard_planner import StoryboardPlanner
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +37,7 @@ class Director:
         self._telemetry = telemetry
 
     def produce(self) -> None:
-        correlation_id = f"{self._concept_id}_{id(self)}"
+        correlation_id = f"{self._concept_id}_{uuid.uuid4().hex[:8]}"
         self._telemetry.record_event(
             "render_started",
             {"concept_id": self._concept_id, "correlation_id": correlation_id},
@@ -43,11 +49,8 @@ class Director:
         storyboard_planner = self._get_planner()
         storyboard = storyboard_planner.plan(narrative)
 
-        scene_compiler = self._get_compiler()
-        scene_specs = scene_compiler.compile(storyboard)
-
         quality_gate = self._get_quality_gate()
-        report = quality_gate.validate(scene_specs)
+        report = quality_gate.validate(storyboard.scenes)
         if not report.passed:
             self._telemetry.record_error(
                 ValueError("Quality gate failed"),
@@ -60,7 +63,7 @@ class Director:
             msg = "\n".join(f"  [{v.rule}] {v.suggestion}" for v in report.violations)
             raise RuntimeError(f"Quality gate rejected {self._concept_id!r}:\n{msg}")
 
-        for scene_spec in scene_specs:
+        for scene_spec in storyboard.scenes:
             positioned = self._layout_engine.apply(scene_spec)
             built_scene = self._scene_builder.build(positioned)
 
@@ -84,19 +87,13 @@ class Director:
         )
 
     @staticmethod
-    def _get_planner() -> object:
-        from videos.core.application._storyboard_planner import StoryboardPlanner
+    def _get_planner() -> StoryboardPlanner:
+        from videos.core.application.storyboard_planner import StoryboardPlanner
 
         return StoryboardPlanner()
 
     @staticmethod
-    def _get_compiler() -> object:
-        from videos.core.application._scene_compiler import SceneCompiler
-
-        return SceneCompiler()
-
-    @staticmethod
-    def _get_quality_gate() -> object:
-        from videos.core.application._quality_gate import QualityGate
+    def _get_quality_gate() -> QualityGate:
+        from videos.core.application.quality_gate import QualityGate
 
         return QualityGate()

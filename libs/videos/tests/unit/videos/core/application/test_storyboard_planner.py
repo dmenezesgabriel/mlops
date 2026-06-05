@@ -1,7 +1,7 @@
 import pytest
-from videos.core.application._storyboard_planner import StoryboardPlanner
-from videos.core.domain._concept import Concept, ConceptId, ConceptMetadata, ConceptTitle
-from videos.core.domain._narrative import Beat, BeatKind, NarrationLine, Narrative
+from videos.core.application.storyboard_planner import StoryboardPlanner
+from videos.core.domain.concept import Concept, ConceptId, ConceptMetadata, ConceptTitle
+from videos.core.domain.narrative import Beat, BeatKind, NarrationLine, Narrative
 
 
 def _concept() -> Concept:
