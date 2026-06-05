@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% set site = rendered_page.site %}
+{% set navigation = rendered_page.navigation %}
+{% set language_links = rendered_page.language_links %}
+{% set article = rendered_page.article %}
+{% set home_current = false %}
+{% block html_language %}{{ site.html_language() }}{% endblock %}
+{% block head %}
+  {% set title = rendered_page.page.title ~ ' - ' ~ rendered_page.collection.title %}
+  {% set description = site.description %}
+  {% set asset_prefix = '../' %}
+  {% include 'partials/head.html' %}
+{% endblock %}
+{% block body %}
+  {% include 'partials/header.html' %}
+  <div class="site-shell article-layout">
+    {% include 'partials/navigation.html' %}
+    <main class="content" id="main-content" tabindex="-1">
+      <article class="article" data-page-slug="{{ rendered_page.page.slug }}">
+        <header class="article-header story-step">
+          <p class="eyebrow">{{ rendered_page.collection.title }}</p>
+          <h1>{{ rendered_page.article.title }}</h1>
+          {% set article_lede = site.extension_setting(
+            'i18n',
+            'article_lede',
+            'A field report for reproducible machine-learning systems.',
+          ) %}
+          <p class="lede">{{ article_lede }}</p>
+        </header>
+        <div class="article-body stack">{{ rendered_page.article.body | safe }}</div>
+      </article>
+      {% include 'partials/pager.html' %}
+    </main>
+    {% include 'partials/article_toc.html' %}
+  </div>
+  {% include 'partials/footer.html' %}
+{% endblock %}

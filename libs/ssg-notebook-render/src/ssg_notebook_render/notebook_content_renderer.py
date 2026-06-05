@@ -12,19 +12,13 @@ from ssg.application.html_headings import demote_top_level_headings
 from ssg.application.ports import ContentRenderer, MarkdownRenderer
 from ssg.domain.site import ContentCollection, Page
 
-from ssg_notebook_render.notebook_components import (
-    render_notebook_code_cell,
-    render_notebook_image_output,
-    render_notebook_stream_output,
-    render_notebook_text_output,
-    render_source_panel,
-    render_video_frame,
-)
+from ssg_notebook_render.notebook_fragment_renderer import NotebookFragmentRenderer
 
 
 class NotebookMarkdownRenderer(MarkdownRenderer):
-    def __init__(self) -> None:
+    def __init__(self, fragment_renderer: NotebookFragmentRenderer | None = None) -> None:
         self._markdown = MarkdownIt("commonmark")
+        self._fragment_renderer = fragment_renderer or NotebookFragmentRenderer()
 
     def render_markdown(
         self,
@@ -63,7 +57,10 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
         transclusions: dict[str, Markup],
     ) -> Markup:
         source = collection.source_file(source_path).read_text(encoding="utf-8")
-        return self._store_transclusion(transclusions, render_source_panel(source, source_path))
+        return self._store_transclusion(
+            transclusions,
+            self._fragment_renderer.render_source_panel(source, source_path),
+        )
 
     def _embed_video(
         self,
@@ -82,7 +79,8 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
         video_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_path, video_path)
         return self._store_transclusion(
-            transclusions, render_video_frame(source_path.name, video_name)
+            transclusions,
+            self._fragment_renderer.render_video_frame(source_path.name, video_name),
         )
 
     def _store_transclusion(
@@ -111,8 +109,15 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
 
 
 class NotebookContentRenderer(ContentRenderer):
-    def __init__(self, markdown_renderer: MarkdownRenderer | None = None) -> None:
-        self._markdown_renderer = markdown_renderer or NotebookMarkdownRenderer()
+    def __init__(
+        self,
+        markdown_renderer: MarkdownRenderer | None = None,
+        fragment_renderer: NotebookFragmentRenderer | None = None,
+    ) -> None:
+        self._fragment_renderer = fragment_renderer or NotebookFragmentRenderer()
+        self._markdown_renderer = markdown_renderer or NotebookMarkdownRenderer(
+            self._fragment_renderer
+        )
 
     def can_render(self, source_path: Path) -> bool:
         return source_path.suffix == ".ipynb"
@@ -140,7 +145,7 @@ class NotebookContentRenderer(ContentRenderer):
 
         if cell_type == "code":
             outputs = self._render_outputs(cell, page, output_path, cell_index)
-            return render_notebook_code_cell(source, cell_index, outputs)
+            return self._fragment_renderer.render_code_cell(source, cell_index, outputs)
 
         return ""
 
@@ -168,7 +173,9 @@ class NotebookContentRenderer(ContentRenderer):
     ) -> str:
         output_type = getattr(output, "output_type", "")
         if output_type == "stream":
-            return render_notebook_stream_output(str(getattr(output, "text", "")))
+            return self._fragment_renderer.render_stream_output(
+                str(getattr(output, "text", ""))
+            )
 
         data = getattr(output, "data", {})
         if isinstance(data, dict) and "image/png" in data:
@@ -177,7 +184,7 @@ class NotebookContentRenderer(ContentRenderer):
             )
 
         if isinstance(data, dict) and "text/plain" in data:
-            return render_notebook_text_output(str(data["text/plain"]))
+            return self._fragment_renderer.render_text_output(str(data["text/plain"]))
 
         return ""
 
@@ -193,7 +200,7 @@ class NotebookContentRenderer(ContentRenderer):
         image_path = output_path / "assets" / "images" / image_name
         image_path.parent.mkdir(parents=True, exist_ok=True)
         image_path.write_bytes(base64.b64decode(str(encoded_png)))
-        return render_notebook_image_output(image_name)
+        return self._fragment_renderer.render_image_output(image_name)
 
 
 def create_notebook_content_renderer() -> NotebookContentRenderer:

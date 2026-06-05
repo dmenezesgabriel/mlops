@@ -1,4 +1,3 @@
-SITE_JS = """
 const menuButton = document.querySelector('.menu-toggle');
 const navigation = document.querySelector('#site-navigation');
 const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -26,4 +25,3 @@ if (!motionQuery.matches && 'IntersectionObserver' in window) {
     .querySelectorAll('.story-step, .media-frame, .notebook-cell')
     .forEach((element) => observer.observe(element));
 }
-""".strip()

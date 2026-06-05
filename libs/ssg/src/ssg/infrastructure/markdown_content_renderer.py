@@ -10,12 +10,13 @@ from markupsafe import Markup
 from ssg.application.html_headings import demote_top_level_headings
 from ssg.application.ports import ContentRenderer
 from ssg.domain.site import ContentCollection, Page
-from ssg.infrastructure.frontend.media_components import render_source_panel, render_video_frame
+from ssg.infrastructure.frontend.media_components import FrontendFragmentRenderer
 
 
 class MarkdownContentRenderer(ContentRenderer):
-    def __init__(self) -> None:
+    def __init__(self, fragment_renderer: FrontendFragmentRenderer | None = None) -> None:
         self._markdown = MarkdownIt("commonmark")
+        self._fragment_renderer = fragment_renderer or FrontendFragmentRenderer()
 
     def can_render(self, source_path: Path) -> bool:
         return source_path.suffix == ".md"
@@ -63,7 +64,10 @@ class MarkdownContentRenderer(ContentRenderer):
         transclusions: dict[str, Markup],
     ) -> Markup:
         source = collection.source_file(source_path).read_text(encoding="utf-8")
-        return self._store_transclusion(transclusions, render_source_panel(source, source_path))
+        return self._store_transclusion(
+            transclusions,
+            self._fragment_renderer.render_source_panel(source, source_path),
+        )
 
     def _embed_video(
         self,
@@ -82,7 +86,8 @@ class MarkdownContentRenderer(ContentRenderer):
         video_output_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_path, video_output_path)
         return self._store_transclusion(
-            transclusions, render_video_frame(source_path.name, video_name)
+            transclusions,
+            self._fragment_renderer.render_video_frame(source_path.name, video_name),
         )
 
     def _store_transclusion(

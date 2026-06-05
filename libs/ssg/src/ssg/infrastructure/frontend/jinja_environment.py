@@ -1,17 +1,9 @@
-from jinja2 import DictLoader, Environment, StrictUndefined
-
-from ssg.infrastructure.frontend.templates import INDEX_TEMPLATE, PAGE_TEMPLATE, TEMPLATE_PARTS
+from jinja2 import Environment, PackageLoader, StrictUndefined
 
 
 def create_frontend_environment() -> Environment:
     return Environment(
         autoescape=True,
-        loader=DictLoader(
-            {
-                "index.html": INDEX_TEMPLATE,
-                "page.html": PAGE_TEMPLATE,
-                "parts.html": TEMPLATE_PARTS,
-            }
-        ),
+        loader=PackageLoader("ssg.infrastructure.frontend", "templates"),
         undefined=StrictUndefined,
     )

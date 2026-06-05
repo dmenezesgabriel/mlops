@@ -1,3 +1,4 @@
+from importlib.resources import files
 from pathlib import Path
 
 import nbformat
@@ -5,6 +6,7 @@ from ssg.domain.site import ContentCollection, Page
 from ssg_notebook_render.notebook_content_renderer import (
     NotebookContentRenderer,
 )
+from ssg_notebook_render.notebook_fragment_renderer import NotebookFragmentRenderer
 
 
 def test_render_transcludes_source_and_copies_video(tmp_path: Path) -> None:
@@ -128,3 +130,20 @@ def test_render_includes_code_cell_and_stream_output(tmp_path: Path) -> None:
     assert "hourly demand" in rendered_content
     assert 'class="notebook-cell story-step"' in rendered_content
     assert 'class="notebook-output"' in rendered_content
+
+
+def test_notebook_fragment_templates_are_package_files() -> None:
+    # Arrange
+    package_files = files("ssg_notebook_render")
+
+    # Act
+    code_cell_template = package_files.joinpath("templates", "notebook_code_cell.html")
+    rendered_cell = NotebookFragmentRenderer().render_code_cell(
+        "print('hourly demand')", 0, ""
+    )
+
+    # Assert
+    assert code_cell_template.is_file()
+    assert "notebook-cell" in code_cell_template.read_text(encoding="utf-8")
+    assert 'class="notebook-cell story-step"' in rendered_cell
+    assert "print(&#x27;hourly demand&#x27;)" in rendered_cell

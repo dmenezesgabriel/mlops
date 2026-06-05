@@ -1,0 +1,31 @@
+<aside class="sidebar" id="site-navigation">
+  <nav aria-label="Primary">
+    <a
+      class="home-link"
+      href="{{ navigation.home_href }}"
+      {% if home_current %}aria-current="page"{% endif %}
+    >
+      {{ site.extension_setting('i18n', 'label_field_index', 'Field Index') }}
+    </a>
+    {% for section in navigation.sections %}
+      <section class="navigation-section" aria-labelledby="section-{{ loop.index }}">
+        <h2 id="section-{{ loop.index }}">
+          <a href="{{ section.href }}">{{ section.title }}</a>
+        </h2>
+        {% if section.links %}
+          <nav aria-label="{{ section.title }} contents">
+            <ol>
+              {% for link in section.links %}
+                <li>
+                  <a href="{{ link.href }}"{% if link.current %} aria-current="page"{% endif %}>
+                    {{ link.label }}
+                  </a>
+                </li>
+              {% endfor %}
+            </ol>
+          </nav>
+        {% endif %}
+      </section>
+    {% endfor %}
+  </nav>
+</aside>

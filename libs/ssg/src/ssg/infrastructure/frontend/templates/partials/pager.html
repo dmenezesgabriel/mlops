@@ -1,0 +1,14 @@
+<nav class="pager" aria-label="Adjacent pages">
+  {% if rendered_page.previous_link %}
+    <a rel="prev" href="{{ rendered_page.previous_link.href }}">
+      <span>{{ rendered_page.previous_link.relation }}</span>
+      {{ rendered_page.previous_link.label }}
+    </a>
+  {% endif %}
+  {% if rendered_page.next_link %}
+    <a rel="next" href="{{ rendered_page.next_link.href }}">
+      <span>{{ rendered_page.next_link.relation }}</span>
+      {{ rendered_page.next_link.label }}
+    </a>
+  {% endif %}
+</nav>

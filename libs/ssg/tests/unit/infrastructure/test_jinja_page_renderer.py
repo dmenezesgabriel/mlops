@@ -1,3 +1,4 @@
+from importlib.resources import files
 from pathlib import Path
 
 from ssg.domain.site import (
@@ -178,6 +179,24 @@ def test_assets_include_stylesheet_and_menu_script() -> None:
     assert "aria-expanded" in assets["site.js"]
     assert "Newsreader" in assets["site.css"]
     assert "IntersectionObserver" in assets["site.js"]
+
+
+def test_frontend_templates_and_static_assets_are_package_files() -> None:
+    # Arrange
+    frontend_files = files("ssg.infrastructure.frontend")
+
+    # Act
+    template_path = frontend_files.joinpath("templates", "page.html")
+    style_path = frontend_files.joinpath("static", "css", "site.css")
+    script_path = frontend_files.joinpath("static", "js", "site.js")
+
+    # Assert
+    assert template_path.is_file()
+    assert style_path.is_file()
+    assert script_path.is_file()
+    assert "{% extends 'base.html' %}" in template_path.read_text(encoding="utf-8")
+    assert "Newsreader" in style_path.read_text(encoding="utf-8")
+    assert "IntersectionObserver" in script_path.read_text(encoding="utf-8")
 
 
 def _site_with_collection(tmp_path: Path) -> tuple[Site, ContentCollection, Page]:

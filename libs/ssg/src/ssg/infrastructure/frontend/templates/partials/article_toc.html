@@ -1,0 +1,13 @@
+{% if article.has_table_of_contents() %}
+{% set toc_label = site.extension_setting('i18n', 'label_on_this_page', 'On this page') %}
+<aside class="article-toc" aria-label="{{ toc_label }}">
+  <p class="data-label">{{ toc_label }}</p>
+  <ol>
+    {% for heading in article.headings %}
+      <li>
+        <a class="{{ heading.depth_class() }}" href="{{ heading.href }}">{{ heading.label }}</a>
+      </li>
+    {% endfor %}
+  </ol>
+</aside>
+{% endif %}

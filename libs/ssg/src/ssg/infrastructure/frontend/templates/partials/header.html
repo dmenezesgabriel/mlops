@@ -1,0 +1,39 @@
+<header class="site-header">
+  <div class="masthead-mark" aria-hidden="true">ML</div>
+  <div class="masthead-copy">
+    <a class="site-title" href="{{ navigation.home_href }}">{{ site.title }}</a>
+    <p class="site-description">{{ site.description }}</p>
+  </div>
+  <div class="header-actions">
+    {% if language_links %}
+      <details class="language-switcher">
+        <summary aria-label="Choose language">
+          <span class="language-switcher__label">
+            {{ site.extension_setting('i18n', 'label_language', 'Language') }}
+          </span>
+          <span class="language-switcher__current">{{ site.locale }}</span>
+        </summary>
+        <ul>
+          {% for link in language_links %}
+            <li>
+              <a
+                href="{{ link.href }}"
+                {% if link.current %}aria-current="page"{% endif %}
+              >
+                {{ link.label }}
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      </details>
+    {% endif %}
+    <button
+      class="menu-toggle"
+      type="button"
+      aria-controls="site-navigation"
+      aria-expanded="false"
+    >
+      {{ site.extension_setting('i18n', 'label_menu', 'Menu') }}
+    </button>
+  </div>
+</header>

@@ -1,0 +1,13 @@
+<article class="collection-card story-step">
+  <p class="data-label">
+    {{ collection.pages | length }} {{ site.extension_setting('i18n', 'label_reports', 'reports') }}
+  </p>
+  <h3><a href="{{ collection.root_href() }}">{{ collection.title }}</a></h3>
+  <ol>
+    {% for page in collection.pages %}
+      <li>
+        <a href="{{ collection.output_slug }}/{{ page.file_name() }}">{{ page.title }}</a>
+      </li>
+    {% endfor %}
+  </ol>
+</article>
