@@ -1,0 +1,92 @@
+concept:
+  id: bias_variance_tradeoff
+  metadata:
+    title:
+      short: Bias-Variance Tradeoff
+      subtitle: The fundamental tension in machine learning
+    description: Understanding the tradeoff between bias and variance in ML models
+    tags: [bias, variance, tradeoff, statistics]
+
+narrative:
+  beats:
+    - kind: opening
+      narration:
+        text: |
+          Bias-Variance Tradeoff.
+          The fundamental tension in every machine learning model.
+        duration_seconds: 6.0
+      visual_key: title
+
+    - kind: reveal
+      narration:
+        text: |
+          Imagine a dartboard.
+          The bullseye is the perfect prediction.
+          Every dart is a model prediction.
+        duration_seconds: 7.0
+      visual_key: target
+
+    - kind: reveal
+      narration:
+        text: |
+          High bias, low variance.
+          All darts cluster together, far from the bullseye.
+          The model is consistently wrong.
+          It has strong assumptions baked in.
+        duration_seconds: 9.0
+      visual_key: high_bias
+
+    - kind: reveal
+      narration:
+        text: |
+          What causes high bias?
+          An overly simple model. It assumes the data is linear
+          when the real relationship is curved. It underfits.
+        duration_seconds: 7.0
+      visual_key: causes_bias
+
+    - kind: reveal
+      narration:
+        text: |
+          Low bias, high variance.
+          Darts spread all over.
+          On average they hit the center, but individual predictions
+          are all over the place. The model is too sensitive.
+        duration_seconds: 9.0
+      visual_key: high_variance
+
+    - kind: reveal
+      narration:
+        text: |
+          What causes high variance?
+          An overly complex model. It chases every data point
+          and memorizes noise instead of signal. It overfits.
+        duration_seconds: 7.0
+      visual_key: causes_variance
+
+    - kind: emphasis
+      narration:
+        text: |
+          Low bias, low variance.
+          Every dart hits the bullseye.
+          This is the sweet spot, and it is very hard to achieve.
+        duration_seconds: 7.0
+      visual_key: sweet_spot
+
+    - kind: transition
+      narration:
+        text: |
+          The tradeoff is everywhere in machine learning.
+          Bias dominates when models are too simple.
+          Variance dominates when models are too complex.
+        duration_seconds: 7.0
+      visual_key: graph
+
+    - kind: recap
+      narration:
+        text: |
+          Bias is wrong assumptions built into the model.
+          Variance is sensitivity to small fluctuations in training data.
+          Find the balance.
+        duration_seconds: 8.0
+      visual_key: recap

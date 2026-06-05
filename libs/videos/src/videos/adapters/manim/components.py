@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+from videos.core.domain.scene_spec import ComponentSpec
 
 if TYPE_CHECKING:
     from manim import Scene, VGroup
@@ -60,3 +62,53 @@ def create_target(
         circle = Circle(radius=r, color=color, stroke_width=3, fill_opacity=0.3)
         target.add(circle)
     return target
+
+
+class TitleComponent:
+    def build(self, spec: ComponentSpec, scene: object) -> Any:
+        from manim import Text, Write
+
+        content: str = spec.props.get("content", spec.region)
+        text = Text(content, font_size=40)
+        scene.play(Write(text))  # type: ignore[arg-type]
+        return text
+
+
+class TextComponent:
+    def build(self, spec: ComponentSpec, scene: object) -> Any:
+        from manim import Text, Write
+
+        content: str = spec.props.get("content", "")
+        text = Text(content, font_size=24)
+        scene.play(Write(text))  # type: ignore[arg-type]
+        return text
+
+
+class DiagramComponent:
+    def build(self, spec: ComponentSpec, scene: object) -> Any:
+        kind: str = spec.props.get("kind", "cycle")
+        labels: list[str] = spec.props.get("labels", [])
+        colors: list[str] = spec.props.get(
+            "colors", ["#4A90D9", "#E67E22", "#2ECC71", "#E74C3C", "#9B59B6"]
+        )
+
+        if kind == "linear":
+            return build_linear_nodes(scene, labels, colors)
+        if kind == "target":
+            rings: int = spec.props.get("rings", 4)
+            max_radius: float = spec.props.get("max_radius", 2.0)
+            return create_target(scene, rings=rings, max_radius=max_radius)
+
+        return build_cycle_nodes(scene, labels, colors)
+
+
+from videos.components.registry import ComponentRegistry
+
+
+def register_default_components(registry: object) -> None:
+    if not isinstance(registry, ComponentRegistry):
+        msg = f"Expected ComponentRegistry, got {type(registry).__name__}"
+        raise TypeError(msg)
+    registry.register("title", TitleComponent())
+    registry.register("text", TextComponent())
+    registry.register("diagram", DiagramComponent())

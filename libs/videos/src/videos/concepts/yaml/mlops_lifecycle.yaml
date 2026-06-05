@@ -1,0 +1,109 @@
+concept:
+  id: mlops_lifecycle
+  metadata:
+    title:
+      short: MLOps Lifecycle
+      subtitle: From data to production and back
+    description: Continuous Delivery for Machine Learning lifecycle based on CD4ML
+    tags: [mlops, lifecycle, cd4ml, ml engineering]
+
+narrative:
+  beats:
+    - kind: opening
+      narration:
+        text: |
+          MLOps Lifecycle.
+          Building a model is just the beginning.
+          The real challenge is keeping it running and improving it.
+        duration_seconds: 6.0
+      visual_key: title
+
+    - kind: reveal
+      narration:
+        text: |
+          Machine learning changes on 3 axes.
+          Code, Data, and Model.
+          Traditional DevOps only handles one of these.
+        duration_seconds: 6.0
+      visual_key: three_axes
+
+    - kind: reveal
+      narration:
+        text: Data Collection. Version your data like you version your code.
+        duration_seconds: 5.0
+      visual_key: phase_collect
+
+    - kind: reveal
+      narration:
+        text: |
+          Feature Engineering.
+          Turn raw data into signals.
+          Store features for reuse between training and serving.
+        duration_seconds: 5.0
+      visual_key: phase_features
+
+    - kind: reveal
+      narration:
+        text: |
+          Training. Track every experiment.
+          If you didn't log it, it didn't happen.
+        duration_seconds: 6.0
+      visual_key: phase_train
+
+    - kind: reveal
+      narration:
+        text: |
+          Model Registration.
+          Promote the good ones, archive the rest.
+          Governance matters.
+        duration_seconds: 5.0
+      visual_key: phase_register
+
+    - kind: reveal
+      narration:
+        text: |
+          Deployment. Ship safely.
+          Your model deserves the same care as any software.
+        duration_seconds: 6.0
+      visual_key: phase_deploy
+
+    - kind: reveal
+      narration:
+        text: |
+          Monitoring.
+          Watch for data drift, concept drift, performance degradation.
+        duration_seconds: 6.0
+      visual_key: phase_monitor
+
+    - kind: reveal
+      narration:
+        text: |
+          Why MLOps? Because ML breaks in production.
+          Data pipelines fail. Models drift.
+          Without MLOps, you are flying blind.
+        duration_seconds: 7.0
+      visual_key: why_mlops
+
+    - kind: emphasis
+      narration:
+        text: |
+          The feedback loop.
+          Production data feeds back into training.
+          Your next model learns from the last one's mistakes.
+        duration_seconds: 7.0
+      visual_key: feedback
+
+    - kind: reveal
+      narration:
+        text: |
+          Continuous improvement.
+          Predictions become labeled data through monitoring.
+          That data trains the next version. The loop never stops.
+        duration_seconds: 6.0
+      visual_key: continuous
+
+    - kind: recap
+      narration:
+        text: Data to production and back. That is the MLOps lifecycle.
+        duration_seconds: 4.0
+      visual_key: recap

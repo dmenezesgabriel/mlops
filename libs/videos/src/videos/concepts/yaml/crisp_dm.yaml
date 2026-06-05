@@ -1,0 +1,94 @@
+concept:
+  id: crisp_dm
+  metadata:
+    title:
+      short: CRISP-DM
+      subtitle: A practical loop for data mining projects
+    description: Cross-Industry Standard Process for Data Mining
+    tags: [data mining, methodology, process]
+
+narrative:
+  beats:
+    - kind: opening
+      narration:
+        text: |
+          CRISP-DM. The most widely-used process for data mining projects.
+          Boring name, powerful framework.
+        duration_seconds: 7.0
+      visual_key: title
+
+    - kind: reveal
+      narration:
+        text: Business Understanding. Define the goal before touching any data.
+        duration_seconds: 5.0
+      visual_key: phase_business
+
+    - kind: reveal
+      narration:
+        text: Data Understanding. Explore distributions, spot quality issues.
+        duration_seconds: 5.0
+      visual_key: phase_data
+
+    - kind: reveal
+      narration:
+        text: |
+          Data Preparation. Cleaning, transforming, feature engineering.
+          This takes 80 percent of the time.
+        duration_seconds: 5.0
+      visual_key: phase_prepare
+
+    - kind: reveal
+      narration:
+        text: Modeling. Training candidate models, tuning parameters.
+        duration_seconds: 5.0
+      visual_key: phase_model
+
+    - kind: reveal
+      narration:
+        text: |
+          Evaluation. Does the model solve the business problem?
+          Not just accuracy — business value.
+        duration_seconds: 5.0
+      visual_key: phase_evaluate
+
+    - kind: reveal
+      narration:
+        text: Deployment. A model in a notebook does nobody any good. Ship it.
+        duration_seconds: 5.0
+      visual_key: phase_deploy
+
+    - kind: reveal
+      narration:
+        text: |
+          Why a cycle? Business priorities shift.
+          New data arrives. Models degrade.
+          CRISP-DM is designed for this.
+        duration_seconds: 7.0
+      visual_key: why_iterative
+
+    - kind: emphasis
+      narration:
+        text: It is not a one-way street. It is a cycle.
+        duration_seconds: 5.0
+      visual_key: cycle
+
+    - kind: transition
+      narration:
+        text: You can always go back. Business changes? Go back. New data? Go back.
+        duration_seconds: 7.0
+      visual_key: back_arrows
+
+    - kind: reveal
+      narration:
+        text: |
+          Example: fraud detection.
+          Deploy. Six months later patterns shift.
+          Back to Data Understanding — the loop in action.
+        duration_seconds: 7.0
+      visual_key: example
+
+    - kind: recap
+      narration:
+        text: Business first. Deploy to learn. Iterate forever. That is CRISP-DM.
+        duration_seconds: 5.0
+      visual_key: recap

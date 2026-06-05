@@ -1,0 +1,75 @@
+concept:
+  id: underfit_vs_overfit
+  metadata:
+    title:
+      short: Underfitting vs Overfitting
+      subtitle: Too simple or too complex
+    description: When a model is too simple or too complex for the data
+    tags: [underfitting, overfitting, bias, variance]
+
+narrative:
+  beats:
+    - kind: opening
+      narration:
+        text: Underfitting vs Overfitting. Too simple or too complex.
+        duration_seconds: 5.0
+      visual_key: title
+
+    - kind: reveal
+      narration:
+        text: |
+          Points that follow a clear pattern with some noise mixed in.
+          A good model captures the pattern, not the noise.
+        duration_seconds: 7.0
+      visual_key: data_points
+
+    - kind: reveal
+      narration:
+        text: |
+          Underfitting. The model is too simple.
+          A straight line through curved data.
+          It misses the pattern entirely.
+        duration_seconds: 9.0
+      visual_key: underfit
+
+    - kind: reveal
+      narration:
+        text: |
+          Overfitting. The model is too complex.
+          It memorizes every data point including the noise.
+          Zero training error but terrible validation error.
+        duration_seconds: 9.0
+      visual_key: overfit
+
+    - kind: emphasis
+      narration:
+        text: |
+          Just right. Captures the underlying pattern without noise.
+          Good training error AND good validation error.
+        duration_seconds: 7.0
+      visual_key: just_right
+
+    - kind: transition
+      narration:
+        text: |
+          Both high errors = underfit.
+          Low training + high validation = overfit.
+        duration_seconds: 7.0
+      visual_key: diagnosis
+
+    - kind: transition
+      narration:
+        text: |
+          Fix overfitting with regularization.
+          Fix underfitting with more features or a bigger model.
+        duration_seconds: 7.0
+      visual_key: fixes
+
+    - kind: recap
+      narration:
+        text: |
+          Underfit needs more model capacity.
+          Overfit needs more data or regularization.
+          Your validation set tells you which.
+        duration_seconds: 8.0
+      visual_key: recap
