@@ -1,6 +1,18 @@
 import pytest
 from ssg.presentation import cli
-from ssg.presentation.cli import create_parser, validate_reload_interval
+from ssg.presentation.cli import create_parser, load_html_post_processors, validate_reload_interval
+
+
+class FakeHtmlPostProcessor:
+    def process(self, rendered_html: str, _site: object) -> str:
+        return rendered_html
+
+
+class FakeEntryPoint:
+    name = "fake-html-processor"
+
+    def load(self) -> type[FakeHtmlPostProcessor]:
+        return FakeHtmlPostProcessor
 
 
 def test_create_parser_accepts_build_arguments() -> None:
@@ -85,3 +97,23 @@ def test_main_validates_preview_interval_before_building(monkeypatch: pytest.Mon
     with pytest.raises(ValueError, match="expected value greater than 0"):
         cli.main()
     assert build_calls == []
+
+
+def test_load_html_post_processors_uses_html_processor_entry_points(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    requested_groups: list[str] = []
+
+    def fake_entry_points(group: str) -> tuple[FakeEntryPoint, ...]:
+        requested_groups.append(group)
+        return (FakeEntryPoint(),)
+
+    monkeypatch.setattr(cli, "entry_points", fake_entry_points)
+
+    # Act
+    processors = load_html_post_processors()
+
+    # Assert
+    assert requested_groups == ["ssg.html_post_processors"]
+    assert isinstance(processors[0], FakeHtmlPostProcessor)

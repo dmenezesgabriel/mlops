@@ -15,6 +15,9 @@ def test_load_reads_generic_site_manifest(tmp_path: Path) -> None:
         "site:\n"
         "  title: Learning Site\n"
         "  description: Rendered content collections.\n"
+        "extensions:\n"
+        "  syntax_highlighting:\n"
+        "    style: monokai\n"
         "collections:\n"
         "  - name: sample_collection\n"
         "    title: Sample Collection\n"
@@ -38,6 +41,7 @@ def test_load_reads_generic_site_manifest(tmp_path: Path) -> None:
     collection = site.collections[0]
     assert site.title == "Learning Site"
     assert collection.name == "sample_collection"
+    assert site.extension_setting("syntax_highlighting", "style", "gruvbox-dark") == "monokai"
     assert collection.source_root == collection_root.resolve()
     assert collection.pages[0].source_path == collection_root.resolve() / "README.md"
     assert collection.videos["demo"] == (site_path / "../videos/demo.mp4").resolve()
@@ -50,4 +54,24 @@ def test_load_rejects_non_mapping_config(tmp_path: Path) -> None:
 
     # Act / Assert
     with pytest.raises(ValueError, match="expected YAML mapping"):
+        SiteConfigRepository().load(config_path)
+
+
+def test_load_rejects_non_string_extension_setting(tmp_path: Path) -> None:
+    # Arrange
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "extensions:\n"
+        "  syntax_highlighting:\n"
+        "    style: 42\n"
+        "collections: []\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(
+        ValueError, match="expected extension setting syntax_highlighting.style string"
+    ):
         SiteConfigRepository().load(config_path)

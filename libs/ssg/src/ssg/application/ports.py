@@ -29,6 +29,11 @@ class ContentRenderer(Protocol):
         pass
 
 
+class HtmlPostProcessor(Protocol):
+    def process(self, rendered_html: str, site: Site) -> str:
+        pass
+
+
 class ArticleOutlineBuilder(Protocol):
     def build(self, title: str, body: str) -> Article:
         pass

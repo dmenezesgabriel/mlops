@@ -10,6 +10,7 @@ from ssg.infrastructure.site_config_repository import SiteConfigRepository
 from ssg_notebook_render.notebook_content_renderer import (
     NotebookContentRenderer,
 )
+from ssg_syntax_highlighting.presentation.plugin import create_pygments_html_post_processor
 
 
 @pytest.mark.integration
@@ -19,6 +20,7 @@ def test_static_site_generation_from_configured_content_collection(tmp_path: Pat
     builder = StaticSiteBuilder(
         site_repository=SiteConfigRepository(),
         content_renderers=(MarkdownContentRenderer(), NotebookContentRenderer()),
+        html_post_processors=(create_pygments_html_post_processor(),),
         page_renderer=JinjaPageRenderer(),
     )
 
@@ -26,8 +28,12 @@ def test_static_site_generation_from_configured_content_collection(tmp_path: Pat
 
     page_path = output_path / "sample-collection" / "feature-engineering.html"
     rendered_html = page_path.read_text(encoding="utf-8")
+    overview_html = (output_path / "sample-collection" / "overview.html").read_text(
+        encoding="utf-8"
+    )
     _assert_navigation_rendered(rendered_html)
     _assert_notebook_content_rendered(rendered_html)
+    _assert_syntax_highlighting_rendered(rendered_html, overview_html)
     _assert_site_files_written(output_path, page_path)
 
 
@@ -40,10 +46,17 @@ def _assert_navigation_rendered(rendered_html: str) -> None:
 
 
 def _assert_notebook_content_rendered(rendered_html: str) -> None:
-    assert "def create_hourly_features" in rendered_html
+    assert "create_hourly_features" in rendered_html
     assert '<video controls src="assets/videos/demo.mp4"></video>' in rendered_html
     assert "feature table preview" in rendered_html
     assert '<img src="assets/images/feature-engineering-cell-1-output-1.png"' in rendered_html
+
+
+def _assert_syntax_highlighting_rendered(rendered_html: str, overview_html: str) -> None:
+    assert "highlight-token" in overview_html
+    assert '<code class="language-python">' in overview_html
+    assert "highlight-token" in rendered_html
+    assert '<code class="language-python">' in rendered_html
 
 
 def _assert_site_files_written(output_path: Path, page_path: Path) -> None:
@@ -103,7 +116,14 @@ def _write_config(site_path: Path, tmp_path: Path) -> None:
 
 
 def _write_markdown(source_root: Path) -> None:
-    (source_root / "README.md").write_text("# Overview\n\nA content collection.", encoding="utf-8")
+    (source_root / "README.md").write_text(
+        "# Overview\n\nA content collection.\n\n"
+        "```python\n"
+        "def prepare_features() -> None:\n"
+        "    pass\n"
+        "```",
+        encoding="utf-8",
+    )
 
 
 def _write_second_markdown(source_root: Path) -> None:

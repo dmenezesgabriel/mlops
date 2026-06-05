@@ -5,6 +5,7 @@ from ssg.application.html_headings import HtmlArticleOutlineBuilder
 from ssg.application.ports import (
     ArticleOutlineBuilder,
     ContentRenderer,
+    HtmlPostProcessor,
     PageRenderer,
     SiteRepository,
 )
@@ -26,11 +27,13 @@ class StaticSiteBuilder:
         site_repository: SiteRepository,
         page_renderer: PageRenderer,
         content_renderers: tuple[ContentRenderer, ...],
+        html_post_processors: tuple[HtmlPostProcessor, ...] = (),
         article_outline_builder: ArticleOutlineBuilder | None = None,
     ) -> None:
         self._site_repository = site_repository
         self._page_renderer = page_renderer
         self._content_renderers = content_renderers
+        self._html_post_processors = html_post_processors
         self._article_outline_builder = article_outline_builder or HtmlArticleOutlineBuilder()
 
     def build(
@@ -82,7 +85,7 @@ class StaticSiteBuilder:
         )
 
         for page in collection.pages:
-            body = self._render_body(collection, page, collection_output_path)
+            body = self._render_body(site, collection, page, collection_output_path)
             rendered_page = self._rendered_page(site, collection, page, body)
             rendered_html = self._page_renderer.render_page(rendered_page)
             output_file = collection_output_path / page.file_name()
@@ -144,15 +147,25 @@ class StaticSiteBuilder:
 
     def _render_body(
         self,
+        site: Site,
         collection: ContentCollection,
         page: Page,
         output_path: Path,
     ) -> str:
         for renderer in self._content_renderers:
             if renderer.can_render(page.source_path):
-                return renderer.render(collection, page, output_path)
+                return self._process_rendered_html(
+                    renderer.render(collection, page, output_path), site
+                )
 
         raise ValueError(
             f"Unsupported page source {page.source_path}: expected renderer for suffix "
             f"{page.source_path.suffix}",
         )
+
+    def _process_rendered_html(self, rendered_html: str, site: Site) -> str:
+        processed_html = rendered_html
+        for post_processor in self._html_post_processors:
+            processed_html = post_processor.process(processed_html, site)
+
+        return processed_html

@@ -1,6 +1,9 @@
 site:
   title: MLOps Learning Lab
   description: Real-world machine learning projects rendered as educational content.
+extensions:
+  syntax_highlighting:
+    style: gruvbox-dark
 collections:
   - name: nyc_taxi_demand_forecasting
     title: NYC Taxi Demand Forecasting

@@ -95,6 +95,11 @@ class Site:
     title: str
     description: str
     collections: tuple[ContentCollection, ...]
+    extensions: dict[str, dict[str, str]] | None = None
+
+    def extension_setting(self, extension_name: str, setting_name: str, default: str) -> str:
+        extension_settings = (self.extensions or {}).get(extension_name, {})
+        return extension_settings.get(setting_name, default)
 
     def selected_collections(self, collection_name: str | None) -> tuple[ContentCollection, ...]:
         if collection_name is None:

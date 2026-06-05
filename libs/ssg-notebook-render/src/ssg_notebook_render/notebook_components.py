@@ -1,4 +1,5 @@
 import html
+from pathlib import Path
 
 from markupsafe import Markup
 
@@ -6,11 +7,12 @@ from markupsafe import Markup
 def render_source_panel(source: str, source_path: str) -> Markup:
     escaped_source = html.escape(source)
     escaped_path = html.escape(source_path)
+    language_class = _language_class_for_source(source_path)
     return Markup(
         '<figure class="source-panel story-step">'
         '<figcaption><span class="data-label">Source</span>'
         f'<span class="source-panel__path">{escaped_path}</span></figcaption>'
-        f"<pre><code>{escaped_source}</code></pre>"
+        f'<pre><code class="{language_class}">{escaped_source}</code></pre>'
         "</figure>"
     )
 
@@ -32,7 +34,7 @@ def render_notebook_code_cell(source: str, cell_index: int, outputs: str) -> str
         '<section class="notebook-cell story-step">'
         f"{_notebook_cell_header('Code', cell_index)}"
         '<div class="notebook-input">'
-        f"<pre><code>{escaped_source}</code></pre>"
+        f'<pre><code class="language-python">{escaped_source}</code></pre>'
         "</div>"
         f"{outputs}"
         "</section>"
@@ -72,6 +74,21 @@ def _notebook_output(output_label: str, escaped_output: str) -> str:
     return (
         '<div class="notebook-output">'
         f'<span class="notebook-output__label">{escaped_label}</span>'
-        f"<pre><code>{escaped_output}</code></pre>"
+        f'<pre><code class="language-text">{escaped_output}</code></pre>'
         "</div>"
     )
+
+
+def _language_class_for_source(source_path: str) -> str:
+    suffix_languages = {
+        ".py": "python",
+        ".toml": "toml",
+        ".yaml": "yaml",
+        ".yml": "yaml",
+        ".md": "markdown",
+        ".sql": "sql",
+        ".sh": "bash",
+        ".json": "json",
+    }
+    language = suffix_languages.get(Path(source_path).suffix.lower(), "text")
+    return f"language-{language}"

@@ -15,6 +15,7 @@ class SiteConfigRepository(SiteRepository):
         return Site(
             title=self._required_string(site_config, "title", config_path),
             description=str(site_config.get("description", "")),
+            extensions=self._read_extensions(manifest, config_path),
             collections=tuple(
                 self._read_collection(collection, config_path) for collection in collections
             ),
@@ -76,6 +77,55 @@ class SiteConfigRepository(SiteRepository):
             str(name): self._path_from_config(config_path, str(video_path))
             for name, video_path in videos.items()
         }
+
+    def _read_extensions(
+        self,
+        manifest: Mapping[object, object],
+        config_path: Path,
+    ) -> dict[str, dict[str, str]]:
+        extensions = manifest.get("extensions", {})
+        if not isinstance(extensions, dict):
+            raise ValueError(f"Invalid extensions in {config_path}: expected mapping")
+
+        return {
+            str(extension_name): self._read_extension_settings(
+                str(extension_name), extension_settings, config_path
+            )
+            for extension_name, extension_settings in extensions.items()
+        }
+
+    def _read_extension_settings(
+        self,
+        extension_name: str,
+        extension_settings: object,
+        config_path: Path,
+    ) -> dict[str, str]:
+        if not isinstance(extension_settings, dict):
+            raise ValueError(
+                f"Invalid extension {extension_name} in {config_path}: expected mapping"
+            )
+
+        return {
+            str(setting_name): self._extension_setting_string(
+                extension_name, str(setting_name), setting_value, config_path
+            )
+            for setting_name, setting_value in extension_settings.items()
+        }
+
+    def _extension_setting_string(
+        self,
+        extension_name: str,
+        setting_name: str,
+        setting_value: object,
+        config_path: Path,
+    ) -> str:
+        if isinstance(setting_value, str):
+            return setting_value
+
+        raise ValueError(
+            f"Invalid extensions in {config_path}: expected extension setting "
+            f"{extension_name}.{setting_name} string"
+        )
 
     def _path_from_config(self, config_path: Path, configured_path: str) -> Path:
         path = Path(configured_path)

@@ -1,27 +1,24 @@
 [project]
-name = "ssg"
+name = "ssg-syntax-highlighting"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
-  "jinja2==3.1.6",
-  "markdown-it-py==4.2.0",
-  "markupsafe==3.0.3",
-  "pyyaml==6.0.3",
+  "pygments==2.19.2",
+  "ssg",
 ]
 
-[project.optional-dependencies]
-syntax-highlighting = ["ssg-syntax-highlighting"]
+[project.entry-points."ssg.html_post_processors"]
+pygments = "ssg_syntax_highlighting.presentation.plugin:create_pygments_html_post_processor"
 
 [tool.uv.sources]
-ssg-syntax-highlighting = { workspace = true }
+ssg = { workspace = true }
 
 [tool.deptry.package_module_name_map]
 ssg = "ssg"
 ssg-syntax-highlighting = "ssg_syntax_highlighting"
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["ssg-syntax-highlighting"]
-DEP003 = ["ssg"]
+DEP003 = ["ssg_syntax_highlighting"]
 
 [build-system]
 requires = ["hatchling==1.27.0"]

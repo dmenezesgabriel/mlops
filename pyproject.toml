@@ -20,6 +20,7 @@ dev = [
   "radon==6.0.1",
   "ruff==0.15.15",
   "semgrep==1.165.0",
+  "types-pygments==2.20.0.20260518",
   "types-PyYAML==6.0.12.20260518",
   "types-requests==2.33.0.20260518",
 ]
@@ -29,6 +30,7 @@ members = [
   "libs/mlops-shared",
   "libs/ssg",
   "libs/ssg-notebook-render",
+  "libs/ssg-syntax-highlighting",
   "projects/nyc_taxi_demand_forecasting",
 ]
 
@@ -69,6 +71,7 @@ packages = [
   "nyc_taxi_demand_forecasting",
   "ssg",
   "ssg_notebook_render",
+  "ssg_syntax_highlighting",
 ]
 
 [tool.deptry]
@@ -77,6 +80,7 @@ known_first_party = [
   "nyc_taxi_demand_forecasting",
   "ssg",
   "ssg_notebook_render",
+  "ssg_syntax_highlighting",
 ]
 
 [tool.importlinter]
@@ -85,12 +89,13 @@ root_packages = [
   "nyc_taxi_demand_forecasting",
   "ssg",
   "ssg_notebook_render",
+  "ssg_syntax_highlighting",
 ]
 
 [[tool.importlinter.contracts]]
 name = "Shared libraries do not import projects"
 type = "forbidden"
-source_modules = ["mlops_shared", "ssg", "ssg_notebook_render"]
+source_modules = ["mlops_shared", "ssg", "ssg_notebook_render", "ssg_syntax_highlighting"]
 forbidden_modules = ["nyc_taxi_demand_forecasting"]
 
 [[tool.importlinter.contracts]]
@@ -108,11 +113,17 @@ forbidden_modules = ["ssg.infrastructure", "ssg.presentation"]
 [[tool.importlinter.contracts]]
 name = "Static site generator stays MLOps agnostic"
 type = "forbidden"
-source_modules = ["ssg", "ssg_notebook_render"]
+source_modules = ["ssg", "ssg_notebook_render", "ssg_syntax_highlighting"]
 forbidden_modules = ["mlops_shared", "nyc_taxi_demand_forecasting"]
 
 [[tool.importlinter.contracts]]
 name = "Notebook renderer stays an SSG extension"
 type = "forbidden"
 source_modules = ["ssg_notebook_render"]
+forbidden_modules = ["ssg.infrastructure", "ssg.presentation"]
+
+[[tool.importlinter.contracts]]
+name = "Syntax highlighting stays an SSG extension"
+type = "forbidden"
+source_modules = ["ssg_syntax_highlighting"]
 forbidden_modules = ["ssg.infrastructure", "ssg.presentation"]

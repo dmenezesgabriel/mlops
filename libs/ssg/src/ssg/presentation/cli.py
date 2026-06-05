@@ -3,7 +3,7 @@ from importlib.metadata import entry_points
 from logging import getLogger
 from pathlib import Path
 
-from ssg.application.ports import ContentRenderer
+from ssg.application.ports import ContentRenderer, HtmlPostProcessor
 from ssg.application.site_preview import StaticSitePreview
 from ssg.application.static_site_builder import StaticSiteBuilder
 from ssg.infrastructure.jinja_page_renderer import JinjaPageRenderer
@@ -55,6 +55,7 @@ def build_site(config_path: Path, output_path: Path, collection_name: str | None
     builder = StaticSiteBuilder(
         site_repository=SiteConfigRepository(),
         content_renderers=load_content_renderers(),
+        html_post_processors=load_html_post_processors(),
         page_renderer=JinjaPageRenderer(),
     )
     builder.build(config_path, output_path, collection_name)
@@ -97,6 +98,19 @@ def load_content_renderers() -> tuple[ContentRenderer, ...]:
         plugin_renderers.append(renderer)
 
     return (MarkdownContentRenderer(), *plugin_renderers)
+
+
+def load_html_post_processors() -> tuple[HtmlPostProcessor, ...]:
+    html_post_processors = []
+    for entry_point in entry_points(group="ssg.html_post_processors"):
+        html_post_processor = entry_point.load()()
+        LOGGER.info(
+            "html_post_processor_loaded",
+            extra={"context": {"processor": entry_point.name}},
+        )
+        html_post_processors.append(html_post_processor)
+
+    return tuple(html_post_processors)
 
 
 def _add_build_arguments(parser: argparse.ArgumentParser) -> None:

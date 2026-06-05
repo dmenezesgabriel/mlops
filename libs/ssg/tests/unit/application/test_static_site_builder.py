@@ -65,6 +65,15 @@ class SpyArticleOutlineBuilder:
         )
 
 
+class SpyHtmlPostProcessor:
+    def __init__(self) -> None:
+        self.process_calls: list[tuple[str, Site]] = []
+
+    def process(self, rendered_html: str, site: Site) -> str:
+        self.process_calls.append((rendered_html, site))
+        return rendered_html.replace("Rendered body", "Processed body")
+
+
 def test_build_delegates_to_repository_content_renderer_and_page_renderer(
     tmp_path: Path,
 ) -> None:
@@ -97,19 +106,55 @@ def test_build_delegates_to_repository_content_renderer_and_page_renderer(
 
     # Assert
     collection_output_path = output_path / "sample-collection"
+    rendered_page = page_renderer.render_page_calls[0]
     assert site_repository.load_calls == [config_path]
     assert content_renderer.render_calls == [(collection, page, collection_output_path)]
     assert page_renderer.render_index_calls[0].collections == (collection,)
-    assert page_renderer.render_page_calls[0].collection == collection
-    assert page_renderer.render_page_calls[0].page == page
+    assert (rendered_page.collection, rendered_page.page) == (collection, page)
     assert article_outline_builder.build_calls == [("Overview", "<p>Rendered body</p>")]
-    assert page_renderer.render_page_calls[0].article.body == '<h2 id="overview">Overview</h2>'
-    assert page_renderer.render_page_calls[0].article.has_table_of_contents() is True
-    assert (output_path / "index.html").read_text(encoding="utf-8") == "<html>Index</html>"
-    assert (output_path / "assets" / "site.css").read_text(encoding="utf-8") == "body {}"
-    assert (collection_output_path / "overview.html").read_text(encoding="utf-8") == (
-        '<html><h2 id="overview">Overview</h2></html>'
+    assert (rendered_page.article.body, rendered_page.article.has_table_of_contents()) == (
+        '<h2 id="overview">Overview</h2>',
+        True,
     )
+    assert (
+        (output_path / "index.html").read_text(encoding="utf-8"),
+        (output_path / "assets" / "site.css").read_text(encoding="utf-8"),
+        (collection_output_path / "overview.html").read_text(encoding="utf-8"),
+    ) == (
+        "<html>Index</html>",
+        "body {}",
+        '<html><h2 id="overview">Overview</h2></html>',
+    )
+
+
+def test_build_applies_html_post_processors_before_article_outline(tmp_path: Path) -> None:
+    # Arrange
+    page = Page(slug="overview", title="Overview", source_path=tmp_path / "README.md")
+    collection = ContentCollection(
+        name="sample_collection",
+        title="Sample Collection",
+        source_root=tmp_path,
+        output_slug="sample-collection",
+        pages=(page,),
+        videos={},
+    )
+    site = Site(title="Learning Site", description="", collections=(collection,))
+    article_outline_builder = SpyArticleOutlineBuilder()
+    html_post_processor = SpyHtmlPostProcessor()
+    builder = StaticSiteBuilder(
+        site_repository=SpySiteRepository(site),
+        content_renderers=(SpyContentRenderer(),),
+        page_renderer=SpyPageRenderer(),
+        article_outline_builder=article_outline_builder,
+        html_post_processors=(html_post_processor,),
+    )
+
+    # Act
+    builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+    # Assert
+    assert html_post_processor.process_calls == [("<p>Rendered body</p>", site)]
+    assert article_outline_builder.build_calls == [("Overview", "<p>Processed body</p>")]
 
 
 def test_build_rejects_unsupported_page_source(tmp_path: Path) -> None:
