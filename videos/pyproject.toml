@@ -1,0 +1,17 @@
+[project]
+name = "mlops-videos"
+version = "0.1.0"
+description = "Educational ML concept videos rendered with Manim"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -ra --tb=short --import-mode=importlib"
+markers = [
+    "docker: tests that require Docker with Manim to render scenes",
+]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
