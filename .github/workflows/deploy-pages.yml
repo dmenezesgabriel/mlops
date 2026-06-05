@@ -15,9 +15,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  render-videos:
+    name: Render Video (${{ matrix.scene.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        scene:
+          - path: videos/concepts/bias_variance_tradeoff.py
+            name: BiasVarianceTradeoff
+          - path: videos/concepts/crisp_dm.py
+            name: CrispDmScene
+          - path: videos/concepts/mlops_lifecycle.py
+            name: MlopsLifecycleScene
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Render video
+        run: make render-video SCENE=${{ matrix.scene.path }} SCENE_NAME=${{ matrix.scene.name }}
+
+      - name: Upload video artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-${{ matrix.scene.name }}
+          path: videos/output/*.mp4
+          if-no-files-found: error
+
   build:
     name: Build Pages Artifact
     runs-on: ubuntu-latest
+    needs: render-videos
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -34,6 +61,13 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --all-packages --dev --frozen
+
+      - name: Download rendered videos
+        uses: actions/download-artifact@v4
+        with:
+          pattern: video-*
+          path: videos/output/
+          merge-multiple: true
 
       - name: Lint
         run: make lint
