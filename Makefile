@@ -1,9 +1,9 @@
 PROJECT ?= nyc_taxi_demand_forecasting
-SCENE ?= videos/src/mlops_videos/concepts/bias_variance_tradeoff.py
+SCENE ?= libs/videos/src/videos/concepts/bias_variance_tradeoff.py
 SCENE_NAME ?= BiasVarianceTradeoffScene
 MANIM_IMAGE ?= manimcommunity/manim:v0.20.1
 VIDEO_FILE ?= $(notdir $(basename $(SCENE)))
-VIDEO_OUTPUT ?= videos/output/$(VIDEO_FILE).mp4
+VIDEO_OUTPUT ?= libs/videos/output/$(VIDEO_FILE).mp4
 
 .SILENT:
 .PHONY: install format lint type-check test test-bdd test-e2e coverage complexity dependencies architecture security quality build-site preview-site render-video check-videos collect preprocess features train tune evaluate deploy monitor mlflow
@@ -44,7 +44,7 @@ complexity:
 
 dependencies:
 	tmp=$$(mktemp); \
-	for package in libs/mlops-shared libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting projects/$(PROJECT); do \
+	for package in libs/mlops-shared libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting libs/videos projects/$(PROJECT); do \
 		(cd $$package && uv run deptry .) >> $$tmp 2>&1 || { cat $$tmp; rm -f $$tmp; exit 1; }; \
 	done; \
 	rm -f $$tmp
@@ -74,10 +74,10 @@ render-video:
 	mkdir -p $(dir $(VIDEO_OUTPUT))
 	chmod 777 $(dir $(VIDEO_OUTPUT))
 	docker run --rm \
-	  -v "$(CURDIR)/videos/src:/videos_src:ro" \
-	  -v "$(CURDIR)/videos/output:/output:delegated" \
+	  -v "$(CURDIR)/libs/videos/src:/videos_src:ro" \
+	  -v "$(CURDIR)/libs/videos/output:/output:delegated" \
 	  $(MANIM_IMAGE) sh -lc \
-	  'PYTHONPATH=/videos_src /opt/venv/bin/python -m manim -qm /videos_src/mlops_videos/concepts/$(notdir $(SCENE)) $(SCENE_NAME) \
+	  'PYTHONPATH=/videos_src /opt/venv/bin/python -m manim -qm /videos_src/videos/concepts/$(notdir $(SCENE)) $(SCENE_NAME) \
 	    --media_dir /tmp/manim --output_file $(notdir $(VIDEO_OUTPUT)) && \
 	   find /tmp/manim -name "$(notdir $(VIDEO_OUTPUT))" -type f -exec cp {} /output/$(notdir $(VIDEO_OUTPUT)) \;'
 
@@ -90,17 +90,17 @@ check-videos:
 	for pair in $(_VIDEO_SCENES); do \
 	  scene=$${pair%:*}; \
 	  class=$${pair#*:}; \
-	  $(MAKE) render-video SCENE=videos/src/mlops_videos/concepts/$$scene.py SCENE_NAME=$$class; \
+	  $(MAKE) render-video SCENE=libs/videos/src/videos/concepts/$$scene.py SCENE_NAME=$$class; \
 	done
 	@echo "=== Linting video source ==="
-	uv run ruff format --check --quiet videos/src/mlops_videos/
-	uv run ruff check --quiet videos/src/mlops_videos/
+	uv run ruff format --check --quiet libs/videos/src/videos/
+	uv run ruff check --quiet libs/videos/src/videos/
 	@echo "=== Type-checking video source ==="
-	uv run mypy videos/src/mlops_videos/ --no-error-summary
+	uv run mypy libs/videos/src/videos/ --no-error-summary
 	@echo "=== Running video unit tests ==="
-	uv run pytest videos/tests/ -m "not docker" -v -q
+	uv run pytest libs/videos/tests/ -m "not docker" -v -q
 	@echo "=== Running Docker visual regression tests ==="
-	uv run pytest videos/tests/integration/ -m docker -v -q
+	uv run pytest libs/videos/tests/integration/ -m docker -v -q
 	@echo "=== All video checks passed ==="
 
 collect preprocess features train tune evaluate deploy monitor:

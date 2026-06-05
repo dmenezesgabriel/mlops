@@ -25,3 +25,5 @@ projects/*/data/predictions/*
 !projects/*/data/*/.gitkeep
 projects/*/mlruns/
 projects/*/mlflow.db
+
+*.mp4

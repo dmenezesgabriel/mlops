@@ -21,13 +21,13 @@ jobs:
     strategy:
       matrix:
         scene:
-          - path: videos/src/mlops_videos/concepts/bias_variance_tradeoff.py
+          - path: libs/videos/src/videos/concepts/bias_variance_tradeoff.py
             name: BiasVarianceTradeoffScene
-          - path: videos/src/mlops_videos/concepts/crisp_dm.py
+          - path: libs/videos/src/videos/concepts/crisp_dm.py
             name: CrispDmScene
-          - path: videos/src/mlops_videos/concepts/mlops_lifecycle.py
+          - path: libs/videos/src/videos/concepts/mlops_lifecycle.py
             name: MlopsLifecycleScene
-          - path: videos/src/mlops_videos/concepts/underfit_vs_overfit.py
+          - path: libs/videos/src/videos/concepts/underfit_vs_overfit.py
             name: UnderfitVsOverfitScene
     steps:
       - name: Check out repository
@@ -40,7 +40,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: video-${{ matrix.scene.name }}
-          path: videos/output/*.mp4
+          path: libs/videos/output/*.mp4
           if-no-files-found: error
 
   integration-test:
@@ -53,7 +53,7 @@ jobs:
 
       - name: Run Docker visual regression tests
         run: |
-          cd videos && uv run pytest tests/integration/ -m docker -v
+          cd libs/videos && uv run pytest tests/integration/ -m docker -v
 
   build:
     name: Build Pages Artifact
@@ -80,7 +80,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: video-*
-          path: videos/output/
+          path: libs/videos/output/
           merge-multiple: true
 
       - name: Lint
