@@ -113,6 +113,10 @@ MEDIA_STYLES = """
   padding: 1rem;
 }
 .article-body code { font-family: var(--font-mono); }
+.article-body pre code, .notebook-input pre code,
+.notebook-output pre code, .source-panel pre code {
+  white-space: pre;
+}
 .article-body :not(pre) > code {
   background: rgb(242 189 34 / 0.32);
   border: 1px solid var(--ink);

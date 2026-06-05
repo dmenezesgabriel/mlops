@@ -48,24 +48,14 @@ body {
     radial-gradient(circle at 90% 18%, rgb(45 168 160 / 0.14), transparent 24rem),
     linear-gradient(90deg, rgb(21 17 13 / 0.045) 1px, transparent 1px),
     linear-gradient(180deg, rgb(21 17 13 / 0.035) 1px, transparent 1px),
+    radial-gradient(rgb(21 17 13 / 0.022) 0.7px, transparent 0.7px),
     var(--paper);
-  background-size: auto, auto, 3.2rem 3.2rem, 3.2rem 3.2rem, auto;
+  background-size: auto, auto, 3.2rem 3.2rem, 3.2rem 3.2rem, 5px 5px, auto;
   color: var(--ink);
   font-family: var(--font-body);
   font-size: clamp(1rem, 0.96rem + 0.18vw, 1.12rem);
   line-height: 1.68;
   min-height: 100vh;
-}
-
-body::before {
-  background-image: radial-gradient(rgb(21 17 13 / 0.12) 0.7px, transparent 0.7px);
-  background-size: 5px 5px;
-  content: "";
-  inset: 0;
-  opacity: 0.18;
-  pointer-events: none;
-  position: fixed;
-  z-index: 30;
 }
 
 a {

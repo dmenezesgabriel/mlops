@@ -30,32 +30,47 @@ class MarkdownContentRenderer(ContentRenderer):
         collection: ContentCollection,
         output_path: Path,
     ) -> str:
-        transcluded_source = self._render_transclusions(source, collection, output_path)
+        transclusions: dict[str, Markup] = {}
+        transcluded_source = self._render_transclusions(
+            source, collection, output_path, transclusions
+        )
         linked_source = self._render_wikilinks(transcluded_source, collection)
-        return demote_top_level_headings(str(self._markdown.render(linked_source)))
+        rendered_html = str(self._markdown.render(linked_source))
+        return demote_top_level_headings(self._replace_transclusions(rendered_html, transclusions))
 
     def _render_transclusions(
         self,
         source: str,
         collection: ContentCollection,
         output_path: Path,
+        transclusions: dict[str, Markup],
     ) -> str:
         environment = Environment(autoescape=True, undefined=StrictUndefined)
         template = environment.from_string(source)
         return template.render(
-            include_source=lambda source_path: self._include_source(collection, source_path),
-            embed_video=lambda video_name: self._embed_video(collection, output_path, video_name),
+            include_source=lambda source_path: self._include_source(
+                collection, source_path, transclusions
+            ),
+            embed_video=lambda video_name: self._embed_video(
+                collection, output_path, video_name, transclusions
+            ),
         )
 
-    def _include_source(self, collection: ContentCollection, source_path: str) -> Markup:
+    def _include_source(
+        self,
+        collection: ContentCollection,
+        source_path: str,
+        transclusions: dict[str, Markup],
+    ) -> Markup:
         source = collection.source_file(source_path).read_text(encoding="utf-8")
-        return render_source_panel(source, source_path)
+        return self._store_transclusion(transclusions, render_source_panel(source, source_path))
 
     def _embed_video(
         self,
         collection: ContentCollection,
         output_path: Path,
         video_name: str,
+        transclusions: dict[str, Markup],
     ) -> Markup:
         source_path = collection.video_path(video_name).resolve()
         if not source_path.exists():
@@ -66,7 +81,24 @@ class MarkdownContentRenderer(ContentRenderer):
         video_output_path = output_path / "assets" / "videos" / source_path.name
         video_output_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_path, video_output_path)
-        return render_video_frame(source_path.name, video_name)
+        return self._store_transclusion(
+            transclusions, render_video_frame(source_path.name, video_name)
+        )
+
+    def _store_transclusion(
+        self, transclusions: dict[str, Markup], rendered_html: Markup
+    ) -> Markup:
+        marker = f"SSG_TRANSCLUSION_{len(transclusions)}"
+        transclusions[marker] = rendered_html
+        return Markup(marker)
+
+    def _replace_transclusions(self, rendered_html: str, transclusions: dict[str, Markup]) -> str:
+        processed_html = rendered_html
+        for marker, transclusion in transclusions.items():
+            processed_html = processed_html.replace(f"<p>{marker}</p>", str(transclusion))
+            processed_html = processed_html.replace(marker, str(transclusion))
+
+        return processed_html
 
     def _render_wikilinks(self, source: str, collection: ContentCollection) -> str:
         pattern = re.compile(r"\[\[([a-zA-Z0-9_-]+)(?:\|([^\]]+))?\]\]")

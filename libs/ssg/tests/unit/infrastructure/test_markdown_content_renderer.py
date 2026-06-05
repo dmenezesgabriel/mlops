@@ -39,6 +39,45 @@ def test_render_transcludes_source_and_copies_video(tmp_path: Path) -> None:
     assert (output_path / "assets" / "videos" / "demo.mp4").exists()
 
 
+def test_render_preserves_transcluded_source_blank_lines_and_indentation(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    (source_root / "feature_views.py").write_text(
+        "from datetime import timedelta\n\n"
+        "from data_sources import hourly_demand_source\n\n"
+        "hourly_pickup_demand_view = FeatureView(\n"
+        '    name="hourly_pickup_demand",\n'
+        ")\n",
+        encoding="utf-8",
+    )
+    markdown_path = source_root / "README.md"
+    markdown_path.write_text('{{ include_source("feature_views.py") }}', encoding="utf-8")
+    collection = ContentCollection(
+        name="sample_collection",
+        title="Sample Collection",
+        source_root=source_root,
+        output_slug="sample-collection",
+        pages=(),
+        videos={},
+    )
+
+    # Act
+    rendered_content = MarkdownContentRenderer().render(
+        collection,
+        Page(slug="overview", title="Overview", source_path=markdown_path),
+        tmp_path / "build",
+    )
+
+    # Assert
+    assert "&lt;p&gt;" not in rendered_content
+    assert "</p>" not in rendered_content
+    assert "from datetime import timedelta\n\nfrom data_sources" in rendered_content
+    assert "\n    name=&quot;hourly_pickup_demand&quot;" in rendered_content
+
+
 def test_render_converts_wikilinks_to_page_links(tmp_path: Path) -> None:
     # Arrange
     markdown_path = tmp_path / "README.md"
