@@ -27,11 +27,13 @@ type-check:
 test:
 	uv run pytest -m "not (playwright or docker)"
 
-test-videos-docker:
-	docker run --rm -u root \
-	  -v "$(CURDIR)/libs/videos:/app:ro" \
-	  $(MANIM_IMAGE) sh -lc \
-	  '. /opt/venv/bin/activate && pip install -q pytest && PYTHONPATH=/app/src python -m pytest /app/tests/integration/ -m docker -v'
+test-videos-docker: docker/manim/Dockerfile
+	docker build -f docker/manim/Dockerfile -t mlops-manim-test .
+	docker run --rm \
+	  -v "$(CURDIR)/libs/videos/src:/app/src:ro" \
+	  -v "$(CURDIR)/libs/videos/tests:/app/tests:ro" \
+	  mlops-manim-test sh -lc \
+	  '. /opt/venv/bin/activate && python -m pytest /app/tests/integration/ -m docker -v'
 
 test-bdd:
 	uv run pytest projects/$(PROJECT)/tests/bdd
