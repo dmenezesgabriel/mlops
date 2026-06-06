@@ -5109,6 +5109,7 @@ dependencies = [
     { name = "markdown-it-py" },
     { name = "markupsafe" },
     { name = "pyyaml" },
+    { name = "watchdog" },
 ]
 
 [package.optional-dependencies]
@@ -5141,6 +5142,7 @@ requires-dist = [
     { name = "ssg-i18n-machine-translation", extras = ["transformers"], marker = "extra == 'i18n-transformers'", editable = "libs/ssg-i18n-machine-translation" },
     { name = "ssg-syntax-highlighting", marker = "extra == 'all'", editable = "libs/ssg-syntax-highlighting" },
     { name = "ssg-syntax-highlighting", marker = "extra == 'syntax-highlighting'", editable = "libs/ssg-syntax-highlighting" },
+    { name = "watchdog", specifier = "==6.0.0" },
 ]
 provides-extras = ["i18n", "i18n-transformers", "syntax-highlighting", "all"]
 

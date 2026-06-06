@@ -1,5 +1,9 @@
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ssg.application.ports import DependencyTracker
 
 
 @dataclass(frozen=True)
@@ -280,6 +284,7 @@ class BuildContext:
     output_path: Path
     collection_name: str | None
     correlation_id: str
+    dependency_tracker: "DependencyTracker | None" = None
 
 
 @dataclass(frozen=True)

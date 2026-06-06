@@ -30,11 +30,22 @@ class PageRenderer(Protocol):
         pass
 
 
+class DependencyTracker(Protocol):
+    def register_dependency(self, page: Page, path: Path) -> None:
+        pass
+
+    def affected_pages(self, changed_paths: set[Path]) -> set[Page]:
+        pass
+
+    def clear(self) -> None:
+        pass
+
+
 class ContentRenderer(Protocol):
     def can_render(self, source_path: Path) -> bool:
         pass
 
-    def render(self, collection: ContentCollection, page: Page, output_path: Path) -> str:
+    def render(self, collection: ContentCollection, page: Page, context: BuildContext) -> str:
         pass
 
 
@@ -58,7 +69,8 @@ class MarkdownRenderer(Protocol):
         self,
         source: str,
         collection: ContentCollection,
-        output_path: Path,
+        context: BuildContext,
+        page: Page,
     ) -> str:
         pass
 
@@ -67,7 +79,7 @@ class SiteReloader(Protocol):
     def watch(
         self,
         watched_paths: tuple[Path, ...],
-        rebuild: Callable[[], None],
+        on_change: Callable[[set[Path]], None],
         interval_seconds: float,
     ) -> None:
         pass
