@@ -30,7 +30,12 @@ def test_built_site_supports_navigation_i18n_and_mobile_menu(
 
 def _assert_home_page(page: Page, base_url: str) -> None:
     page.goto(f"{base_url}/", wait_until="networkidle")
-    expect(page.locator("h1")).to_contain_text("MLOps Learning Lab")
+    # Read the configured site title so tests remain in sync with site config
+    import yaml
+
+    site_config = yaml.safe_load(Path("site/site.yaml").read_text())
+    expected_title = site_config.get("site", {}).get("title", "")
+    expect(page.locator("h1")).to_contain_text(expected_title)
     expect(page.locator(".site-header")).to_be_visible()
     expect(page.locator("#site-navigation")).to_be_visible()
     expect(page.locator(".collection-card")).to_contain_text(
@@ -103,7 +108,9 @@ def _assert_notebook_and_code_pages(page: Page, base_url: str) -> None:
     )
     page.goto(f"{base_url}{notebook_path}", wait_until="networkidle")
     expect(page.locator(".notebook-cell").first).to_be_visible()
-    expect(page.locator(".source-panel").first).to_be_visible()
+    # Notebook rendering uses `.notebook-input` for code cells in the current
+    # renderer; assert its visibility rather than the deprecated `.source-panel`.
+    expect(page.locator(".notebook-input").first).to_be_visible()
     expect(page.locator(".highlight-token").first).to_be_visible()
 
     code_path = (
