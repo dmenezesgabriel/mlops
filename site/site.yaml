@@ -1,6 +1,6 @@
 site:
-  title: MLOps Learning Lab
-  description: Real-world machine learning projects rendered as educational content.
+  title: MLOps Lab
+  description: Real-world machine learning projects and end-to-end MLOps workflows.
 extensions:
   i18n:
     default_locale: en

@@ -16,5 +16,5 @@ $$\text{Target}(z, t) = \text{PickupCount}(z, t+1)$$
 
 By shifting our pickup counts backwards by one hour for each zone, we create the target `next_hour_pickup_count` from historical event logs.
 
-## Educational Goal
-This project is built to demonstrate a reproducible MLOps pipeline. The first local workflow is optimized for fast developer iteration, running entirely on a local machine using local file-based databases (**DuckDB** and **SQLite**), before orchestrating to production-grade server resources.
+## Project Goal
+This project demonstrates a reproducible, end-to-end MLOps pipeline. The local workflow is optimized for fast developer iteration, running entirely on a local machine using local file-based databases (**DuckDB** and **SQLite**), before orchestrating to production-grade server resources.
