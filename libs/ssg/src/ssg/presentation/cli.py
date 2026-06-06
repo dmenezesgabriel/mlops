@@ -92,6 +92,7 @@ def preview_site(
         on_change=lambda changed_paths: build_site(
             config_path, output_path, collection_name, changed_paths
         ),
+        ignored_paths=(output_path,),
     )
 
 

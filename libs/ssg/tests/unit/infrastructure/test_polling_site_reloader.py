@@ -31,3 +31,27 @@ def test_rebuild_safely_swallows_rebuild_errors() -> None:
 
     # Act / Assert
     reloader._rebuild_safely(failing_rebuild)
+
+
+def test_ignores_changes_in_ignored_paths(tmp_path: Path) -> None:
+    # Arrange
+    reloader = PollingSiteReloader()
+    watched_dir = tmp_path / "watched"
+    ignored_dir = watched_dir / "ignored"
+    watched_dir.mkdir()
+    ignored_dir.mkdir()
+
+    (watched_dir / "watched.txt").write_text("content", encoding="utf-8")
+    (ignored_dir / "ignored.txt").write_text("content", encoding="utf-8")
+
+    # Act
+    signature_with_ignored = reloader._signature((watched_dir,), ignored_paths=(ignored_dir,))
+    signature_without_ignored = reloader._signature((watched_dir,))
+
+    # Assert
+    paths_with_ignored = {Path(p).name for p, _, _ in signature_with_ignored}
+    paths_without_ignored = {Path(p).name for p, _, _ in signature_without_ignored}
+
+    assert "watched.txt" in paths_with_ignored
+    assert "ignored.txt" not in paths_with_ignored
+    assert "ignored.txt" in paths_without_ignored

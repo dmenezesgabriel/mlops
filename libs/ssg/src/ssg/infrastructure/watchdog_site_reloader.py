@@ -12,10 +12,16 @@ LOGGER = getLogger(__name__)
 
 
 class DebouncedEventHandler(FileSystemEventHandler):
-    def __init__(self, on_change: Callable[[set[Path]], None], interval_seconds: float) -> None:
+    def __init__(
+        self,
+        on_change: Callable[[set[Path]], None],
+        interval_seconds: float,
+        ignored_paths: tuple[Path, ...] = (),
+    ) -> None:
         super().__init__()
         self._on_change = on_change
         self._interval_seconds = interval_seconds
+        self._ignored_paths = ignored_paths
         self._changed_paths: set[Path] = set()
         self._lock = threading.Lock()
         self._timer: threading.Timer | None = None
@@ -28,12 +34,23 @@ class DebouncedEventHandler(FileSystemEventHandler):
             src_path = event.src_path
             if isinstance(src_path, bytes):
                 src_path = src_path.decode("utf-8")
-            self._changed_paths.add(Path(src_path))
+
+            path = Path(src_path)
+            if self._is_ignored(path):
+                return
+
+            self._changed_paths.add(path)
             if self._timer is not None:
                 self._timer.cancel()
             self._timer = threading.Timer(self._interval_seconds, self._flush)
             self._timer.daemon = True
             self._timer.start()
+
+    def _is_ignored(self, path: Path) -> bool:
+        return any(
+            path == ignored_path or ignored_path in path.parents
+            for ignored_path in self._ignored_paths
+        )
 
     def _flush(self) -> None:
         with self._lock:
@@ -56,8 +73,9 @@ class WatchdogSiteReloader(SiteReloader):
         watched_paths: tuple[Path, ...],
         on_change: Callable[[set[Path]], None],
         interval_seconds: float,
+        ignored_paths: tuple[Path, ...] = (),
     ) -> None:
-        event_handler = DebouncedEventHandler(on_change, interval_seconds)
+        event_handler = DebouncedEventHandler(on_change, interval_seconds, ignored_paths)
         observer = Observer()
         for path in watched_paths:
             if path.exists():

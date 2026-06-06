@@ -17,11 +17,17 @@ class StaticSitePreview:
         port: int,
         reload_interval: float,
         on_change: Callable[[set[Path]], None],
+        ignored_paths: tuple[Path, ...] = (),
     ) -> None:
         def rebuild_and_reload(changed_paths: set[Path]) -> None:
             on_change(changed_paths)
             if hasattr(self._preview_server, "trigger_reload"):
                 self._preview_server.trigger_reload()
 
-        self._site_reloader.watch(watched_paths, rebuild_and_reload, reload_interval)
+        self._site_reloader.watch(
+            watched_paths,
+            rebuild_and_reload,
+            reload_interval,
+            ignored_paths=ignored_paths,
+        )
         self._preview_server.serve(output_path, host, port)

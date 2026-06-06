@@ -81,6 +81,7 @@ class SiteReloader(Protocol):
         watched_paths: tuple[Path, ...],
         on_change: Callable[[set[Path]], None],
         interval_seconds: float,
+        ignored_paths: tuple[Path, ...] = (),
     ) -> None:
         pass
 
