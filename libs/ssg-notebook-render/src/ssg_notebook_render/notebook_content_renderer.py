@@ -10,7 +10,7 @@ from markdown_it import MarkdownIt
 from markupsafe import Markup
 from ssg.application.html_headings import demote_top_level_headings
 from ssg.application.ports import ContentRenderer, MarkdownRenderer
-from ssg.domain.site import ContentCollection, Page
+from ssg.domain.site import BuildContext, ContentCollection, Page
 
 from ssg_notebook_render.notebook_fragment_renderer import NotebookFragmentRenderer
 
@@ -24,11 +24,12 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
         self,
         source: str,
         collection: ContentCollection,
-        output_path: Path,
+        context: BuildContext,
+        page: Page,
     ) -> str:
         transclusions: dict[str, Markup] = {}
         transcluded_source = self._render_transclusions(
-            source, collection, output_path, transclusions
+            source, collection, context, page, transclusions
         )
         linked_source = self._render_wikilinks(transcluded_source, collection)
         rendered_html = str(self._markdown.render(linked_source))
@@ -38,15 +39,18 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
         self,
         source: str,
         collection: ContentCollection,
-        output_path: Path,
+        context: BuildContext,
+        page: Page,
         transclusions: dict[str, Markup],
     ) -> str:
         environment = Environment(autoescape=True, undefined=StrictUndefined)
         template = environment.from_string(source)
         return template.render(
-            include_source=lambda path: self._include_source(collection, path, transclusions),
-            embed_video=lambda name: self._embed_video(
-                collection, output_path, name, transclusions
+            include_source=lambda source_path: self._include_source(
+                collection, source_path, context, page, transclusions
+            ),
+            embed_video=lambda video_name: self._embed_video(
+                collection, context, page, video_name, transclusions
             ),
         )
 
@@ -54,9 +58,15 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
         self,
         collection: ContentCollection,
         source_path: str,
+        context: BuildContext,
+        page: Page,
         transclusions: dict[str, Markup],
     ) -> Markup:
-        source = collection.source_file(source_path).read_text(encoding="utf-8")
+        resolved_source_path = collection.source_file(source_path)
+        if context.dependency_tracker is not None:
+            context.dependency_tracker.register_dependency(page, resolved_source_path)
+
+        source = resolved_source_path.read_text(encoding="utf-8")
         return self._store_transclusion(
             transclusions,
             self._fragment_renderer.render_source_panel(source, source_path),
@@ -65,17 +75,23 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
     def _embed_video(
         self,
         collection: ContentCollection,
-        output_path: Path,
+        context: BuildContext,
+        page: Page,
         video_name: str,
         transclusions: dict[str, Markup],
     ) -> Markup:
         source_path = collection.video_path(video_name).resolve()
+        if context.dependency_tracker is not None:
+            context.dependency_tracker.register_dependency(page, source_path)
+
         if not source_path.exists():
             raise FileNotFoundError(
                 f"Missing rendered site video {source_path}: expected existing mp4 asset",
             )
 
-        video_path = output_path / "assets" / "videos" / source_path.name
+        video_path = (
+            context.output_path / collection.output_slug / "assets" / "videos" / source_path.name
+        )
         video_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_path, video_path)
         return self._store_transclusion(
@@ -122,10 +138,13 @@ class NotebookContentRenderer(ContentRenderer):
     def can_render(self, source_path: Path) -> bool:
         return source_path.suffix == ".ipynb"
 
-    def render(self, collection: ContentCollection, page: Page, output_path: Path) -> str:
+    def render(self, collection: ContentCollection, page: Page, context: BuildContext) -> str:
+        if context.dependency_tracker is not None:
+            context.dependency_tracker.register_dependency(page, page.source_path)
+
         notebook = nbformat.read(page.source_path, as_version=4)
         rendered_cells = [
-            self._render_cell(cell, collection, page, output_path, index)
+            self._render_cell(cell, collection, page, context, index)
             for index, cell in enumerate(notebook.cells)
         ]
         return "\n".join(rendered_cells)
@@ -135,16 +154,18 @@ class NotebookContentRenderer(ContentRenderer):
         cell: object,
         collection: ContentCollection,
         page: Page,
-        output_path: Path,
+        context: BuildContext,
         cell_index: int,
     ) -> str:
         cell_type = getattr(cell, "cell_type", "")
         source = str(getattr(cell, "source", ""))
         if cell_type == "markdown":
-            return self._markdown_renderer.render_markdown(source, collection, output_path)
+            return self._markdown_renderer.render_markdown(source, collection, context, page)
 
         if cell_type == "code":
-            outputs = self._render_outputs(cell, page, output_path, cell_index)
+            outputs = self._render_outputs(
+                cell, page, context.output_path / collection.output_slug, cell_index
+            )
             return self._fragment_renderer.render_code_cell(source, cell_index, outputs)
 
         return ""

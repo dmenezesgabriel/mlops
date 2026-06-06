@@ -3,10 +3,12 @@ from logging import getLogger
 from pathlib import Path
 from uuid import uuid4
 
+from ssg.application.dependency_tracker import InMemoryDependencyTracker
 from ssg.application.html_headings import HtmlArticleOutlineBuilder
 from ssg.application.ports import (
     ArticleOutlineBuilder,
     ContentRenderer,
+    DependencyTracker,
     HtmlPostProcessor,
     PageRenderer,
     SiteRepository,
@@ -41,6 +43,7 @@ class StaticSiteBuilder:
         html_post_processors: tuple[HtmlPostProcessor, ...] = (),
         site_variant_provider: SiteVariantProvider | None = None,
         article_outline_builder: ArticleOutlineBuilder | None = None,
+        dependency_tracker: DependencyTracker | None = None,
     ) -> None:
         self._site_repository = site_repository
         self._page_renderer = page_renderer
@@ -48,10 +51,21 @@ class StaticSiteBuilder:
         self._html_post_processors = html_post_processors
         self._site_variant_provider = site_variant_provider or SingleSiteVariantProvider()
         self._article_outline_builder = article_outline_builder or HtmlArticleOutlineBuilder()
+        self._dependency_tracker = dependency_tracker or InMemoryDependencyTracker()
 
     def build(
-        self, config_path: Path, output_path: Path, collection_name: str | None = None
+        self,
+        config_path: Path,
+        output_path: Path,
+        collection_name: str | None = None,
+        changed_paths: set[Path] | None = None,
     ) -> None:
+        if changed_paths is None or config_path.resolve() in [p.resolve() for p in changed_paths]:
+            self._dependency_tracker.clear()
+            affected_pages = None
+        else:
+            affected_pages = self._dependency_tracker.affected_pages(changed_paths)
+
         site = self._site_repository.load(config_path)
         base_selected_collections = site.selected_collections(collection_name)
         context = BuildContext(
@@ -59,6 +73,7 @@ class StaticSiteBuilder:
             output_path=output_path,
             collection_name=collection_name,
             correlation_id=uuid4().hex,
+            dependency_tracker=self._dependency_tracker,
         )
         site_variants = self._site_variant_provider.variants(site, context)
         LOGGER.info(
@@ -69,11 +84,14 @@ class StaticSiteBuilder:
                     "collections": len(base_selected_collections),
                     "variants": len(site_variants),
                     "correlation_id": context.correlation_id,
+                    "incremental": affected_pages is not None,
                 },
             },
         )
         for site_variant in site_variants:
-            self._build_variant(site_variant, site_variants, collection_name, context)
+            self._build_variant(
+                site_variant, site_variants, collection_name, context, affected_pages
+            )
 
         LOGGER.info(
             "site_build_finished",
@@ -93,6 +111,7 @@ class StaticSiteBuilder:
         site_variants: tuple[SiteVariant, ...],
         collection_name: str | None,
         context: BuildContext,
+        affected_pages: set[Page] | None = None,
     ) -> None:
         selected_collections = site_variant.site.selected_collections(collection_name)
         site_variant.output_path.mkdir(parents=True, exist_ok=True)
@@ -109,13 +128,15 @@ class StaticSiteBuilder:
         self._write_assets(site_variant.output_path)
         self._write_index(site_variant, site_variants, selected_collections)
         for collection in selected_collections:
-            self._build_collection(site_variant, site_variants, collection)
+            self._build_collection(site_variant, site_variants, collection, context, affected_pages)
 
     def _build_collection(
         self,
         site_variant: SiteVariant,
         site_variants: tuple[SiteVariant, ...],
         collection: ContentCollection,
+        context: BuildContext,
+        affected_pages: set[Page] | None = None,
     ) -> None:
         site = site_variant.site
         output_path = site_variant.output_path
@@ -132,7 +153,20 @@ class StaticSiteBuilder:
         )
 
         for page in collection.pages:
-            body = self._render_body(site, collection, page, collection_output_path)
+            if affected_pages is not None and page not in affected_pages:
+                LOGGER.info(
+                    "page_build_skipped",
+                    extra={
+                        "context": {
+                            "collection": collection.name,
+                            "page_slug": page.slug,
+                            "correlation_id": context.correlation_id,
+                        },
+                    },
+                )
+                continue
+
+            body = self._render_body(site, collection, page, context)
             rendered_page = self._rendered_page(site_variant, site_variants, collection, page, body)
             rendered_html = self._page_renderer.render_page(rendered_page)
             output_file = collection_output_path / page.file_name()
@@ -212,13 +246,11 @@ class StaticSiteBuilder:
         site: Site,
         collection: ContentCollection,
         page: Page,
-        output_path: Path,
+        context: BuildContext,
     ) -> str:
         for renderer in self._content_renderers:
             if renderer.can_render(page.source_path):
-                return self._process_rendered_html(
-                    renderer.render(collection, page, output_path), site
-                )
+                return self._process_rendered_html(renderer.render(collection, page, context), site)
 
         raise ValueError(
             f"Unsupported page source {page.source_path}: expected renderer for suffix "

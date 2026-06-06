@@ -9,7 +9,7 @@ from markupsafe import Markup
 
 from ssg.application.html_headings import demote_top_level_headings
 from ssg.application.ports import ContentRenderer
-from ssg.domain.site import ContentCollection, Page
+from ssg.domain.site import BuildContext, ContentCollection, Page
 from ssg.infrastructure.frontend.media_components import FrontendFragmentRenderer
 
 
@@ -21,19 +21,23 @@ class MarkdownContentRenderer(ContentRenderer):
     def can_render(self, source_path: Path) -> bool:
         return source_path.suffix == ".md"
 
-    def render(self, collection: ContentCollection, page: Page, output_path: Path) -> str:
+    def render(self, collection: ContentCollection, page: Page, context: BuildContext) -> str:
+        if context.dependency_tracker is not None:
+            context.dependency_tracker.register_dependency(page, page.source_path)
+
         source = page.source_path.read_text(encoding="utf-8")
-        return self.render_markdown(source, collection, output_path)
+        return self.render_markdown(source, collection, context, page)
 
     def render_markdown(
         self,
         source: str,
         collection: ContentCollection,
-        output_path: Path,
+        context: BuildContext,
+        page: Page,
     ) -> str:
         transclusions: dict[str, Markup] = {}
         transcluded_source = self._render_transclusions(
-            source, collection, output_path, transclusions
+            source, collection, context, page, transclusions
         )
         linked_source = self._render_wikilinks(transcluded_source, collection)
         rendered_html = str(self._markdown.render(linked_source))
@@ -43,17 +47,18 @@ class MarkdownContentRenderer(ContentRenderer):
         self,
         source: str,
         collection: ContentCollection,
-        output_path: Path,
+        context: BuildContext,
+        page: Page,
         transclusions: dict[str, Markup],
     ) -> str:
         environment = Environment(autoescape=True, undefined=StrictUndefined)
         template = environment.from_string(source)
         return template.render(
             include_source=lambda source_path: self._include_source(
-                collection, source_path, transclusions
+                collection, source_path, context, page, transclusions
             ),
             embed_video=lambda video_name: self._embed_video(
-                collection, output_path, video_name, transclusions
+                collection, context, page, video_name, transclusions
             ),
         )
 
@@ -61,9 +66,15 @@ class MarkdownContentRenderer(ContentRenderer):
         self,
         collection: ContentCollection,
         source_path: str,
+        context: BuildContext,
+        page: Page,
         transclusions: dict[str, Markup],
     ) -> Markup:
-        source = collection.source_file(source_path).read_text(encoding="utf-8")
+        resolved_source_path = collection.source_file(source_path)
+        if context.dependency_tracker is not None:
+            context.dependency_tracker.register_dependency(page, resolved_source_path)
+
+        source = resolved_source_path.read_text(encoding="utf-8")
         return self._store_transclusion(
             transclusions,
             self._fragment_renderer.render_source_panel(source, source_path),
@@ -72,17 +83,23 @@ class MarkdownContentRenderer(ContentRenderer):
     def _embed_video(
         self,
         collection: ContentCollection,
-        output_path: Path,
+        context: BuildContext,
+        page: Page,
         video_name: str,
         transclusions: dict[str, Markup],
     ) -> Markup:
         source_path = collection.video_path(video_name).resolve()
+        if context.dependency_tracker is not None:
+            context.dependency_tracker.register_dependency(page, source_path)
+
         if not source_path.exists():
             raise FileNotFoundError(
                 f"Missing rendered site video {source_path}: expected existing mp4 asset",
             )
 
-        video_output_path = output_path / "assets" / "videos" / source_path.name
+        video_output_path = (
+            context.output_path / collection.output_slug / "assets" / "videos" / source_path.name
+        )
         video_output_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_path, video_output_path)
         return self._store_transclusion(

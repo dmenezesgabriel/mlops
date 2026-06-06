@@ -2,7 +2,7 @@ from importlib.resources import files
 from pathlib import Path
 
 import nbformat
-from ssg.domain.site import ContentCollection, Page
+from ssg.domain.site import BuildContext, ContentCollection, Page
 from ssg_notebook_render.notebook_content_renderer import (
     NotebookContentRenderer,
 )
@@ -39,10 +39,17 @@ def test_render_transcludes_source_and_copies_video(tmp_path: Path) -> None:
         videos={"demo": video_path},
     )
     page = Page(slug="feature-engineering", title="Feature Engineering", source_path=notebook_path)
-    output_path = tmp_path / "build" / "sample-collection"
+    build_path = tmp_path / "build"
+    output_path = build_path / "sample-collection"
 
     # Act
-    rendered_content = NotebookContentRenderer().render(collection, page, output_path)
+    context = BuildContext(
+        config_path=tmp_path / "site.yaml",
+        output_path=build_path,
+        collection_name=None,
+        correlation_id="test",
+    )
+    rendered_content = NotebookContentRenderer().render(collection, page, context)
 
     # Assert
     assert "def create_features()" in rendered_content
@@ -83,10 +90,16 @@ def test_render_preserves_transcluded_source_blank_lines_and_indentation(
     )
 
     # Act
+    context = BuildContext(
+        config_path=tmp_path / "site.yaml",
+        output_path=tmp_path / "build",
+        collection_name=None,
+        correlation_id="test",
+    )
     rendered_content = NotebookContentRenderer().render(
         collection,
         Page(slug="overview", title="Overview", source_path=notebook_path),
-        tmp_path / "build",
+        context,
     )
 
     # Assert
@@ -123,7 +136,13 @@ def test_render_includes_code_cell_and_stream_output(tmp_path: Path) -> None:
     page = Page(slug="feature-engineering", title="Feature Engineering", source_path=notebook_path)
 
     # Act
-    rendered_content = NotebookContentRenderer().render(collection, page, tmp_path / "build")
+    context = BuildContext(
+        config_path=tmp_path / "site.yaml",
+        output_path=tmp_path / "build",
+        collection_name=None,
+        correlation_id="test",
+    )
+    rendered_content = NotebookContentRenderer().render(collection, page, context)
 
     # Assert
     assert "print(&#x27;hourly demand&#x27;)" in rendered_content

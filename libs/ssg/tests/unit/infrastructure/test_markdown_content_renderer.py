@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ssg.domain.site import ContentCollection, Page
+from ssg.domain.site import BuildContext, ContentCollection, Page
 from ssg.infrastructure.markdown_content_renderer import MarkdownContentRenderer
 
 
@@ -26,10 +26,17 @@ def test_render_transcludes_source_and_copies_video(tmp_path: Path) -> None:
         videos={"demo": video_path},
     )
     page = Page(slug="overview", title="Overview", source_path=markdown_path)
-    output_path = tmp_path / "build" / "sample-collection"
+    build_path = tmp_path / "build"
+    output_path = build_path / "sample-collection"
 
     # Act
-    rendered_content = MarkdownContentRenderer().render(collection, page, output_path)
+    context = BuildContext(
+        config_path=tmp_path / "site.yaml",
+        output_path=build_path,
+        collection_name=None,
+        correlation_id="test",
+    )
+    rendered_content = MarkdownContentRenderer().render(collection, page, context)
 
     # Assert
     assert "def run()" in rendered_content
@@ -65,10 +72,16 @@ def test_render_preserves_transcluded_source_blank_lines_and_indentation(
     )
 
     # Act
+    context = BuildContext(
+        config_path=tmp_path / "site.yaml",
+        output_path=tmp_path / "build",
+        collection_name=None,
+        correlation_id="test",
+    )
     rendered_content = MarkdownContentRenderer().render(
         collection,
         Page(slug="overview", title="Overview", source_path=markdown_path),
-        tmp_path / "build",
+        context,
     )
 
     # Assert
@@ -92,10 +105,16 @@ def test_render_converts_wikilinks_to_page_links(tmp_path: Path) -> None:
     )
 
     # Act
+    context = BuildContext(
+        config_path=tmp_path / "site.yaml",
+        output_path=tmp_path / "build",
+        collection_name=None,
+        correlation_id="test",
+    )
     rendered_content = MarkdownContentRenderer().render(
         collection,
         Page(slug="details", title="Details", source_path=markdown_path),
-        tmp_path / "build",
+        context,
     )
 
     # Assert
