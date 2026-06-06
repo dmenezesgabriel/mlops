@@ -5,6 +5,18 @@ from pathlib import Path
 
 from jinja2 import Environment, StrictUndefined
 from markdown_it import MarkdownIt
+try:
+    # Prefer the explicit table plugin when available
+    from mdit_py_plugins.table import table_plugin  # type: ignore
+except Exception:  # pragma: no cover - optional runtime dependency during tests
+    table_plugin = None
+
+# Some releases expose table support as part of the GFM plugin. Import the
+# GFM plugin as a fallback so we still get table parsing if available.
+try:
+    from mdit_py_plugins.gfm import gfm_plugin  # type: ignore
+except Exception:  # pragma: no cover - optional runtime dependency during tests
+    gfm_plugin = None
 from markupsafe import Markup
 
 from ssg.application.html_headings import demote_top_level_headings
@@ -19,7 +31,15 @@ class MarkdownContentRenderer(ContentRenderer):
     def __init__(
         self, fragment_renderer: FrontendFragmentRenderer | None = None
     ) -> None:
-        self._markdown = MarkdownIt("commonmark")
+        md = MarkdownIt("commonmark")
+        # Enable GFM-style table parsing by preferring the dedicated table
+        # plugin, otherwise fall back to the bundled GFM plugin which also
+        # provides table parsing.
+        if table_plugin is not None:
+            md.use(table_plugin)
+        elif gfm_plugin is not None:
+            md.use(gfm_plugin)
+        self._markdown = md
         self._fragment_renderer = (
             fragment_renderer or FrontendFragmentRenderer()
         )
