@@ -37,9 +37,7 @@ class TestManimSceneBuilder:
         register_default_components(registry)
         builder = ManimSceneBuilder(registry=registry)
         spec = _scene_with_components(
-            (
-                ComponentSpec(type="title", region="title", props={"content": "Hello"}),
-            )
+            (ComponentSpec(type="title", region="title", props={"content": "Hello"}),)
         )
         scene = builder.build(spec)
         assert scene is not None

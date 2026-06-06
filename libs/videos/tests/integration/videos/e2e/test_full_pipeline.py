@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import cast
 
 import pytest
 
@@ -17,8 +16,7 @@ from videos.core.ports.scene_builder import SceneBuilder
 from videos.core.ports.telemetry import Telemetry
 from videos.declarative.loader import load_concept_from_yaml_file
 
-
-YAML_DIR = Path(__file__).parents[5] / "videos" / "src" / "videos" / "concepts" / "yaml"
+TEST_YAML_DIR = Path(__file__).parents[3] / "fixtures" / "concepts"
 
 
 class StubRenderer(Renderer):
@@ -63,69 +61,56 @@ class StubArtifactStore(ArtifactStore):
 
 
 class TestE2EYamlConcepts:
-    @pytest.mark.parametrize(
-        "yaml_file,expected_beats",
-        [
-            ("bias_variance_tradeoff.yaml", 9),
-            ("crisp_dm.yaml", 12),
-            ("mlops_lifecycle.yaml", 12),
-            ("underfit_vs_overfit.yaml", 8),
-        ],
-    )
-    def test_load_yaml_and_create_narrative(self, yaml_file: str, expected_beats: int) -> None:
-        path = YAML_DIR / yaml_file
+    def test_load_yaml_and_create_narrative(self) -> None:
+        # Arrange
+        path = TEST_YAML_DIR / "test_e2e.yaml"
+
+        # Act
         ext = load_concept_from_yaml_file(str(path))
-        concept = ext.concept
-        assert concept.id.value == yaml_file.replace(".yaml", "")
+
+        # Assert
+        assert ext.concept.id.value == "test_e2e"
         narrative = ext.create_narrative()
-        assert len(narrative.beats) == expected_beats
+        assert len(narrative.beats) == 2
         assert narrative.beats[0].kind.value == "opening"
         assert narrative.beats[-1].kind.value == "recap"
-        assert narrative.total_duration > 0
 
-    @pytest.mark.parametrize(
-        "yaml_file",
-        ["bias_variance_tradeoff.yaml", "crisp_dm.yaml", "mlops_lifecycle.yaml", "underfit_vs_overfit.yaml"],
-    )
-    def test_plan_storyboard_from_yaml_concept(self, yaml_file: str) -> None:
-        path = YAML_DIR / yaml_file
+    def test_plan_storyboard_from_yaml_concept(self) -> None:
+        # Arrange
+        path = TEST_YAML_DIR / "test_e2e.yaml"
         ext = load_concept_from_yaml_file(str(path))
         narrative = ext.create_narrative()
-
         planner = StoryboardPlanner()
+
+        # Act
         storyboard = planner.plan(narrative)
 
+        # Assert
         assert len(storyboard.scenes) == len(narrative.beats)
         assert storyboard.total_expected_duration == pytest.approx(narrative.total_duration)
 
-    @pytest.mark.parametrize(
-        "yaml_file",
-        ["bias_variance_tradeoff.yaml", "crisp_dm.yaml", "mlops_lifecycle.yaml", "underfit_vs_overfit.yaml"],
-    )
-    def test_quality_gate_passes_yaml_concept(self, yaml_file: str) -> None:
-        path = YAML_DIR / yaml_file
+    def test_quality_gate_passes_yaml_concept(self) -> None:
+        # Arrange
+        path = TEST_YAML_DIR / "test_e2e.yaml"
         ext = load_concept_from_yaml_file(str(path))
         narrative = ext.create_narrative()
-
         planner = StoryboardPlanner()
         storyboard = planner.plan(narrative)
-
         gate = QualityGate()
-        report = gate.validate(storyboard.scenes)
-        assert report.passed, f"Quality gate failed for {yaml_file}: {report.violations}"
 
-    @pytest.mark.parametrize(
-        "yaml_file",
-        ["bias_variance_tradeoff.yaml", "crisp_dm.yaml", "mlops_lifecycle.yaml", "underfit_vs_overfit.yaml"],
-    )
-    def test_render_pipeline_with_yaml_concept(self, yaml_file: str) -> None:
-        path = YAML_DIR / yaml_file
+        # Act
+        report = gate.validate(storyboard.scenes)
+
+        # Assert
+        assert report.passed, f"Quality gate failed: {report.violations}"
+
+    def test_render_pipeline_with_yaml_concept(self) -> None:
+        # Arrange
+        path = TEST_YAML_DIR / "test_e2e.yaml"
         ext = load_concept_from_yaml_file(str(path))
         narrative = ext.create_narrative()
-
         planner = StoryboardPlanner()
         storyboard = planner.plan(narrative)
-
         pipeline = RenderPipeline(
             renderer=StubRenderer(),
             scene_builder=StubSceneBuilder(),
@@ -133,13 +118,18 @@ class TestE2EYamlConcepts:
             artifact_store=StubArtifactStore(),
             telemetry=StubTelemetry(),
         )
-        results = pipeline.execute(storyboard, yaml_file.replace(".yaml", ""))
+
+        # Act
+        results = pipeline.execute(storyboard, "test_e2e")
+
+        # Assert
         assert len(results) == len(narrative.beats)
         assert all(r.success for r in results)
 
 
 class TestE2EDirector:
     def test_director_with_yaml_concept_fails_unknown(self) -> None:
+        # Arrange
         from videos.core.application.director import Director
 
         director = Director(
@@ -150,27 +140,36 @@ class TestE2EDirector:
             artifact_store=StubArtifactStore(),
             telemetry=StubTelemetry(),
         )
+
+        # Act & Assert
         with pytest.raises(LookupError, match="Unknown concept"):
             director.produce()
 
     def test_register_yaml_and_director_finds_it(self) -> None:
+        # Arrange
         ConceptRegistry._extensions.clear()
-        path = YAML_DIR / "bias_variance_tradeoff.yaml"
+        path = TEST_YAML_DIR / "test_e2e.yaml"
         ext = load_concept_from_yaml_file(str(path))
         ConceptRegistry.register(ext)
 
-        retrieved = ConceptRegistry.get(ConceptId("bias_variance_tradeoff"))
-        assert retrieved.concept.id.value == "bias_variance_tradeoff"
+        # Act
+        retrieved = ConceptRegistry.get(ConceptId("test_e2e"))
+
+        # Assert
+        assert retrieved.concept.id.value == "test_e2e"
 
 
 class TestE2ERegisterAll:
     def test_register_all_includes_yaml(self) -> None:
+        # Arrange
         ConceptRegistry._extensions.clear()
         from videos.concepts import register_all
 
-        register_all()
-        for cid in ("bias_variance_tradeoff", "crisp_dm", "mlops_lifecycle", "underfit_vs_overfit"):
-            ext = ConceptRegistry.get(ConceptId(cid))
-            assert ext is not None
-            narrative = ext.create_narrative()
-            assert len(narrative.beats) > 0
+        # Act
+        register_all(definitions_dir=TEST_YAML_DIR)
+
+        # Assert
+        ext = ConceptRegistry.get(ConceptId("test_e2e"))
+        assert ext is not None
+        narrative = ext.create_narrative()
+        assert len(narrative.beats) > 0

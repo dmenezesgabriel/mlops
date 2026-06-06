@@ -60,20 +60,3 @@ class TestDependencyDirection:
             with open(src) as f:
                 content = f.read()
             assert "adapters" not in content.lower(), f"{src} imports from adapters"
-
-    def test_concepts_do_not_import_adapters(self) -> None:
-        import videos.concepts.bias_variance_tradeoff
-        import videos.concepts.crisp_dm
-        import videos.concepts.mlops_lifecycle
-        import videos.concepts.underfit_vs_overfit
-
-        for mod in (
-            videos.concepts.bias_variance_tradeoff,
-            videos.concepts.crisp_dm,
-            videos.concepts.mlops_lifecycle,
-            videos.concepts.underfit_vs_overfit,
-        ):
-            src = getattr(mod, "__file__", "") or ""
-            with open(src) as f:
-                content = f.read()
-            assert "adapters" not in content, f"{src} imports from adapters"

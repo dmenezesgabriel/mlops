@@ -31,16 +31,37 @@ class TestFileSystemArtifactStore:
         assert path.name == "concept_a.mp4"
 
     def test_resolve_output_path_final(self, tmp_path: Path) -> None:
+        # Arrange
         store = FileSystemArtifactStore(output_root=tmp_path)
+
+        # Act
         path = store.resolve_output_path("concept_b", "final")
+
+        # Assert
         assert "final" in str(path)
         assert path.name == "concept_b.mp4"
 
+    def test_resolve_scene_preview_path(self, tmp_path: Path) -> None:
+        # Arrange
+        store = FileSystemArtifactStore(output_root=tmp_path)
+
+        # Act
+        path = store.resolve_scene_preview_path("concept_a", "beat_0")
+
+        # Assert
+        assert "previews" in str(path)
+        assert "scenes" in str(path)
+        assert path.name == "concept_a_beat_0.mp4"
+
     def test_creates_directories_on_init(self, tmp_path: Path) -> None:
+        # Act
         FileSystemArtifactStore(
             output_root=tmp_path,
             preview_subdir="previews",
             final_subdir="final",
         )
+
+        # Assert
         assert (tmp_path / "previews").is_dir()
         assert (tmp_path / "final").is_dir()
+        assert (tmp_path / "previews" / "scenes").is_dir()

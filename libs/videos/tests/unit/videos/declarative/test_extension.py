@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from videos.declarative.extension import DeclarativeConceptExtension
 
-
 SAMPLE_DATA: dict = {
     "concept": {
         "id": {"value": "test_concept"},

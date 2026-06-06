@@ -14,26 +14,48 @@ logger = logging.getLogger(__name__)
 
 
 class ManimRenderer:
-    def render(self, scene_job: Scene, output_path: Path) -> RenderResult:
+    QUALITY_MAP = {
+        "preview": "low_quality",
+        "final": "high_quality",
+    }
+
+    def render(self, scene_job: Scene, output_path: Path, quality: str = "preview") -> RenderResult:
         start = time.monotonic()
         try:
             from manim import config, tempconfig
 
-            with tempconfig({"quality": "low_quality", "disable_caching": True}):
-                config.pixel_height = 480
-                config.pixel_width = 854
+            manim_quality = self.QUALITY_MAP.get(quality, "low_quality")
+
+            with tempconfig({"quality": manim_quality, "disable_caching": True}):
+                if manim_quality == "low_quality":
+                    config.pixel_height = 480
+                    config.pixel_width = 854
+                else:
+                    config.pixel_height = 1080
+                    config.pixel_width = 1920
+
                 scene = scene_job
                 scene.render()
+
+                # Save last frame for visual validation
+                from PIL import Image
+
+                # Manim renderer stores the last frame
+                pixels = scene.renderer.get_frame()
+                last_frame = Image.fromarray(pixels)
+                image_path = output_path.with_suffix(".png")
+                last_frame.save(image_path)
+
                 out = config.output_file if hasattr(config, "output_file") else output_path
                 rendered_path = Path(out)
                 if rendered_path != output_path:
                     import shutil
 
                     shutil.copy2(rendered_path, output_path)
-        except Exception:
+        except Exception as e:
             elapsed = (time.monotonic() - start) * 1000
-            logger.error(
-                "Manim render failed",
+            logger.exception(
+                f"Manim render failed: {e}",
                 extra={
                     "output_path": str(output_path),
                     "duration_ms": elapsed,

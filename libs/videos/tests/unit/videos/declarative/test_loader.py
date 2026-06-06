@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from videos.declarative.loader import yaml_to_concept_extension
 from videos.core.domain.concept import ConceptId
-
+from videos.declarative.loader import yaml_to_concept_extension
 
 SAMPLE_YAML = """
 concept:

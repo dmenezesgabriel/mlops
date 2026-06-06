@@ -16,18 +16,14 @@ class TimelineEvent(PydanticModel):
     @classmethod
     def _time_must_be_non_negative(cls, v: float) -> float:
         if v < 0:
-            raise ValueError(
-                f"TimelineEvent time_seconds must be >= 0, got {v}"
-            )
+            raise ValueError(f"TimelineEvent time_seconds must be >= 0, got {v}")
         return v
 
     @field_validator("target_object_id")
     @classmethod
     def _target_must_not_be_empty(cls, v: str) -> str:
         if not v.strip():
-            raise ValueError(
-                f"TimelineEvent target_object_id must not be empty, got {v!r}"
-            )
+            raise ValueError(f"TimelineEvent target_object_id must not be empty, got {v!r}")
         return v
 
 
@@ -36,7 +32,7 @@ class TimelineSpec(PydanticModel):
     events: tuple[TimelineEvent, ...] = ()
 
     @model_validator(mode="after")
-    def _events_must_be_increasing(self) -> "TimelineSpec":
+    def _events_must_be_increasing(self) -> TimelineSpec:
         if not self.events:
             return self
         times = [e.time_seconds for e in self.events]

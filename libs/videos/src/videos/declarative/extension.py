@@ -13,15 +13,18 @@ class DeclarativeConceptExtension(ConceptExtension):
         raw_concept = data["concept"]
         if isinstance(raw_concept["id"], str):
             raw_concept = {**raw_concept, "id": {"value": raw_concept["id"]}}
-        self._concept = Concept.from_dict(raw_concept)
+        self._concept: Concept = Concept.from_dict(raw_concept)
 
         raw_beats = data.get("narrative", {}).get("beats", [])
         if not raw_beats:
-            raise ValueError(f"Narrative must have at least one beat for {self._concept.id.value!r}")
+            raise ValueError(
+                f"Narrative must have at least one beat for {self._concept.id.value!r}"
+            )
         beats = tuple(Beat.from_dict(b) for b in raw_beats)
         self._narrative = Narrative(concept=self._concept, beats=beats)
 
         raw_scenes = data.get("scenes")
+        self._scenes: tuple[SceneSpec, ...] | None
         if raw_scenes is not None:
             self._scenes = tuple(SceneSpec.from_dict(s) for s in raw_scenes)
         else:

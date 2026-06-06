@@ -27,3 +27,4 @@ projects/*/mlruns/
 projects/*/mlflow.db
 
 *.mp4
+*.png

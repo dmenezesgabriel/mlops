@@ -22,7 +22,7 @@ class QualityReport(PydanticModel):
     violations: tuple[RuleViolation, ...] = ()
 
     @model_validator(mode="after")
-    def _check_consistency(self) -> "QualityReport":
+    def _check_consistency(self) -> QualityReport:
         if self.passed and self.violations:
             raise ValueError("passed=True but has violations")
         if not self.passed and not self.violations:

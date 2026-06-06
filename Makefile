@@ -1,9 +1,9 @@
 PROJECT ?= nyc_taxi_demand_forecasting
-SCENE ?= libs/videos/src/videos/concepts/bias_variance_tradeoff.py
-SCENE_NAME ?= BiasVarianceTradeoffScene
+CONCEPT_ID ?= bias_variance_tradeoff
+QUALITY ?= preview
 MANIM_IMAGE ?= manimcommunity/manim:v0.20.1
-VIDEO_FILE ?= $(notdir $(basename $(SCENE)))
-VIDEO_OUTPUT ?= libs/videos/output/$(VIDEO_FILE).mp4
+MANIM_CUSTOM_IMAGE ?= mlops-manim-prod
+VIDEO_OUTPUT_DIR ?= videos/output
 
 .SILENT:
 .PHONY: install format lint type-check test test-bdd test-e2e test-videos-docker coverage complexity dependencies architecture security quality build-site preview-site render-video check-videos collect preprocess features train tune evaluate deploy monitor mlflow
@@ -78,27 +78,24 @@ build-site:
 preview-site:
 	uv run python -m ssg.presentation.cli preview --config $(SITE_CONFIG) --output $(SITE_OUTPUT)
 
-render-video:
-	mkdir -p $(dir $(VIDEO_OUTPUT))
-	chmod 777 $(dir $(VIDEO_OUTPUT))
+render-video: docker/manim/Dockerfile
+	docker build -f docker/manim/Dockerfile -t $(MANIM_CUSTOM_IMAGE) .
+	mkdir -p $(VIDEO_OUTPUT_DIR)
+	chmod 777 $(VIDEO_OUTPUT_DIR)
 	docker run --rm \
-	  -v "$(CURDIR)/libs/videos/src:/videos_src:ro" \
-	  -v "$(CURDIR)/libs/videos/output:/output:delegated" \
-	  $(MANIM_IMAGE) sh -lc \
-	  'PYTHONPATH=/videos_src /opt/venv/bin/python -m manim -qm /videos_src/videos/concepts/$(notdir $(SCENE)) $(SCENE_NAME) \
-	    --media_dir /tmp/manim --output_file $(notdir $(VIDEO_OUTPUT)) && \
-	   find /tmp/manim -name "$(notdir $(VIDEO_OUTPUT))" -type f -exec cp {} /output/$(notdir $(VIDEO_OUTPUT)) \;'
+	  -v "$(CURDIR)/libs/videos/src:/app/src:ro" \
+	  -v "$(CURDIR)/videos/definition:/app/definition:ro" \
+	  -v "$(CURDIR)/videos/output:/app/output:delegated" \
+	  $(MANIM_CUSTOM_IMAGE) sh -lc \
+	  '. /opt/venv/bin/activate && videos $(CONCEPT_ID) --definitions-dir /app/definition --output-dir /app/output --quality $(QUALITY)'
 
 # --- Video quality gate ---
 
-_VIDEO_SCENES := bias_variance_tradeoff:BiasVarianceTradeoffScene crisp_dm:CrispDmScene mlops_lifecycle:MlopsLifecycleScene underfit_vs_overfit:UnderfitVsOverfitScene
-
 check-videos:
-	@echo "=== Rendering all 4 videos ==="
-	for pair in $(_VIDEO_SCENES); do \
-	  scene=$${pair%:*}; \
-	  class=$${pair#*:}; \
-	  $(MAKE) render-video SCENE=libs/videos/src/videos/concepts/$$scene.py SCENE_NAME=$$class; \
+	@echo "=== Rendering all videos ==="
+	for yaml in videos/definition/*.yaml; do \
+	  concept=$$(basename $$yaml .yaml); \
+	  $(MAKE) render-video CONCEPT_ID=$$concept; \
 	done
 	@echo "=== Linting video source ==="
 	uv run ruff format --check --quiet libs/videos/src/videos/

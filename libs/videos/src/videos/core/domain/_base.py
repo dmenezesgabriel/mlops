@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from pydantic import TypeAdapter
 
@@ -15,7 +15,7 @@ class PydanticModel:
         return cls._adapter
 
     def to_dict(self) -> dict[str, Any]:
-        return self._get_adapter().dump_python(self, mode="json")
+        return cast(dict[str, Any], self._get_adapter().dump_python(self, mode="json"))
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Any:

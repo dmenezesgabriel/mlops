@@ -28,7 +28,7 @@ class LayoutSpec(PydanticModel):
     regions: tuple[LayoutRegion, ...] = ()
 
     @model_validator(mode="after")
-    def _no_duplicate_regions(self) -> "LayoutSpec":
+    def _no_duplicate_regions(self) -> LayoutSpec:
         seen: set[str] = set()
         for r in self.regions:
             if r.value in seen:
