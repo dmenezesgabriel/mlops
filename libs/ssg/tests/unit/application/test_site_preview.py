@@ -7,7 +7,12 @@ from ssg.application.site_preview import StaticSitePreview
 class SpySiteReloader:
     def __init__(self) -> None:
         self.watch_calls: list[
-            tuple[tuple[Path, ...], Callable[[set[Path]], None], float]
+            tuple[
+                tuple[Path, ...],
+                Callable[[set[Path]], None],
+                float,
+                tuple[Path, ...],
+            ]
         ] = []
 
     def watch(
@@ -15,8 +20,11 @@ class SpySiteReloader:
         watched_paths: tuple[Path, ...],
         on_change: Callable[[set[Path]], None],
         interval_seconds: float,
+        ignored_paths: tuple[Path, ...] = (),
     ) -> None:
-        self.watch_calls.append((watched_paths, on_change, interval_seconds))
+        self.watch_calls.append(
+            (watched_paths, on_change, interval_seconds, ignored_paths)
+        )
 
 
 class SpyPreviewServer:
