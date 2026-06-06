@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from videos.core.application.component_factory import ComponentFactory
 from videos.core.domain.layout import LayoutRegion, LayoutSpec
 from videos.core.domain.narrative import Narrative
 from videos.core.domain.scene_spec import SceneSpec, VisualObject
@@ -9,6 +10,9 @@ from videos.core.domain.timeline import TimelineEvent, TimelineSpec
 
 
 class StoryboardPlanner:
+    def __init__(self, component_factory: ComponentFactory | None = None) -> None:
+        self._component_factory = component_factory or ComponentFactory()
+
     def plan(self, narrative: Narrative) -> Storyboard:
         scenes: list[SceneSpec] = []
         for index, beat in enumerate(narrative.beats):
@@ -30,6 +34,8 @@ class StoryboardPlanner:
                     semantic_purpose=f"Display narration for {beat.visual_key}",
                 ),
             )
+
+            components = self._component_factory.create_components(beat)
 
             timeline_events = (
                 TimelineEvent(
@@ -53,6 +59,7 @@ class StoryboardPlanner:
                 visual_objects=visual_objects,
                 timeline=TimelineSpec(events=timeline_events),
                 style=StyleSpec(),
+                components=tuple(components),
             )
             scenes.append(scene)
 

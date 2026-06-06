@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from videos.components.registry import ComponentRegistry
 from videos.core.domain.scene_spec import ComponentSpec
@@ -67,40 +67,60 @@ def create_target(
 
 class TitleComponent:
     def build(self, spec: ComponentSpec, scene: object) -> Any:
-        from manim import Text, Write
+        from manim import Scene, Text, Write
 
-        content: str = spec.props.get("content", spec.region)
+        content = str(spec.props.get("content", spec.region))
         text = Text(content, font_size=40)
-        scene.play(Write(text))  # type: ignore[arg-type]
+
+        position = spec.props.get("position")
+        if position:
+            text.move_to(cast(Sequence[float], position))
+
+        cast(Scene, scene).play(Write(text))
         return text
 
 
 class TextComponent:
     def build(self, spec: ComponentSpec, scene: object) -> Any:
-        from manim import Text, Write
+        from manim import Scene, Text, Write
 
-        content: str = spec.props.get("content", "")
+        content = str(spec.props.get("content", ""))
         text = Text(content, font_size=24)
-        scene.play(Write(text))  # type: ignore[arg-type]
+
+        position = spec.props.get("position")
+        if position:
+            text.move_to(cast(Sequence[float], position))
+
+        cast(Scene, scene).play(Write(text))
         return text
 
 
 class DiagramComponent:
     def build(self, spec: ComponentSpec, scene: object) -> Any:
-        kind: str = spec.props.get("kind", "cycle")
-        labels: list[str] = spec.props.get("labels", [])
-        colors: list[str] = spec.props.get(
-            "colors", ["#4A90D9", "#E67E22", "#2ECC71", "#E74C3C", "#9B59B6"]
+        from manim import Scene, Write
+
+        kind = str(spec.props.get("kind", "cycle"))
+        labels = cast(list[str], spec.props.get("labels", []))
+        colors = cast(
+            list[str],
+            spec.props.get("colors", ["#4A90D9", "#E67E22", "#2ECC71", "#E74C3C", "#9B59B6"]),
         )
 
         if kind == "linear":
-            return build_linear_nodes(scene, labels, colors)
-        if kind == "target":
-            rings: int = spec.props.get("rings", 4)
-            max_radius: float = spec.props.get("max_radius", 2.0)
-            return create_target(scene, rings=rings, max_radius=max_radius)
+            mobj = build_linear_nodes(cast(Scene, scene), labels, colors)
+        elif kind == "target":
+            rings = int(cast(int, spec.props.get("rings", 4)))
+            max_radius = float(cast(float, spec.props.get("max_radius", 2.0)))
+            mobj = create_target(cast(Scene, scene), rings=rings, max_radius=max_radius)
+        else:
+            mobj = build_cycle_nodes(cast(Scene, scene), labels, colors)
 
-        return build_cycle_nodes(scene, labels, colors)
+        position = spec.props.get("position")
+        if position:
+            mobj.move_to(cast(Sequence[float], position))
+
+        cast(Scene, scene).play(Write(mobj))
+        return mobj
 
 
 def register_default_components(registry: object) -> None:

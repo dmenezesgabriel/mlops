@@ -5563,6 +5563,7 @@ name = "videos"
 version = "0.1.0"
 source = { editable = "libs/videos" }
 dependencies = [
+    { name = "pillow" },
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
@@ -5575,6 +5576,7 @@ manim = [
 [package.metadata]
 requires-dist = [
     { name = "manim", marker = "extra == 'manim'" },
+    { name = "pillow", specifier = ">=10.0" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
