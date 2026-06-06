@@ -22,21 +22,33 @@ collections:
       - slug: problem-framing
         title: Problem Framing
         source: docs/01_problem_framing.md
-      - slug: dataset-collection
-        title: Dataset Collection
-        source: docs/02_dataset_collection.md
-      - slug: event-logs-to-supervised-learning
-        title: Event Logs To Supervised Learning
-        source: docs/03_event_logs_to_supervised_learning.md
-      - slug: feature-store-with-feast-duckdb
-        title: Feature Store With Feast And DuckDB
-        source: docs/05_feature_store_with_feast_duckdb.md
-      - slug: feature-engineering-notebook
-        title: Feature Engineering Notebook
+      - slug: data-collection
+        title: Data Collection
+        source: docs/02_data_collection.md
+      - slug: exploratory-data-analysis
+        title: Exploratory Data Analysis
+        source: notebooks/eda.ipynb
+      - slug: data-preprocessing
+        title: Data Preprocessing
+        source: docs/03_data_preprocessing.md
+      - slug: feature-engineering
+        title: Feature Engineering
         source: notebooks/feature_engineering.ipynb
-      - slug: mlflow-model-registry
-        title: MLflow Model Registry
-        source: docs/10_mlflow_model_registry.md
+      - slug: model-training
+        title: Train
+        source: docs/05_train.md
+      - slug: hyperparameter-tuning
+        title: Tune
+        source: notebooks/tuning.ipynb
+      - slug: model-evaluation
+        title: Evaluate
+        source: docs/06_evaluate.md
+      - slug: model-deployment
+        title: Deploy
+        source: docs/07_deploy.md
+      - slug: model-monitoring
+        title: Monitoring
+        source: docs/08_monitoring.md
     assets:
       videos:
         mlops_lifecycle: ../videos/output/mlops_lifecycle.mp4
