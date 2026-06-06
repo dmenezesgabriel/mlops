@@ -1,35 +1,51 @@
-# Train
+# Model Training & Algorithm Selection
 
-Once features are engineered and stored in Feast, model training retrieves them using point-in-time joins to avoid data leakage, trains a Ridge demand regressor, and registers it to the central model registry.
+Once historical features are retrieved from Feast using point-in-time joins, we proceed to model training. Designing a production-ready model requires selecting an algorithm that matches the statistical properties of the dataset and the runtime requirements of the serving environment.
 
-## Historical Feature Retrieval
-During training, we read the training dataset (which functions as our "entity dataframe" containing keys and target values). We pass this dataframe to Feast to fetch the corresponding features:
-- `pickup_count`
-- `hour`
-- `day_of_week`
-- `is_weekend`
-- `month`
+---
 
-Feast performs an offline join against the DuckDB backend and returns a training frame containing the features aligned with the target `next_hour_pickup_count`.
+## 1. Comparative Algorithm Selection Trade-offs
 
-## The Ridge Regressor Model
-To predict next-hour pickup counts, we train a custom regularized **Ridge Regression** model. The model computes optimal weights $\beta$ via the closed-form equation:
+During architectural design, we evaluated three distinct forecasting algorithms:
+
+| Algorithm | Pros | Cons | Decision |
+| :--- | :--- | :--- | :--- |
+| **Ridge Regression (L2 Linear)** | Highly stable; closed-form solution (guaranteed global optimum); low latency; robust to multicollinear features (highly correlated consecutive lags). | Cannot capture complex non-linear feature interactions (e.g. zone-specific hour patterns) without manual interaction feature engineering. | **Selected (Baseline & Production)** |
+| **Lasso Regression (L1 Linear)** | Performs feature selection by driving coefficients of non-predictive variables to exactly zero. | In the presence of highly correlated lags (e.g. lag 1 and lag 2), Lasso randomly selects one and ignores the others, leading to model instability. | Rejected |
+| **Gradient Boosted Trees (LightGBM/XGBoost)** | State-of-the-art accuracy; handles zero-inflation, non-linear relationships, and complex interaction features automatically. | Prone to overfitting on sparse zones; cannot extrapolate trends outside the range of historical training values; higher serving latency and memory footprint. | Future Champion candidate |
+
+---
+
+## 2. Mathematical Formalization of L2 Regularization (Ridge)
+
+To prevent overfitting on temporal patterns and handle high correlation between consecutive hourly lags (multicollinearity), we employ **Ridge Regression**.
+
+The model fits coefficients $\beta$ by minimizing the sum of squared errors plus a penalty term on the squared $L_2$ norm of the coefficients:
+
+$$\min_{\beta} \left( \|y - X\beta\|_2^2 + \alpha \|\beta\|_2^2 \right)$$
+
+Solving this optimization problem analytically yields the closed-form equation:
+
 $$\beta = (X^T X + \alpha I)^{-1} X^T y$$
 
-- $X$: Feature matrix (pre-appended with a column of ones for intercept).
-- $I$: Identity matrix (modified to not penalize the intercept term).
-- $\alpha$: Regularization hyperparameter.
-- $y$: Target column.
+*   $X$: The design matrix (independent features + a column of ones for intercept).
+*   $y$: The target vector (`next_hour_pickup_count`).
+*   $\alpha$: The regularization hyperparameter ($\alpha > 0$). Larger values of $\alpha$ shrink coefficients closer to zero, reducing variance and preventing the model from fitting to high-frequency noise.
+*   $I$: The identity matrix, modified in our code so that the regularization penalty is not applied to the intercept term.
 
-## Model Registry & Versioning
-When a training run completes, we catalog and version our model in the MLflow Model Registry:
-1. Log the model artifact as a custom `PyfuncDemandModel` to the local **MLflow Tracking Store** (backed by SQLite).
-2. Register the model under a canonical name: `nyc_taxi_demand_forecaster`.
-3. MLflow assigns a unique version number (e.g. `Version 1`, `Version 2`) to the model artifact.
+---
 
-Our project wraps MLflow's registry client within a clean adapter class:
-{{ include_source("src/nyc_taxi_demand_forecasting/models/registry.py") }}
+## 3. Production Model Tracking & Artifact Registry
 
-## Code Reference
-Below is the core training logic including the custom regressor, PyFunc wrapper, and training loop:
+To maintain auditability under the CD4ML framework, every training run registers its parameters, metrics, and code environment to a centralized registry using **MLflow**:
+
+1.  **Tracking Store**: Metrics (MAE, RMSE, $R^2$) and parameters ($\alpha$, dataset version) are logged to a relational tracking database (backed by SQLite).
+2.  **Artifact Store**: The trained weights $\beta$ are packaged as a custom MLflow `pyfunc` model (`PyfuncDemandModel`) and stored as a serialized python pickle.
+3.  **Model Registry**: High-performing models are registered in the registry as `nyc_taxi_demand_forecaster` with version control. This decoupling allows serving APIs to fetch models by stage (e.g., `Staging` or `Production`) without rebuilding API containers.
+
+---
+
+## 4. Code Reference
+
+Below is the core training and registry implementation:
 {{ include_source("src/nyc_taxi_demand_forecasting/models/training.py") }}
