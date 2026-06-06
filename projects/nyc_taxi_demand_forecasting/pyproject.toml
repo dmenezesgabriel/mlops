@@ -15,6 +15,7 @@ dependencies = [
   "pyarrow==24.0.0",
   "requests==2.34.2",
   "uvicorn>=0.28.0",
+  "optuna>=3.6.0",
 ]
 
 [project.optional-dependencies]
@@ -45,6 +46,7 @@ DEP002 = [
   "ibis-framework",
   "uvicorn",
   "ipywidgets",
+  "optuna",
 ]
 DEP003 = ["nyc_taxi_demand_forecasting", "fastapi"]
 
