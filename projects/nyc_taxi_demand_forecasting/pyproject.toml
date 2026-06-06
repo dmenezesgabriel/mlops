@@ -4,17 +4,26 @@ version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
   "duckdb>=1.4.0",
-  "feast>=0.56.0",
+  "fastapi>=0.110.0",
+  "feast[duckdb]>=0.56.0",
+  "ibis-framework>=9.0.0",
+  "ipywidgets>=8.0.0",
   "mlflow>=3.7.0",
   "mlops-shared",
   "numpy>=2.0.0",
   "pandas==2.3.3",
   "pyarrow==24.0.0",
   "requests==2.34.2",
+  "uvicorn>=0.28.0",
 ]
 
 [project.optional-dependencies]
-notebooks = ["ipykernel>=7.1.0", "matplotlib>=3.10.0"]
+notebooks = [
+  "ipykernel>=7.1.0",
+  "matplotlib>=3.10.0",
+  "nbclient>=0.11.0",
+  "nbconvert>=7.17.1",
+]
 
 [tool.uv.sources]
 mlops-shared = { workspace = true }
@@ -25,8 +34,19 @@ mlops-shared = "mlops_shared"
 
 [tool.deptry.per_rule_ignores]
 DEP001 = ["data_sources", "entities"]
-DEP002 = ["duckdb", "mlflow", "pyarrow", "ipykernel", "matplotlib"]
-DEP003 = ["nyc_taxi_demand_forecasting"]
+DEP002 = [
+  "duckdb",
+  "mlflow",
+  "pyarrow",
+  "ipykernel",
+  "matplotlib",
+  "nbclient",
+  "nbconvert",
+  "ibis-framework",
+  "uvicorn",
+  "ipywidgets",
+]
+DEP003 = ["nyc_taxi_demand_forecasting", "fastapi"]
 
 [build-system]
 requires = ["hatchling==1.27.0"]

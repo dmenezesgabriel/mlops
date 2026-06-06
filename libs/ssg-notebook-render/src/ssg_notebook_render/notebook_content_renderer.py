@@ -12,13 +12,19 @@ from ssg.application.html_headings import demote_top_level_headings
 from ssg.application.ports import ContentRenderer, MarkdownRenderer
 from ssg.domain.site import BuildContext, ContentCollection, Page
 
-from ssg_notebook_render.notebook_fragment_renderer import NotebookFragmentRenderer
+from ssg_notebook_render.notebook_fragment_renderer import (
+    NotebookFragmentRenderer,
+)
 
 
 class NotebookMarkdownRenderer(MarkdownRenderer):
-    def __init__(self, fragment_renderer: NotebookFragmentRenderer | None = None) -> None:
+    def __init__(
+        self, fragment_renderer: NotebookFragmentRenderer | None = None
+    ) -> None:
         self._markdown = MarkdownIt("commonmark")
-        self._fragment_renderer = fragment_renderer or NotebookFragmentRenderer()
+        self._fragment_renderer = (
+            fragment_renderer or NotebookFragmentRenderer()
+        )
 
     def render_markdown(
         self,
@@ -33,7 +39,9 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
         )
         linked_source = self._render_wikilinks(transcluded_source, collection)
         rendered_html = str(self._markdown.render(linked_source))
-        return demote_top_level_headings(self._replace_transclusions(rendered_html, transclusions))
+        return demote_top_level_headings(
+            self._replace_transclusions(rendered_html, transclusions)
+        )
 
     def _render_transclusions(
         self,
@@ -64,7 +72,9 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
     ) -> Markup:
         resolved_source_path = collection.source_file(source_path)
         if context.dependency_tracker is not None:
-            context.dependency_tracker.register_dependency(page, resolved_source_path)
+            context.dependency_tracker.register_dependency(
+                page, resolved_source_path
+            )
 
         source = resolved_source_path.read_text(encoding="utf-8")
         return self._store_transclusion(
@@ -90,13 +100,19 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
             )
 
         video_path = (
-            context.output_path / collection.output_slug / "assets" / "videos" / source_path.name
+            context.output_path
+            / collection.output_slug
+            / "assets"
+            / "videos"
+            / source_path.name
         )
         video_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_path, video_path)
         return self._store_transclusion(
             transclusions,
-            self._fragment_renderer.render_video_frame(source_path.name, video_name),
+            self._fragment_renderer.render_video_frame(
+                source_path.name, video_name
+            ),
         )
 
     def _store_transclusion(
@@ -106,19 +122,29 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
         transclusions[marker] = rendered_html
         return Markup(marker)
 
-    def _replace_transclusions(self, rendered_html: str, transclusions: dict[str, Markup]) -> str:
+    def _replace_transclusions(
+        self, rendered_html: str, transclusions: dict[str, Markup]
+    ) -> str:
         processed_html = rendered_html
         for marker, transclusion in transclusions.items():
-            processed_html = processed_html.replace(f"<p>{marker}</p>", str(transclusion))
+            processed_html = processed_html.replace(
+                f"<p>{marker}</p>", str(transclusion)
+            )
             processed_html = processed_html.replace(marker, str(transclusion))
 
         return processed_html
 
-    def _render_wikilinks(self, source: str, collection: ContentCollection) -> str:
+    def _render_wikilinks(
+        self, source: str, collection: ContentCollection
+    ) -> str:
         pattern = re.compile(r"\[\[([a-zA-Z0-9_-]+)(?:\|([^\]]+))?\]\]")
-        return pattern.sub(lambda match: self._wikilink(match, collection), source)
+        return pattern.sub(
+            lambda match: self._wikilink(match, collection), source
+        )
 
-    def _wikilink(self, match: re.Match[str], collection: ContentCollection) -> str:
+    def _wikilink(
+        self, match: re.Match[str], collection: ContentCollection
+    ) -> str:
         page_slug = match.group(1)
         label = match.group(2) or page_slug.replace("-", " ").title()
         return f'<a href="{collection.page_href(page_slug)}">{html.escape(label)}</a>'
@@ -130,24 +156,44 @@ class NotebookContentRenderer(ContentRenderer):
         markdown_renderer: MarkdownRenderer | None = None,
         fragment_renderer: NotebookFragmentRenderer | None = None,
     ) -> None:
-        self._fragment_renderer = fragment_renderer or NotebookFragmentRenderer()
-        self._markdown_renderer = markdown_renderer or NotebookMarkdownRenderer(
-            self._fragment_renderer
+        self._fragment_renderer = (
+            fragment_renderer or NotebookFragmentRenderer()
+        )
+        self._markdown_renderer = (
+            markdown_renderer
+            or NotebookMarkdownRenderer(self._fragment_renderer)
         )
 
     def can_render(self, source_path: Path) -> bool:
         return source_path.suffix == ".ipynb"
 
-    def render(self, collection: ContentCollection, page: Page, context: BuildContext) -> str:
+    def render(
+        self, collection: ContentCollection, page: Page, context: BuildContext
+    ) -> str:
         if context.dependency_tracker is not None:
-            context.dependency_tracker.register_dependency(page, page.source_path)
+            context.dependency_tracker.register_dependency(
+                page, page.source_path
+            )
 
         notebook = nbformat.read(page.source_path, as_version=4)
         rendered_cells = [
             self._render_cell(cell, collection, page, context, index)
             for index, cell in enumerate(notebook.cells)
         ]
-        return "\n".join(rendered_cells)
+        html_content = "\n".join(rendered_cells)
+
+        widgets_metadata = notebook.metadata.get("widgets", {})
+        widget_state = widgets_metadata.get(
+            "application/vnd.jupyter.widget-state+json", None
+        )
+        if widget_state:
+            import json
+
+            state_json = json.dumps(widget_state)
+            widget_state_html = f'<script type="application/vnd.jupyter.widget-state+json">{state_json}</script>'
+            html_content = widget_state_html + "\n" + html_content
+
+        return html_content
 
     def _render_cell(
         self,
@@ -160,13 +206,20 @@ class NotebookContentRenderer(ContentRenderer):
         cell_type = getattr(cell, "cell_type", "")
         source = str(getattr(cell, "source", ""))
         if cell_type == "markdown":
-            return self._markdown_renderer.render_markdown(source, collection, context, page)
+            return self._markdown_renderer.render_markdown(
+                source, collection, context, page
+            )
 
         if cell_type == "code":
             outputs = self._render_outputs(
-                cell, page, context.output_path / collection.output_slug, cell_index
+                cell,
+                page,
+                context.output_path / collection.output_slug,
+                cell_index,
             )
-            return self._fragment_renderer.render_code_cell(source, cell_index, outputs)
+            return self._fragment_renderer.render_code_cell(
+                source, cell_index, outputs
+            )
 
         return ""
 
@@ -179,7 +232,9 @@ class NotebookContentRenderer(ContentRenderer):
     ) -> str:
         outputs = getattr(cell, "outputs", [])
         rendered_outputs = [
-            self._render_output(output, page, output_path, cell_index, output_index)
+            self._render_output(
+                output, page, output_path, cell_index, output_index
+            )
             for output_index, output in enumerate(outputs)
         ]
         return "\n".join(rendered_outputs)
@@ -194,16 +249,43 @@ class NotebookContentRenderer(ContentRenderer):
     ) -> str:
         output_type = getattr(output, "output_type", "")
         if output_type == "stream":
-            return self._fragment_renderer.render_stream_output(str(getattr(output, "text", "")))
+            stream_text = getattr(output, "text", "")
+            if isinstance(stream_text, list):
+                stream_text = "".join(stream_text)
+            return self._fragment_renderer.render_stream_output(
+                str(stream_text)
+            )
 
         data = getattr(output, "data", {})
-        if isinstance(data, dict) and "image/png" in data:
+        if not isinstance(data, dict):
+            return ""
+
+        if "application/vnd.jupyter.widget-view+json" in data:
+            import json
+
+            widget_view = data["application/vnd.jupyter.widget-view+json"]
+            return self._fragment_renderer.render_widget_view_output(
+                json.dumps(widget_view)
+            )
+
+        if "text/html" in data:
+            html_content = data["text/html"]
+            if isinstance(html_content, list):
+                html_content = "".join(html_content)
+            return self._fragment_renderer.render_html_output(
+                str(html_content)
+            )
+
+        if "image/png" in data:
             return self._write_png_output(
                 data["image/png"], page, output_path, cell_index, output_index
             )
 
-        if isinstance(data, dict) and "text/plain" in data:
-            return self._fragment_renderer.render_text_output(str(data["text/plain"]))
+        if "text/plain" in data:
+            plain_text = data["text/plain"]
+            if isinstance(plain_text, list):
+                plain_text = "".join(plain_text)
+            return self._fragment_renderer.render_text_output(str(plain_text))
 
         return ""
 

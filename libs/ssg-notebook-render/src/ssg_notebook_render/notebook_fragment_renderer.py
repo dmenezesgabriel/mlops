@@ -32,7 +32,9 @@ class NotebookFragmentRenderer:
             )
         )
 
-    def render_code_cell(self, source: str, cell_index: int, outputs: str) -> str:
+    def render_code_cell(
+        self, source: str, cell_index: int, outputs: str
+    ) -> str:
         return self._render_template(
             "notebook_code_cell.html",
             source=Markup(html.escape(source)),
@@ -47,7 +49,21 @@ class NotebookFragmentRenderer:
         return self._render_output("Result", text)
 
     def render_image_output(self, image_name: str) -> str:
-        return self._render_template("notebook_image_output.html", image_name=image_name)
+        return self._render_template(
+            "notebook_image_output.html", image_name=image_name
+        )
+
+    def render_html_output(self, html_content: str) -> str:
+        return self._render_template(
+            "notebook_html_output.html",
+            html_content=Markup(html_content),
+        )
+
+    def render_widget_view_output(self, widget_view_json: str) -> str:
+        return self._render_template(
+            "notebook_widget_view_output.html",
+            widget_view_json=Markup(widget_view_json),
+        )
 
     def _render_output(self, output_label: str, text: str) -> str:
         return self._render_template(
@@ -70,5 +86,7 @@ class NotebookFragmentRenderer:
             ".sh": "bash",
             ".json": "json",
         }
-        language = suffix_languages.get(Path(source_path).suffix.lower(), "text")
+        language = suffix_languages.get(
+            Path(source_path).suffix.lower(), "text"
+        )
         return f"language-{language}"

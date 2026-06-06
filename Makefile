@@ -11,7 +11,7 @@ SITE_CONFIG ?= site/site.yaml
 SITE_OUTPUT ?= site/build
 
 install:
-	uv sync --all-packages --dev
+	uv sync --all-packages --dev --extra notebooks
 	uv run pre-commit install
 
 format:
