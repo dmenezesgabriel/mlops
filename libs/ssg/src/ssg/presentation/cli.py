@@ -10,8 +10,8 @@ from ssg.infrastructure.jinja_page_renderer import JinjaPageRenderer
 from ssg.infrastructure.local_preview_server import LocalPreviewServer
 from ssg.infrastructure.logging import StructuredLoggingConfigurator
 from ssg.infrastructure.markdown_content_renderer import MarkdownContentRenderer
-from ssg.infrastructure.polling_site_reloader import PollingSiteReloader
 from ssg.infrastructure.site_config_repository import SiteConfigRepository
+from ssg.infrastructure.watchdog_site_reloader import WatchdogSiteReloader
 
 LOGGER = getLogger(__name__)
 
@@ -25,7 +25,7 @@ def create_parser() -> argparse.ArgumentParser:
     _add_build_arguments(preview_parser)
     preview_parser.add_argument("--host", default="127.0.0.1")
     preview_parser.add_argument("--port", type=int, default=8000)
-    preview_parser.add_argument("--reload-interval", type=float, default=1.0)
+    preview_parser.add_argument("--reload-interval", type=float, default=0.2)
     return parser
 
 
@@ -51,7 +51,12 @@ def main() -> None:
     build_site(config_path, output_path, collection_name)
 
 
-def build_site(config_path: Path, output_path: Path, collection_name: str | None = None) -> None:
+def build_site(
+    config_path: Path,
+    output_path: Path,
+    collection_name: str | None = None,
+    changed_paths: set[Path] | None = None,
+) -> None:
     builder = StaticSiteBuilder(
         site_repository=SiteConfigRepository(),
         content_renderers=load_content_renderers(),
@@ -59,7 +64,7 @@ def build_site(config_path: Path, output_path: Path, collection_name: str | None
         site_variant_provider=load_site_variant_provider(),
         page_renderer=JinjaPageRenderer(),
     )
-    builder.build(config_path, output_path, collection_name)
+    builder.build(config_path, output_path, collection_name, changed_paths)
 
 
 def preview_site(
@@ -76,7 +81,7 @@ def preview_site(
         collection.source_root for collection in site.selected_collections(collection_name)
     )
     StaticSitePreview(
-        site_reloader=PollingSiteReloader(),
+        site_reloader=WatchdogSiteReloader(),
         preview_server=LocalPreviewServer(),
     ).preview(
         watched_paths=watched_paths,
@@ -84,7 +89,9 @@ def preview_site(
         host=host,
         port=port,
         reload_interval=reload_interval,
-        rebuild=lambda: build_site(config_path, output_path, collection_name),
+        on_change=lambda changed_paths: build_site(
+            config_path, output_path, collection_name, changed_paths
+        ),
     )
 
 

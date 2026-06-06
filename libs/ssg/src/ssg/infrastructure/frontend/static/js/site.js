@@ -25,3 +25,12 @@ if (!motionQuery.matches && 'IntersectionObserver' in window) {
     .querySelectorAll('.story-step, .media-frame, .notebook-cell')
     .forEach((element) => observer.observe(element));
 }
+
+if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+  const source = new EventSource('/__live_reload__');
+  source.onmessage = (event) => {
+    if (event.data === 'reload') {
+      window.location.reload();
+    }
+  };
+}
