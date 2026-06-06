@@ -8,8 +8,18 @@ import pytest
 
 from videos.concepts.registry import ConceptRegistry
 from videos.core.application.director import Director
-from videos.core.domain.concept import Concept, ConceptId, ConceptMetadata, ConceptTitle
-from videos.core.domain.narrative import Beat, BeatKind, NarrationLine, Narrative
+from videos.core.domain.concept import (
+    Concept,
+    ConceptId,
+    ConceptMetadata,
+    ConceptTitle,
+)
+from videos.core.domain.narrative import (
+    Beat,
+    BeatKind,
+    NarrationLine,
+    Narrative,
+)
 from videos.core.domain.scene_spec import SceneSpec
 from videos.core.ports.artifact_store import ArtifactStore
 from videos.core.ports.layout_engine import LayoutEngine
@@ -21,7 +31,8 @@ from videos.core.ports.telemetry import Telemetry
 def _minimal_concept() -> Concept:
     title = ConceptTitle(short="T", subtitle="")
     return Concept(
-        id=ConceptId("test"), metadata=ConceptMetadata(title=title, description="", tags=())
+        id=ConceptId("test"),
+        metadata=ConceptMetadata(title=title, description="", tags=()),
     )
 
 
@@ -41,10 +52,14 @@ class StubTelemetry(Telemetry):
         self.events: list[tuple[str, dict[str, object]]] = []
         self.errors: list[tuple[Exception, dict[str, object]]] = []
 
-    def record_event(self, event_name: str, attributes: dict[str, object]) -> None:
+    def record_event(
+        self, event_name: str, attributes: dict[str, object]
+    ) -> None:
         self.events.append((event_name, attributes))
 
-    def record_error(self, error: Exception, attributes: dict[str, object]) -> None:
+    def record_error(
+        self, error: Exception, attributes: dict[str, object]
+    ) -> None:
         self.errors.append((error, attributes))
 
 
@@ -59,7 +74,9 @@ class StubRenderer(Renderer):
         # Create dummy PNG for linter
         png_path = output_path.with_suffix(".png")
         png_path.touch()
-        return RenderResult(output_path=output_path, duration_ms=100.0, success=True)
+        return RenderResult(
+            output_path=output_path, duration_ms=100.0, success=True
+        )
 
 
 class StubSceneBuilder(SceneBuilder):
@@ -70,7 +87,9 @@ class StubSceneBuilder(SceneBuilder):
         self.specs.append(scene_spec)
         return object()
 
-    def build_storyboard(self, storyboard: object, layout_engine: object) -> object:
+    def build_storyboard(
+        self, storyboard: object, layout_engine: object
+    ) -> object:
         return object()
 
 
@@ -95,12 +114,16 @@ class StubArtifactStore(ArtifactStore):
     def resolve_output_path(self, concept_id: str, quality: str) -> Path:
         return self._tmp / f"{concept_id}_{quality}.mp4"
 
-    def resolve_scene_preview_path(self, concept_id: str, scene_id: str) -> Path:
+    def resolve_scene_preview_path(
+        self, concept_id: str, scene_id: str
+    ) -> Path:
         return self._tmp / f"{concept_id}_{scene_id}.mp4"
 
 
 class TestDirector:
-    def test_director_produce_calls_renderer_for_each_scene(self, tmp_path: Path) -> None:
+    def test_director_produce_calls_renderer_for_each_scene(
+        self, tmp_path: Path
+    ) -> None:
         # Arrange
         ConceptRegistry._extensions.clear()
         concept = _minimal_concept()
@@ -165,8 +188,12 @@ class TestDirector:
 
         renderer = StubRenderer()
         artifact_store = MagicMock(spec=ArtifactStore)
-        artifact_store.resolve_output_path.return_value = tmp_path / "final.mp4"
-        artifact_store.resolve_scene_preview_path.return_value = tmp_path / "scene.mp4"
+        artifact_store.resolve_output_path.return_value = (
+            tmp_path / "final.mp4"
+        )
+        artifact_store.resolve_scene_preview_path.return_value = (
+            tmp_path / "scene.mp4"
+        )
 
         director = Director(
             concept_id="test",

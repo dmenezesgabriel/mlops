@@ -1,17 +1,22 @@
 from ssg.domain.site import Site
-from ssg_syntax_highlighting.presentation.plugin import create_pygments_html_post_processor
+from ssg_syntax_highlighting.presentation.plugin import (
+    create_pygments_html_post_processor,
+)
 
 
 def empty_site(extensions: dict[str, dict[str, str]] | None = None) -> Site:
-    return Site(title="Learning Site", description="", collections=(), extensions=extensions or {})
+    return Site(
+        title="Learning Site",
+        description="",
+        collections=(),
+        extensions=extensions or {},
+    )
 
 
 def test_process_highlights_python_code_block() -> None:
     # Arrange
     processor = create_pygments_html_post_processor()
-    rendered_html = (
-        '<pre><code class="language-python">def run() -&gt; None:\n    pass\n</code></pre>'
-    )
+    rendered_html = '<pre><code class="language-python">def run() -&gt; None:\n    pass\n</code></pre>'
 
     # Act
     processed_html = processor.process(rendered_html, empty_site())
@@ -65,7 +70,9 @@ def test_process_uses_text_fallback_for_unknown_language() -> None:
 def test_process_leaves_unclassified_code_blocks_unchanged() -> None:
     # Arrange
     processor = create_pygments_html_post_processor()
-    rendered_html = "<p>Before</p><pre><code>plain &amp; safe</code></pre><p>After</p>"
+    rendered_html = (
+        "<p>Before</p><pre><code>plain &amp; safe</code></pre><p>After</p>"
+    )
 
     # Act
     processed_html = processor.process(rendered_html, empty_site())

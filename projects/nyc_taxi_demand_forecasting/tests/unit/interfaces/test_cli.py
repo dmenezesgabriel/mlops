@@ -1,4 +1,7 @@
-from nyc_taxi_demand_forecasting.interfaces.cli import create_parser, create_registry
+from nyc_taxi_demand_forecasting.interfaces.cli import (
+    create_parser,
+    create_registry,
+)
 
 
 def test_cli_parser_accepts_pipeline_subcommands() -> None:
@@ -6,7 +9,9 @@ def test_cli_parser_accepts_pipeline_subcommands() -> None:
     parser = create_parser()
 
     # Act
-    arguments = parser.parse_args(["collect", "--config", "configs/project.yaml"])
+    arguments = parser.parse_args(
+        ["collect", "--config", "configs/project.yaml"]
+    )
 
     # Assert
     assert arguments.command == "collect"

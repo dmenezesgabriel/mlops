@@ -11,7 +11,10 @@ from videos.adapters.manim.components import (  # noqa: E402
 from videos.adapters.manim.scene_builder import ManimSceneBuilder  # noqa: E402
 from videos.components.registry import ComponentRegistry  # noqa: E402
 from videos.core.domain.layout import LayoutRegion, LayoutSpec  # noqa: E402
-from videos.core.domain.scene_spec import ComponentSpec, SceneSpec  # noqa: E402
+from videos.core.domain.scene_spec import (  # noqa: E402
+    ComponentSpec,
+    SceneSpec,
+)
 
 
 def _scene_with_components(components: tuple[ComponentSpec, ...]) -> SceneSpec:
@@ -37,7 +40,11 @@ class TestManimSceneBuilder:
         register_default_components(registry)
         builder = ManimSceneBuilder(registry=registry)
         spec = _scene_with_components(
-            (ComponentSpec(type="title", region="title", props={"content": "Hello"}),)
+            (
+                ComponentSpec(
+                    type="title", region="title", props={"content": "Hello"}
+                ),
+            )
         )
         scene = builder.build(spec)
         assert scene is not None
@@ -48,8 +55,12 @@ class TestManimSceneBuilder:
         builder = ManimSceneBuilder(registry=registry)
         spec = _scene_with_components(
             (
-                ComponentSpec(type="title", region="title", props={"content": "Title"}),
-                ComponentSpec(type="text", region="body", props={"content": "Body"}),
+                ComponentSpec(
+                    type="title", region="title", props={"content": "Title"}
+                ),
+                ComponentSpec(
+                    type="text", region="body", props={"content": "Body"}
+                ),
             )
         )
         scene = builder.build(spec)

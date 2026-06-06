@@ -23,7 +23,9 @@ class TestDependencyDirection:
             src = getattr(mod, "__file__", "") or ""
             with open(src) as f:
                 content = f.read()
-            assert "adapters" not in content.lower(), f"{src} imports from adapters"
+            assert (
+                "adapters" not in content.lower()
+            ), f"{src} imports from adapters"
 
     def test_core_application_does_not_import_adapters(self) -> None:
         import videos.core.application.director
@@ -41,7 +43,9 @@ class TestDependencyDirection:
             src = getattr(mod, "__file__", "") or ""
             with open(src) as f:
                 content = f.read()
-            assert "adapters" not in content.lower(), f"{src} imports from adapters"
+            assert (
+                "adapters" not in content.lower()
+            ), f"{src} imports from adapters"
 
     def test_validation_does_not_import_adapters(self) -> None:
         import videos.validation.layout_rules
@@ -59,4 +63,6 @@ class TestDependencyDirection:
             src = getattr(mod, "__file__", "") or ""
             with open(src) as f:
                 content = f.read()
-            assert "adapters" not in content.lower(), f"{src} imports from adapters"
+            assert (
+                "adapters" not in content.lower()
+            ), f"{src} imports from adapters"

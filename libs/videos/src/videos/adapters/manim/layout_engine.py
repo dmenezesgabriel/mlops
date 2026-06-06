@@ -36,7 +36,9 @@ class ManimLayoutEngine:
         new_components = []
         for comp in scene.components:
             region = LayoutRegion(comp.region)
-            coords = self.REGION_MAP.get(region, LayoutRegionCoordinates(0, 0, 0))
+            coords = self.REGION_MAP.get(
+                region, LayoutRegionCoordinates(0, 0, 0)
+            )
 
             new_props = dict(comp.props)
             new_props["position"] = coords.to_list()

@@ -5,7 +5,9 @@ from ssg.infrastructure.watchdog_site_reloader import WatchdogSiteReloader
 
 
 class TestWatchdogSiteReloader:
-    def test_triggers_on_change_with_debounced_paths(self, tmp_path: Path) -> None:
+    def test_triggers_on_change_with_debounced_paths(
+        self, tmp_path: Path
+    ) -> None:
         # Arrange
         reloader = WatchdogSiteReloader()
         watched_dir = tmp_path / "watched"

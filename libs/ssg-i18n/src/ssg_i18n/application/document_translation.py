@@ -15,33 +15,48 @@ WIKILINK_PATTERN = re.compile(r"\[\[([a-zA-Z0-9_-]+)(?:\|([^\]]+))?\]\]")
 class DocumentTranslator:
     text_translator: TextTranslator
 
-    def translate_file(self, source_path: Path, output_path: Path, target_locale: Locale) -> Path:
+    def translate_file(
+        self, source_path: Path, output_path: Path, target_locale: Locale
+    ) -> Path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         if source_path.suffix == ".ipynb":
             output_path.write_text(
-                self._translate_notebook(source_path, target_locale), encoding="utf-8"
+                self._translate_notebook(source_path, target_locale),
+                encoding="utf-8",
             )
             return output_path
 
         output_path.write_text(
-            self._translate_markdown(source_path, target_locale), encoding="utf-8"
+            self._translate_markdown(source_path, target_locale),
+            encoding="utf-8",
         )
         return output_path
 
-    def _translate_markdown(self, source_path: Path, target_locale: Locale) -> str:
+    def _translate_markdown(
+        self, source_path: Path, target_locale: Locale
+    ) -> str:
         source = source_path.read_text(encoding="utf-8")
         return self.translate_markdown_source(source, target_locale)
 
-    def _translate_notebook(self, source_path: Path, target_locale: Locale) -> str:
+    def _translate_notebook(
+        self, source_path: Path, target_locale: Locale
+    ) -> str:
         notebook = json.loads(source_path.read_text(encoding="utf-8"))
         cells = notebook.get("cells", [])
         if not isinstance(cells, list):
-            raise ValueError(f"Invalid notebook {source_path}: expected cells list")
+            raise ValueError(
+                f"Invalid notebook {source_path}: expected cells list"
+            )
 
-        notebook["cells"] = [self._translate_notebook_cell(cell, target_locale) for cell in cells]
+        notebook["cells"] = [
+            self._translate_notebook_cell(cell, target_locale)
+            for cell in cells
+        ]
         return json.dumps(notebook, ensure_ascii=False, indent=2)
 
-    def _translate_notebook_cell(self, cell: object, target_locale: Locale) -> object:
+    def _translate_notebook_cell(
+        self, cell: object, target_locale: Locale
+    ) -> object:
         if not isinstance(cell, dict) or cell.get("cell_type") != "markdown":
             return cell
 
@@ -51,7 +66,9 @@ class DocumentTranslator:
         )
         return translated_cell
 
-    def _translate_notebook_source(self, source: object, target_locale: Locale) -> object:
+    def _translate_notebook_source(
+        self, source: object, target_locale: Locale
+    ) -> object:
         if isinstance(source, list):
             return self.translate_markdown_source(
                 "".join(str(line) for line in source), target_locale
@@ -59,7 +76,9 @@ class DocumentTranslator:
 
         return self.translate_markdown_source(str(source), target_locale)
 
-    def translate_markdown_source(self, source: str, target_locale: Locale) -> str:
+    def translate_markdown_source(
+        self, source: str, target_locale: Locale
+    ) -> str:
         translated_lines: list[str] = []
         inside_code_fence = False
         for line in source.splitlines(keepends=True):
@@ -69,7 +88,9 @@ class DocumentTranslator:
                 continue
 
             translated_lines.append(
-                self._translate_markdown_line(line, target_locale, inside_code_fence)
+                self._translate_markdown_line(
+                    line, target_locale, inside_code_fence
+                )
             )
 
         return "".join(translated_lines)
@@ -87,38 +108,62 @@ class DocumentTranslator:
 
         heading_match = re.fullmatch(r"(#{1,6}\s+)(.*)", line_body)
         if heading_match:
-            return self._translate_heading(heading_match, target_locale, line_ending)
+            return self._translate_heading(
+                heading_match, target_locale, line_ending
+            )
 
-        return self._translate_text_with_protected_parts(line_body, target_locale) + line_ending
+        return (
+            self._translate_text_with_protected_parts(line_body, target_locale)
+            + line_ending
+        )
 
     def _translate_heading(
-        self, heading_match: re.Match[str], target_locale: Locale, line_ending: str
+        self,
+        heading_match: re.Match[str],
+        target_locale: Locale,
+        line_ending: str,
     ) -> str:
         heading_prefix = heading_match.group(1)
         heading_text = heading_match.group(2)
         return (
             heading_prefix
-            + self._translate_text_with_protected_parts(heading_text, target_locale)
+            + self._translate_text_with_protected_parts(
+                heading_text, target_locale
+            )
             + line_ending
         )
 
-    def _translate_text_with_protected_parts(self, source_text: str, target_locale: Locale) -> str:
+    def _translate_text_with_protected_parts(
+        self, source_text: str, target_locale: Locale
+    ) -> str:
         protected_parts: dict[str, str] = {}
         wikilink_targets: dict[str, str] = {}
         wikilink_source = WIKILINK_PATTERN.sub(
-            lambda match: self._protect_wikilink_target(match, wikilink_targets), source_text
+            lambda match: self._protect_wikilink_target(
+                match, wikilink_targets
+            ),
+            source_text,
         )
         protected_source = PROTECTED_PATTERN.sub(
-            lambda match: self._protect_match(match, protected_parts), wikilink_source
+            lambda match: self._protect_match(match, protected_parts),
+            wikilink_source,
         )
-        translated_source = self.text_translator.translate(protected_source, target_locale)
-        if not self._all_markers_preserved(translated_source, protected_parts | wikilink_targets):
+        translated_source = self.text_translator.translate(
+            protected_source, target_locale
+        )
+        if not self._all_markers_preserved(
+            translated_source, protected_parts | wikilink_targets
+        ):
             translated_source = protected_source
 
         for marker, protected_text in protected_parts.items():
-            translated_source = translated_source.replace(marker, protected_text)
+            translated_source = translated_source.replace(
+                marker, protected_text
+            )
         for marker, wikilink_target in wikilink_targets.items():
-            translated_source = translated_source.replace(marker, wikilink_target)
+            translated_source = translated_source.replace(
+                marker, wikilink_target
+            )
 
         return translated_source
 
@@ -127,7 +172,9 @@ class DocumentTranslator:
     ) -> bool:
         return all(marker in translated_source for marker in protected_parts)
 
-    def _protect_match(self, match: re.Match[str], protected_parts: dict[str, str]) -> str:
+    def _protect_match(
+        self, match: re.Match[str], protected_parts: dict[str, str]
+    ) -> str:
         marker = f"{{SSG_I18N_PROTECTED_{len(protected_parts)}}}"
         protected_parts[marker] = match.group(0)
         return marker

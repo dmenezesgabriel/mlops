@@ -10,7 +10,9 @@ from videos.core.domain.timeline import TimelineEvent, TimelineSpec
 
 
 class StoryboardPlanner:
-    def __init__(self, component_factory: ComponentFactory | None = None) -> None:
+    def __init__(
+        self, component_factory: ComponentFactory | None = None
+    ) -> None:
         self._component_factory = component_factory or ComponentFactory()
 
     def plan(self, narrative: Narrative) -> Storyboard:
@@ -19,7 +21,9 @@ class StoryboardPlanner:
             scene_id = f"{narrative.concept.id.value}_beat_{index}"
             region_names = {"title", "body", "diagram"}
             regions = tuple(
-                LayoutRegion(r) for r in region_names if r in LayoutRegion.all_region_names()
+                LayoutRegion(r)
+                for r in region_names
+                if r in LayoutRegion.all_region_names()
             )
 
             visual_objects = (

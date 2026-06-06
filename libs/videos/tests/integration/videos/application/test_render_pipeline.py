@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 from pathlib import Path
 
 import pytest
@@ -7,7 +8,9 @@ pytestmark = pytest.mark.docker
 
 from videos.adapters.manim.layout_engine import ManimLayoutEngine  # noqa: E402
 from videos.adapters.manim.scene_builder import ManimSceneBuilder  # noqa: E402
-from videos.core.application.render_pipeline import RenderPipeline  # noqa: E402
+from videos.core.application.render_pipeline import (
+    RenderPipeline,  # noqa: E402
+)
 from videos.core.domain.layout import LayoutRegion, LayoutSpec  # noqa: E402
 from videos.core.domain.scene_spec import SceneSpec  # noqa: E402
 from videos.core.domain.storyboard import Storyboard  # noqa: E402
@@ -18,14 +21,20 @@ from videos.core.ports.telemetry import Telemetry  # noqa: E402
 
 class StubRenderer(Renderer):
     def render(self, scene_job: object, output_path: Path) -> RenderResult:
-        return RenderResult(output_path=output_path, duration_ms=50.0, success=True)
+        return RenderResult(
+            output_path=output_path, duration_ms=50.0, success=True
+        )
 
 
 class StubTelemetry(Telemetry):
-    def record_event(self, event_name: str, attributes: dict[str, object]) -> None:
+    def record_event(
+        self, event_name: str, attributes: dict[str, object]
+    ) -> None:
         pass
 
-    def record_error(self, error: Exception, attributes: dict[str, object]) -> None:
+    def record_error(
+        self, error: Exception, attributes: dict[str, object]
+    ) -> None:
         pass
 
 

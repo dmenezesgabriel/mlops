@@ -25,7 +25,12 @@ class PollingSiteReloader(SiteReloader):
 
         reload_thread = threading.Thread(
             target=self._watch_forever,
-            args=(watched_paths, rebuild_adapter, interval_seconds, ignored_paths),
+            args=(
+                watched_paths,
+                rebuild_adapter,
+                interval_seconds,
+                ignored_paths,
+            ),
             daemon=True,
         )
         reload_thread.start()
@@ -54,7 +59,9 @@ class PollingSiteReloader(SiteReloader):
             LOGGER.exception("site_reload_failed")
 
     def _signature(
-        self, watched_paths: tuple[Path, ...], ignored_paths: tuple[Path, ...] = ()
+        self,
+        watched_paths: tuple[Path, ...],
+        ignored_paths: tuple[Path, ...] = (),
     ) -> tuple[tuple[str, int, int], ...]:
         files = []
         for watched_path in watched_paths:
@@ -68,6 +75,8 @@ class PollingSiteReloader(SiteReloader):
                 ):
                     continue
 
-                files.append((str(path), path.stat().st_mtime_ns, path.stat().st_size))
+                files.append(
+                    (str(path), path.stat().st_mtime_ns, path.stat().st_size)
+                )
 
         return tuple(sorted(files))

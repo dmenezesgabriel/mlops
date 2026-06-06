@@ -5,7 +5,9 @@ from ssg.application.ports import PreviewServer, SiteReloader
 
 
 class StaticSitePreview:
-    def __init__(self, site_reloader: SiteReloader, preview_server: PreviewServer) -> None:
+    def __init__(
+        self, site_reloader: SiteReloader, preview_server: PreviewServer
+    ) -> None:
         self._site_reloader = site_reloader
         self._preview_server = preview_server
 

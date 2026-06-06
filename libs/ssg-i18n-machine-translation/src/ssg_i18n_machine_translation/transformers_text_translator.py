@@ -13,7 +13,9 @@ class TransformersModule(Protocol):
 
 
 class TransformersTextTranslator(TextTranslator):
-    def __init__(self, model_name: str = "facebook/nllb-200-distilled-600M") -> None:
+    def __init__(
+        self, model_name: str = "facebook/nllb-200-distilled-600M"
+    ) -> None:
         self._model_name = model_name
         self._translation_pipeline: Callable[..., object] | None = None
 
@@ -24,14 +26,18 @@ class TransformersTextTranslator(TextTranslator):
             max_new_tokens=max(16, min(128, len(source_text.split()) * 4)),
             no_repeat_ngram_size=3,
         )
-        translated_text = self._translation_text(result, source_text, target_locale)
+        translated_text = self._translation_text(
+            result, source_text, target_locale
+        )
         if self._looks_degenerate(translated_text):
             return source_text
 
         return translated_text
 
     def _pipeline(self) -> Callable[..., object]:
-        if self._translation_pipeline is not None and callable(self._translation_pipeline):
+        if self._translation_pipeline is not None and callable(
+            self._translation_pipeline
+        ):
             return self._translation_pipeline
 
         transformers_module = import_module("transformers")
@@ -45,7 +51,9 @@ class TransformersTextTranslator(TextTranslator):
         )
         return self._translation_pipeline
 
-    def _translation_text(self, result: object, source_text: str, target_locale: Locale) -> str:
+    def _translation_text(
+        self, result: object, source_text: str, target_locale: Locale
+    ) -> str:
         if not isinstance(result, list) or not result:
             raise RuntimeError(
                 f"Invalid transformers result for locale {target_locale.tag}: "

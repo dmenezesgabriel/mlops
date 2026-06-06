@@ -20,7 +20,9 @@ class TestTitleComponent:
         from manim import Scene
 
         comp = TitleComponent()
-        spec = ComponentSpec(type="title", region="title", props={"content": "Hello"})
+        spec = ComponentSpec(
+            type="title", region="title", props={"content": "Hello"}
+        )
         scene = Scene()
         result = comp.build(spec, scene)
         assert result is not None
@@ -31,7 +33,9 @@ class TestTextComponent:
         from manim import Scene
 
         comp = TextComponent()
-        spec = ComponentSpec(type="text", region="body", props={"content": "Body text"})
+        spec = ComponentSpec(
+            type="text", region="body", props={"content": "Body text"}
+        )
         scene = Scene()
         result = comp.build(spec, scene)
         assert result is not None
@@ -45,7 +49,11 @@ class TestDiagramComponent:
         spec = ComponentSpec(
             type="diagram",
             region="diagram",
-            props={"kind": "cycle", "labels": ["A", "B", "C"], "colors": ["red", "green", "blue"]},
+            props={
+                "kind": "cycle",
+                "labels": ["A", "B", "C"],
+                "colors": ["red", "green", "blue"],
+            },
         )
         scene = Scene()
         result = comp.build(spec, scene)
@@ -58,7 +66,11 @@ class TestDiagramComponent:
         spec = ComponentSpec(
             type="diagram",
             region="diagram",
-            props={"kind": "linear", "labels": ["X", "Y"], "colors": ["red", "blue"]},
+            props={
+                "kind": "linear",
+                "labels": ["X", "Y"],
+                "colors": ["red", "blue"],
+            },
         )
         scene = Scene()
         result = comp.build(spec, scene)
@@ -98,8 +110,12 @@ class TestRegisterDefaultComponents:
         registry = ComponentRegistry()
         register_default_components(registry)
         specs = [
-            ComponentSpec(type="title", region="title", props={"content": "Hello"}),
-            ComponentSpec(type="text", region="text", props={"content": "World"}),
+            ComponentSpec(
+                type="title", region="title", props={"content": "Hello"}
+            ),
+            ComponentSpec(
+                type="text", region="text", props={"content": "World"}
+            ),
             ComponentSpec(
                 type="diagram",
                 region="diagram",

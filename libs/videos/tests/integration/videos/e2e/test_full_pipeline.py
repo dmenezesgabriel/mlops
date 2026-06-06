@@ -21,7 +21,9 @@ TEST_YAML_DIR = Path(__file__).parents[3] / "fixtures" / "concepts"
 
 class StubRenderer(Renderer):
     def render(self, scene_job: object, output_path: Path) -> RenderResult:
-        return RenderResult(output_path=output_path, duration_ms=100.0, success=True)
+        return RenderResult(
+            output_path=output_path, duration_ms=100.0, success=True
+        )
 
 
 class StubSceneBuilder(SceneBuilder):
@@ -42,10 +44,14 @@ class StubTelemetry(Telemetry):
         self.events: list[tuple[str, dict[str, object]]] = []
         self.errors: list[tuple[Exception, dict[str, object]]] = []
 
-    def record_event(self, event_name: str, attributes: dict[str, object]) -> None:
+    def record_event(
+        self, event_name: str, attributes: dict[str, object]
+    ) -> None:
         self.events.append((event_name, attributes))
 
-    def record_error(self, error: Exception, attributes: dict[str, object]) -> None:
+    def record_error(
+        self, error: Exception, attributes: dict[str, object]
+    ) -> None:
         self.errors.append((error, attributes))
 
 
@@ -87,7 +93,9 @@ class TestE2EYamlConcepts:
 
         # Assert
         assert len(storyboard.scenes) == len(narrative.beats)
-        assert storyboard.total_expected_duration == pytest.approx(narrative.total_duration)
+        assert storyboard.total_expected_duration == pytest.approx(
+            narrative.total_duration
+        )
 
     def test_quality_gate_passes_yaml_concept(self) -> None:
         # Arrange

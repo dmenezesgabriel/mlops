@@ -18,9 +18,13 @@ from nyc_taxi_demand_forecasting.pipelines import (
 )
 
 
-def create_parser(registry: PipelineCommandRegistry | None = None) -> argparse.ArgumentParser:
+def create_parser(
+    registry: PipelineCommandRegistry | None = None,
+) -> argparse.ArgumentParser:
     command_registry = registry or create_registry()
-    parser = argparse.ArgumentParser(description="Run NYC taxi demand forecasting pipelines.")
+    parser = argparse.ArgumentParser(
+        description="Run NYC taxi demand forecasting pipelines."
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
     for command_name in command_registry.names():
         command_parser = subparsers.add_parser(command_name)
@@ -43,7 +47,9 @@ def create_registry() -> PipelineCommandRegistry:
     )
 
 
-def run_command(registry: PipelineCommandRegistry, command_name: str, config_path: Path) -> None:
+def run_command(
+    registry: PipelineCommandRegistry, command_name: str, config_path: Path
+) -> None:
     logger = logging.getLogger("nyc_taxi_demand_forecasting.cli")
     context = {
         "command": command_name,

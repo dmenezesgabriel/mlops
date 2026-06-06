@@ -20,5 +20,7 @@ class ComponentRegistry:
         builder = self._builders.get(spec.type)
         if builder is None:
             available = ", ".join(sorted(self._builders))
-            raise LookupError(f"Unknown component type {spec.type!r}. Available: {available}")
+            raise LookupError(
+                f"Unknown component type {spec.type!r}. Available: {available}"
+            )
         return builder.build(spec, scene)

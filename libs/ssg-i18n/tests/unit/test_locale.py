@@ -8,4 +8,7 @@ def test_locale_normalizes_underscore_region_tag() -> None:
 
 def test_locale_set_requires_default_locale_in_supported_locales() -> None:
     with pytest.raises(ValueError, match="expected default locale fr"):
-        LocaleSet(default_locale=Locale("fr"), locales=(Locale("en"), Locale("pt-BR")))
+        LocaleSet(
+            default_locale=Locale("fr"),
+            locales=(Locale("en"), Locale("pt-BR")),
+        )

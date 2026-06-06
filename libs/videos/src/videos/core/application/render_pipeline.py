@@ -51,12 +51,20 @@ class RenderPipeline:
         report = self._quality_gate.validate(scenes)
 
         if not report.passed:
-            details = "; ".join(f"{v.rule}: {v.suggestion}" for v in report.violations)
-            raise RuntimeError(f"Quality gate rejected {concept_id!r}: {details}")
+            details = "; ".join(
+                f"{v.rule}: {v.suggestion}" for v in report.violations
+            )
+            raise RuntimeError(
+                f"Quality gate rejected {concept_id!r}: {details}"
+            )
 
         if executor is not None:
-            return self._execute_parallel(scenes, concept_id, quality, correlation_id, executor)
-        return self._execute_sequential(scenes, concept_id, quality, correlation_id)
+            return self._execute_parallel(
+                scenes, concept_id, quality, correlation_id, executor
+            )
+        return self._execute_sequential(
+            scenes, concept_id, quality, correlation_id
+        )
 
     def _render_one_scene(
         self,
@@ -67,7 +75,9 @@ class RenderPipeline:
     ) -> RenderResult:
         positioned = self._layout_engine.apply(scene_spec)
         built_scene = self._scene_builder.build(positioned)
-        output_path = self._artifact_store.resolve_output_path(concept_id, quality)
+        output_path = self._artifact_store.resolve_output_path(
+            concept_id, quality
+        )
         result = self._renderer.render(built_scene, output_path)
         self._telemetry.record_event(
             "scene_rendered",
@@ -90,7 +100,11 @@ class RenderPipeline:
     ) -> list[RenderResult]:
         results: list[RenderResult] = []
         for scene_spec in scenes:
-            results.append(self._render_one_scene(scene_spec, concept_id, quality, correlation_id))
+            results.append(
+                self._render_one_scene(
+                    scene_spec, concept_id, quality, correlation_id
+                )
+            )
         return results
 
     def _execute_parallel(
@@ -102,7 +116,9 @@ class RenderPipeline:
         executor: Executor,
     ) -> list[RenderResult]:
         futures: list[Future[RenderResult]] = [
-            executor.submit(self._render_one_scene, s, concept_id, quality, correlation_id)
+            executor.submit(
+                self._render_one_scene, s, concept_id, quality, correlation_id
+            )
             for s in scenes
         ]
         return [f.result() for f in futures]

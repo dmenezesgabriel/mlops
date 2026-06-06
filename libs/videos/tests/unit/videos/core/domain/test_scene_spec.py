@@ -1,4 +1,5 @@
 import pytest
+
 from videos.core.domain.layout import LayoutRegion, LayoutSpec
 from videos.core.domain.scene_spec import SceneSpec, VisualObject
 
@@ -52,7 +53,11 @@ class TestSceneSpec:
             duration_seconds=5.0,
             layout=LayoutSpec(regions=(LayoutRegion.TITLE,)),
             visual_objects=(
-                VisualObject(object_id="title_1", region="title", semantic_purpose="Display title"),
+                VisualObject(
+                    object_id="title_1",
+                    region="title",
+                    semantic_purpose="Display title",
+                ),
             ),
         )
         assert spec.scene_id == "s1"
@@ -62,7 +67,9 @@ class TestSceneSpec:
 
 class TestVisualObject:
     def test_stores_fields(self) -> None:
-        vo = VisualObject(object_id="o1", region="title", semantic_purpose="Display")
+        vo = VisualObject(
+            object_id="o1", region="title", semantic_purpose="Display"
+        )
         assert vo.object_id == "o1"
         assert vo.region == "title"
         assert vo.semantic_purpose == "Display"

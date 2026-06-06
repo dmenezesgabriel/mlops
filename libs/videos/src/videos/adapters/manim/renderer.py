@@ -19,14 +19,18 @@ class ManimRenderer:
         "final": "high_quality",
     }
 
-    def render(self, scene_job: Scene, output_path: Path, quality: str = "preview") -> RenderResult:
+    def render(
+        self, scene_job: Scene, output_path: Path, quality: str = "preview"
+    ) -> RenderResult:
         start = time.monotonic()
         try:
             from manim import config, tempconfig
 
             manim_quality = self.QUALITY_MAP.get(quality, "low_quality")
 
-            with tempconfig({"quality": manim_quality, "disable_caching": True}):
+            with tempconfig(
+                {"quality": manim_quality, "disable_caching": True}
+            ):
                 if manim_quality == "low_quality":
                     config.pixel_height = 480
                     config.pixel_width = 854
@@ -46,7 +50,11 @@ class ManimRenderer:
                 image_path = output_path.with_suffix(".png")
                 last_frame.save(image_path)
 
-                out = config.output_file if hasattr(config, "output_file") else output_path
+                out = (
+                    config.output_file
+                    if hasattr(config, "output_file")
+                    else output_path
+                )
                 rendered_path = Path(out)
                 if rendered_path != output_path:
                     import shutil
@@ -62,7 +70,9 @@ class ManimRenderer:
                     "status": "error",
                 },
             )
-            return RenderResult(output_path=output_path, duration_ms=elapsed, success=False)
+            return RenderResult(
+                output_path=output_path, duration_ms=elapsed, success=False
+            )
 
         elapsed = (time.monotonic() - start) * 1000
         logger.info(
@@ -73,4 +83,6 @@ class ManimRenderer:
                 "status": "success",
             },
         )
-        return RenderResult(output_path=output_path, duration_ms=elapsed, success=True)
+        return RenderResult(
+            output_path=output_path, duration_ms=elapsed, success=True
+        )

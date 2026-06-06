@@ -25,4 +25,6 @@ FINAL = RenderProfile(
     resolution=(1920, 1080),
 )
 
-BUILTIN_PROFILES: dict[str, RenderProfile] = {p.name: p for p in [PREVIEW, FINAL]}
+BUILTIN_PROFILES: dict[str, RenderProfile] = {
+    p.name: p for p in [PREVIEW, FINAL]
+}

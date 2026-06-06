@@ -1,5 +1,7 @@
 import pandas as pd
-from nyc_taxi_demand_forecasting.data.supervised_dataset import NextHourDemandDatasetBuilder
+from nyc_taxi_demand_forecasting.data.supervised_dataset import (
+    NextHourDemandDatasetBuilder,
+)
 
 
 def test_supervised_dataset_builder_creates_next_hour_target() -> None:

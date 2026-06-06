@@ -22,7 +22,9 @@ class StubRenderer:
         # Small centered rectangle
         draw.rectangle([400, 200, 450, 250], fill=(255, 255, 255))
         img.save(output_path.with_suffix(".png"))
-        return RenderResult(output_path=output_path, duration_ms=10.0, success=True)
+        return RenderResult(
+            output_path=output_path, duration_ms=10.0, success=True
+        )
 
 
 class GoodRenderer:
@@ -39,12 +41,16 @@ class GoodRenderer:
         # Body at center
         draw.rectangle([200, 200, 600, 300], fill=(255, 255, 255))
         img.save(output_path.with_suffix(".png"))
-        return RenderResult(output_path=output_path, duration_ms=10.0, success=True)
+        return RenderResult(
+            output_path=output_path, duration_ms=10.0, success=True
+        )
 
 
 class TestLinterIntegration:
     @pytest.mark.parametrize("concept_id", ["test_e2e"])
-    def test_director_fails_on_poor_layout(self, concept_id: str, tmp_path: Path) -> None:
+    def test_director_fails_on_poor_layout(
+        self, concept_id: str, tmp_path: Path
+    ) -> None:
         # Arrange
         from videos.concepts import register_all
 
@@ -54,10 +60,12 @@ class TestLinterIntegration:
         renderer = StubRenderer()
         artifact_store = MagicMock()
         # Use temp dir for output paths to avoid permission issues and cleanup
-        artifact_store.resolve_scene_preview_path.side_effect = lambda cid, sid: (
-            tmp_path / f"{cid}_{sid}.mp4"
+        artifact_store.resolve_scene_preview_path.side_effect = (
+            lambda cid, sid: tmp_path / f"{cid}_{sid}.mp4"
         )
-        artifact_store.resolve_output_path.return_value = tmp_path / "final.mp4"
+        artifact_store.resolve_output_path.return_value = (
+            tmp_path / "final.mp4"
+        )
 
         director = Director(
             concept_id=concept_id,
@@ -73,7 +81,9 @@ class TestLinterIntegration:
             director.produce()
 
     @pytest.mark.parametrize("concept_id", ["test_e2e"])
-    def test_director_passes_on_good_layout(self, concept_id: str, tmp_path: Path) -> None:
+    def test_director_passes_on_good_layout(
+        self, concept_id: str, tmp_path: Path
+    ) -> None:
         # Arrange
         from videos.concepts import register_all
 
@@ -82,10 +92,12 @@ class TestLinterIntegration:
 
         renderer = GoodRenderer()
         artifact_store = MagicMock()
-        artifact_store.resolve_scene_preview_path.side_effect = lambda cid, sid: (
-            tmp_path / f"{cid}_{sid}.mp4"
+        artifact_store.resolve_scene_preview_path.side_effect = (
+            lambda cid, sid: tmp_path / f"{cid}_{sid}.mp4"
         )
-        artifact_store.resolve_output_path.return_value = tmp_path / "final.mp4"
+        artifact_store.resolve_output_path.return_value = (
+            tmp_path / "final.mp4"
+        )
 
         director = Director(
             concept_id=concept_id,

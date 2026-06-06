@@ -1,14 +1,18 @@
 from pathlib import Path
 
 from ssg.domain.site import BuildContext, ContentCollection, Page
-from ssg.infrastructure.markdown_content_renderer import MarkdownContentRenderer
+from ssg.infrastructure.markdown_content_renderer import (
+    MarkdownContentRenderer,
+)
 
 
 def test_render_transcludes_source_and_copies_video(tmp_path: Path) -> None:
     # Arrange
     source_root = tmp_path / "content"
     source_root.mkdir()
-    (source_root / "script.py").write_text("def run() -> None:\n    pass\n", encoding="utf-8")
+    (source_root / "script.py").write_text(
+        "def run() -> None:\n    pass\n", encoding="utf-8"
+    )
     markdown_path = source_root / "README.md"
     markdown_path.write_text(
         '{{ include_source("script.py") }}\n\n{{ embed_video("demo") }}',
@@ -36,11 +40,16 @@ def test_render_transcludes_source_and_copies_video(tmp_path: Path) -> None:
         collection_name=None,
         correlation_id="test",
     )
-    rendered_content = MarkdownContentRenderer().render(collection, page, context)
+    rendered_content = MarkdownContentRenderer().render(
+        collection, page, context
+    )
 
     # Assert
     assert "def run()" in rendered_content
-    assert '<video controls src="assets/videos/demo.mp4"></video>' in rendered_content
+    assert (
+        '<video controls src="assets/videos/demo.mp4"></video>'
+        in rendered_content
+    )
     assert 'class="source-panel story-step"' in rendered_content
     assert 'class="media-frame video-frame story-step"' in rendered_content
     assert (output_path / "assets" / "videos" / "demo.mp4").exists()
@@ -61,7 +70,9 @@ def test_render_preserves_transcluded_source_blank_lines_and_indentation(
         encoding="utf-8",
     )
     markdown_path = source_root / "README.md"
-    markdown_path.write_text('{{ include_source("feature_views.py") }}', encoding="utf-8")
+    markdown_path.write_text(
+        '{{ include_source("feature_views.py") }}', encoding="utf-8"
+    )
     collection = ContentCollection(
         name="sample_collection",
         title="Sample Collection",
@@ -87,7 +98,10 @@ def test_render_preserves_transcluded_source_blank_lines_and_indentation(
     # Assert
     assert "&lt;p&gt;" not in rendered_content
     assert "</p>" not in rendered_content
-    assert "from datetime import timedelta\n\nfrom data_sources" in rendered_content
+    assert (
+        "from datetime import timedelta\n\nfrom data_sources"
+        in rendered_content
+    )
     assert "\n    name=&quot;hourly_pickup_demand&quot;" in rendered_content
 
 
@@ -100,7 +114,9 @@ def test_render_converts_wikilinks_to_page_links(tmp_path: Path) -> None:
         title="Sample Collection",
         source_root=tmp_path,
         output_slug="sample-collection",
-        pages=(Page(slug="overview", title="Overview", source_path=markdown_path),),
+        pages=(
+            Page(slug="overview", title="Overview", source_path=markdown_path),
+        ),
         videos={},
     )
 

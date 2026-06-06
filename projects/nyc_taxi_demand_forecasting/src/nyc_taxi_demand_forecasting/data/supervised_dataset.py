@@ -19,24 +19,33 @@ class NextHourDemandDatasetBuilder:
 
     def build_from_trips(self, trips: pd.DataFrame) -> pd.DataFrame:
         hourly_demand = self._hourly_pickups(trips)
-        hourly_demand["next_hour_pickup_count"] = hourly_demand.groupby("pickup_location_id")[
-            "pickup_count"
-        ].shift(-1)
-        complete_rows = hourly_demand.dropna(subset=["next_hour_pickup_count"]).copy()
-        complete_rows["next_hour_pickup_count"] = complete_rows["next_hour_pickup_count"].astype(
-            int
-        )
+        hourly_demand["next_hour_pickup_count"] = hourly_demand.groupby(
+            "pickup_location_id"
+        )["pickup_count"].shift(-1)
+        complete_rows = hourly_demand.dropna(
+            subset=["next_hour_pickup_count"]
+        ).copy()
+        complete_rows["next_hour_pickup_count"] = complete_rows[
+            "next_hour_pickup_count"
+        ].astype(int)
         return complete_rows.reset_index(drop=True)
 
     def _hourly_pickups(self, trips: pd.DataFrame) -> pd.DataFrame:
-        pickup_hour = pd.to_datetime(trips["tpep_pickup_datetime"]).dt.floor("h")
+        pickup_hour = pd.to_datetime(trips["tpep_pickup_datetime"]).dt.floor(
+            "h"
+        )
         grouped = trips.assign(pickup_hour=pickup_hour).groupby(
             ["PULocationID", "pickup_hour"], as_index=False
         )
         demand = grouped.size().rename(
-            columns={"PULocationID": "pickup_location_id", "size": "pickup_count"}
+            columns={
+                "PULocationID": "pickup_location_id",
+                "size": "pickup_count",
+            }
         )
-        return self._add_calendar_columns(demand.sort_values(["pickup_location_id", "pickup_hour"]))
+        return self._add_calendar_columns(
+            demand.sort_values(["pickup_location_id", "pickup_hour"])
+        )
 
     def _add_calendar_columns(self, demand: pd.DataFrame) -> pd.DataFrame:
         demand["hour"] = demand["pickup_hour"].dt.hour

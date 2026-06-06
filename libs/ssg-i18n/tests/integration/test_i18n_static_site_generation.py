@@ -4,16 +4,26 @@ from pathlib import Path
 import pytest
 from ssg.application.static_site_builder import StaticSiteBuilder
 from ssg.infrastructure.jinja_page_renderer import JinjaPageRenderer
-from ssg.infrastructure.markdown_content_renderer import MarkdownContentRenderer
+from ssg.infrastructure.markdown_content_renderer import (
+    MarkdownContentRenderer,
+)
 from ssg.infrastructure.site_config_repository import SiteConfigRepository
-from ssg_i18n.application.i18n_site_variant_provider import I18nSiteVariantProvider
+from ssg_i18n.application.i18n_site_variant_provider import (
+    I18nSiteVariantProvider,
+)
 from ssg_i18n.application.translation import InMemoryTextTranslator
-from ssg_notebook_render.notebook_content_renderer import NotebookContentRenderer
-from ssg_syntax_highlighting.presentation.plugin import create_pygments_html_post_processor
+from ssg_notebook_render.notebook_content_renderer import (
+    NotebookContentRenderer,
+)
+from ssg_syntax_highlighting.presentation.plugin import (
+    create_pygments_html_post_processor,
+)
 
 
 @pytest.mark.integration
-def test_i18n_build_composes_with_content_and_html_extensions(tmp_path: Path) -> None:
+def test_i18n_build_composes_with_content_and_html_extensions(
+    tmp_path: Path,
+) -> None:
     # Arrange
     config_path = _write_site_fixture(tmp_path)
     output_path = tmp_path / "site" / "build"
@@ -33,7 +43,10 @@ def test_i18n_build_composes_with_content_and_html_extensions(tmp_path: Path) ->
     )
     builder = StaticSiteBuilder(
         site_repository=SiteConfigRepository(),
-        content_renderers=(MarkdownContentRenderer(), NotebookContentRenderer()),
+        content_renderers=(
+            MarkdownContentRenderer(),
+            NotebookContentRenderer(),
+        ),
         html_post_processors=(create_pygments_html_post_processor(),),
         page_renderer=JinjaPageRenderer(),
         site_variant_provider=I18nSiteVariantProvider(translator),
@@ -43,16 +56,18 @@ def test_i18n_build_composes_with_content_and_html_extensions(tmp_path: Path) ->
     builder.build(config_path, output_path)
 
     # Assert
-    overview_html = (output_path / "pt-BR" / "sample-collection" / "overview.html").read_text(
-        encoding="utf-8"
-    )
-    notebook_html = (output_path / "pt-BR" / "sample-collection" / "notebook.html").read_text(
-        encoding="utf-8"
-    )
+    overview_html = (
+        output_path / "pt-BR" / "sample-collection" / "overview.html"
+    ).read_text(encoding="utf-8")
+    notebook_html = (
+        output_path / "pt-BR" / "sample-collection" / "notebook.html"
+    ).read_text(encoding="utf-8")
     assert '<html lang="pt-BR">' in overview_html
     assert "Use <code>MLflow</code> para rastreamento." in overview_html
     assert "highlight-token" in overview_html
-    assert "Execute <code>train_model()</code> apos a validacao." in notebook_html
+    assert (
+        "Execute <code>train_model()</code> apos a validacao." in notebook_html
+    )
     translated_notebook_path = (
         config_path.parent
         / ".ssg"
@@ -61,8 +76,13 @@ def test_i18n_build_composes_with_content_and_html_extensions(tmp_path: Path) ->
         / "sample_collection"
         / "notebook.ipynb"
     )
-    translated_notebook = json.loads(translated_notebook_path.read_text(encoding="utf-8"))
-    assert translated_notebook["cells"][1]["source"] == "def train_model():\n    return 'ok'\n"
+    translated_notebook = json.loads(
+        translated_notebook_path.read_text(encoding="utf-8")
+    )
+    assert (
+        translated_notebook["cells"][1]["source"]
+        == "def train_model():\n    return 'ok'\n"
+    )
 
 
 def _write_site_fixture(tmp_path: Path) -> Path:

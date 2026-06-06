@@ -17,7 +17,9 @@ class HourlyDemandFeatureBuilder:
         features.to_parquet(output_path, index=False)
         return output_path
 
-    def build_from_dataset(self, training_dataset: pd.DataFrame) -> pd.DataFrame:
+    def build_from_dataset(
+        self, training_dataset: pd.DataFrame
+    ) -> pd.DataFrame:
         feature_columns = [
             "pickup_location_id",
             "pickup_hour",

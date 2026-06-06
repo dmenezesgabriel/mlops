@@ -30,7 +30,9 @@ LOGGER = getLogger(__name__)
 
 
 class SingleSiteVariantProvider(SiteVariantProvider):
-    def variants(self, site: Site, context: BuildContext) -> tuple[SiteVariant, ...]:
+    def variants(
+        self, site: Site, context: BuildContext
+    ) -> tuple[SiteVariant, ...]:
         return (SiteVariant(site=site, output_path=context.output_path),)
 
 
@@ -49,9 +51,15 @@ class StaticSiteBuilder:
         self._page_renderer = page_renderer
         self._content_renderers = content_renderers
         self._html_post_processors = html_post_processors
-        self._site_variant_provider = site_variant_provider or SingleSiteVariantProvider()
-        self._article_outline_builder = article_outline_builder or HtmlArticleOutlineBuilder()
-        self._dependency_tracker = dependency_tracker or InMemoryDependencyTracker()
+        self._site_variant_provider = (
+            site_variant_provider or SingleSiteVariantProvider()
+        )
+        self._article_outline_builder = (
+            article_outline_builder or HtmlArticleOutlineBuilder()
+        )
+        self._dependency_tracker = (
+            dependency_tracker or InMemoryDependencyTracker()
+        )
 
     def build(
         self,
@@ -60,11 +68,15 @@ class StaticSiteBuilder:
         collection_name: str | None = None,
         changed_paths: set[Path] | None = None,
     ) -> None:
-        if changed_paths is None or config_path.resolve() in [p.resolve() for p in changed_paths]:
+        if changed_paths is None or config_path.resolve() in [
+            p.resolve() for p in changed_paths
+        ]:
             self._dependency_tracker.clear()
             affected_pages = None
         else:
-            affected_pages = self._dependency_tracker.affected_pages(changed_paths)
+            affected_pages = self._dependency_tracker.affected_pages(
+                changed_paths
+            )
 
         site = self._site_repository.load(config_path)
         base_selected_collections = site.selected_collections(collection_name)
@@ -90,7 +102,11 @@ class StaticSiteBuilder:
         )
         for site_variant in site_variants:
             self._build_variant(
-                site_variant, site_variants, collection_name, context, affected_pages
+                site_variant,
+                site_variants,
+                collection_name,
+                context,
+                affected_pages,
             )
 
         LOGGER.info(
@@ -113,7 +129,9 @@ class StaticSiteBuilder:
         context: BuildContext,
         affected_pages: set[Page] | None = None,
     ) -> None:
-        selected_collections = site_variant.site.selected_collections(collection_name)
+        selected_collections = site_variant.site.selected_collections(
+            collection_name
+        )
         site_variant.output_path.mkdir(parents=True, exist_ok=True)
         LOGGER.info(
             "site_variant_build_started",
@@ -128,7 +146,13 @@ class StaticSiteBuilder:
         self._write_assets(site_variant.output_path)
         self._write_index(site_variant, site_variants, selected_collections)
         for collection in selected_collections:
-            self._build_collection(site_variant, site_variants, collection, context, affected_pages)
+            self._build_collection(
+                site_variant,
+                site_variants,
+                collection,
+                context,
+                affected_pages,
+            )
 
     def _build_collection(
         self,
@@ -167,7 +191,9 @@ class StaticSiteBuilder:
                 continue
 
             body = self._render_body(site, collection, page, context)
-            rendered_page = self._rendered_page(site_variant, site_variants, collection, page, body)
+            rendered_page = self._rendered_page(
+                site_variant, site_variants, collection, page, body
+            )
             rendered_html = self._page_renderer.render_page(rendered_page)
             output_file = collection_output_path / page.file_name()
             output_file.write_text(rendered_html, encoding="utf-8")
@@ -200,11 +226,18 @@ class StaticSiteBuilder:
             site=site,
             collections=selected_collections,
             navigation=site.navigation_for(None, None),
-            language_links=self._index_language_links(site_variant, site_variants),
+            language_links=self._index_language_links(
+                site_variant, site_variants
+            ),
         )
         index_path = site_variant.output_path / "index.html"
-        index_path.write_text(self._page_renderer.render_index(rendered_index), encoding="utf-8")
-        LOGGER.info("site_index_rendered", extra={"context": {"output_path": str(index_path)}})
+        index_path.write_text(
+            self._page_renderer.render_index(rendered_index), encoding="utf-8"
+        )
+        LOGGER.info(
+            "site_index_rendered",
+            extra={"context": {"output_path": str(index_path)}},
+        )
 
     def _rendered_page(
         self,
@@ -235,11 +268,15 @@ class StaticSiteBuilder:
             )
             if next_page
             else None,
-            language_links=self._page_language_links(site_variant, site_variants, collection, page),
+            language_links=self._page_language_links(
+                site_variant, site_variants, collection, page
+            ),
         )
 
     def _pager_link(self, page: Page, relation: str) -> PagerLink:
-        return PagerLink(label=page.title, href=page.file_name(), relation=relation)
+        return PagerLink(
+            label=page.title, href=page.file_name(), relation=relation
+        )
 
     def _render_body(
         self,
@@ -250,7 +287,9 @@ class StaticSiteBuilder:
     ) -> str:
         for renderer in self._content_renderers:
             if renderer.can_render(page.source_path):
-                return self._process_rendered_html(renderer.render(collection, page, context), site)
+                return self._process_rendered_html(
+                    renderer.render(collection, page, context), site
+                )
 
         raise ValueError(
             f"Unsupported page source {page.source_path}: expected renderer for suffix "
@@ -265,7 +304,9 @@ class StaticSiteBuilder:
         return processed_html
 
     def _index_language_links(
-        self, current_variant: SiteVariant, site_variants: tuple[SiteVariant, ...]
+        self,
+        current_variant: SiteVariant,
+        site_variants: tuple[SiteVariant, ...],
     ) -> tuple[LanguageLink, ...]:
         return tuple(
             LanguageLink(
@@ -274,7 +315,8 @@ class StaticSiteBuilder:
                     current_variant.output_path,
                     site_variant.output_path / "index.html",
                 ),
-                current=site_variant.site.locale == current_variant.site.locale,
+                current=site_variant.site.locale
+                == current_variant.site.locale,
             )
             for site_variant in site_variants
         )
@@ -286,10 +328,16 @@ class StaticSiteBuilder:
         collection: ContentCollection,
         page: Page,
     ) -> tuple[LanguageLink, ...]:
-        current_directory = current_variant.output_path / collection.output_slug
+        current_directory = (
+            current_variant.output_path / collection.output_slug
+        )
         return tuple(
             self._page_language_link(
-                current_variant, site_variant, current_directory, collection, page
+                current_variant,
+                site_variant,
+                current_directory,
+                collection,
+                page,
             )
             for site_variant in site_variants
         )
@@ -302,12 +350,18 @@ class StaticSiteBuilder:
         collection: ContentCollection,
         page: Page,
     ) -> LanguageLink:
-        target_path = target_variant.output_path / collection.output_slug / page.file_name()
+        target_path = (
+            target_variant.output_path
+            / collection.output_slug
+            / page.file_name()
+        )
         return LanguageLink(
             label=target_variant.site.locale,
             href=self._relative_href(current_directory, target_path),
             current=target_variant.site.locale == current_variant.site.locale,
         )
 
-    def _relative_href(self, current_directory: Path, target_path: Path) -> str:
+    def _relative_href(
+        self, current_directory: Path, target_path: Path
+    ) -> str:
         return Path(os.path.relpath(target_path, current_directory)).as_posix()

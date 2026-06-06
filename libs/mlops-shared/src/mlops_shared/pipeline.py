@@ -21,7 +21,9 @@ class PipelineCommandRegistry:
         if runner is not None:
             return runner
 
-        raise ValueError(f"Invalid pipeline command {command_name}: expected one of {self.names()}")
+        raise ValueError(
+            f"Invalid pipeline command {command_name}: expected one of {self.names()}"
+        )
 
     def names(self) -> tuple[str, ...]:
         return tuple(self._runners)
@@ -42,7 +44,9 @@ class PipelineStep(ABC):
         try:
             self._run_step()
         except Exception:
-            self._logger.exception("pipeline_step_failed", extra={"step": self.name})
+            self._logger.exception(
+                "pipeline_step_failed", extra={"step": self.name}
+            )
             raise
         self._logger.info("pipeline_step_completed", extra={"step": self.name})
 

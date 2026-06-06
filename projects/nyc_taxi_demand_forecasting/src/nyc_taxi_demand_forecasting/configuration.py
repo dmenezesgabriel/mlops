@@ -95,14 +95,19 @@ class ProjectConfigLoader:
         )
 
     def _paths(
-        self, raw_config: dict[str, object], project_root: Path, resolver: RepositoryPathResolver
+        self,
+        raw_config: dict[str, object],
+        project_root: Path,
+        resolver: RepositoryPathResolver,
     ) -> ProjectPaths:
         paths = self._mapping(raw_config, "paths")
         return ProjectPaths(
             root=project_root,
             raw_data=resolver.resolve(self._string(paths, "raw_data")),
             interim_data=resolver.resolve(self._string(paths, "interim_data")),
-            processed_data=resolver.resolve(self._string(paths, "processed_data")),
+            processed_data=resolver.resolve(
+                self._string(paths, "processed_data")
+            ),
             models=resolver.resolve(self._string(paths, "models")),
             reports=resolver.resolve(self._string(paths, "reports")),
         )
@@ -113,7 +118,9 @@ class ProjectConfigLoader:
             year=self._integer(collection, "year"),
             months=tuple(self._integer_list(collection, "months")),
             taxi_type=self._string(collection, "taxi_type"),
-            source_url_template=self._string(collection, "source_url_template"),
+            source_url_template=self._string(
+                collection, "source_url_template"
+            ),
         )
 
     def _features(
@@ -121,8 +128,12 @@ class ProjectConfigLoader:
     ) -> FeatureConfig:
         features = self._mapping(raw_config, "features")
         return FeatureConfig(
-            training_dataset_path=resolver.resolve(self._string(features, "training_dataset_path")),
-            offline_features_path=resolver.resolve(self._string(features, "offline_features_path")),
+            training_dataset_path=resolver.resolve(
+                self._string(features, "training_dataset_path")
+            ),
+            offline_features_path=resolver.resolve(
+                self._string(features, "offline_features_path")
+            ),
         )
 
     def _mlflow(self, raw_config: dict[str, object]) -> MlflowConfig:
@@ -130,7 +141,9 @@ class ProjectConfigLoader:
         return MlflowConfig(
             tracking_uri=self._string(mlflow, "tracking_uri"),
             experiment_name=self._string(mlflow, "experiment_name"),
-            registered_model_name=self._string(mlflow, "registered_model_name"),
+            registered_model_name=self._string(
+                mlflow, "registered_model_name"
+            ),
         )
 
     def _training(self, raw_config: dict[str, object]) -> TrainingConfig:
@@ -152,12 +165,19 @@ class ProjectConfigLoader:
         self, raw_config: dict[str, object], resolver: RepositoryPathResolver
     ) -> FeastConfig:
         feast = self._mapping(raw_config, "feast")
-        return FeastConfig(repo_path=resolver.resolve(self._string(feast, "repo_path")))
+        return FeastConfig(
+            repo_path=resolver.resolve(self._string(feast, "repo_path"))
+        )
 
-    def _mapping(self, config: dict[str, object], key: str) -> dict[str, object]:
+    def _mapping(
+        self, config: dict[str, object], key: str
+    ) -> dict[str, object]:
         value = config.get(key)
         if isinstance(value, dict):
-            return {str(item_key): item_value for item_key, item_value in value.items()}
+            return {
+                str(item_key): item_value
+                for item_key, item_value in value.items()
+            }
 
         raise ValueError(f"Invalid project config key {key}: expected mapping")
 
@@ -166,25 +186,35 @@ class ProjectConfigLoader:
         if isinstance(value, str):
             return value
 
-        raise ValueError(f"Invalid project config key {key}: expected string, got {value!r}")
+        raise ValueError(
+            f"Invalid project config key {key}: expected string, got {value!r}"
+        )
 
     def _integer(self, config: dict[str, object], key: str) -> int:
         value = config.get(key)
         if isinstance(value, int):
             return value
 
-        raise ValueError(f"Invalid project config key {key}: expected integer, got {value!r}")
+        raise ValueError(
+            f"Invalid project config key {key}: expected integer, got {value!r}"
+        )
 
     def _float(self, config: dict[str, object], key: str) -> float:
         value = config.get(key)
         if isinstance(value, int | float):
             return float(value)
 
-        raise ValueError(f"Invalid project config key {key}: expected number, got {value!r}")
+        raise ValueError(
+            f"Invalid project config key {key}: expected number, got {value!r}"
+        )
 
     def _integer_list(self, config: dict[str, object], key: str) -> list[int]:
         value = config.get(key)
-        if isinstance(value, list) and all(isinstance(item, int) for item in value):
+        if isinstance(value, list) and all(
+            isinstance(item, int) for item in value
+        ):
             return value
 
-        raise ValueError(f"Invalid project config key {key}: expected integer list, got {value!r}")
+        raise ValueError(
+            f"Invalid project config key {key}: expected integer list, got {value!r}"
+        )

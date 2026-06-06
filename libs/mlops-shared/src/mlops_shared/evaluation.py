@@ -20,9 +20,13 @@ class RegressionMetrics:
 
     def require_within(self, thresholds: RegressionMetricThresholds) -> None:
         if self.mae > thresholds.max_mae:
-            raise ValueError(f"Invalid MAE {self.mae}: expected <= {thresholds.max_mae}")
+            raise ValueError(
+                f"Invalid MAE {self.mae}: expected <= {thresholds.max_mae}"
+            )
         if self.rmse > thresholds.max_rmse:
-            raise ValueError(f"Invalid RMSE {self.rmse}: expected <= {thresholds.max_rmse}")
+            raise ValueError(
+                f"Invalid RMSE {self.rmse}: expected <= {thresholds.max_rmse}"
+            )
 
 
 class RegressionMetricCalculator:
@@ -32,13 +36,17 @@ class RegressionMetricCalculator:
         RegressionMetricCalculator().calculate([1.0, 2.0], [1.0, 3.0])
     """
 
-    def calculate(self, actual: Iterable[float], predicted: Iterable[float]) -> RegressionMetrics:
+    def calculate(
+        self, actual: Iterable[float], predicted: Iterable[float]
+    ) -> RegressionMetrics:
         actual_values = tuple(float(value) for value in actual)
         predicted_values = tuple(float(value) for value in predicted)
         self._require_same_length(actual_values, predicted_values)
         residuals = tuple(
             actual_value - predicted_value
-            for actual_value, predicted_value in zip(actual_values, predicted_values, strict=True)
+            for actual_value, predicted_value in zip(
+                actual_values, predicted_values, strict=True
+            )
         )
         return RegressionMetrics(
             mae=self._mean_absolute_error(residuals),
@@ -46,7 +54,9 @@ class RegressionMetricCalculator:
             r2=self._r2(actual_values, residuals),
         )
 
-    def _require_same_length(self, actual: tuple[float, ...], predicted: tuple[float, ...]) -> None:
+    def _require_same_length(
+        self, actual: tuple[float, ...], predicted: tuple[float, ...]
+    ) -> None:
         if actual and len(actual) == len(predicted):
             return
 
@@ -59,13 +69,22 @@ class RegressionMetricCalculator:
         return fsum(abs(residual) for residual in residuals) / len(residuals)
 
     def _root_mean_squared_error(self, residuals: tuple[float, ...]) -> float:
-        return sqrt(fsum(residual * residual for residual in residuals) / len(residuals))
+        return sqrt(
+            fsum(residual * residual for residual in residuals)
+            / len(residuals)
+        )
 
-    def _r2(self, actual: tuple[float, ...], residuals: tuple[float, ...]) -> float:
+    def _r2(
+        self, actual: tuple[float, ...], residuals: tuple[float, ...]
+    ) -> float:
         actual_mean = fsum(actual) / len(actual)
-        total_sum_squares = fsum((actual_value - actual_mean) ** 2 for actual_value in actual)
+        total_sum_squares = fsum(
+            (actual_value - actual_mean) ** 2 for actual_value in actual
+        )
         if total_sum_squares == 0:
             return 0.0
 
-        residual_sum_squares = fsum(residual * residual for residual in residuals)
+        residual_sum_squares = fsum(
+            residual * residual for residual in residuals
+        )
         return 1 - residual_sum_squares / total_sum_squares

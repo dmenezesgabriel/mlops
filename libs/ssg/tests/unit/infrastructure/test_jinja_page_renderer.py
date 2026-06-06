@@ -14,7 +14,9 @@ from ssg.domain.site import (
 from ssg.infrastructure.jinja_page_renderer import JinjaPageRenderer
 
 
-def test_render_page_includes_semantic_accessible_landmarks(tmp_path: Path) -> None:
+def test_render_page_includes_semantic_accessible_landmarks(
+    tmp_path: Path,
+) -> None:
     # Arrange
     renderer = JinjaPageRenderer()
     site, collection, page = _site_with_collection(tmp_path)
@@ -25,7 +27,11 @@ def test_render_page_includes_semantic_accessible_landmarks(tmp_path: Path) -> N
         article=Article(
             title="Overview",
             body='<h2 id="problem-framing">Problem Framing</h2><p>Rendered content.</p>',
-            headings=(ArticleHeading(label="Problem Framing", href="#problem-framing", level=2),),
+            headings=(
+                ArticleHeading(
+                    label="Problem Framing", href="#problem-framing", level=2
+                ),
+            ),
         ),
         navigation=site.navigation_for(collection, page),
         previous_link=None,
@@ -36,11 +42,22 @@ def test_render_page_includes_semantic_accessible_landmarks(tmp_path: Path) -> N
     rendered_html = renderer.render_page(rendered_page)
 
     # Assert
-    assert '<a class="skip-link" href="#main-content">Skip to content</a>' in rendered_html
+    assert (
+        '<a class="skip-link" href="#main-content">Skip to content</a>'
+        in rendered_html
+    )
     assert '<nav aria-label="Primary">' in rendered_html
-    assert '<main class="content" id="main-content" tabindex="-1">' in rendered_html
-    assert '<article class="article" data-page-slug="overview">' in rendered_html
-    assert '<aside class="article-toc" aria-label="On this page">' in rendered_html
+    assert (
+        '<main class="content" id="main-content" tabindex="-1">'
+        in rendered_html
+    )
+    assert (
+        '<article class="article" data-page-slug="overview">' in rendered_html
+    )
+    assert (
+        '<aside class="article-toc" aria-label="On this page">'
+        in rendered_html
+    )
     toc_link = '<a class="article-toc__link--level-2" href="#problem-framing">Problem Framing</a>'
     assert toc_link in rendered_html
     assert 'body data-theme="editorial-lab"' in rendered_html
@@ -48,7 +65,9 @@ def test_render_page_includes_semantic_accessible_landmarks(tmp_path: Path) -> N
     assert "<p>Rendered content.</p>" in rendered_html
 
 
-def test_render_index_lists_collections_as_content_cards(tmp_path: Path) -> None:
+def test_render_index_lists_collections_as_content_cards(
+    tmp_path: Path,
+) -> None:
     # Arrange
     renderer = JinjaPageRenderer()
     site, collection, _page = _site_with_collection(tmp_path)
@@ -62,13 +81,19 @@ def test_render_index_lists_collections_as_content_cards(tmp_path: Path) -> None
     rendered_html = renderer.render_index(rendered_index)
 
     # Assert
-    assert '<section class="hero story-step" aria-labelledby="site-heading">' in rendered_html
+    assert (
+        '<section class="hero story-step" aria-labelledby="site-heading">'
+        in rendered_html
+    )
     collection_grid = '<section class="collection-grid" aria-labelledby="collections-heading">'
     assert collection_grid in rendered_html
     assert 'href="sample-collection/overview.html"' in rendered_html
     assert "Sample Collection" in rendered_html
     sidebar_html = rendered_html.split("</aside>", 1)[0]
-    assert '<a href="sample-collection/details.html">Details</a>' not in sidebar_html
+    assert (
+        '<a href="sample-collection/details.html">Details</a>'
+        not in sidebar_html
+    )
 
 
 def test_render_page_omits_empty_table_of_contents(tmp_path: Path) -> None:
@@ -79,7 +104,9 @@ def test_render_page_omits_empty_table_of_contents(tmp_path: Path) -> None:
         site=site,
         collection=collection,
         page=page,
-        article=Article(title="Overview", body="<p>Rendered content.</p>", headings=()),
+        article=Article(
+            title="Overview", body="<p>Rendered content.</p>", headings=()
+        ),
         navigation=site.navigation_for(collection, page),
         previous_link=None,
         next_link=None,
@@ -106,7 +133,9 @@ def test_render_page_uses_site_locale_as_html_language(tmp_path: Path) -> None:
         site=localized_site,
         collection=collection,
         page=page,
-        article=Article(title="Visao Geral", body="<p>Conteudo.</p>", headings=()),
+        article=Article(
+            title="Visao Geral", body="<p>Conteudo.</p>", headings=()
+        ),
         navigation=localized_site.navigation_for(collection, page),
         previous_link=None,
         next_link=None,
@@ -119,7 +148,9 @@ def test_render_page_uses_site_locale_as_html_language(tmp_path: Path) -> None:
     assert '<html lang="pt-BR">' in rendered_html
 
 
-def test_render_index_uses_site_locale_as_html_language(tmp_path: Path) -> None:
+def test_render_index_uses_site_locale_as_html_language(
+    tmp_path: Path,
+) -> None:
     # Arrange
     renderer = JinjaPageRenderer()
     site, collection, _page = _site_with_collection(tmp_path)
@@ -150,13 +181,17 @@ def test_render_page_includes_language_switcher(tmp_path: Path) -> None:
         site=site,
         collection=collection,
         page=page,
-        article=Article(title="Overview", body="<p>Rendered content.</p>", headings=()),
+        article=Article(
+            title="Overview", body="<p>Rendered content.</p>", headings=()
+        ),
         navigation=site.navigation_for(collection, page),
         previous_link=None,
         next_link=None,
         language_links=(
             LanguageLink(label="en", href="overview.html", current=True),
-            LanguageLink(label="pt-BR", href="../pt-BR/sample-collection/overview.html"),
+            LanguageLink(
+                label="pt-BR", href="../pt-BR/sample-collection/overview.html"
+            ),
         ),
     )
 
@@ -165,7 +200,9 @@ def test_render_page_includes_language_switcher(tmp_path: Path) -> None:
 
     # Assert
     assert '<details class="language-switcher">' in rendered_html
-    assert '<span class="language-switcher__current">en</span>' in rendered_html
+    assert (
+        '<span class="language-switcher__current">en</span>' in rendered_html
+    )
     assert 'href="../pt-BR/sample-collection/overview.html"' in rendered_html
 
 
@@ -194,14 +231,22 @@ def test_frontend_templates_and_static_assets_are_package_files() -> None:
     assert template_path.is_file()
     assert style_path.is_file()
     assert script_path.is_file()
-    assert "{% extends 'base.html' %}" in template_path.read_text(encoding="utf-8")
+    assert "{% extends 'base.html' %}" in template_path.read_text(
+        encoding="utf-8"
+    )
     assert "Newsreader" in style_path.read_text(encoding="utf-8")
     assert "IntersectionObserver" in script_path.read_text(encoding="utf-8")
 
 
-def _site_with_collection(tmp_path: Path) -> tuple[Site, ContentCollection, Page]:
-    page = Page(slug="overview", title="Overview", source_path=tmp_path / "README.md")
-    details = Page(slug="details", title="Details", source_path=tmp_path / "details.md")
+def _site_with_collection(
+    tmp_path: Path,
+) -> tuple[Site, ContentCollection, Page]:
+    page = Page(
+        slug="overview", title="Overview", source_path=tmp_path / "README.md"
+    )
+    details = Page(
+        slug="details", title="Details", source_path=tmp_path / "details.md"
+    )
     collection = ContentCollection(
         name="sample_collection",
         title="Sample Collection",

@@ -28,7 +28,10 @@ class ContentCollection:
     def source_file(self, relative_path: str) -> Path:
         resolved_path = (self.source_root / relative_path).resolve()
         resolved_source_root = self.source_root.resolve()
-        if resolved_path == resolved_source_root or resolved_source_root in resolved_path.parents:
+        if (
+            resolved_path == resolved_source_root
+            or resolved_source_root in resolved_path.parents
+        ):
             return resolved_path
 
         raise ValueError(
@@ -49,13 +52,17 @@ class ContentCollection:
             return f"{page_slug}.html"
 
         expected_slugs = sorted(page.slug for page in self.pages)
-        raise ValueError(f"Unknown collection page {page_slug}: expected one of {expected_slugs}")
+        raise ValueError(
+            f"Unknown collection page {page_slug}: expected one of {expected_slugs}"
+        )
 
     def first_page(self) -> Page:
         if self.pages:
             return self.pages[0]
 
-        raise ValueError(f"Empty collection {self.name}: expected at least one page")
+        raise ValueError(
+            f"Empty collection {self.name}: expected at least one page"
+        )
 
     def root_href(self) -> str:
         return f"{self.output_slug}/{self.first_page().file_name()}"
@@ -66,7 +73,9 @@ class ContentCollection:
                 return page
 
         expected_slugs = sorted(page.slug for page in self.pages)
-        raise ValueError(f"Unknown collection page {page_slug}: expected one of {expected_slugs}")
+        raise ValueError(
+            f"Unknown collection page {page_slug}: expected one of {expected_slugs}"
+        )
 
     def previous_page(self, current_page: Page) -> Page | None:
         page_index = self._page_index(current_page)
@@ -106,21 +115,29 @@ class Site:
     def html_language(self) -> str:
         return self.locale
 
-    def extension_setting(self, extension_name: str, setting_name: str, default: str) -> str:
+    def extension_setting(
+        self, extension_name: str, setting_name: str, default: str
+    ) -> str:
         extension_settings = (self.extensions or {}).get(extension_name, {})
         return extension_settings.get(setting_name, default)
 
-    def selected_collections(self, collection_name: str | None) -> tuple[ContentCollection, ...]:
+    def selected_collections(
+        self, collection_name: str | None
+    ) -> tuple[ContentCollection, ...]:
         if collection_name is None:
             return self.collections
 
         selected = tuple(
-            collection for collection in self.collections if collection.name == collection_name
+            collection
+            for collection in self.collections
+            if collection.name == collection_name
         )
         if selected:
             return selected
 
-        expected_names = sorted(collection.name for collection in self.collections)
+        expected_names = sorted(
+            collection.name for collection in self.collections
+        )
         raise ValueError(
             f"Unknown site collection {collection_name}: expected one of {expected_names}",
         )
@@ -135,9 +152,13 @@ class Site:
             collections = (current_collection,)
 
         return SiteNavigation(
-            home_href=self._root_relative_href(current_collection, "index.html"),
+            home_href=self._root_relative_href(
+                current_collection, "index.html"
+            ),
             sections=tuple(
-                self._navigation_section(collection, current_collection, current_page)
+                self._navigation_section(
+                    collection, current_collection, current_page
+                )
                 for collection in collections
             ),
         )
@@ -152,13 +173,17 @@ class Site:
         links: tuple[NavigationLink, ...] = ()
         if collection_is_current:
             links = tuple(
-                self._navigation_link(collection, page, current_collection, current_page)
+                self._navigation_link(
+                    collection, page, current_collection, current_page
+                )
                 for page in collection.pages
             )
 
         return NavigationSection(
             title=collection.title,
-            href=self._root_relative_href(current_collection, collection.root_href()),
+            href=self._root_relative_href(
+                current_collection, collection.root_href()
+            ),
             current=collection_is_current,
             links=links,
         )

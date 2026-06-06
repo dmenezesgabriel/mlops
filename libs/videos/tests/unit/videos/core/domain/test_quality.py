@@ -1,4 +1,5 @@
 import pytest
+
 from videos.core.domain.quality import QualityReport, RuleViolation
 
 VIOLATION = RuleViolation(
@@ -36,5 +37,7 @@ class TestQualityReport:
             QualityReport(passed=True, violations=(VIOLATION,))
 
     def test_rejects_failed_without_violations(self) -> None:
-        with pytest.raises(ValueError, match="passed=False but has no violations"):
+        with pytest.raises(
+            ValueError, match="passed=False but has no violations"
+        ):
             QualityReport(passed=False)

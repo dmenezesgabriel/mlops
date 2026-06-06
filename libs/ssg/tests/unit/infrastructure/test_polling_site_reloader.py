@@ -3,7 +3,9 @@ from pathlib import Path
 from ssg.infrastructure.polling_site_reloader import PollingSiteReloader
 
 
-def test_signature_tracks_files_across_multiple_watched_paths(tmp_path: Path) -> None:
+def test_signature_tracks_files_across_multiple_watched_paths(
+    tmp_path: Path,
+) -> None:
     # Arrange
     first_path = tmp_path / "first"
     second_path = tmp_path / "second"
@@ -45,12 +47,16 @@ def test_ignores_changes_in_ignored_paths(tmp_path: Path) -> None:
     (ignored_dir / "ignored.txt").write_text("content", encoding="utf-8")
 
     # Act
-    signature_with_ignored = reloader._signature((watched_dir,), ignored_paths=(ignored_dir,))
+    signature_with_ignored = reloader._signature(
+        (watched_dir,), ignored_paths=(ignored_dir,)
+    )
     signature_without_ignored = reloader._signature((watched_dir,))
 
     # Assert
     paths_with_ignored = {Path(p).name for p, _, _ in signature_with_ignored}
-    paths_without_ignored = {Path(p).name for p, _, _ in signature_without_ignored}
+    paths_without_ignored = {
+        Path(p).name for p, _, _ in signature_without_ignored
+    }
 
     assert "watched.txt" in paths_with_ignored
     assert "ignored.txt" not in paths_with_ignored

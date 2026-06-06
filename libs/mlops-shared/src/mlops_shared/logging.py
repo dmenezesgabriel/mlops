@@ -22,11 +22,15 @@ class JsonLogFormatter(logging.Formatter):
 
         return json.dumps(payload, sort_keys=True)
 
-    def _extra_context(self, record: logging.LogRecord) -> dict[str, JsonValue]:
+    def _extra_context(
+        self, record: logging.LogRecord
+    ) -> dict[str, JsonValue]:
         return {
             key: value
             for key, value in record.__dict__.items()
-            if key not in _LOG_RECORD_KEYS and key != "message" and self._is_json_scalar(value)
+            if key not in _LOG_RECORD_KEYS
+            and key != "message"
+            and self._is_json_scalar(value)
         }
 
     def _is_json_scalar(self, value: object) -> bool:

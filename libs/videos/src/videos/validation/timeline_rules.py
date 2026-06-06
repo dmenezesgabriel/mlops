@@ -23,7 +23,9 @@ class TimelineRules:
             violations.extend(rule(scene))
         return violations
 
-    def _check_events_reference_existing_objects(self, scene: SceneSpec) -> list[RuleViolation]:
+    def _check_events_reference_existing_objects(
+        self, scene: SceneSpec
+    ) -> list[RuleViolation]:
         violations: list[RuleViolation] = []
         if scene.timeline is None:
             return violations
@@ -45,7 +47,9 @@ class TimelineRules:
                 )
         return violations
 
-    def _check_times_within_duration(self, scene: SceneSpec) -> list[RuleViolation]:
+    def _check_times_within_duration(
+        self, scene: SceneSpec
+    ) -> list[RuleViolation]:
         violations: list[RuleViolation] = []
         if scene.timeline is None:
             return violations

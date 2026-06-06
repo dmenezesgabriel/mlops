@@ -3,10 +3,19 @@ from pathlib import Path
 from typing import Protocol
 
 from ssg.application.ports import SiteVariantProvider
-from ssg.domain.site import BuildContext, ContentCollection, Page, Site, SiteVariant
+from ssg.domain.site import (
+    BuildContext,
+    ContentCollection,
+    Page,
+    Site,
+    SiteVariant,
+)
 
 from ssg_i18n.application.document_translation import DocumentTranslator
-from ssg_i18n.application.translation import CatalogFirstTextTranslator, TextTranslator
+from ssg_i18n.application.translation import (
+    CatalogFirstTextTranslator,
+    TextTranslator,
+)
 from ssg_i18n.domain.locale import Locale, LocaleSet
 from ssg_i18n.domain.translation_catalog import (
     EMPTY_TRANSLATION_CATALOG,
@@ -35,10 +44,13 @@ class I18nSiteVariantProvider(SiteVariantProvider):
         self._catalog_repository = catalog_repository
         self._machine_text_translator_factory = machine_text_translator_factory
 
-    def variants(self, site: Site, context: BuildContext) -> tuple[SiteVariant, ...]:
+    def variants(
+        self, site: Site, context: BuildContext
+    ) -> tuple[SiteVariant, ...]:
         locale_set = self._locale_set(site)
         return tuple(
-            self._variant_for(site, context, locale_set, locale) for locale in locale_set.locales
+            self._variant_for(site, context, locale_set, locale)
+            for locale in locale_set.locales
         )
 
     def _variant_for(
@@ -48,7 +60,9 @@ class I18nSiteVariantProvider(SiteVariantProvider):
         locale_set: LocaleSet,
         locale: Locale,
     ) -> SiteVariant:
-        localized_site = self._localized_site(site, context, locale_set.default_locale, locale)
+        localized_site = self._localized_site(
+            site, context, locale_set.default_locale, locale
+        )
         output_path = context.output_path
         if not locale.is_default(locale_set.default_locale):
             output_path = output_path / locale.tag
@@ -63,28 +77,41 @@ class I18nSiteVariantProvider(SiteVariantProvider):
         locale: Locale,
     ) -> Site:
         if locale.is_default(default_locale):
-            return replace(site, locale=locale.tag, default_locale=default_locale.tag)
+            return replace(
+                site, locale=locale.tag, default_locale=default_locale.tag
+            )
 
         text_translator = self._text_translator_for(site, context, locale)
         return Site(
             title=self._translate(site.title, locale, text_translator),
-            description=self._translate(site.description, locale, text_translator),
+            description=self._translate(
+                site.description, locale, text_translator
+            ),
             collections=tuple(
-                self._localized_collection(collection, site, context, locale, text_translator)
+                self._localized_collection(
+                    collection, site, context, locale, text_translator
+                )
                 for collection in site.collections
             ),
             locale=locale.tag,
             default_locale=default_locale.tag,
-            extensions=self._localized_extensions(site, locale, text_translator),
+            extensions=self._localized_extensions(
+                site, locale, text_translator
+            ),
         )
 
     def _localized_extensions(
         self, site: Site, locale: Locale, text_translator: TextTranslator
     ) -> dict[str, dict[str, str]]:
-        extensions = {name: dict(settings) for name, settings in (site.extensions or {}).items()}
+        extensions = {
+            name: dict(settings)
+            for name, settings in (site.extensions or {}).items()
+        }
         i18n_settings = dict(extensions.get("i18n", {}))
         for setting_name, source_text in self._ui_label_sources().items():
-            i18n_settings[setting_name] = self._translate(source_text, locale, text_translator)
+            i18n_settings[setting_name] = self._translate(
+                source_text, locale, text_translator
+            )
 
         extensions["i18n"] = i18n_settings
         return extensions
@@ -119,7 +146,9 @@ class I18nSiteVariantProvider(SiteVariantProvider):
             source_root=collection.source_root,
             output_slug=collection.output_slug,
             pages=tuple(
-                self._localized_page(collection, site, page, context, locale, text_translator)
+                self._localized_page(
+                    collection, site, page, context, locale, text_translator
+                )
                 for page in collection.pages
             ),
             videos=collection.videos,
@@ -136,7 +165,9 @@ class I18nSiteVariantProvider(SiteVariantProvider):
     ) -> Page:
         source_path = page.source_path
         if source_path.suffix in {".md", ".ipynb"}:
-            source_path = self._translated_source_path(collection, site, page, context, locale)
+            source_path = self._translated_source_path(
+                collection, site, page, context, locale
+            )
             DocumentTranslator(text_translator).translate_file(
                 page.source_path, source_path, locale
             )
@@ -155,21 +186,40 @@ class I18nSiteVariantProvider(SiteVariantProvider):
         context: BuildContext,
         locale: Locale,
     ) -> Path:
-        generated_root = self._generated_root(site, context, collection, locale)
-        relative_source_path = page.source_path.relative_to(collection.source_root)
+        generated_root = self._generated_root(
+            site, context, collection, locale
+        )
+        relative_source_path = page.source_path.relative_to(
+            collection.source_root
+        )
         return generated_root / relative_source_path
 
     def _generated_root(
-        self, site: Site, context: BuildContext, collection: ContentCollection, locale: Locale
+        self,
+        site: Site,
+        context: BuildContext,
+        collection: ContentCollection,
+        locale: Locale,
     ) -> Path:
-        configured_path = site.extension_setting("i18n", "generated_path", ".ssg/generated-i18n")
-        return context.config_path.parent / configured_path / locale.tag / collection.name
+        configured_path = site.extension_setting(
+            "i18n", "generated_path", ".ssg/generated-i18n"
+        )
+        return (
+            context.config_path.parent
+            / configured_path
+            / locale.tag
+            / collection.name
+        )
 
     def _locale_set(self, site: Site) -> LocaleSet:
-        default_locale = Locale(site.extension_setting("i18n", "default_locale", "en"))
+        default_locale = Locale(
+            site.extension_setting("i18n", "default_locale", "en")
+        )
         locales = tuple(
             Locale(locale.strip())
-            for locale in site.extension_setting("i18n", "locales", default_locale.tag).split(",")
+            for locale in site.extension_setting(
+                "i18n", "locales", default_locale.tag
+            ).split(",")
             if locale.strip()
         )
         return LocaleSet(default_locale=default_locale, locales=locales)
@@ -182,7 +232,9 @@ class I18nSiteVariantProvider(SiteVariantProvider):
         return CatalogFirstTextTranslator(catalog, fallback_translator)
 
     def _fallback_text_translator(self, site: Site) -> TextTranslator:
-        translation_mode = site.extension_setting("i18n", "translation_mode", "manual")
+        translation_mode = site.extension_setting(
+            "i18n", "translation_mode", "manual"
+        )
         if translation_mode not in {"machine", "manual_with_machine_fallback"}:
             return self._text_translator
 
@@ -194,15 +246,24 @@ class I18nSiteVariantProvider(SiteVariantProvider):
     def _translation_catalog(
         self, site: Site, context: BuildContext, target_locale: Locale
     ) -> TranslationCatalog:
-        translations_path = site.extension_setting("i18n", "translations_path", "i18n")
-        catalog_path = context.config_path.parent / translations_path / f"{target_locale.tag}.yaml"
+        translations_path = site.extension_setting(
+            "i18n", "translations_path", "i18n"
+        )
+        catalog_path = (
+            context.config_path.parent
+            / translations_path
+            / f"{target_locale.tag}.yaml"
+        )
         if catalog_path.exists() and self._catalog_repository is not None:
             return self._catalog_repository.load(catalog_path)
 
         return EMPTY_TRANSLATION_CATALOG
 
     def _translate(
-        self, source_text: str, target_locale: Locale, text_translator: TextTranslator
+        self,
+        source_text: str,
+        target_locale: Locale,
+        text_translator: TextTranslator,
     ) -> str:
         if not source_text:
             return source_text

@@ -10,7 +10,9 @@ logger = logging.getLogger(__name__)
 
 class UnknownConceptError(LookupError):
     def __init__(self, concept_id: str, available: list[str]) -> None:
-        super().__init__(f"Unknown concept {concept_id!r}. Available: {sorted(available)}")
+        super().__init__(
+            f"Unknown concept {concept_id!r}. Available: {sorted(available)}"
+        )
 
 
 class ConceptRegistry:

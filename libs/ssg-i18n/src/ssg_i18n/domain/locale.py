@@ -8,7 +8,9 @@ class Locale:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "tag", self._normalized_tag(self.tag))
-        if re.fullmatch(r"[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-[A-Z]{2})?", self.tag):
+        if re.fullmatch(
+            r"[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-[A-Z]{2})?", self.tag
+        ):
             return
 
         raise ValueError(
@@ -32,7 +34,9 @@ class LocaleSet:
     locales: tuple[Locale, ...]
 
     def __post_init__(self) -> None:
-        if any(locale.tag == self.default_locale.tag for locale in self.locales):
+        if any(
+            locale.tag == self.default_locale.tag for locale in self.locales
+        ):
             return
 
         configured_locales = ",".join(locale.tag for locale in self.locales)

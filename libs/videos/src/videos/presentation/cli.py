@@ -17,10 +17,14 @@ from videos.core.ports.telemetry import Telemetry
 
 
 class ConsoleTelemetry(Telemetry):
-    def record_event(self, event_name: str, attributes: dict[str, object]) -> None:
+    def record_event(
+        self, event_name: str, attributes: dict[str, object]
+    ) -> None:
         print(f"[EVENT] {event_name}: {attributes}")
 
-    def record_error(self, error: Exception, attributes: dict[str, object]) -> None:
+    def record_error(
+        self, error: Exception, attributes: dict[str, object]
+    ) -> None:
         print(f"[ERROR] {error}: {attributes}", file=sys.stderr)
 
 
@@ -30,7 +34,10 @@ def main() -> None:
     )
     parser.add_argument("concept_id", help="The ID of the concept to render.")
     parser.add_argument(
-        "--output-dir", type=Path, default=Path("output"), help="Root directory for artifacts."
+        "--output-dir",
+        type=Path,
+        default=Path("output"),
+        help="Root directory for artifacts.",
     )
     parser.add_argument(
         "--definitions-dir",

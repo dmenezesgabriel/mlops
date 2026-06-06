@@ -1,4 +1,9 @@
-from videos.core.domain.concept import Concept, ConceptId, ConceptMetadata, ConceptTitle
+from videos.core.domain.concept import (
+    Concept,
+    ConceptId,
+    ConceptMetadata,
+    ConceptTitle,
+)
 
 
 def test_concept_id_rejects_empty_string() -> None:
@@ -64,7 +69,9 @@ def test_concept_title_allows_empty_subtitle() -> None:
 
 def test_concept_metadata_stores_fields() -> None:
     title = ConceptTitle(short="CRISP-DM", subtitle="A loop")
-    meta = ConceptMetadata(title=title, description="Desc", tags=("ml", "process"))
+    meta = ConceptMetadata(
+        title=title, description="Desc", tags=("ml", "process")
+    )
     assert meta.title.short == "CRISP-DM"
     assert meta.description == "Desc"
     assert meta.tags == ("ml", "process")

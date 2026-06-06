@@ -30,10 +30,18 @@ class TestTimelineRules:
         rules = TimelineRules()
         scene = _scene(
             visual_objects=(
-                VisualObject(object_id="o1", region="title", semantic_purpose="Display"),
+                VisualObject(
+                    object_id="o1", region="title", semantic_purpose="Display"
+                ),
             ),
             timeline=TimelineSpec(
-                events=(TimelineEvent(time_seconds=0.0, action="appear", target_object_id="o1"),)
+                events=(
+                    TimelineEvent(
+                        time_seconds=0.0,
+                        action="appear",
+                        target_object_id="o1",
+                    ),
+                )
             ),
         )
         violations = rules.validate(scene)
@@ -60,10 +68,18 @@ class TestTimelineRules:
         rules = TimelineRules()
         scene = _scene(
             visual_objects=(
-                VisualObject(object_id="o1", region="title", semantic_purpose="Display"),
+                VisualObject(
+                    object_id="o1", region="title", semantic_purpose="Display"
+                ),
             ),
             timeline=TimelineSpec(
-                events=(TimelineEvent(time_seconds=10.0, action="appear", target_object_id="o1"),)
+                events=(
+                    TimelineEvent(
+                        time_seconds=10.0,
+                        action="appear",
+                        target_object_id="o1",
+                    ),
+                )
             ),
         )
         violations = rules.validate(scene)

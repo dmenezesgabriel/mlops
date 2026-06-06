@@ -30,7 +30,9 @@ class ConceptTitle(PydanticModel):
     @classmethod
     def _short_must_not_be_empty(cls, v: str) -> str:
         if not v.strip():
-            raise ValueError(f"ConceptTitle.short must not be empty, got {v!r}")
+            raise ValueError(
+                f"ConceptTitle.short must not be empty, got {v!r}"
+            )
         return v
 
 

@@ -38,7 +38,9 @@ class ManimSceneBuilder:
 
         return _DynamicScene()
 
-    def build_storyboard(self, storyboard: Storyboard, layout_engine: LayoutEngine) -> object:
+    def build_storyboard(
+        self, storyboard: Storyboard, layout_engine: LayoutEngine
+    ) -> object:
         from manim import FadeOut, Scene, Text, Write
 
         registry = self._registry

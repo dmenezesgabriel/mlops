@@ -35,7 +35,9 @@ class TestLocalPreviewServer:
         server.trigger_reload()
 
         # Read the data from the stream
-        data = response.read(14).decode("utf-8")  # "data: reload\n\n" is 14 chars
+        data = response.read(14).decode(
+            "utf-8"
+        )  # "data: reload\n\n" is 14 chars
 
         # Assert
         assert data == "data: reload\n\n"

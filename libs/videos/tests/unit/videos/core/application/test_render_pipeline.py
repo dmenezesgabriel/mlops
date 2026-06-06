@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+
 from videos.core.application.render_pipeline import RenderPipeline
 from videos.core.domain.layout import LayoutRegion, LayoutSpec
 from videos.core.domain.scene_spec import SceneSpec
@@ -16,7 +17,9 @@ from videos.core.ports.telemetry import Telemetry
 
 class StubRenderer(Renderer):
     def render(self, scene_job: object, output_path: Path) -> RenderResult:
-        return RenderResult(output_path=output_path, duration_ms=100.0, success=True)
+        return RenderResult(
+            output_path=output_path, duration_ms=100.0, success=True
+        )
 
 
 class StubSceneBuilder(SceneBuilder):
@@ -36,10 +39,14 @@ class StubTelemetry(Telemetry):
     def __init__(self) -> None:
         self.events: list[tuple[str, dict[str, object]]] = []
 
-    def record_event(self, event_name: str, attributes: dict[str, object]) -> None:
+    def record_event(
+        self, event_name: str, attributes: dict[str, object]
+    ) -> None:
         self.events.append((event_name, attributes))
 
-    def record_error(self, error: Exception, attributes: dict[str, object]) -> None:
+    def record_error(
+        self, error: Exception, attributes: dict[str, object]
+    ) -> None:
         pass
 
 

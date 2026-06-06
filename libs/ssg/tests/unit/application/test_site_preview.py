@@ -6,7 +6,9 @@ from ssg.application.site_preview import StaticSitePreview
 
 class SpySiteReloader:
     def __init__(self) -> None:
-        self.watch_calls: list[tuple[tuple[Path, ...], Callable[[set[Path]], None], float]] = []
+        self.watch_calls: list[
+            tuple[tuple[Path, ...], Callable[[set[Path]], None], float]
+        ] = []
 
     def watch(
         self,
@@ -33,7 +35,9 @@ def test_preview_starts_reloader_before_server(tmp_path: Path) -> None:
     # Arrange
     site_reloader = SpySiteReloader()
     preview_server = SpyPreviewServer()
-    preview = StaticSitePreview(site_reloader=site_reloader, preview_server=preview_server)
+    preview = StaticSitePreview(
+        site_reloader=site_reloader, preview_server=preview_server
+    )
     watched_paths = (tmp_path / "site", tmp_path / "content")
     output_path = tmp_path / "build"
 

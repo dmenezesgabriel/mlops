@@ -3,13 +3,19 @@ from importlib.metadata import entry_points
 from logging import getLogger
 from pathlib import Path
 
-from ssg.application.ports import ContentRenderer, HtmlPostProcessor, SiteVariantProvider
+from ssg.application.ports import (
+    ContentRenderer,
+    HtmlPostProcessor,
+    SiteVariantProvider,
+)
 from ssg.application.site_preview import StaticSitePreview
 from ssg.application.static_site_builder import StaticSiteBuilder
 from ssg.infrastructure.jinja_page_renderer import JinjaPageRenderer
 from ssg.infrastructure.local_preview_server import LocalPreviewServer
 from ssg.infrastructure.logging import StructuredLoggingConfigurator
-from ssg.infrastructure.markdown_content_renderer import MarkdownContentRenderer
+from ssg.infrastructure.markdown_content_renderer import (
+    MarkdownContentRenderer,
+)
 from ssg.infrastructure.site_config_repository import SiteConfigRepository
 from ssg.infrastructure.watchdog_site_reloader import WatchdogSiteReloader
 
@@ -17,7 +23,9 @@ LOGGER = getLogger(__name__)
 
 
 def create_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Build and preview static content sites.")
+    parser = argparse.ArgumentParser(
+        description="Build and preview static content sites."
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
     build_parser = subparsers.add_parser("build")
     _add_build_arguments(build_parser)
@@ -78,7 +86,8 @@ def preview_site(
     repository = SiteConfigRepository()
     site = repository.load(config_path)
     watched_paths = (config_path.parent,) + tuple(
-        collection.source_root for collection in site.selected_collections(collection_name)
+        collection.source_root
+        for collection in site.selected_collections(collection_name)
     )
     StaticSitePreview(
         site_reloader=WatchdogSiteReloader(),
@@ -151,7 +160,9 @@ def validate_reload_interval(reload_interval: float) -> None:
     if reload_interval > 0:
         return
 
-    raise ValueError(f"Invalid reload interval {reload_interval}: expected value greater than 0")
+    raise ValueError(
+        f"Invalid reload interval {reload_interval}: expected value greater than 0"
+    )
 
 
 if __name__ == "__main__":

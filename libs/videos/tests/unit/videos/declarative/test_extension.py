@@ -44,7 +44,9 @@ class TestDeclarativeConceptExtension:
     def test_rejects_missing_narrative(self) -> None:
         raised = False
         try:
-            DeclarativeConceptExtension({"concept": {"id": {"value": "x"}, "metadata": {}}})
+            DeclarativeConceptExtension(
+                {"concept": {"id": {"value": "x"}, "metadata": {}}}
+            )
         except Exception:
             raised = True
         assert raised

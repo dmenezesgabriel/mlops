@@ -13,11 +13,16 @@ class TestCLI:
     @patch("videos.presentation.cli.register_all")
     @patch("argparse.ArgumentParser.parse_args")
     def test_main_calls_register_all_with_definitions_dir(
-        self, mock_parse_args: MagicMock, mock_register_all: MagicMock, mock_director: MagicMock
+        self,
+        mock_parse_args: MagicMock,
+        mock_register_all: MagicMock,
+        mock_director: MagicMock,
     ) -> None:
         # Arrange
         mock_parse_args.return_value = MagicMock(
-            concept_id="test", output_dir=Path("out"), definitions_dir=Path("defs")
+            concept_id="test",
+            output_dir=Path("out"),
+            definitions_dir=Path("defs"),
         )
 
         # Act
@@ -47,7 +52,9 @@ class TestCLI:
         main()
 
         # Assert
-        mock_register_all.assert_called_once_with(definitions_dir=Path("videos/definition"))
+        mock_register_all.assert_called_once_with(
+            definitions_dir=Path("videos/definition")
+        )
 
     @patch("videos.presentation.cli.Director")
     @patch("videos.presentation.cli.register_all")
@@ -60,7 +67,10 @@ class TestCLI:
     ) -> None:
         # Arrange
         mock_parse_args.return_value = MagicMock(
-            concept_id="test", output_dir=Path("out"), definitions_dir=Path("defs"), quality="final"
+            concept_id="test",
+            output_dir=Path("out"),
+            definitions_dir=Path("defs"),
+            quality="final",
         )
         mock_director = mock_director_class.return_value
 
@@ -81,7 +91,9 @@ class TestCLI:
     ) -> None:
         # Arrange
         mock_parse_args.return_value = MagicMock(
-            concept_id="test", output_dir=Path("out"), definitions_dir=Path("defs")
+            concept_id="test",
+            output_dir=Path("out"),
+            definitions_dir=Path("defs"),
         )
         mock_director = mock_director_class.return_value
         mock_director.produce.side_effect = Exception("Boom")

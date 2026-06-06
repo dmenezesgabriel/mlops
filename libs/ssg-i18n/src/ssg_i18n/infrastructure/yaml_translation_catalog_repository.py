@@ -9,8 +9,12 @@ class YamlTranslationCatalogRepository:
     def load(self, catalog_path: Path) -> TranslationCatalog:
         manifest = self._load_manifest(catalog_path)
         return TranslationCatalog(
-            translations=self._read_string_mapping(manifest, "translations", catalog_path),
-            glossary_terms=self._read_string_mapping(manifest, "glossary", catalog_path),
+            translations=self._read_string_mapping(
+                manifest, "translations", catalog_path
+            ),
+            glossary_terms=self._read_string_mapping(
+                manifest, "glossary", catalog_path
+            ),
         )
 
     def _load_manifest(self, catalog_path: Path) -> dict[object, object]:
@@ -28,8 +32,11 @@ class YamlTranslationCatalogRepository:
     ) -> dict[str, str]:
         value = manifest.get(key, {})
         if not isinstance(value, dict):
-            raise ValueError(f"Invalid i18n catalog {catalog_path}: expected {key} mapping")
+            raise ValueError(
+                f"Invalid i18n catalog {catalog_path}: expected {key} mapping"
+            )
 
         return {
-            str(source_text): str(translated_text) for source_text, translated_text in value.items()
+            str(source_text): str(translated_text)
+            for source_text, translated_text in value.items()
         }

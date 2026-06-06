@@ -23,7 +23,9 @@ class SceneRules:
         return violations
 
     @staticmethod
-    def _check_has_title_or_explicit_style(scene: SceneSpec) -> list[RuleViolation]:
+    def _check_has_title_or_explicit_style(
+        scene: SceneSpec,
+    ) -> list[RuleViolation]:
         if not scene.title.strip() and scene.style is None:
             return [
                 RuleViolation(

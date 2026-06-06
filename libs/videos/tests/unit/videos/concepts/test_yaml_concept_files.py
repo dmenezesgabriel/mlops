@@ -8,7 +8,9 @@ from videos.core.domain.concept import ConceptId
 
 
 class TestYamlConceptDiscovery:
-    def test_register_all_loads_concepts_from_directory(self, tmp_path: Path) -> None:
+    def test_register_all_loads_concepts_from_directory(
+        self, tmp_path: Path
+    ) -> None:
         # Arrange
         ConceptRegistry._extensions.clear()
         yaml_content = """

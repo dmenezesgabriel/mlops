@@ -47,7 +47,9 @@ class TestOverlapDetector:
         # Assert
         assert result is False
 
-    def test_detects_no_overlap_adjacent(self, detector: OverlapDetector) -> None:
+    def test_detects_no_overlap_adjacent(
+        self, detector: OverlapDetector
+    ) -> None:
         # Arrange
         obj_a = MockMobject([0, 0, 0], [1, 1, 0])
         obj_b = MockMobject([1, 1, 0], [2, 2, 0])

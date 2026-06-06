@@ -30,9 +30,13 @@ class NarrationLine(PydanticModel):
     @classmethod
     def _duration_must_be_positive(cls, v: float) -> float:
         if v <= 0:
-            raise ValueError(f"NarrationLine.duration_seconds must be positive, got {v}")
+            raise ValueError(
+                f"NarrationLine.duration_seconds must be positive, got {v}"
+            )
         if v > 15.0:
-            raise ValueError(f"NarrationLine.duration_seconds must be <= 15.0, got {v}")
+            raise ValueError(
+                f"NarrationLine.duration_seconds must be <= 15.0, got {v}"
+            )
         return v
 
 

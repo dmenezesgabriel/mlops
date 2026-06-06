@@ -1,6 +1,8 @@
 from ssg.application.ports import PageRenderer
 from ssg.domain.site import RenderedIndex, RenderedPage
-from ssg.infrastructure.frontend.jinja_environment import create_frontend_environment
+from ssg.infrastructure.frontend.jinja_environment import (
+    create_frontend_environment,
+)
 from ssg.infrastructure.frontend.site_assets import SITE_CSS, SITE_JS
 
 

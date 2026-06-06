@@ -10,4 +10,6 @@ class TranslationCatalog:
         return self.translations.get(source_text)
 
 
-EMPTY_TRANSLATION_CATALOG = TranslationCatalog(translations={}, glossary_terms={})
+EMPTY_TRANSLATION_CATALOG = TranslationCatalog(
+    translations={}, glossary_terms={}
+)

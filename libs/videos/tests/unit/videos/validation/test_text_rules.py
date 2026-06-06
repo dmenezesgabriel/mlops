@@ -19,7 +19,11 @@ class TestTextRules:
         rules = TextRules()
         scene = _scene(
             visual_objects=(
-                VisualObject(object_id="title_1", region="title", semantic_purpose="Hello world"),
+                VisualObject(
+                    object_id="title_1",
+                    region="title",
+                    semantic_purpose="Hello world",
+                ),
             )
         )
         violations = rules.validate(scene)
@@ -30,7 +34,11 @@ class TestTextRules:
         long_text = "word " * 20
         scene = _scene(
             visual_objects=(
-                VisualObject(object_id="body_1", region="body", semantic_purpose=long_text),
+                VisualObject(
+                    object_id="body_1",
+                    region="body",
+                    semantic_purpose=long_text,
+                ),
             )
         )
         violations = rules.validate(scene)

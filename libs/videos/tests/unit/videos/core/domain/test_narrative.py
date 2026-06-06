@@ -1,5 +1,11 @@
 import pytest
-from videos.core.domain.concept import Concept, ConceptId, ConceptMetadata, ConceptTitle
+
+from videos.core.domain.concept import (
+    Concept,
+    ConceptId,
+    ConceptMetadata,
+    ConceptTitle,
+)
 from videos.core.domain.narrative import (
     Beat,
     BeatKind,
@@ -14,7 +20,9 @@ def _make_concept(id_str: str = "test") -> Concept:
     return Concept(id=ConceptId(id_str), metadata=meta)
 
 
-def _beat(kind: BeatKind = BeatKind.REVEAL, duration: float = 2.0, visual: str = "x") -> Beat:
+def _beat(
+    kind: BeatKind = BeatKind.REVEAL, duration: float = 2.0, visual: str = "x"
+) -> Beat:
     return Beat(
         kind=kind,
         narration=NarrationLine(text="hello", duration_seconds=duration),
@@ -45,7 +53,13 @@ class TestNarrationLine:
 class TestBeatKind:
     def test_has_expected_members(self) -> None:
         values = {k.value for k in BeatKind}
-        assert values == {"opening", "reveal", "emphasis", "transition", "recap"}
+        assert values == {
+            "opening",
+            "reveal",
+            "emphasis",
+            "transition",
+            "recap",
+        }
 
 
 class TestNarrative:
@@ -59,10 +73,16 @@ class TestNarrative:
 
     def test_rejects_missing_recap(self) -> None:
         with pytest.raises(ValueError, match="RECAP"):
-            Narrative(concept=_make_concept(), beats=(_beat(BeatKind.OPENING),))
+            Narrative(
+                concept=_make_concept(), beats=(_beat(BeatKind.OPENING),)
+            )
 
     def test_accepts_valid_sequence(self) -> None:
-        beats = (_beat(BeatKind.OPENING), _beat(BeatKind.REVEAL), _beat(BeatKind.RECAP))
+        beats = (
+            _beat(BeatKind.OPENING),
+            _beat(BeatKind.REVEAL),
+            _beat(BeatKind.RECAP),
+        )
         narrative = Narrative(concept=_make_concept(), beats=beats)
         assert len(narrative.beats) == 3
 

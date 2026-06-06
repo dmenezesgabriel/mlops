@@ -35,13 +35,18 @@ class CodeBlockSyntaxHighlightingProcessor(HtmlPostProcessor):
         style_name = site.extension_setting(
             "syntax_highlighting", "style", self._default_style_name
         )
-        parser = CodeBlockHtmlParser(self._syntax_highlighter_factory.create(style_name))
+        parser = CodeBlockHtmlParser(
+            self._syntax_highlighter_factory.create(style_name)
+        )
         parser.feed(rendered_html)
         parser.close()
         LOGGER.info(
             "syntax_highlighting_finished",
             extra={
-                "context": {"highlighted_blocks": parser.highlighted_blocks, "style": style_name}
+                "context": {
+                    "highlighted_blocks": parser.highlighted_blocks,
+                    "style": style_name,
+                }
             },
         )
         return parser.rendered_html()
@@ -61,7 +66,9 @@ class CodeBlockHtmlParser(HTMLParser):
     def rendered_html(self) -> str:
         return "".join(self._fragments)
 
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+    def handle_starttag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
         if self._capturing_code:
             self._code_fragments.append(self._start_tag_text(tag, attrs))
             return
@@ -110,12 +117,18 @@ class CodeBlockHtmlParser(HTMLParser):
         source = html.unescape("".join(self._code_fragments))
         language = self._language
         if language is None:
-            raise ValueError("Missing code block language: expected language-* class")
+            raise ValueError(
+                "Missing code block language: expected language-* class"
+            )
 
-        self._fragments.append(self._syntax_highlighter.highlight(source, language))
+        self._fragments.append(
+            self._syntax_highlighter.highlight(source, language)
+        )
         self.highlighted_blocks += 1
 
-    def _language_from_attrs(self, attrs: list[tuple[str, str | None]]) -> str | None:
+    def _language_from_attrs(
+        self, attrs: list[tuple[str, str | None]]
+    ) -> str | None:
         for name, value in attrs:
             if name == "class" and value is not None:
                 return self._language_from_class(value)
@@ -124,13 +137,19 @@ class CodeBlockHtmlParser(HTMLParser):
 
     def _language_from_class(self, class_value: str) -> str | None:
         for class_name in class_value.split():
-            if class_name.startswith("language-") and len(class_name) > len("language-"):
+            if class_name.startswith("language-") and len(class_name) > len(
+                "language-"
+            ):
                 return class_name.removeprefix("language-")
 
         return None
 
-    def _start_tag_text(self, tag: str, attrs: list[tuple[str, str | None]]) -> str:
-        rendered_attrs = "".join(self._render_attribute(name, value) for name, value in attrs)
+    def _start_tag_text(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> str:
+        rendered_attrs = "".join(
+            self._render_attribute(name, value) for name, value in attrs
+        )
         return f"<{tag}{rendered_attrs}>"
 
     def _render_attribute(self, name: str, value: str | None) -> str:

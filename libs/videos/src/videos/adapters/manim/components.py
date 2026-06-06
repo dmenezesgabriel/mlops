@@ -26,7 +26,9 @@ def build_cycle_nodes(
         angle = 2 * math.pi * index / n - math.pi / 2
         x = 2.5 * math.cos(angle)
         y = 2.5 * math.sin(angle)
-        circle = Circle(radius=radius, color=color, fill_opacity=0.2).move_to([x, y, 0])
+        circle = Circle(radius=radius, color=color, fill_opacity=0.2).move_to(
+            [x, y, 0]
+        )
         text = Text(label, font_size=18).move_to(circle.get_center())
         nodes.add(VGroup(circle, text))
     return nodes
@@ -60,7 +62,9 @@ def create_target(
     for index in range(rings, 0, -1):
         r = max_radius * index / rings
         color = ring_colors[index % len(ring_colors)]
-        circle = Circle(radius=r, color=color, stroke_width=3, fill_opacity=0.3)
+        circle = Circle(
+            radius=r, color=color, stroke_width=3, fill_opacity=0.3
+        )
         target.add(circle)
     return target
 
@@ -103,7 +107,10 @@ class DiagramComponent:
         labels = cast(list[str], spec.props.get("labels", []))
         colors = cast(
             list[str],
-            spec.props.get("colors", ["#4A90D9", "#E67E22", "#2ECC71", "#E74C3C", "#9B59B6"]),
+            spec.props.get(
+                "colors",
+                ["#4A90D9", "#E67E22", "#2ECC71", "#E74C3C", "#9B59B6"],
+            ),
         )
 
         if kind == "linear":
@@ -111,7 +118,9 @@ class DiagramComponent:
         elif kind == "target":
             rings = int(cast(int, spec.props.get("rings", 4)))
             max_radius = float(cast(float, spec.props.get("max_radius", 2.0)))
-            mobj = create_target(cast(Scene, scene), rings=rings, max_radius=max_radius)
+            mobj = create_target(
+                cast(Scene, scene), rings=rings, max_radius=max_radius
+            )
         else:
             mobj = build_cycle_nodes(cast(Scene, scene), labels, colors)
 

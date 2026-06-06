@@ -24,7 +24,9 @@ def _minimal_scene(components: tuple[ComponentSpec, ...]) -> SceneSpec:
 
 
 class TestManimLayoutEngine:
-    def test_apply_sets_title_position(self, engine: ManimLayoutEngine) -> None:
+    def test_apply_sets_title_position(
+        self, engine: ManimLayoutEngine
+    ) -> None:
         comp = ComponentSpec(type="title", region="title")
         scene = _minimal_scene((comp,))
 
@@ -46,7 +48,9 @@ class TestManimLayoutEngine:
         # Assuming BODY maps to [0, 0, 0] or similar
         assert body_comp.props["position"] == [0, 0, 0]
 
-    def test_apply_sets_diagram_position(self, engine: ManimLayoutEngine) -> None:
+    def test_apply_sets_diagram_position(
+        self, engine: ManimLayoutEngine
+    ) -> None:
         comp = ComponentSpec(type="diagram", region="diagram")
         scene = _minimal_scene((comp,))
 

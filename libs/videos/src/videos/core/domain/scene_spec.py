@@ -55,5 +55,7 @@ class SceneSpec(PydanticModel):
     @classmethod
     def _duration_must_be_positive(cls, v: float) -> float:
         if v <= 0:
-            raise ValueError(f"duration_seconds must be positive for scene, got {v}")
+            raise ValueError(
+                f"duration_seconds must be positive for scene, got {v}"
+            )
         return v

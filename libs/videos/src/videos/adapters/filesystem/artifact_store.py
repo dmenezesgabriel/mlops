@@ -47,5 +47,7 @@ class FileSystemArtifactStore:
             return self._final_dir / f"{concept_id}.mp4"
         return self._preview_dir / f"{concept_id}.mp4"
 
-    def resolve_scene_preview_path(self, concept_id: str, scene_id: str) -> Path:
+    def resolve_scene_preview_path(
+        self, concept_id: str, scene_id: str
+    ) -> Path:
         return self._scenes_dir / f"{concept_id}_{scene_id}.mp4"

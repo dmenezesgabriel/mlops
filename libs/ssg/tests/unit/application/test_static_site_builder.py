@@ -27,12 +27,16 @@ class SpySiteRepository:
 
 class SpyContentRenderer:
     def __init__(self) -> None:
-        self.render_calls: list[tuple[ContentCollection, Page, BuildContext]] = []
+        self.render_calls: list[
+            tuple[ContentCollection, Page, BuildContext]
+        ] = []
 
     def can_render(self, source_path: Path) -> bool:
         return source_path.suffix == ".md"
 
-    def render(self, collection: ContentCollection, page: Page, context: BuildContext) -> str:
+    def render(
+        self, collection: ContentCollection, page: Page, context: BuildContext
+    ) -> str:
         self.render_calls.append((collection, page, context))
         return "<p>Rendered body</p>"
 
@@ -63,7 +67,9 @@ class SpyArticleOutlineBuilder:
         return Article(
             title=title,
             body='<h2 id="overview">Overview</h2>',
-            headings=(ArticleHeading(label="Overview", href="#overview", level=2),),
+            headings=(
+                ArticleHeading(label="Overview", href="#overview", level=2),
+            ),
         )
 
 
@@ -77,7 +83,9 @@ class SpyHtmlPostProcessor:
 
 
 class LocalizedSiteVariantProvider:
-    def variants(self, site: Site, context: BuildContext) -> tuple[SiteVariant, ...]:
+    def variants(
+        self, site: Site, context: BuildContext
+    ) -> tuple[SiteVariant, ...]:
         localized_site = Site(
             title="Site em Portugues",
             description=site.description,
@@ -88,7 +96,9 @@ class LocalizedSiteVariantProvider:
         )
         return (
             SiteVariant(site=site, output_path=context.output_path),
-            SiteVariant(site=localized_site, output_path=context.output_path / "pt-BR"),
+            SiteVariant(
+                site=localized_site, output_path=context.output_path / "pt-BR"
+            ),
         )
 
 
@@ -100,7 +110,11 @@ class TestStaticSiteBuilder:
         # Arrange
         config_path = tmp_path / "site" / "site.yaml"
         output_path = tmp_path / "site" / "build"
-        page = Page(slug="overview", title="Overview", source_path=tmp_path / "README.md")
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
         collection = ContentCollection(
             name="sample_collection",
             title="Sample Collection",
@@ -109,7 +123,9 @@ class TestStaticSiteBuilder:
             pages=(page,),
             videos={},
         )
-        site = Site(title="Learning Site", description="", collections=(collection,))
+        site = Site(
+            title="Learning Site", description="", collections=(collection,)
+        )
         site_repository = SpySiteRepository(site)
         content_renderer = SpyContentRenderer()
         page_renderer = SpyPageRenderer()
@@ -129,20 +145,32 @@ class TestStaticSiteBuilder:
         rendered_page = page_renderer.render_page_calls[0]
         assert site_repository.load_calls == [config_path]
         assert len(content_renderer.render_calls) == 1
-        call_collection, call_page, call_context = content_renderer.render_calls[0]
+        call_collection, call_page, call_context = (
+            content_renderer.render_calls[0]
+        )
         assert (call_collection, call_page) == (collection, page)
         assert call_context.output_path == output_path
         assert page_renderer.render_index_calls[0].collections == (collection,)
-        assert (rendered_page.collection, rendered_page.page) == (collection, page)
-        assert article_outline_builder.build_calls == [("Overview", "<p>Rendered body</p>")]
-        assert (rendered_page.article.body, rendered_page.article.has_table_of_contents()) == (
+        assert (rendered_page.collection, rendered_page.page) == (
+            collection,
+            page,
+        )
+        assert article_outline_builder.build_calls == [
+            ("Overview", "<p>Rendered body</p>")
+        ]
+        assert (
+            rendered_page.article.body,
+            rendered_page.article.has_table_of_contents(),
+        ) == (
             '<h2 id="overview">Overview</h2>',
             True,
         )
         assert (
             (output_path / "index.html").read_text(encoding="utf-8"),
             (output_path / "assets" / "site.css").read_text(encoding="utf-8"),
-            (collection_output_path / "overview.html").read_text(encoding="utf-8"),
+            (collection_output_path / "overview.html").read_text(
+                encoding="utf-8"
+            ),
         ) == (
             "<html>Index</html>",
             "body {}",
@@ -153,7 +181,11 @@ class TestStaticSiteBuilder:
         self, tmp_path: Path
     ) -> None:
         # Arrange
-        page = Page(slug="overview", title="Overview", source_path=tmp_path / "README.md")
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
         collection = ContentCollection(
             name="sample_collection",
             title="Sample Collection",
@@ -162,7 +194,9 @@ class TestStaticSiteBuilder:
             pages=(page,),
             videos={},
         )
-        site = Site(title="Learning Site", description="", collections=(collection,))
+        site = Site(
+            title="Learning Site", description="", collections=(collection,)
+        )
         article_outline_builder = SpyArticleOutlineBuilder()
         html_post_processor = SpyHtmlPostProcessor()
         builder = StaticSiteBuilder(
@@ -177,12 +211,22 @@ class TestStaticSiteBuilder:
         builder.build(tmp_path / "site.yaml", tmp_path / "build")
 
         # Assert
-        assert html_post_processor.process_calls == [("<p>Rendered body</p>", site)]
-        assert article_outline_builder.build_calls == [("Overview", "<p>Processed body</p>")]
+        assert html_post_processor.process_calls == [
+            ("<p>Rendered body</p>", site)
+        ]
+        assert article_outline_builder.build_calls == [
+            ("Overview", "<p>Processed body</p>")
+        ]
 
-    def test_build_rejects_unsupported_page_source(self, tmp_path: Path) -> None:
+    def test_build_rejects_unsupported_page_source(
+        self, tmp_path: Path
+    ) -> None:
         # Arrange
-        page = Page(slug="overview", title="Overview", source_path=tmp_path / "README.rst")
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.rst",
+        )
         collection = ContentCollection(
             name="sample_collection",
             title="Sample Collection",
@@ -191,7 +235,9 @@ class TestStaticSiteBuilder:
             pages=(page,),
             videos={},
         )
-        site = Site(title="Learning Site", description="", collections=(collection,))
+        site = Site(
+            title="Learning Site", description="", collections=(collection,)
+        )
         builder = StaticSiteBuilder(
             site_repository=SpySiteRepository(site),
             content_renderers=(SpyContentRenderer(),),
@@ -203,9 +249,15 @@ class TestStaticSiteBuilder:
         with pytest.raises(ValueError, match="Unsupported page source"):
             builder.build(tmp_path / "site.yaml", tmp_path / "build")
 
-    def test_build_writes_each_site_variant_to_its_output_path(self, tmp_path: Path) -> None:
+    def test_build_writes_each_site_variant_to_its_output_path(
+        self, tmp_path: Path
+    ) -> None:
         # Arrange
-        page = Page(slug="overview", title="Overview", source_path=tmp_path / "README.md")
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
         collection = ContentCollection(
             name="sample_collection",
             title="Sample Collection",
@@ -214,7 +266,9 @@ class TestStaticSiteBuilder:
             pages=(page,),
             videos={},
         )
-        site = Site(title="Learning Site", description="", collections=(collection,))
+        site = Site(
+            title="Learning Site", description="", collections=(collection,)
+        )
         page_renderer = SpyPageRenderer()
         builder = StaticSiteBuilder(
             site_repository=SpySiteRepository(site),
@@ -228,14 +282,30 @@ class TestStaticSiteBuilder:
 
         # Assert
         assert (tmp_path / "build" / "index.html").exists()
-        assert (tmp_path / "build" / "sample-collection" / "overview.html").exists()
+        assert (
+            tmp_path / "build" / "sample-collection" / "overview.html"
+        ).exists()
         assert (tmp_path / "build" / "pt-BR" / "index.html").exists()
-        assert (tmp_path / "build" / "pt-BR" / "sample-collection" / "overview.html").exists()
-        assert [call.site.locale for call in page_renderer.render_page_calls] == ["en", "pt-BR"]
+        assert (
+            tmp_path
+            / "build"
+            / "pt-BR"
+            / "sample-collection"
+            / "overview.html"
+        ).exists()
+        assert [
+            call.site.locale for call in page_renderer.render_page_calls
+        ] == ["en", "pt-BR"]
 
-    def test_build_adds_relative_language_links_for_index_and_pages(self, tmp_path: Path) -> None:
+    def test_build_adds_relative_language_links_for_index_and_pages(
+        self, tmp_path: Path
+    ) -> None:
         # Arrange
-        page = Page(slug="overview", title="Overview", source_path=tmp_path / "README.md")
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
         collection = ContentCollection(
             name="sample_collection",
             title="Sample Collection",
@@ -244,7 +314,9 @@ class TestStaticSiteBuilder:
             pages=(page,),
             videos={},
         )
-        site = Site(title="Learning Site", description="", collections=(collection,))
+        site = Site(
+            title="Learning Site", description="", collections=(collection,)
+        )
         page_renderer = SpyPageRenderer()
         builder = StaticSiteBuilder(
             site_repository=SpySiteRepository(site),
@@ -257,33 +329,57 @@ class TestStaticSiteBuilder:
         builder.build(tmp_path / "site.yaml", tmp_path / "build")
 
         # Assert
-        english_index_links = page_renderer.render_index_calls[0].language_links
-        portuguese_index_links = page_renderer.render_index_calls[1].language_links
+        english_index_links = page_renderer.render_index_calls[
+            0
+        ].language_links
+        portuguese_index_links = page_renderer.render_index_calls[
+            1
+        ].language_links
         english_page_links = page_renderer.render_page_calls[0].language_links
-        portuguese_page_links = page_renderer.render_page_calls[1].language_links
-        assert [(link.label, link.href, link.current) for link in english_index_links] == [
+        portuguese_page_links = page_renderer.render_page_calls[
+            1
+        ].language_links
+        assert [
+            (link.label, link.href, link.current)
+            for link in english_index_links
+        ] == [
             ("en", "index.html", True),
             ("pt-BR", "pt-BR/index.html", False),
         ]
-        assert [(link.label, link.href, link.current) for link in portuguese_index_links] == [
+        assert [
+            (link.label, link.href, link.current)
+            for link in portuguese_index_links
+        ] == [
             ("en", "../index.html", False),
             ("pt-BR", "index.html", True),
         ]
-        assert [(link.label, link.href, link.current) for link in english_page_links] == [
+        assert [
+            (link.label, link.href, link.current)
+            for link in english_page_links
+        ] == [
             ("en", "overview.html", True),
             ("pt-BR", "../pt-BR/sample-collection/overview.html", False),
         ]
-        assert [(link.label, link.href, link.current) for link in portuguese_page_links] == [
+        assert [
+            (link.label, link.href, link.current)
+            for link in portuguese_page_links
+        ] == [
             ("en", "../../sample-collection/overview.html", False),
             ("pt-BR", "overview.html", True),
         ]
 
-    def test_build_skips_unaffected_pages_during_incremental_build(self, tmp_path: Path) -> None:
+    def test_build_skips_unaffected_pages_during_incremental_build(
+        self, tmp_path: Path
+    ) -> None:
         # Arrange
         config_path = tmp_path / "site" / "site.yaml"
         output_path = tmp_path / "site" / "build"
-        page1 = Page(slug="page1", title="Page 1", source_path=tmp_path / "page1.md")
-        page2 = Page(slug="page2", title="Page 2", source_path=tmp_path / "page2.md")
+        page1 = Page(
+            slug="page1", title="Page 1", source_path=tmp_path / "page1.md"
+        )
+        page2 = Page(
+            slug="page2", title="Page 2", source_path=tmp_path / "page2.md"
+        )
         collection = ContentCollection(
             name="sample",
             title="Sample",
@@ -294,7 +390,9 @@ class TestStaticSiteBuilder:
         )
         site = Site(title="Site", description="", collections=(collection,))
 
-        from ssg.application.dependency_tracker import InMemoryDependencyTracker
+        from ssg.application.dependency_tracker import (
+            InMemoryDependencyTracker,
+        )
 
         dependency_tracker = InMemoryDependencyTracker()
         dependency_tracker.register_dependency(page2, page2.source_path)
@@ -309,17 +407,23 @@ class TestStaticSiteBuilder:
         )
 
         # Act
-        builder.build(config_path, output_path, changed_paths={page2.source_path})
+        builder.build(
+            config_path, output_path, changed_paths={page2.source_path}
+        )
 
         # Assert
         assert len(page_renderer.render_page_calls) == 1
         assert page_renderer.render_page_calls[0].page == page2
 
-    def test_build_rebuilds_all_when_site_yaml_changes(self, tmp_path: Path) -> None:
+    def test_build_rebuilds_all_when_site_yaml_changes(
+        self, tmp_path: Path
+    ) -> None:
         # Arrange
         config_path = tmp_path / "site" / "site.yaml"
         output_path = tmp_path / "site" / "build"
-        page1 = Page(slug="page1", title="Page 1", source_path=tmp_path / "page1.md")
+        page1 = Page(
+            slug="page1", title="Page 1", source_path=tmp_path / "page1.md"
+        )
         collection = ContentCollection(
             name="sample",
             title="Sample",
@@ -330,7 +434,9 @@ class TestStaticSiteBuilder:
         )
         site = Site(title="Site", description="", collections=(collection,))
 
-        from ssg.application.dependency_tracker import InMemoryDependencyTracker
+        from ssg.application.dependency_tracker import (
+            InMemoryDependencyTracker,
+        )
 
         dependency_tracker = InMemoryDependencyTracker()
         page_renderer = SpyPageRenderer()

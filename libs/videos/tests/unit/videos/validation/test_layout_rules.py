@@ -19,8 +19,16 @@ class TestLayoutRules:
         rules = LayoutRules()
         scene = _scene(
             visual_objects=(
-                VisualObject(object_id="title_1", region="title", semantic_purpose="Display"),
-                VisualObject(object_id="body_1", region="body", semantic_purpose="Explain"),
+                VisualObject(
+                    object_id="title_1",
+                    region="title",
+                    semantic_purpose="Display",
+                ),
+                VisualObject(
+                    object_id="body_1",
+                    region="body",
+                    semantic_purpose="Explain",
+                ),
             )
         )
         violations = rules.validate(scene)
@@ -30,7 +38,11 @@ class TestLayoutRules:
         rules = LayoutRules()
         scene = _scene(
             visual_objects=(
-                VisualObject(object_id="bad", region="invalid_region", semantic_purpose="Display"),
+                VisualObject(
+                    object_id="bad",
+                    region="invalid_region",
+                    semantic_purpose="Display",
+                ),
             )
         )
         violations = rules.validate(scene)
@@ -40,7 +52,11 @@ class TestLayoutRules:
     def test_fails_empty_region(self) -> None:
         rules = LayoutRules()
         scene = _scene(
-            visual_objects=(VisualObject(object_id="bad", region="", semantic_purpose="Display"),)
+            visual_objects=(
+                VisualObject(
+                    object_id="bad", region="", semantic_purpose="Display"
+                ),
+            )
         )
         violations = rules.validate(scene)
         assert len(violations) >= 1

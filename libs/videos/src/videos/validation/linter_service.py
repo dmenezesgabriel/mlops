@@ -21,12 +21,16 @@ class LinterService:
         self._overlap_detector = overlap_detector or OverlapDetector()
         self._density_analyzer = density_analyzer or DensityAnalyzer()
 
-    def verify_geometry(self, mobjects: list[Any], scene_id: str) -> list[RuleViolation]:
+    def verify_geometry(
+        self, mobjects: list[Any], scene_id: str
+    ) -> list[RuleViolation]:
         violations = []
         # Check every pair of mobjects for overlap
         for i in range(len(mobjects)):
             for j in range(i + 1, len(mobjects)):
-                if self._overlap_detector.check_overlap(mobjects[i], mobjects[j]):
+                if self._overlap_detector.check_overlap(
+                    mobjects[i], mobjects[j]
+                ):
                     violations.append(
                         RuleViolation(
                             scene_id=scene_id,

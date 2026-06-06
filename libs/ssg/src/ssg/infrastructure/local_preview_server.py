@@ -6,7 +6,9 @@ from typing import Any
 
 
 class LiveReloadRequestHandler(SimpleHTTPRequestHandler):
-    def __init__(self, sse_queues: list[queue.Queue[str]], *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self, sse_queues: list[queue.Queue[str]], *args: Any, **kwargs: Any
+    ) -> None:
         self._sse_queues = sse_queues
         super().__init__(*args, **kwargs)
 
@@ -44,7 +46,11 @@ class LocalPreviewServer:
         self._httpd: ThreadingHTTPServer | None = None
 
     def serve(self, directory: Path, host: str, port: int) -> None:
-        handler = partial(LiveReloadRequestHandler, self._sse_queues, directory=str(directory))
+        handler = partial(
+            LiveReloadRequestHandler,
+            self._sse_queues,
+            directory=str(directory),
+        )
         self._httpd = ThreadingHTTPServer((host, port), handler)
         try:
             self._httpd.serve_forever(poll_interval=0.5)

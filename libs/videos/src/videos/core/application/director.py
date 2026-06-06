@@ -44,7 +44,11 @@ class Director:
         correlation_id = f"{self._concept_id}_{uuid.uuid4().hex[:8]}"
         self._telemetry.record_event(
             "render_started",
-            {"concept_id": self._concept_id, "correlation_id": correlation_id, "quality": quality},
+            {
+                "concept_id": self._concept_id,
+                "correlation_id": correlation_id,
+                "quality": quality,
+            },
         )
 
         extension = ConceptRegistry.get(ConceptId(self._concept_id))
@@ -64,8 +68,12 @@ class Director:
                     "violations": [str(v) for v in report.violations],
                 },
             )
-            msg = "\n".join(f"  [{v.rule}] {v.suggestion}" for v in report.violations)
-            raise RuntimeError(f"Quality gate rejected {self._concept_id!r}:\n{msg}")
+            msg = "\n".join(
+                f"  [{v.rule}] {v.suggestion}" for v in report.violations
+            )
+            raise RuntimeError(
+                f"Quality gate rejected {self._concept_id!r}:\n{msg}"
+            )
 
         # Phase 1: Render individual scenes for previews and validation
         for index, scene_spec in enumerate(storyboard.scenes):
@@ -77,7 +85,9 @@ class Director:
                 self._concept_id, scene_id
             )
             # Previews are always low quality for speed
-            result = self._renderer.render(built_scene, output_path, quality="preview")
+            result = self._renderer.render(
+                built_scene, output_path, quality="preview"
+            )
 
             if not result.success:
                 raise RuntimeError(
@@ -86,7 +96,9 @@ class Director:
 
             # Visual Linter (Pillow)
             image_path = output_path.with_suffix(".png")
-            self._linter_service.verify_visuals(image_path, scene_spec.scene_id)
+            self._linter_service.verify_visuals(
+                image_path, scene_spec.scene_id
+            )
 
             self._telemetry.record_event(
                 "scene_rendered",
@@ -101,13 +113,21 @@ class Director:
 
         # Phase 2: If final quality requested, render the whole storyboard
         if quality == "final":
-            logger.info(f"Producing final high-quality video for {self._concept_id!r}")
+            logger.info(
+                f"Producing final high-quality video for {self._concept_id!r}"
+            )
             full_scene = self._build_full_storyboard(storyboard)
-            final_path = self._artifact_store.resolve_output_path(self._concept_id, "final")
-            result = self._renderer.render(full_scene, final_path, quality="final")
+            final_path = self._artifact_store.resolve_output_path(
+                self._concept_id, "final"
+            )
+            result = self._renderer.render(
+                full_scene, final_path, quality="final"
+            )
 
             if not result.success:
-                raise RuntimeError(f"Final render failed for {self._concept_id!r}")
+                raise RuntimeError(
+                    f"Final render failed for {self._concept_id!r}"
+                )
 
             logger.info(f"Final video produced at {final_path}")
 
@@ -124,15 +144,21 @@ class Director:
         # local dynamic scene in Director if I have access to the animation engine.
         # Actually, I should delegate this to SceneBuilder.
         if hasattr(self._scene_builder, "build_storyboard"):
-            return self._scene_builder.build_storyboard(storyboard, self._layout_engine)
+            return self._scene_builder.build_storyboard(
+                storyboard, self._layout_engine
+            )
 
         # Fallback to building just the first scene if not implemented
         # (This is just to satisfy the type checker/tests for now)
-        return self._scene_builder.build(self._layout_engine.apply(storyboard.scenes[0]))
+        return self._scene_builder.build(
+            self._layout_engine.apply(storyboard.scenes[0])
+        )
 
     @staticmethod
     def _get_planner() -> StoryboardPlanner:
-        from videos.core.application.storyboard_planner import StoryboardPlanner
+        from videos.core.application.storyboard_planner import (
+            StoryboardPlanner,
+        )
 
         return StoryboardPlanner()
 

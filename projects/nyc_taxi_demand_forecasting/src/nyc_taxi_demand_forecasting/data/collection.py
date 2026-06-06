@@ -12,14 +12,21 @@ class TlcYellowTaxiParquetCollector:
         collector.collect(config, Path("data/raw"))
     """
 
-    def collect(self, config: CollectionConfig, output_directory: Path) -> tuple[Path, ...]:
+    def collect(
+        self, config: CollectionConfig, output_directory: Path
+    ) -> tuple[Path, ...]:
         output_directory.mkdir(parents=True, exist_ok=True)
         return tuple(
-            self._download_month(config, month, output_directory) for month in config.months
+            self._download_month(config, month, output_directory)
+            for month in config.months
         )
 
-    def _download_month(self, config: CollectionConfig, month: int, output_directory: Path) -> Path:
-        file_name = f"{config.taxi_type}_tripdata_{config.year}-{month:02d}.parquet"
+    def _download_month(
+        self, config: CollectionConfig, month: int, output_directory: Path
+    ) -> Path:
+        file_name = (
+            f"{config.taxi_type}_tripdata_{config.year}-{month:02d}.parquet"
+        )
         output_path = output_directory / file_name
         if output_path.exists():
             return output_path

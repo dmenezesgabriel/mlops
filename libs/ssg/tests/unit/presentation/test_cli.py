@@ -87,7 +87,9 @@ def test_validate_reload_interval_rejects_busy_loop_interval() -> None:
         validate_reload_interval(reload_interval)
 
 
-def test_main_validates_preview_interval_before_building(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_main_validates_preview_interval_before_building(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # Arrange
     build_calls: list[str] = []
     monkeypatch.setattr(

@@ -45,7 +45,9 @@ class ContentRenderer(Protocol):
     def can_render(self, source_path: Path) -> bool:
         pass
 
-    def render(self, collection: ContentCollection, page: Page, context: BuildContext) -> str:
+    def render(
+        self, collection: ContentCollection, page: Page, context: BuildContext
+    ) -> str:
         pass
 
 
@@ -55,7 +57,9 @@ class HtmlPostProcessor(Protocol):
 
 
 class SiteVariantProvider(Protocol):
-    def variants(self, site: Site, context: BuildContext) -> tuple[SiteVariant, ...]:
+    def variants(
+        self, site: Site, context: BuildContext
+    ) -> tuple[SiteVariant, ...]:
         pass
 
 

@@ -31,12 +31,18 @@ class HtmlArticleOutlineBuilder(ArticleOutlineBuilder):
             heading_id = _attribute_value(attributes, "id")
             if heading_id is None:
                 heading_id = _unique_slug(label, used_slugs)
-                attributes = f' id="{escape(heading_id, quote=True)}"{attributes}'
-            headings.append(ArticleHeading(label=label, href=f"#{heading_id}", level=level))
+                attributes = (
+                    f' id="{escape(heading_id, quote=True)}"{attributes}'
+                )
+            headings.append(
+                ArticleHeading(label=label, href=f"#{heading_id}", level=level)
+            )
             return f"<h{level}{attributes}>{heading_html}</h{level}>"
 
         outlined_body = _HEADING_PATTERN.sub(add_heading_id, body)
-        return Article(title=title, body=outlined_body, headings=tuple(headings))
+        return Article(
+            title=title, body=outlined_body, headings=tuple(headings)
+        )
 
 
 _HEADING_PATTERN = re.compile(

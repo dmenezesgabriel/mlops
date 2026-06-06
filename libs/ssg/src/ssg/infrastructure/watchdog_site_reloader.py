@@ -75,7 +75,9 @@ class WatchdogSiteReloader(SiteReloader):
         interval_seconds: float,
         ignored_paths: tuple[Path, ...] = (),
     ) -> None:
-        event_handler = DebouncedEventHandler(on_change, interval_seconds, ignored_paths)
+        event_handler = DebouncedEventHandler(
+            on_change, interval_seconds, ignored_paths
+        )
         observer = Observer()
         for path in watched_paths:
             if path.exists():

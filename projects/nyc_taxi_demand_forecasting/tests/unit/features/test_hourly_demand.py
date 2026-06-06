@@ -1,5 +1,7 @@
 import pandas as pd
-from nyc_taxi_demand_forecasting.features.hourly_demand import HourlyDemandFeatureBuilder
+from nyc_taxi_demand_forecasting.features.hourly_demand import (
+    HourlyDemandFeatureBuilder,
+)
 
 
 def test_hourly_demand_feature_builder_renames_event_timestamp() -> None:

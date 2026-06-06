@@ -5,7 +5,9 @@ from typing import Protocol
 
 
 class RenderResult:
-    def __init__(self, output_path: Path, duration_ms: float, success: bool) -> None:
+    def __init__(
+        self, output_path: Path, duration_ms: float, success: bool
+    ) -> None:
         self.output_path = output_path
         self.duration_ms = duration_ms
         self.success = success

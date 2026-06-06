@@ -1,8 +1,19 @@
 import pytest
+
 from videos.concepts.base import ConceptExtension
 from videos.concepts.registry import ConceptRegistry, UnknownConceptError
-from videos.core.domain.concept import Concept, ConceptId, ConceptMetadata, ConceptTitle
-from videos.core.domain.narrative import Beat, BeatKind, NarrationLine, Narrative
+from videos.core.domain.concept import (
+    Concept,
+    ConceptId,
+    ConceptMetadata,
+    ConceptTitle,
+)
+from videos.core.domain.narrative import (
+    Beat,
+    BeatKind,
+    NarrationLine,
+    Narrative,
+)
 
 
 class StubExtension(ConceptExtension):
@@ -26,7 +37,8 @@ class StubExtension(ConceptExtension):
 def _concept(id_str: str) -> Concept:
     title = ConceptTitle(short=id_str, subtitle="")
     return Concept(
-        id=ConceptId(id_str), metadata=ConceptMetadata(title=title, description="", tags=())
+        id=ConceptId(id_str),
+        metadata=ConceptMetadata(title=title, description="", tags=()),
     )
 
 

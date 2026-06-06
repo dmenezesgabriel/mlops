@@ -48,7 +48,9 @@ class TestComponentRegistry:
         builder = _StubBuilder()
         registry.register("text", builder)
 
-        spec = ComponentSpec(type="text", region="body", props={"content": "hello"})
+        spec = ComponentSpec(
+            type="text", region="body", props={"content": "hello"}
+        )
         scene = object()
         registry.build(spec, scene)
         assert builder.calls[0] is spec

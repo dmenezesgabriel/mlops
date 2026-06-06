@@ -15,7 +15,9 @@ class InMemoryDependencyTracker(DependencyTracker):
     def affected_pages(self, changed_paths: set[Path]) -> set[Page]:
         affected: set[Page] = set()
         for changed_path in changed_paths:
-            affected.update(self._dependencies.get(changed_path.resolve(), set()))
+            affected.update(
+                self._dependencies.get(changed_path.resolve(), set())
+            )
         return affected
 
     def clear(self) -> None:

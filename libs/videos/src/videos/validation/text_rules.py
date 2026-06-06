@@ -38,7 +38,9 @@ class TextRules:
                         rule="max_words_per_text_block",
                         actual=word_count,
                         expected=f"<= {self.MAX_WORDS_PER_TEXT}",
-                        suggestion=(f"Split '{obj.object_id}' into shorter text blocks."),
+                        suggestion=(
+                            f"Split '{obj.object_id}' into shorter text blocks."
+                        ),
                     )
                 )
         return violations
@@ -46,7 +48,9 @@ class TextRules:
     def _check_no_paragraphs(self, scene: SceneSpec) -> list[RuleViolation]:
         violations: list[RuleViolation] = []
         for obj in scene.visual_objects:
-            sentences = [s for s in obj.semantic_purpose.split(".") if s.strip()]
+            sentences = [
+                s for s in obj.semantic_purpose.split(".") if s.strip()
+            ]
             if len(sentences) > 3:
                 violations.append(
                     RuleViolation(

@@ -11,9 +11,13 @@ from playwright.sync_api import Page, expect
 
 
 @pytest.mark.playwright
-def test_built_site_supports_navigation_i18n_and_mobile_menu(page: Page) -> None:
+def test_built_site_supports_navigation_i18n_and_mobile_menu(
+    page: Page,
+) -> None:
     site_build_path = Path("site/build")
-    assert site_build_path.exists(), "Missing site/build: expected `make build-site` before e2e"
+    assert (
+        site_build_path.exists()
+    ), "Missing site/build: expected `make build-site` before e2e"
 
     with _serve_directory(site_build_path) as base_url:
         _assert_home_page(page, base_url)
@@ -29,19 +33,26 @@ def _assert_home_page(page: Page, base_url: str) -> None:
     expect(page.locator("h1")).to_contain_text("MLOps Learning Lab")
     expect(page.locator(".site-header")).to_be_visible()
     expect(page.locator("#site-navigation")).to_be_visible()
-    expect(page.locator(".collection-card")).to_contain_text("NYC Taxi Demand Forecasting")
+    expect(page.locator(".collection-card")).to_contain_text(
+        "NYC Taxi Demand Forecasting"
+    )
     expect(page.locator("link[href='assets/site.css']")).to_have_count(1)
     expect(page.locator("script[src='assets/site.js']")).to_have_count(1)
 
 
 def _assert_language_switcher(page: Page, base_url: str) -> None:
-    page.goto(f"{base_url}/nyc-taxi-demand-forecasting/overview.html", wait_until="networkidle")
+    page.goto(
+        f"{base_url}/nyc-taxi-demand-forecasting/overview.html",
+        wait_until="networkidle",
+    )
     page.locator(".language-switcher summary").click()
     expect(page.locator(".language-switcher a[href*='pt-BR']")).to_be_visible()
     page.locator(".language-switcher a[href*='pt-BR']").click()
     page.wait_for_load_state("networkidle")
     expect(page.locator("html")).to_have_attribute("lang", "pt-BR")
-    expect(page.locator(".language-switcher__current")).to_contain_text("pt-BR")
+    expect(page.locator(".language-switcher__current")).to_contain_text(
+        "pt-BR"
+    )
 
 
 def _assert_configured_pages(page: Page, base_url: str) -> None:
@@ -68,7 +79,9 @@ def _assert_internal_links(
     path: str,
     checked_links: set[str],
 ) -> None:
-    hrefs = page.locator("a[href]").evaluate_all("links => links.map(link => link.href)")
+    hrefs = page.locator("a[href]").evaluate_all(
+        "links => links.map(link => link.href)"
+    )
     for href in hrefs:
         if not isinstance(href, str) or not href.startswith(base_url):
             continue
@@ -79,17 +92,23 @@ def _assert_internal_links(
 
         checked_links.add(link_without_fragment)
         response = page.request.get(link_without_fragment)
-        assert response.status < 400, f"{path} links to {link_without_fragment}"
+        assert (
+            response.status < 400
+        ), f"{path} links to {link_without_fragment}"
 
 
 def _assert_notebook_and_code_pages(page: Page, base_url: str) -> None:
-    notebook_path = "/nyc-taxi-demand-forecasting/feature-engineering-notebook.html"
+    notebook_path = (
+        "/nyc-taxi-demand-forecasting/feature-engineering-notebook.html"
+    )
     page.goto(f"{base_url}{notebook_path}", wait_until="networkidle")
     expect(page.locator(".notebook-cell").first).to_be_visible()
     expect(page.locator(".source-panel").first).to_be_visible()
     expect(page.locator(".highlight-token").first).to_be_visible()
 
-    code_path = "/nyc-taxi-demand-forecasting/feature-store-with-feast-duckdb.html"
+    code_path = (
+        "/nyc-taxi-demand-forecasting/feature-store-with-feast-duckdb.html"
+    )
     page.goto(f"{base_url}{code_path}", wait_until="networkidle")
     expect(page.locator(".highlight-token").first).to_be_visible()
     expect(page.locator(".article-toc")).to_be_visible()
@@ -107,12 +126,15 @@ def _assert_static_assets(page: Page, base_url: str) -> None:
 def _assert_mobile_menu(page: Page, base_url: str) -> None:
     page.set_viewport_size({"width": 390, "height": 820})
     page.goto(
-        f"{base_url}/nyc-taxi-demand-forecasting/problem-framing.html", wait_until="networkidle"
+        f"{base_url}/nyc-taxi-demand-forecasting/problem-framing.html",
+        wait_until="networkidle",
     )
     expect(page.locator(".menu-toggle")).to_be_visible()
     expect(page.locator("#site-navigation")).not_to_be_visible()
     page.locator(".menu-toggle").click()
-    expect(page.locator(".menu-toggle")).to_have_attribute("aria-expanded", "true")
+    expect(page.locator(".menu-toggle")).to_have_attribute(
+        "aria-expanded", "true"
+    )
     expect(page.locator("#site-navigation")).to_be_visible()
 
 

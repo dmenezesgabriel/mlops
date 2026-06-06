@@ -9,4 +9,6 @@ from ssg_syntax_highlighting.infrastructure.pygments_highlighter import (
 
 
 def create_pygments_html_post_processor() -> HtmlPostProcessor:
-    return CodeBlockSyntaxHighlightingProcessor(PygmentsCodeSyntaxHighlighterFactory())
+    return CodeBlockSyntaxHighlightingProcessor(
+        PygmentsCodeSyntaxHighlighterFactory()
+    )

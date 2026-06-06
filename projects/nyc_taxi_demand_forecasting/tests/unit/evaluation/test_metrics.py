@@ -1,5 +1,7 @@
 import pandas as pd
-from nyc_taxi_demand_forecasting.evaluation.metrics import RegressionMetricCalculator
+from nyc_taxi_demand_forecasting.evaluation.metrics import (
+    RegressionMetricCalculator,
+)
 
 
 def test_regression_metric_calculator_computes_errors() -> None:

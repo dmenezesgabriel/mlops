@@ -58,5 +58,12 @@ FULL_FRAME = LayoutPreset(
 )
 
 BUILTIN_LAYOUTS: dict[str, LayoutPreset] = {
-    p.name: p for p in [TITLE_ONLY, TITLE_AND_BODY, DIAGRAM_WITH_LABELS, COMPARISON, FULL_FRAME]
+    p.name: p
+    for p in [
+        TITLE_ONLY,
+        TITLE_AND_BODY,
+        DIAGRAM_WITH_LABELS,
+        COMPARISON,
+        FULL_FRAME,
+    ]
 }

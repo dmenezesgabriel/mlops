@@ -4,7 +4,9 @@ import pytest
 from ssg.domain.site import ContentCollection, Page, Site
 
 
-def test_source_file_rejects_paths_outside_collection_root(tmp_path: Path) -> None:
+def test_source_file_rejects_paths_outside_collection_root(
+    tmp_path: Path,
+) -> None:
     # Arrange
     source_root = tmp_path / "content"
     source_root.mkdir()
@@ -29,7 +31,13 @@ def test_page_href_returns_html_path_for_known_page(tmp_path: Path) -> None:
         title="Sample Collection",
         source_root=tmp_path,
         output_slug="sample-collection",
-        pages=(Page(slug="overview", title="Overview", source_path=tmp_path / "README.md"),),
+        pages=(
+            Page(
+                slug="overview",
+                title="Overview",
+                source_path=tmp_path / "README.md",
+            ),
+        ),
         videos={},
     )
 
@@ -40,7 +48,9 @@ def test_page_href_returns_html_path_for_known_page(tmp_path: Path) -> None:
     assert href == "overview.html"
 
 
-def test_site_selected_collections_reports_expected_names(tmp_path: Path) -> None:
+def test_site_selected_collections_reports_expected_names(
+    tmp_path: Path,
+) -> None:
     # Arrange
     site = Site(
         title="Learning Site",
@@ -66,8 +76,12 @@ def test_navigation_for_page_marks_current_page_and_links_from_collection_page(
     tmp_path: Path,
 ) -> None:
     # Arrange
-    overview = Page(slug="overview", title="Overview", source_path=tmp_path / "README.md")
-    details = Page(slug="details", title="Details", source_path=tmp_path / "details.md")
+    overview = Page(
+        slug="overview", title="Overview", source_path=tmp_path / "README.md"
+    )
+    details = Page(
+        slug="details", title="Details", source_path=tmp_path / "details.md"
+    )
     collection = ContentCollection(
         name="sample_collection",
         title="Sample Collection",
@@ -76,7 +90,9 @@ def test_navigation_for_page_marks_current_page_and_links_from_collection_page(
         pages=(overview, details),
         videos={},
     )
-    site = Site(title="Learning Site", description="", collections=(collection,))
+    site = Site(
+        title="Learning Site", description="", collections=(collection,)
+    )
 
     # Act
     navigation = site.navigation_for(collection, details)
@@ -88,10 +104,16 @@ def test_navigation_for_page_marks_current_page_and_links_from_collection_page(
     assert navigation.sections[0].links[1].aria_current() == "page"
 
 
-def test_navigation_for_homepage_lists_projects_without_article_links(tmp_path: Path) -> None:
+def test_navigation_for_homepage_lists_projects_without_article_links(
+    tmp_path: Path,
+) -> None:
     # Arrange
-    first_collection = _collection_with_pages(tmp_path, "first_collection", "First Collection")
-    second_collection = _collection_with_pages(tmp_path, "second_collection", "Second Collection")
+    first_collection = _collection_with_pages(
+        tmp_path, "first_collection", "First Collection"
+    )
+    second_collection = _collection_with_pages(
+        tmp_path, "second_collection", "Second Collection"
+    )
     site = Site(
         title="Learning Site",
         description="",
@@ -112,10 +134,16 @@ def test_navigation_for_homepage_lists_projects_without_article_links(tmp_path: 
     assert navigation.sections[1].links == ()
 
 
-def test_navigation_for_project_page_expands_only_current_project(tmp_path: Path) -> None:
+def test_navigation_for_project_page_expands_only_current_project(
+    tmp_path: Path,
+) -> None:
     # Arrange
-    first_collection = _collection_with_pages(tmp_path, "first_collection", "First Collection")
-    second_collection = _collection_with_pages(tmp_path, "second_collection", "Second Collection")
+    first_collection = _collection_with_pages(
+        tmp_path, "first_collection", "First Collection"
+    )
+    second_collection = _collection_with_pages(
+        tmp_path, "second_collection", "Second Collection"
+    )
     current_page = first_collection.page_by_slug("details")
     site = Site(
         title="Learning Site",
@@ -127,16 +155,27 @@ def test_navigation_for_project_page_expands_only_current_project(tmp_path: Path
     navigation = site.navigation_for(first_collection, current_page)
 
     # Assert
-    assert [section.title for section in navigation.sections] == ["First Collection"]
+    assert [section.title for section in navigation.sections] == [
+        "First Collection"
+    ]
     assert navigation.sections[0].href == "../first-collection/overview.html"
-    assert [link.label for link in navigation.sections[0].links] == ["Overview", "Details"]
+    assert [link.label for link in navigation.sections[0].links] == [
+        "Overview",
+        "Details",
+    ]
     assert navigation.sections[0].links[1].current is True
 
 
-def test_collection_previous_and_next_page_follow_configured_order(tmp_path: Path) -> None:
+def test_collection_previous_and_next_page_follow_configured_order(
+    tmp_path: Path,
+) -> None:
     # Arrange
-    first_page = Page(slug="overview", title="Overview", source_path=tmp_path / "README.md")
-    second_page = Page(slug="details", title="Details", source_path=tmp_path / "details.md")
+    first_page = Page(
+        slug="overview", title="Overview", source_path=tmp_path / "README.md"
+    )
+    second_page = Page(
+        slug="details", title="Details", source_path=tmp_path / "details.md"
+    )
     collection = ContentCollection(
         name="sample_collection",
         title="Sample Collection",
@@ -158,8 +197,16 @@ def _collection_with_pages(
     name: str,
     title: str,
 ) -> ContentCollection:
-    overview = Page(slug="overview", title="Overview", source_path=tmp_path / name / "README.md")
-    details = Page(slug="details", title="Details", source_path=tmp_path / name / "details.md")
+    overview = Page(
+        slug="overview",
+        title="Overview",
+        source_path=tmp_path / name / "README.md",
+    )
+    details = Page(
+        slug="details",
+        title="Details",
+        source_path=tmp_path / name / "details.md",
+    )
     return ContentCollection(
         name=name,
         title=title,

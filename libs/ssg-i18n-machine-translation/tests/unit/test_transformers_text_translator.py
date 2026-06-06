@@ -2,7 +2,9 @@ import sys
 from types import ModuleType
 
 from ssg_i18n.domain.locale import Locale
-from ssg_i18n_machine_translation.transformers_text_translator import TransformersTextTranslator
+from ssg_i18n_machine_translation.transformers_text_translator import (
+    TransformersTextTranslator,
+)
 
 
 class FakeTransformersModule(ModuleType):
@@ -20,16 +22,22 @@ class FakeTranslationPipeline:
         self.task = task
         self.model = model
 
-    def __call__(self, source_text: str, **_generation_options: object) -> list[dict[str, str]]:
+    def __call__(
+        self, source_text: str, **_generation_options: object
+    ) -> list[dict[str, str]]:
         return [{"translation_text": f"pt-BR:{source_text}"}]
 
 
 class RepeatingFakeTranslationPipeline:
-    def __call__(self, _source_text: str, **_generation_options: object) -> list[dict[str, str]]:
+    def __call__(
+        self, _source_text: str, **_generation_options: object
+    ) -> list[dict[str, str]]:
         return [{"translation_text": "translation " * 20}]
 
 
-def test_translate_uses_transformers_pipeline_and_reuses_loaded_model() -> None:
+def test_translate_uses_transformers_pipeline_and_reuses_loaded_model() -> (
+    None
+):
     # Arrange
     previous_module = sys.modules.get("transformers")
     fake_module = FakeTransformersModule()
@@ -38,8 +46,12 @@ def test_translate_uses_transformers_pipeline_and_reuses_loaded_model() -> None:
 
     try:
         # Act
-        first_translation = translator.translate("Feature store", Locale("pt-BR"))
-        second_translation = translator.translate("Model registry", Locale("pt-BR"))
+        first_translation = translator.translate(
+            "Feature store", Locale("pt-BR")
+        )
+        second_translation = translator.translate(
+            "Model registry", Locale("pt-BR")
+        )
     finally:
         if previous_module is None:
             del sys.modules["transformers"]
@@ -58,7 +70,9 @@ def test_translate_falls_back_to_source_for_degenerate_repetition() -> None:
     translator._translation_pipeline = RepeatingFakeTranslationPipeline()
 
     # Act
-    translated_text = translator.translate("Feature store for model registry", Locale("pt-BR"))
+    translated_text = translator.translate(
+        "Feature store for model registry", Locale("pt-BR")
+    )
 
     # Assert
     assert translated_text == "Feature store for model registry"
