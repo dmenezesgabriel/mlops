@@ -1,0 +1,14 @@
+concept:
+  id: test_e2e
+  metadata:
+    title: {short: "Test E2E", subtitle: "E2E Sub"}
+    description: "E2E Test Description"
+    tags: [test, e2e]
+narrative:
+  beats:
+    - kind: opening
+      narration: {text: "Start", duration_seconds: 5.0}
+      visual_key: title
+    - kind: recap
+      narration: {text: "End", duration_seconds: 5.0}
+      visual_key: recap
