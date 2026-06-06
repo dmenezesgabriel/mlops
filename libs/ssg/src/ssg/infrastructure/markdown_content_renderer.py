@@ -5,17 +5,22 @@ from pathlib import Path
 
 from jinja2 import Environment, StrictUndefined
 from markdown_it import MarkdownIt
+
 try:
     # Prefer the explicit table plugin when available
     from mdit_py_plugins.table import table_plugin  # type: ignore
-except Exception:  # pragma: no cover - optional runtime dependency during tests
+except (
+    Exception
+):  # pragma: no cover - optional runtime dependency during tests
     table_plugin = None
 
 # Some releases expose table support as part of the GFM plugin. Import the
 # GFM plugin as a fallback so we still get table parsing if available.
 try:
     from mdit_py_plugins.gfm import gfm_plugin  # type: ignore
-except Exception:  # pragma: no cover - optional runtime dependency during tests
+except (
+    Exception
+):  # pragma: no cover - optional runtime dependency during tests
     gfm_plugin = None
 from markupsafe import Markup
 

@@ -1,4 +1,5 @@
 import pytest
+
 from videos.core.domain.layout import LayoutRegion, LayoutSpec
 from videos.core.domain.scene_spec import SceneSpec
 from videos.core.domain.storyboard import Storyboard

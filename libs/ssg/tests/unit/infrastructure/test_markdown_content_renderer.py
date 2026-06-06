@@ -149,7 +149,9 @@ def test_render_gfm_table_to_html_table(tmp_path: Path) -> None:
         title="Sample Collection",
         source_root=tmp_path,
         output_slug="sample-collection",
-        pages=(Page(slug="overview", title="Overview", source_path=markdown_path),),
+        pages=(
+            Page(slug="overview", title="Overview", source_path=markdown_path),
+        ),
         videos={},
     )
 

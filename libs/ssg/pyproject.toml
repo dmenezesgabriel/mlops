@@ -27,6 +27,7 @@ ssg = "ssg"
 ssg-i18n = "ssg_i18n"
 ssg-i18n-machine-translation = "ssg_i18n_machine_translation"
 ssg-syntax-highlighting = "ssg_syntax_highlighting"
+mdit-py-plugins = "mdit_py_plugins"
 
 [tool.deptry.per_rule_ignores]
 DEP002 = ["ssg-i18n", "ssg-i18n-machine-translation", "ssg-syntax-highlighting"]
