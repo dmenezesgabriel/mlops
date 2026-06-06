@@ -135,3 +135,37 @@ def test_render_converts_wikilinks_to_page_links(tmp_path: Path) -> None:
 
     # Assert
     assert '<a href="overview.html">Overview</a>' in rendered_content
+
+
+def test_render_gfm_table_to_html_table(tmp_path: Path) -> None:
+    # Arrange
+    markdown_path = tmp_path / "README.md"
+    markdown_path.write_text(
+        "| Algorithm | Pros | Cons | Decision |\n| :--- | :--- | :--- | :--- |\n| Ridge | Good | Bad | Chosen |",
+        encoding="utf-8",
+    )
+    collection = ContentCollection(
+        name="sample_collection",
+        title="Sample Collection",
+        source_root=tmp_path,
+        output_slug="sample-collection",
+        pages=(Page(slug="overview", title="Overview", source_path=markdown_path),),
+        videos={},
+    )
+
+    # Act
+    context = BuildContext(
+        config_path=tmp_path / "site.yaml",
+        output_path=tmp_path / "build",
+        collection_name=None,
+        correlation_id="test",
+    )
+    rendered_content = MarkdownContentRenderer().render(
+        collection,
+        Page(slug="details", title="Details", source_path=markdown_path),
+        context,
+    )
+
+    # Assert
+    assert "<table" in rendered_content
+    assert "<td" in rendered_content
