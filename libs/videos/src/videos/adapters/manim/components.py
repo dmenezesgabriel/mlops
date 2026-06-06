@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
+from videos.components.registry import ComponentRegistry
 from videos.core.domain.scene_spec import ComponentSpec
 
 if TYPE_CHECKING:
@@ -100,9 +101,6 @@ class DiagramComponent:
             return create_target(scene, rings=rings, max_radius=max_radius)
 
         return build_cycle_nodes(scene, labels, colors)
-
-
-from videos.components.registry import ComponentRegistry
 
 
 def register_default_components(registry: object) -> None:

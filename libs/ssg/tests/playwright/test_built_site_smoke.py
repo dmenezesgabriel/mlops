@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
+from typing import Any
 from urllib.parse import urldefrag
 
 import pytest
@@ -133,7 +134,7 @@ def _configured_paths() -> tuple[str, ...]:
 @contextmanager
 def _serve_directory(directory: Path) -> Iterator[str]:
     class QuietHandler(SimpleHTTPRequestHandler):
-        def __init__(self, *args: object, **kwargs: object) -> None:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
             super().__init__(*args, directory=directory, **kwargs)
 
         def log_message(self, format: str, *args: object) -> None:
