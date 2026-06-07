@@ -9,5 +9,6 @@ WORKDIR /app
 COPY libs/diagrams/pyproject.toml pyproject.toml
 COPY libs/diagrams/src/ src/
 
-RUN pip install --no-cache-dir pyyaml diagrams pytest && \
-    pip install --no-cache-dir -e . --no-deps
+RUN pip install --no-cache-dir uv && \
+    uv pip install --system pyyaml diagrams pytest && \
+    uv pip install --system -e . --no-deps

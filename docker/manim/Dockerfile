@@ -6,6 +6,7 @@ WORKDIR /app
 COPY libs/videos/pyproject.toml pyproject.toml
 COPY libs/videos/src/ src/
 
-RUN . /opt/venv/bin/activate && \
-    pip install --no-cache-dir "pydantic>=2.0" "pyyaml>=6.0" "pytest>=8.0" && \
-    pip install -e . --no-deps
+RUN pip install --no-cache-dir uv && \
+    . /opt/venv/bin/activate && \
+    uv pip install "pydantic>=2.0" "pyyaml>=6.0" "pytest>=8.0" && \
+    uv pip install -e . --no-deps
