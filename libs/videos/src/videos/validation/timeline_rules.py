@@ -11,11 +11,17 @@ class TimelineRuleValidator(Protocol):
 
 
 class TimelineRules:
-    def __init__(self) -> None:
-        self._rules: list[TimelineRuleValidator] = [
-            self._check_events_reference_existing_objects,
-            self._check_times_within_duration,
-        ]
+    def __init__(
+        self, rules: list[TimelineRuleValidator] | None = None
+    ) -> None:
+        self._rules = (
+            rules
+            if rules is not None
+            else [
+                self._check_events_reference_existing_objects,
+                self._check_times_within_duration,
+            ]
+        )
 
     def validate(self, scene: SceneSpec) -> list[RuleViolation]:
         violations: list[RuleViolation] = []

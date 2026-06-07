@@ -14,11 +14,15 @@ class TextRules:
     MAX_WORDS_PER_TEXT = 14
     MAX_BULLETS_VISIBLE = 2
 
-    def __init__(self) -> None:
-        self._rules: list[TextRuleValidator] = [
-            self._check_max_words,
-            self._check_no_paragraphs,
-        ]
+    def __init__(self, rules: list[TextRuleValidator] | None = None) -> None:
+        self._rules = (
+            rules
+            if rules is not None
+            else [
+                self._check_max_words,
+                self._check_no_paragraphs,
+            ]
+        )
 
     def validate(self, scene: SceneSpec) -> list[RuleViolation]:
         violations: list[RuleViolation] = []

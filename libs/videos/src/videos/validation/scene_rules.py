@@ -11,10 +11,14 @@ class SceneRuleValidator(Protocol):
 
 
 class SceneRules:
-    def __init__(self) -> None:
-        self._rules: list[SceneRuleValidator] = [
-            self._check_has_title_or_explicit_style,
-        ]
+    def __init__(self, rules: list[SceneRuleValidator] | None = None) -> None:
+        self._rules = (
+            rules
+            if rules is not None
+            else [
+                self._check_has_title_or_explicit_style,
+            ]
+        )
 
     def validate(self, scene: SceneSpec) -> list[RuleViolation]:
         violations: list[RuleViolation] = []

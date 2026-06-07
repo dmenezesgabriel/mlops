@@ -12,11 +12,15 @@ class LayoutRuleValidator(Protocol):
 
 
 class LayoutRules:
-    def __init__(self) -> None:
-        self._rules: list[LayoutRuleValidator] = [
-            self._check_known_regions,
-            self._check_objects_have_regions,
-        ]
+    def __init__(self, rules: list[LayoutRuleValidator] | None = None) -> None:
+        self._rules = (
+            rules
+            if rules is not None
+            else [
+                self._check_known_regions,
+                self._check_objects_have_regions,
+            ]
+        )
 
     def validate(self, scene: SceneSpec) -> list[RuleViolation]:
         violations: list[RuleViolation] = []
