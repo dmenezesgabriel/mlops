@@ -32,6 +32,15 @@ class NotebookFragmentRenderer:
             )
         )
 
+    def render_image_frame(self, image_source: str, image_name: str) -> Markup:
+        return Markup(
+            self._render_template(
+                "image_frame.html",
+                image_source=image_source,
+                image_name=image_name.replace("_", " ").title(),
+            )
+        )
+
     def render_code_cell(
         self, source: str, cell_index: int, outputs: str
     ) -> str:
