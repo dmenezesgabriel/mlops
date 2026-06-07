@@ -50,8 +50,21 @@ jobs:
       - name: Architecture checks
         run: make architecture
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build diagrams image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/diagrams/Dockerfile
+          tags: mlops-diagrams-prod
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Render diagrams
-        run: make render-diagram
+        run: make diagrams-render
 
       - name: Build configured site
         run: make build-site

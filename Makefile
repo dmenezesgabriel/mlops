@@ -6,7 +6,7 @@ MANIM_CUSTOM_IMAGE ?= mlops-manim-prod
 VIDEO_OUTPUT_DIR ?= videos/output
 
 .SILENT:
-.PHONY: install format lint type-check test test-bdd test-e2e test-videos-docker coverage complexity dependencies architecture security quality build-site preview-site render-video check-videos collect preprocess features train tune evaluate deploy monitor mlflow
+.PHONY: install format lint type-check test test-bdd test-e2e test-videos-docker coverage complexity dependencies architecture security quality build-site preview-site render-video check-videos diagrams-build diagrams-render collect preprocess features train tune evaluate deploy monitor mlflow
 SITE_CONFIG ?= site/site.yaml
 SITE_OUTPUT ?= site/build
 
@@ -116,8 +116,10 @@ check-videos:
 	$(MAKE) test-videos-docker
 	@echo "=== All video checks passed ==="
 
-render-diagram: docker/diagrams/Dockerfile
-	docker build -f docker/diagrams/Dockerfile -t mlops-diagrams-prod .
+diagrams-build: docker/diagrams/Dockerfile
+	docker build $(DOCKER_BUILD_FLAGS) -f docker/diagrams/Dockerfile -t mlops-diagrams-prod .
+
+diagrams-render:
 	mkdir -p diagrams/output
 	chmod 777 diagrams/output
 	docker run --rm \
@@ -126,8 +128,11 @@ render-diagram: docker/diagrams/Dockerfile
 	  -v "$(CURDIR)/diagrams/output:/app/output:delegated" \
 	  mlops-diagrams-prod diagrams-cli mlops_lifecycle --definitions-dir /app/definition --output-dir /app/output
 
-test-diagrams-docker: docker/diagrams/Dockerfile
-	docker build -f docker/diagrams/Dockerfile -t mlops-diagrams-test .
+render-diagram: diagrams-build
+	$(MAKE) diagrams-render
+
+test-diagrams-docker:
+	docker build $(DOCKER_BUILD_FLAGS) -f docker/diagrams/Dockerfile -t mlops-diagrams-test .
 	docker run --rm \
 	  -v "$(CURDIR)/libs/diagrams/src:/app/src:ro" \
 	  -v "$(CURDIR)/libs/diagrams/tests:/app/tests:ro" \
