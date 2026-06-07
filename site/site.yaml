@@ -53,6 +53,6 @@ collections:
         source: docs/08_monitoring.md
     assets:
       videos:
-        mlops_lifecycle: ../videos/output/mlops_lifecycle.mp4
+        mlops_lifecycle: ../videos/output/previews/mlops_lifecycle.mp4
       images:
         mlops_lifecycle: ../diagrams/output/mlops_lifecycle.png
