@@ -28,3 +28,5 @@ projects/*/mlflow.db
 
 *.mp4
 *.png
+
+node_modules/

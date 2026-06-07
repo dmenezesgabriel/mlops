@@ -46,13 +46,13 @@ coverage:
 
 complexity:
 	tmp=$$(mktemp); \
-	uv run radon cc libs projects -s -n C > $$tmp 2>&1 || { cat $$tmp; rm -f $$tmp; exit 1; }; \
+	uv run radon cc libs projects -s -n C -x "*/node_modules/*" > $$tmp 2>&1 || { cat $$tmp; rm -f $$tmp; exit 1; }; \
 	if [ -s $$tmp ]; then cat $$tmp; rm -f $$tmp; exit 1; fi; \
 	rm -f $$tmp
 
 dependencies:
 	tmp=$$(mktemp); \
-	for package in libs/mlops-shared libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting libs/videos projects/$(PROJECT); do \
+	for package in libs/mlops-shared libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting libs/ssg-latex libs/videos projects/$(PROJECT); do \
 		(cd $$package && uv run deptry .) >> $$tmp 2>&1 || { cat $$tmp; rm -f $$tmp; exit 1; }; \
 	done; \
 	rm -f $$tmp

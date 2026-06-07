@@ -15,22 +15,25 @@ dependencies = [
 i18n = ["ssg-i18n"]
 i18n-transformers = ["ssg-i18n", "ssg-i18n-machine-translation[transformers]"]
 syntax-highlighting = ["ssg-syntax-highlighting"]
-all = ["ssg-i18n", "ssg-i18n-machine-translation[transformers]", "ssg-syntax-highlighting"]
+latex = ["ssg-latex"]
+all = ["ssg-i18n", "ssg-i18n-machine-translation[transformers]", "ssg-syntax-highlighting", "ssg-latex"]
 
 [tool.uv.sources]
 ssg-i18n = { workspace = true }
 ssg-i18n-machine-translation = { workspace = true }
 ssg-syntax-highlighting = { workspace = true }
+ssg-latex = { workspace = true }
 
 [tool.deptry.package_module_name_map]
 ssg = "ssg"
 ssg-i18n = "ssg_i18n"
 ssg-i18n-machine-translation = "ssg_i18n_machine_translation"
 ssg-syntax-highlighting = "ssg_syntax_highlighting"
+ssg-latex = "ssg_latex"
 mdit-py-plugins = "mdit_py_plugins"
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["ssg-i18n", "ssg-i18n-machine-translation", "ssg-syntax-highlighting"]
+DEP002 = ["ssg-i18n", "ssg-i18n-machine-translation", "ssg-syntax-highlighting", "ssg-latex"]
 DEP003 = ["ssg"]
 
 [build-system]

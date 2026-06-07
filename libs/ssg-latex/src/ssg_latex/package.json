@@ -1,0 +1,7 @@
+{
+  "name": "ssg-latex-npm-deps",
+  "private": true,
+  "dependencies": {
+    "katex": "0.17.0"
+  }
+}

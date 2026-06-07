@@ -1,0 +1,27 @@
+[project]
+name = "ssg-latex"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "ssg",
+]
+
+[project.entry-points."ssg.html_post_processors"]
+latex = "ssg_latex.presentation.plugin:create_latex_html_post_processor"
+
+[tool.uv.sources]
+ssg = { workspace = true }
+
+[tool.deptry]
+exclude = ["node_modules", "src/ssg_latex/node_modules"]
+
+[tool.deptry.package_module_name_map]
+ssg = "ssg"
+ssg-latex = "ssg_latex"
+
+[tool.deptry.per_rule_ignores]
+DEP003 = ["ssg_latex", "pytest"]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"

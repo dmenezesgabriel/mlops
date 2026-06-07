@@ -33,6 +33,7 @@ members = [
   "libs/ssg-i18n-machine-translation",
   "libs/ssg-notebook-render",
   "libs/ssg-syntax-highlighting",
+  "libs/ssg-latex",
   "projects/nyc_taxi_demand_forecasting",
   "libs/videos",
 ]
@@ -80,6 +81,7 @@ packages = [
   "ssg_i18n_machine_translation",
   "ssg_notebook_render",
   "ssg_syntax_highlighting",
+  "ssg_latex",
   "videos",
 ]
 
@@ -93,6 +95,7 @@ known_first_party = [
   "ssg_i18n_machine_translation",
   "ssg_notebook_render",
   "ssg_syntax_highlighting",
+  "ssg_latex",
   "videos",
 ]
 
@@ -105,13 +108,14 @@ root_packages = [
   "ssg_i18n_machine_translation",
   "ssg_notebook_render",
   "ssg_syntax_highlighting",
+  "ssg_latex",
   "videos",
 ]
 
 [[tool.importlinter.contracts]]
 name = "Shared libraries do not import projects"
 type = "forbidden"
-source_modules = ["mlops_shared", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting"]
+source_modules = ["mlops_shared", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex"]
 forbidden_modules = ["nyc_taxi_demand_forecasting"]
 
 [[tool.importlinter.contracts]]
@@ -135,7 +139,7 @@ forbidden_modules = ["ssg.infrastructure", "ssg.presentation"]
 [[tool.importlinter.contracts]]
 name = "Static site generator stays MLOps agnostic"
 type = "forbidden"
-source_modules = ["ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting"]
+source_modules = ["ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex"]
 forbidden_modules = ["mlops_shared", "nyc_taxi_demand_forecasting"]
 
 [[tool.importlinter.contracts]]
@@ -161,4 +165,10 @@ forbidden_modules = ["ssg.infrastructure", "ssg.presentation"]
 name = "Syntax highlighting stays an SSG extension"
 type = "forbidden"
 source_modules = ["ssg_syntax_highlighting"]
+forbidden_modules = ["ssg.infrastructure", "ssg.presentation"]
+
+[[tool.importlinter.contracts]]
+name = "Latex stays an SSG extension"
+type = "forbidden"
+source_modules = ["ssg_latex"]
 forbidden_modules = ["ssg.infrastructure", "ssg.presentation"]

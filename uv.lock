@@ -31,6 +31,7 @@ members = [
     "ssg",
     "ssg-i18n",
     "ssg-i18n-machine-translation",
+    "ssg-latex",
     "ssg-notebook-render",
     "ssg-syntax-highlighting",
     "videos",
@@ -5361,6 +5362,7 @@ dependencies = [
 all = [
     { name = "ssg-i18n" },
     { name = "ssg-i18n-machine-translation" },
+    { name = "ssg-latex" },
     { name = "ssg-syntax-highlighting" },
 ]
 i18n = [
@@ -5369,6 +5371,9 @@ i18n = [
 i18n-transformers = [
     { name = "ssg-i18n" },
     { name = "ssg-i18n-machine-translation" },
+]
+latex = [
+    { name = "ssg-latex" },
 ]
 syntax-highlighting = [
     { name = "ssg-syntax-highlighting" },
@@ -5386,11 +5391,13 @@ requires-dist = [
     { name = "ssg-i18n", marker = "extra == 'i18n-transformers'", editable = "libs/ssg-i18n" },
     { name = "ssg-i18n-machine-translation", extras = ["transformers"], marker = "extra == 'all'", editable = "libs/ssg-i18n-machine-translation" },
     { name = "ssg-i18n-machine-translation", extras = ["transformers"], marker = "extra == 'i18n-transformers'", editable = "libs/ssg-i18n-machine-translation" },
+    { name = "ssg-latex", marker = "extra == 'all'", editable = "libs/ssg-latex" },
+    { name = "ssg-latex", marker = "extra == 'latex'", editable = "libs/ssg-latex" },
     { name = "ssg-syntax-highlighting", marker = "extra == 'all'", editable = "libs/ssg-syntax-highlighting" },
     { name = "ssg-syntax-highlighting", marker = "extra == 'syntax-highlighting'", editable = "libs/ssg-syntax-highlighting" },
     { name = "watchdog", specifier = "==6.0.0" },
 ]
-provides-extras = ["i18n", "i18n-transformers", "syntax-highlighting", "all"]
+provides-extras = ["i18n", "i18n-transformers", "syntax-highlighting", "latex", "all"]
 
 [[package]]
 name = "ssg-i18n"
@@ -5417,6 +5424,17 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "ssg-i18n", editable = "libs/ssg-i18n" }]
+
+[[package]]
+name = "ssg-latex"
+version = "0.1.0"
+source = { editable = "libs/ssg-latex" }
+dependencies = [
+    { name = "ssg" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "ssg", editable = "libs/ssg" }]
 
 [[package]]
 name = "ssg-notebook-render"
