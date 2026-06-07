@@ -11,21 +11,27 @@ from playwright.sync_api import Page, expect
 
 
 @pytest.mark.playwright
-def test_built_site_supports_navigation_i18n_and_mobile_menu(
-    page: Page,
-) -> None:
-    site_build_path = Path("site/build")
-    assert site_build_path.exists(), (
-        "Missing site/build: expected `make build-site` before e2e"
-    )
+class TestBuiltSiteSmoke:
+    def test_built_site_supports_navigation_i18n_and_mobile_menu(
+        self,
+        page: Page,
+    ) -> None:
+        # Arrange
+        site_build_path = Path("site/build")
+        if not site_build_path.exists():
+            site_build_path = Path("../../site/build")
+        assert (
+            site_build_path.exists()
+        ), "Missing site/build: expected `make build-site` before e2e"
 
-    with _serve_directory(site_build_path) as base_url:
-        _assert_home_page(page, base_url)
-        _assert_language_switcher(page, base_url)
-        _assert_configured_pages(page, base_url)
-        _assert_notebook_and_code_pages(page, base_url)
-        _assert_static_assets(page, base_url)
-        _assert_mobile_menu(page, base_url)
+        # Act & Assert
+        with _serve_directory(site_build_path) as base_url:
+            _assert_home_page(page, base_url)
+            _assert_language_switcher(page, base_url)
+            _assert_configured_pages(page, base_url)
+            _assert_notebook_and_code_pages(page, base_url)
+            _assert_static_assets(page, base_url)
+            _assert_mobile_menu(page, base_url)
 
 
 def _assert_home_page(page: Page, base_url: str) -> None:
@@ -33,7 +39,10 @@ def _assert_home_page(page: Page, base_url: str) -> None:
     # Read the configured site title so tests remain in sync with site config
     import yaml
 
-    site_config = yaml.safe_load(Path("site/site.yaml").read_text())
+    site_config_path = Path("site/site.yaml")
+    if not site_config_path.exists():
+        site_config_path = Path("../../site/site.yaml")
+    site_config = yaml.safe_load(site_config_path.read_text())
     expected_title = site_config.get("site", {}).get("title", "")
     expect(page.locator("h1")).to_contain_text(expected_title)
     expect(page.locator(".site-header")).to_be_visible()
@@ -77,6 +86,14 @@ def _assert_page_chrome(page: Page, path: str) -> None:
     expect(page.locator(".site-header")).to_be_visible()
     expect(page.locator("#site-navigation")).to_be_visible()
 
+    if "overview.html" in path:
+        # Assert: verify that the embedded MLOps diagram is visible
+        expect(
+            page.locator(
+                "figure.image-frame img[src='assets/images/mlops_lifecycle.png']"
+            )
+        ).to_be_visible()
+
 
 def _assert_internal_links(
     page: Page,
@@ -97,9 +114,9 @@ def _assert_internal_links(
 
         checked_links.add(link_without_fragment)
         response = page.request.get(link_without_fragment)
-        assert response.status < 400, (
-            f"{path} links to {link_without_fragment}"
-        )
+        assert (
+            response.status < 400
+        ), f"{path} links to {link_without_fragment}"
 
 
 def _assert_notebook_and_code_pages(page: Page, base_url: str) -> None:
