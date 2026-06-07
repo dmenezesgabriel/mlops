@@ -15,50 +15,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  render-videos:
-    name: Render Video (${{ matrix.scene.name }})
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        scene:
-          - path: libs/videos/src/videos/concepts/bias_variance_tradeoff.py
-            name: BiasVarianceTradeoffScene
-          - path: libs/videos/src/videos/concepts/crisp_dm.py
-            name: CrispDmScene
-          - path: libs/videos/src/videos/concepts/mlops_lifecycle.py
-            name: MlopsLifecycleScene
-          - path: libs/videos/src/videos/concepts/underfit_vs_overfit.py
-            name: UnderfitVsOverfitScene
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Render video
-        run: make render-video SCENE=${{ matrix.scene.path }} SCENE_NAME=${{ matrix.scene.name }}
-
-      - name: Upload video artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: video-${{ matrix.scene.name }}
-          path: libs/videos/output/*.mp4
-          if-no-files-found: error
-
-  integration-test:
-    name: Visual Regression Test
-    runs-on: ubuntu-latest
-    needs: render-videos
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Run Docker visual regression tests
-        run: |
-          cd libs/videos && uv run pytest tests/integration/ -m docker -v
-
   build:
     name: Build Pages Artifact
     runs-on: ubuntu-latest
-    needs: [render-videos, integration-test]
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -75,13 +34,6 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --all-packages --dev --frozen
-
-      - name: Download rendered videos
-        uses: actions/download-artifact@v4
-        with:
-          pattern: video-*
-          path: libs/videos/output/
-          merge-multiple: true
 
       - name: Lint
         run: make lint
