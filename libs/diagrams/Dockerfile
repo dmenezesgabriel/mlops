@@ -6,9 +6,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY libs/diagrams/pyproject.toml pyproject.toml
-COPY libs/diagrams/src/ src/
+COPY pyproject.toml pyproject.toml
+COPY src/ src/
 
 RUN pip install --no-cache-dir uv && \
-    uv pip install --system pyyaml diagrams pytest && \
-    uv pip install --system -e . --no-deps
+    uv pip install --system -e ".[diagrams]"

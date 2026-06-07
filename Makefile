@@ -36,8 +36,8 @@ test:
 		$(MAKE) -C $$package test; \
 	done
 
-test-videos-docker: docker/manim/Dockerfile
-	docker build -f docker/manim/Dockerfile -t mlops-manim-test .
+test-videos-docker: libs/videos/Dockerfile
+	docker build -f libs/videos/Dockerfile -t mlops-manim-test libs/videos
 	docker run --rm \
 	  -v "$(CURDIR)/libs/videos/src:/app/src:ro" \
 	  -v "$(CURDIR)/libs/videos/tests:/app/tests:ro" \
@@ -86,8 +86,8 @@ build-site:
 preview-site:
 	uv run python -m ssg.presentation.cli preview --config $(SITE_CONFIG) --output $(SITE_OUTPUT)
 
-render-video: docker/manim/Dockerfile
-	docker build -f docker/manim/Dockerfile -t $(MANIM_CUSTOM_IMAGE) .
+render-video: libs/videos/Dockerfile
+	docker build -f libs/videos/Dockerfile -t $(MANIM_CUSTOM_IMAGE) libs/videos
 	mkdir -p $(VIDEO_OUTPUT_DIR)
 	chmod 777 $(VIDEO_OUTPUT_DIR)
 	docker run --rm \
@@ -116,8 +116,8 @@ check-videos:
 	$(MAKE) test-videos-docker
 	@echo "=== All video checks passed ==="
 
-diagrams-build: docker/diagrams/Dockerfile
-	docker build $(DOCKER_BUILD_FLAGS) -f docker/diagrams/Dockerfile -t mlops-diagrams-prod .
+diagrams-build: libs/diagrams/Dockerfile
+	docker build $(DOCKER_BUILD_FLAGS) -f libs/diagrams/Dockerfile -t mlops-diagrams-prod libs/diagrams
 
 diagrams-render:
 	mkdir -p diagrams/output
@@ -131,8 +131,8 @@ diagrams-render:
 render-diagram: diagrams-build
 	$(MAKE) diagrams-render
 
-test-diagrams-docker:
-	docker build $(DOCKER_BUILD_FLAGS) -f docker/diagrams/Dockerfile -t mlops-diagrams-test .
+test-diagrams-docker: libs/diagrams/Dockerfile
+	docker build $(DOCKER_BUILD_FLAGS) -f libs/diagrams/Dockerfile -t mlops-diagrams-test libs/diagrams
 	docker run --rm \
 	  -v "$(CURDIR)/libs/diagrams/src:/app/src:ro" \
 	  -v "$(CURDIR)/libs/diagrams/tests:/app/tests:ro" \

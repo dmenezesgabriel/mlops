@@ -101,8 +101,8 @@ jobs:
       - name: Build diagrams image
         uses: docker/build-push-action@v7
         with:
-          context: .
-          file: docker/diagrams/Dockerfile
+          context: libs/diagrams
+          file: libs/diagrams/Dockerfile
           tags: mlops-diagrams-prod
           load: true
           cache-from: type=gha
