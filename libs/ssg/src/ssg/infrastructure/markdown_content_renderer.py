@@ -97,6 +97,9 @@ class MarkdownContentRenderer(ContentRenderer):
             embed_video=lambda video_name: self._embed_video(
                 collection, context, page, video_name, transclusions
             ),
+            embed_image=lambda image_name: self._embed_image(
+                collection, context, page, image_name, transclusions
+            ),
         )
 
     def _include_source(
@@ -119,6 +122,16 @@ class MarkdownContentRenderer(ContentRenderer):
             self._fragment_renderer.render_source_panel(source, source_path),
         )
 
+    def _resolve_output_path(
+        self, base_output_path: Path, source_path: Path
+    ) -> Path:
+        parts = source_path.parts
+        if "generated-i18n" in parts:
+            index = parts.index("generated-i18n")
+            if index + 1 < len(parts):
+                return base_output_path / parts[index + 1]
+        return base_output_path
+
     def _embed_video(
         self,
         collection: ContentCollection,
@@ -137,7 +150,7 @@ class MarkdownContentRenderer(ContentRenderer):
             )
 
         video_output_path = (
-            context.output_path
+            self._resolve_output_path(context.output_path, page.source_path)
             / collection.output_slug
             / "assets"
             / "videos"
@@ -149,6 +162,39 @@ class MarkdownContentRenderer(ContentRenderer):
             transclusions,
             self._fragment_renderer.render_video_frame(
                 source_path.name, video_name
+            ),
+        )
+
+    def _embed_image(
+        self,
+        collection: ContentCollection,
+        context: BuildContext,
+        page: Page,
+        image_name: str,
+        transclusions: dict[str, Markup],
+    ) -> Markup:
+        source_path = collection.image_path(image_name).resolve()
+        if context.dependency_tracker is not None:
+            context.dependency_tracker.register_dependency(page, source_path)
+
+        if not source_path.exists():
+            raise FileNotFoundError(
+                f"Missing rendered site image {source_path}: expected existing png/jpg asset",
+            )
+
+        image_output_path = (
+            self._resolve_output_path(context.output_path, page.source_path)
+            / collection.output_slug
+            / "assets"
+            / "images"
+            / source_path.name
+        )
+        image_output_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_path, image_output_path)
+        return self._store_transclusion(
+            transclusions,
+            self._fragment_renderer.render_image_frame(
+                source_path.name, image_name
             ),
         )
 

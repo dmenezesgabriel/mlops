@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -24,6 +24,7 @@ class ContentCollection:
     output_slug: str
     pages: tuple[Page, ...]
     videos: dict[str, Path]
+    images: dict[str, Path] = field(default_factory=dict)
 
     def source_file(self, relative_path: str) -> Path:
         resolved_path = (self.source_root / relative_path).resolve()
@@ -45,6 +46,14 @@ class ContentCollection:
 
         raise ValueError(
             f"Unknown collection video {video_name}: expected one of {sorted(self.videos)}",
+        )
+
+    def image_path(self, image_name: str) -> Path:
+        if image_name in self.images:
+            return self.images[image_name]
+
+        raise ValueError(
+            f"Unknown collection image {image_name}: expected one of {sorted(self.images)}",
         )
 
     def page_href(self, page_slug: str) -> str:

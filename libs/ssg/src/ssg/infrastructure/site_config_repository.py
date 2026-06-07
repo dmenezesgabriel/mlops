@@ -59,6 +59,7 @@ class SiteConfigRepository(SiteRepository):
                 )
             ),
             videos=self._read_videos(collection, config_path),
+            images=self._read_images(collection, config_path),
         )
 
     def _read_page(
@@ -94,6 +95,26 @@ class SiteConfigRepository(SiteRepository):
         return {
             str(name): self._path_from_config(config_path, str(video_path))
             for name, video_path in videos.items()
+        }
+
+    def _read_images(
+        self, collection: Mapping[object, object], config_path: Path
+    ) -> dict[str, Path]:
+        assets = collection.get("assets", {})
+        if not isinstance(assets, dict):
+            raise ValueError(
+                f"Invalid assets in {config_path}: expected mapping"
+            )
+
+        images = assets.get("images", {})
+        if not isinstance(images, dict):
+            raise ValueError(
+                f"Invalid asset images in {config_path}: expected mapping"
+            )
+
+        return {
+            str(name): self._path_from_config(config_path, str(image_path))
+            for name, image_path in images.items()
         }
 
     def _read_extensions(

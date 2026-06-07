@@ -152,6 +152,7 @@ class I18nSiteVariantProvider(SiteVariantProvider):
                 for page in collection.pages
             ),
             videos=collection.videos,
+            images=collection.images,
         )
 
     def _localized_page(
