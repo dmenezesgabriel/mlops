@@ -14,18 +14,27 @@ install:
 	uv sync --all-packages --dev --extra notebooks
 	uv run pre-commit install
 
+PACKAGES = libs/mlops-shared libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting libs/ssg-latex libs/videos projects/$(PROJECT)
+
 format:
-	uv run ruff format --quiet .
+	for package in $(PACKAGES); do \
+		$(MAKE) -C $$package format; \
+	done
 
 lint:
-	uv run ruff format --check --quiet .
-	uv run ruff check --quiet .
+	for package in $(PACKAGES); do \
+		$(MAKE) -C $$package lint; \
+	done
 
 type-check:
-	uv run mypy
+	for package in $(PACKAGES); do \
+		$(MAKE) -C $$package type-check; \
+	done
 
 test:
-	uv run pytest -m "not (playwright or docker)"
+	for package in $(PACKAGES); do \
+		$(MAKE) -C $$package test; \
+	done
 
 test-videos-docker: docker/manim/Dockerfile
 	docker build -f docker/manim/Dockerfile -t mlops-manim-test .
@@ -39,23 +48,22 @@ test-bdd:
 	uv run pytest projects/$(PROJECT)/tests/bdd
 
 test-e2e:
-	uv run pytest libs projects -m playwright
+	$(MAKE) -C libs/ssg test-e2e
 
 coverage:
-	uv run pytest --cov --cov-report=term-missing:skip-covered
+	for package in $(PACKAGES); do \
+		$(MAKE) -C $$package coverage; \
+	done
 
 complexity:
-	tmp=$$(mktemp); \
-	uv run radon cc libs projects -s -n C -x "*/node_modules/*" > $$tmp 2>&1 || { cat $$tmp; rm -f $$tmp; exit 1; }; \
-	if [ -s $$tmp ]; then cat $$tmp; rm -f $$tmp; exit 1; fi; \
-	rm -f $$tmp
+	for package in $(PACKAGES); do \
+		$(MAKE) -C $$package complexity; \
+	done
 
 dependencies:
-	tmp=$$(mktemp); \
-	for package in libs/mlops-shared libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting libs/ssg-latex libs/videos projects/$(PROJECT); do \
-		(cd $$package && uv run deptry .) >> $$tmp 2>&1 || { cat $$tmp; rm -f $$tmp; exit 1; }; \
-	done; \
-	rm -f $$tmp
+	for package in $(PACKAGES); do \
+		$(MAKE) -C $$package dependencies; \
+	done
 
 architecture:
 	tmp=$$(mktemp); \
@@ -63,9 +71,9 @@ architecture:
 	rm -f $$tmp
 
 security:
-	tmp=$$(mktemp); \
-	uv run semgrep --quiet --config auto . > $$tmp 2>&1 || { cat $$tmp; rm -f $$tmp; exit 1; }; \
-	rm -f $$tmp
+	for package in $(PACKAGES); do \
+		$(MAKE) -C $$package security; \
+	done
 
 quality: lint type-check test coverage complexity dependencies architecture security
 

@@ -4,7 +4,6 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-
 from videos.core.application.director import Director
 from videos.core.ports.renderer import RenderResult
 from videos.validation.linter_service import LinterError

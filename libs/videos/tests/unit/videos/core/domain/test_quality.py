@@ -1,5 +1,4 @@
 import pytest
-
 from videos.core.domain.quality import QualityReport, RuleViolation
 
 VIOLATION = RuleViolation(

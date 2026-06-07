@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import cast
 
 import pytest
-
 from videos.core.application.render_pipeline import RenderPipeline
 from videos.core.domain.layout import LayoutRegion, LayoutSpec
 from videos.core.domain.scene_spec import SceneSpec

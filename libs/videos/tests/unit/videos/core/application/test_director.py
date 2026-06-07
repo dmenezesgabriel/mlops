@@ -5,7 +5,6 @@ from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
-
 from videos.concepts.registry import ConceptRegistry
 from videos.core.application.director import Director
 from videos.core.domain.concept import (

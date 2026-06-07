@@ -1,8 +1,5 @@
 .SILENT:
-.PHONY: collect preprocess features train tune evaluate deploy monitor format lint type-check test coverage complexity dependencies security quality
-
-collect preprocess features train tune evaluate deploy monitor:
-	uv run python -m nyc_taxi_demand_forecasting.interfaces.cli $@ --config configs/project.yaml
+.PHONY: format lint type-check test test-docker coverage complexity dependencies security quality
 
 format:
 	uv run ruff format .
@@ -15,10 +12,13 @@ type-check:
 	uv run mypy src
 
 test:
-	uv run pytest
+	uv run pytest -m "not docker"
+
+test-docker:
+	make -C ../.. test-videos-docker
 
 coverage:
-	uv run pytest --cov --cov-report=term-missing:skip-covered
+	uv run pytest -m "not docker" --cov --cov-report=term-missing:skip-covered
 
 complexity:
 	tmp=$$(mktemp); \

@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from videos.concepts.registry import ConceptRegistry
 from videos.core.application.quality_gate import QualityGate
 from videos.core.application.render_pipeline import RenderPipeline

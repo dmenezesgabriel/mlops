@@ -1,5 +1,4 @@
 import pytest
-
 from videos.concepts.base import ConceptExtension
 from videos.concepts.registry import ConceptRegistry, UnknownConceptError
 from videos.core.domain.concept import (

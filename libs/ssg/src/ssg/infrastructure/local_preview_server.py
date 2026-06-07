@@ -20,10 +20,11 @@ class LiveReloadRequestHandler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def _handle_live_reload(self) -> None:
+        self.close_connection = True
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
-        self.send_header("Connection", "keep-alive")
+        self.send_header("Connection", "close")
         self.end_headers()
 
         client_queue: queue.Queue[str] = queue.Queue()
@@ -52,6 +53,7 @@ class LocalPreviewServer:
             directory=str(directory),
         )
         self._httpd = ThreadingHTTPServer((host, port), handler)
+        self._httpd.daemon_threads = True
         try:
             self._httpd.serve_forever(poll_interval=0.5)
         finally:

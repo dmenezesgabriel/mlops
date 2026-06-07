@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 from PIL import Image, ImageDraw
-
 from videos.validation.visual_linter import DensityAnalyzer
 
 

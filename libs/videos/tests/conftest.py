@@ -1,5 +1,4 @@
 import pytest
-
 from videos.concepts.registry import ConceptRegistry
 
 

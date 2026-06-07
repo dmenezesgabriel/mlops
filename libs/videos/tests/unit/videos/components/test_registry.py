@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from videos.components.registry import ComponentRegistry
 from videos.core.domain.scene_spec import ComponentSpec
 

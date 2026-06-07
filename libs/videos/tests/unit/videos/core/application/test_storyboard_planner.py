@@ -1,5 +1,4 @@
 import pytest
-
 from videos.core.application.storyboard_planner import StoryboardPlanner
 from videos.core.domain.concept import (
     Concept,
