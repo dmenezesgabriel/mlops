@@ -42,7 +42,7 @@ test-videos-docker: docker/manim/Dockerfile
 	  -v "$(CURDIR)/libs/videos/src:/app/src:ro" \
 	  -v "$(CURDIR)/libs/videos/tests:/app/tests:ro" \
 	  mlops-manim-test sh -lc \
-	  '. /opt/venv/bin/activate && python -m pytest /app/tests/integration/ -m docker -v'
+	  '. /opt/venv/bin/activate && python -m pytest /app/tests/integration/ -m docker -q -ra --tb=short'
 
 test-bdd:
 	uv run pytest projects/$(PROJECT)/tests/bdd
@@ -111,7 +111,7 @@ check-videos:
 	@echo "=== Type-checking video source ==="
 	uv run mypy libs/videos/src/videos/ --no-error-summary
 	@echo "=== Running video unit tests ==="
-	uv run pytest libs/videos/tests/ -m "not docker" -v -q
+	uv run pytest libs/videos/tests/ -m "not docker" -q -ra --tb=short
 	@echo "=== Running Docker visual regression tests ==="
 	$(MAKE) test-videos-docker
 	@echo "=== All video checks passed ==="
@@ -131,7 +131,7 @@ test-diagrams-docker: docker/diagrams/Dockerfile
 	docker run --rm \
 	  -v "$(CURDIR)/libs/diagrams/src:/app/src:ro" \
 	  -v "$(CURDIR)/libs/diagrams/tests:/app/tests:ro" \
-	  mlops-diagrams-test pytest /app/tests/ -v
+	  mlops-diagrams-test pytest /app/tests/ -q -ra --tb=short
 
 collect preprocess features train tune evaluate deploy monitor:
 	uv run python -m $(PROJECT).interfaces.cli $@ --config projects/$(PROJECT)/configs/project.yaml
