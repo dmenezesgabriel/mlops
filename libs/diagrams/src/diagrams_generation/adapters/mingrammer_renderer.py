@@ -55,7 +55,9 @@ class MingrammerDiagramRenderer:
         cluster_class: Any,
     ) -> None:
         for cluster in definition.clusters:
-            with cluster_class(cluster.name):
+            with cluster_class(
+                cluster.name, graph_attr={"margin": "20", "fontsize": "13"}
+            ):
                 for node in cluster.nodes:
                     node_class = self._resolve_node_class(node.node_type)
                     instances[node.identifier] = node_class(node.label)
@@ -91,6 +93,8 @@ class MingrammerDiagramRenderer:
             direction=definition.direction,
             show=False,
             outformat="png",
+            graph_attr=definition.graph_attr,
+            node_attr=definition.node_attr,
         ):
             instances: dict[str, Any] = {}
             self._instantiate_nodes(definition, instances)
