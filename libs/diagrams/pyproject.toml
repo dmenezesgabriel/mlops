@@ -18,6 +18,7 @@ diagrams-cli = "diagrams_generation.presentation.cli:main"
 [tool.deptry]
 known_first_party = ["diagrams_generation"]
 package_module_name_map = {diagrams-generation = "diagrams_generation"}
+per_rule_ignores = {DEP002 = ["diagrams"]}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

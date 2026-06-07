@@ -20,9 +20,9 @@ class TestBuiltSiteSmoke:
         site_build_path = Path("site/build")
         if not site_build_path.exists():
             site_build_path = Path("../../site/build")
-        assert (
-            site_build_path.exists()
-        ), "Missing site/build: expected `make build-site` before e2e"
+        assert site_build_path.exists(), (
+            "Missing site/build: expected `make build-site` before e2e"
+        )
 
         # Act & Assert
         with _serve_directory(site_build_path) as base_url:
@@ -114,9 +114,9 @@ def _assert_internal_links(
 
         checked_links.add(link_without_fragment)
         response = page.request.get(link_without_fragment)
-        assert (
-            response.status < 400
-        ), f"{path} links to {link_without_fragment}"
+        assert response.status < 400, (
+            f"{path} links to {link_without_fragment}"
+        )
 
 
 def _assert_notebook_and_code_pages(page: Page, base_url: str) -> None:
