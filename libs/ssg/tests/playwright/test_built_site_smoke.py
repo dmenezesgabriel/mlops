@@ -120,9 +120,7 @@ def _assert_internal_links(
 
 
 def _assert_notebook_and_code_pages(page: Page, base_url: str) -> None:
-    notebook_path = (
-        "/nyc-taxi-demand-forecasting/feature-engineering-notebook.html"
-    )
+    notebook_path = "/nyc-taxi-demand-forecasting/feature-engineering.html"
     page.goto(f"{base_url}{notebook_path}", wait_until="networkidle")
     expect(page.locator(".notebook-cell").first).to_be_visible()
     # Notebook rendering uses `.notebook-input` for code cells in the current
@@ -130,9 +128,7 @@ def _assert_notebook_and_code_pages(page: Page, base_url: str) -> None:
     expect(page.locator(".notebook-input").first).to_be_visible()
     expect(page.locator(".highlight-token").first).to_be_visible()
 
-    code_path = (
-        "/nyc-taxi-demand-forecasting/feature-store-with-feast-duckdb.html"
-    )
+    code_path = "/nyc-taxi-demand-forecasting/model-evaluation.html"
     page.goto(f"{base_url}{code_path}", wait_until="networkidle")
     expect(page.locator(".highlight-token").first).to_be_visible()
     expect(page.locator(".article-toc")).to_be_visible()
@@ -163,15 +159,16 @@ def _assert_mobile_menu(page: Page, base_url: str) -> None:
 
 
 def _configured_paths() -> tuple[str, ...]:
+    # Keep in sync with slugs listed in site/site.yaml → pages[].slug
     return (
         "/",
         "/nyc-taxi-demand-forecasting/overview.html",
         "/nyc-taxi-demand-forecasting/problem-framing.html",
-        "/nyc-taxi-demand-forecasting/dataset-collection.html",
-        "/nyc-taxi-demand-forecasting/event-logs-to-supervised-learning.html",
-        "/nyc-taxi-demand-forecasting/feature-store-with-feast-duckdb.html",
-        "/nyc-taxi-demand-forecasting/feature-engineering-notebook.html",
-        "/nyc-taxi-demand-forecasting/mlflow-model-registry.html",
+        "/nyc-taxi-demand-forecasting/data-collection.html",
+        "/nyc-taxi-demand-forecasting/exploratory-data-analysis.html",
+        "/nyc-taxi-demand-forecasting/data-preprocessing.html",
+        "/nyc-taxi-demand-forecasting/feature-engineering.html",
+        "/nyc-taxi-demand-forecasting/model-training.html",
         "/pt-BR/",
         "/pt-BR/nyc-taxi-demand-forecasting/overview.html",
     )
