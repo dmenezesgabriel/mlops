@@ -1,0 +1,28 @@
+[project]
+name = "diagrams-generation"
+version = "0.1.0"
+description = "Declarative Diagram-as-code generator engine"
+requires-python = ">=3.11"
+dependencies = [
+    "pyyaml>=6.0.3",
+]
+
+[project.optional-dependencies]
+diagrams = [
+    "diagrams>=0.23.4",
+]
+
+[project.scripts]
+diagrams-cli = "diagrams_generation.presentation.cli:main"
+
+[tool.deptry]
+known_first_party = ["diagrams_generation"]
+package_module_name_map = {diagrams-generation = "diagrams_generation"}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -ra --tb=short --import-mode=importlib"
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"

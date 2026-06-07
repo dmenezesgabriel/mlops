@@ -14,7 +14,7 @@ install:
 	uv sync --all-packages --dev --extra notebooks
 	uv run pre-commit install
 
-PACKAGES = libs/mlops-shared libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting libs/ssg-latex libs/videos projects/$(PROJECT)
+PACKAGES = libs/mlops-shared libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting libs/ssg-latex libs/videos libs/diagrams projects/$(PROJECT)
 
 format:
 	for package in $(PACKAGES); do \
@@ -116,5 +116,23 @@ check-videos:
 	$(MAKE) test-videos-docker
 	@echo "=== All video checks passed ==="
 
+render-diagram: docker/diagrams/Dockerfile
+	docker build -f docker/diagrams/Dockerfile -t mlops-diagrams-prod .
+	mkdir -p diagrams/output
+	chmod 777 diagrams/output
+	docker run --rm \
+	  -v "$(CURDIR)/libs/diagrams/src:/app/src:ro" \
+	  -v "$(CURDIR)/diagrams/definition:/app/definition:ro" \
+	  -v "$(CURDIR)/diagrams/output:/app/output:delegated" \
+	  mlops-diagrams-prod diagrams-cli mlops_lifecycle --definitions-dir /app/definition --output-dir /app/output
+
+test-diagrams-docker: docker/diagrams/Dockerfile
+	docker build -f docker/diagrams/Dockerfile -t mlops-diagrams-test .
+	docker run --rm \
+	  -v "$(CURDIR)/libs/diagrams/src:/app/src:ro" \
+	  -v "$(CURDIR)/libs/diagrams/tests:/app/tests:ro" \
+	  mlops-diagrams-test pytest /app/tests/ -v
+
 collect preprocess features train tune evaluate deploy monitor:
 	uv run python -m $(PROJECT).interfaces.cli $@ --config projects/$(PROJECT)/configs/project.yaml
+

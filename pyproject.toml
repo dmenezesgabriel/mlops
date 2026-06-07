@@ -36,6 +36,7 @@ members = [
   "libs/ssg-latex",
   "projects/nyc_taxi_demand_forecasting",
   "libs/videos",
+  "libs/diagrams",
 ]
 
 [tool.ruff]
@@ -83,6 +84,7 @@ packages = [
   "ssg_syntax_highlighting",
   "ssg_latex",
   "videos",
+  "diagrams_generation",
 ]
 
 
@@ -97,6 +99,7 @@ known_first_party = [
   "ssg_syntax_highlighting",
   "ssg_latex",
   "videos",
+  "diagrams_generation",
 ]
 
 [tool.importlinter]
@@ -110,12 +113,13 @@ root_packages = [
   "ssg_syntax_highlighting",
   "ssg_latex",
   "videos",
+  "diagrams_generation",
 ]
 
 [[tool.importlinter.contracts]]
 name = "Shared libraries do not import projects"
 type = "forbidden"
-source_modules = ["mlops_shared", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex"]
+source_modules = ["mlops_shared", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "diagrams_generation"]
 forbidden_modules = ["nyc_taxi_demand_forecasting"]
 
 [[tool.importlinter.contracts]]
@@ -172,3 +176,10 @@ name = "Latex stays an SSG extension"
 type = "forbidden"
 source_modules = ["ssg_latex"]
 forbidden_modules = ["ssg.infrastructure", "ssg.presentation"]
+
+[[tool.importlinter.contracts]]
+name = "Diagrams generation stays independent"
+type = "forbidden"
+source_modules = ["diagrams_generation"]
+forbidden_modules = ["mlops_shared", "nyc_taxi_demand_forecasting", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "videos"]
+
