@@ -1,0 +1,54 @@
+name: "MLOps Lifecycle Stages"
+filename: "mlops_lifecycle"
+direction: "LR"
+
+clusters:
+  - name: "Data Engineering"
+    nodes:
+      - id: raw_data
+        label: "TLC Taxi Raw Data\n(Data Ingestion)"
+        type: "generic.storage.Storage"
+      - id: preprocess
+        label: "Preprocessing\n(DuckDB)"
+        type: "onprem.database.PostgreSQL"
+      - id: features
+        label: "Feature Store\n(Feast)"
+        type: "onprem.inmemory.Redis"
+
+  - name: "Model Engineering"
+    nodes:
+      - id: train_tune
+        label: "Model Training & Tuning\n(Ridge Regressor)"
+        type: "onprem.compute.Server"
+      - id: registry
+        label: "Model Registry\n(MLflow)"
+        type: "onprem.mlops.Mlflow"
+
+  - name: "Model Operations"
+    nodes:
+      - id: deploy
+        label: "Inference Serving\n(FastAPI)"
+        type: "onprem.network.Nginx"
+      - id: monitor
+        label: "Model Monitoring\n(Drift & Metrics)"
+        type: "onprem.monitoring.Prometheus"
+
+connections:
+  - from: raw_data
+    to: preprocess
+    label: "ingest"
+  - from: preprocess
+    to: features
+    label: "register"
+  - from: features
+    to: train_tune
+    label: "train"
+  - from: train_tune
+    to: registry
+    label: "log model"
+  - from: registry
+    to: deploy
+    label: "serve"
+  - from: deploy
+    to: monitor
+    label: "observe"
