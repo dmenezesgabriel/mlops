@@ -21,7 +21,9 @@ TEST_YAML_DIR = Path(__file__).parents[3] / "fixtures" / "concepts"
 
 
 class StubRenderer(Renderer):
-    def render(self, scene_job: object, output_path: Path) -> RenderResult:
+    def render(
+        self, scene_job: object, output_path: Path, quality: str = "preview"
+    ) -> RenderResult:
         return RenderResult(
             output_path=output_path, duration_ms=100.0, success=True
         )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 import uuid
 from collections.abc import Sequence
@@ -73,12 +74,28 @@ class RenderPipeline:
         quality: str,
         correlation_id: str,
     ) -> RenderResult:
-        positioned = self._layout_engine.apply(scene_spec)
-        built_scene = self._scene_builder.build(positioned)
-        output_path = self._artifact_store.resolve_output_path(
-            concept_id, quality
+        renderer_context = (
+            self._renderer.quality_context(quality)
+            if hasattr(self._renderer, "quality_context")
+            else contextlib.nullcontext()
         )
-        result = self._renderer.render(built_scene, output_path)
+        with renderer_context:
+            positioned = self._layout_engine.apply(scene_spec)
+            built_scene = self._scene_builder.build(positioned)
+            if hasattr(self._artifact_store, "resolve_scene_preview_path"):
+                output_path = self._artifact_store.resolve_scene_preview_path(
+                    concept_id, scene_spec.scene_id
+                )
+            else:
+                base_path = self._artifact_store.resolve_output_path(
+                    concept_id, quality
+                )
+                output_path = base_path.with_name(
+                    f"{concept_id}_{scene_spec.scene_id}.mp4"
+                )
+            result = self._renderer.render(
+                built_scene, output_path, quality=quality
+            )
         self._telemetry.record_event(
             "scene_rendered",
             {

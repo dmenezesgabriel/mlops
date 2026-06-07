@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 from typing import TYPE_CHECKING
 
@@ -37,11 +38,19 @@ class FinalRenderStep:
         if context.storyboard is None:
             return context
 
-        full_scene = self._build_full_storyboard(context.storyboard)
-        final_path = self._artifact_store.resolve_output_path(
-            context.concept_id, "final"
+        renderer_context = (
+            self._renderer.quality_context(context.quality)
+            if hasattr(self._renderer, "quality_context")
+            else contextlib.nullcontext()
         )
-        result = self._renderer.render(full_scene, final_path, quality="final")
+        with renderer_context:
+            full_scene = self._build_full_storyboard(context.storyboard)
+            final_path = self._artifact_store.resolve_output_path(
+                context.concept_id, "final"
+            )
+            result = self._renderer.render(
+                full_scene, final_path, quality="final"
+            )
 
         if not result.success:
             raise RuntimeError(

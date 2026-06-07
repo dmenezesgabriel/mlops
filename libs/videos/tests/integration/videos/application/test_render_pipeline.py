@@ -27,7 +27,9 @@ from videos.infrastructure.manim.scene_builder import (
 
 
 class StubRenderer(Renderer):
-    def render(self, scene_job: object, output_path: Path) -> RenderResult:
+    def render(
+        self, scene_job: object, output_path: Path, quality: str = "preview"
+    ) -> RenderResult:
         return RenderResult(
             output_path=output_path, duration_ms=50.0, success=True
         )
