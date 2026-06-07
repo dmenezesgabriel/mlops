@@ -10,6 +10,8 @@ extensions:
     translation_mode: manual
   syntax_highlighting:
     style: gruvbox-dark
+  latex:
+    katex_css_url: https://cdn.jsdelivr.net/npm/katex@0.17.0/dist/katex.min.css
 collections:
   - name: nyc_taxi_demand_forecasting
     title: NYC Taxi Demand Forecasting

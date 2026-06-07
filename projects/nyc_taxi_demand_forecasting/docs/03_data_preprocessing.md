@@ -34,8 +34,10 @@ For time-series forecasting, the best predictor of tomorrow's demand is yesterda
 ### Cyclical Temporal Encoding
 Standard temporal features (like `hour` from $0$ to $23$) are linear inputs. A linear model struggles to understand that hour 23 and hour 0 are consecutive. To preserve this periodic proximity, we transform the features using **sine and cosine encodings**:
 
-$$\text{hour\_sin} = \sin\left(\frac{2\pi \cdot \text{hour}}{24}\right), \quad \text{hour\_cos} = \cos\left(\frac{2\pi \cdot \text{hour}}{24}\right)$$
-$$\text{day\_of\_week\_sin} = \sin\left(\frac{2\pi \cdot \text{day\_of\_week}}{7}\right), \quad \text{day\_of\_week\_cos} = \cos\left(\frac{2\pi \cdot \text{day\_of\_week}}{7}\right)$$
+$$\text{hour\_sin} = \sin\left(\frac{2\pi \cdot \text{hour}}{24}\right)$$
+$$\text{hour\_cos} = \cos\left(\frac{2\pi \cdot \text{hour}}{24}\right)$$
+$$\text{day\_of\_week\_sin} = \sin\left(\frac{2\pi \cdot \text{day\_of\_week}}{7}\right)$$
+$$\text{day\_of\_week\_cos} = \cos\left(\frac{2\pi \cdot \text{day\_of\_week}}{7}\right)$$
 
 This maps hour/day variables onto a unit circle, ensuring that periodic boundaries are represented smoothly.
 
