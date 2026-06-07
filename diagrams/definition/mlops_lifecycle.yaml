@@ -1,54 +1,79 @@
-name: "MLOps Lifecycle Stages"
+name: "MLOps Lifecycle"
 filename: "mlops_lifecycle"
+# LR matches AWS Figure 3 horizontal layout; avoids column-split artifacts
+# from the feedback edge that occur in TB mode.
 direction: "LR"
 
+# Graphviz layout tuning — tighter padding so the image fits the site embed
+# without excessive blank space around the diagram content.
+graph_attr:
+  pad: "0.35"
+  ranksep: "0.55"
+  nodesep: "0.4"
+
+# Slightly larger node labels than the library default (13pt) for readability.
+node_attr:
+  fontsize: "14"
+
 clusters:
-  - name: "Data Engineering"
+  - name: "Business Goal"
     nodes:
-      - id: raw_data
-        label: "TLC Taxi Raw Data\n(Data Ingestion)"
-        type: "generic.storage.Storage"
+      - id: business_goal
+        label: "Define\nBusiness Goal"
+        type: "programming.flowchart.Action"
+      - id: ml_problem
+        label: "Define\nML Problem"
+        type: "programming.flowchart.Action"
+
+  - name: "Data Processing"
+    nodes:
+      - id: collect_data
+        label: "Collect\nData"
+        type: "programming.flowchart.Database"
       - id: preprocess
-        label: "Preprocessing\n(DuckDB)"
-        type: "onprem.database.PostgreSQL"
-      - id: features
-        label: "Feature Store\n(Feast)"
-        type: "onprem.inmemory.Redis"
+        label: "Pre-process Data &\nEngineer Features"
+        type: "programming.flowchart.Action"
 
-  - name: "Model Engineering"
+  - name: "Model Development"
     nodes:
-      - id: train_tune
-        label: "Model Training & Tuning\n(Ridge Regressor)"
-        type: "onprem.compute.Server"
-      - id: registry
-        label: "Model Registry\n(MLflow)"
-        type: "onprem.mlops.Mlflow"
+      - id: training
+        label: "Model Training\n& Tuning"
+        type: "programming.flowchart.Action"
+      - id: evaluation
+        label: "Model\nEvaluation"
+        type: "programming.flowchart.Inspection"
 
-  - name: "Model Operations"
+  - name: "Deployment & Monitoring"
     nodes:
-      - id: deploy
-        label: "Inference Serving\n(FastAPI)"
-        type: "onprem.network.Nginx"
-      - id: monitor
-        label: "Model Monitoring\n(Drift & Metrics)"
-        type: "onprem.monitoring.Prometheus"
+      - id: deployment
+        label: "Model\nDeployment"
+        type: "programming.flowchart.Action"
+      - id: monitoring
+        label: "Model\nMonitoring"
+        type: "programming.flowchart.Inspection"
+
+nodes:
+  - id: start
+    label: "Start"
+    type: "programming.flowchart.StartEnd"
 
 connections:
-  - from: raw_data
+  - from: start
+    to: business_goal
+  - from: business_goal
+    to: ml_problem
+  - from: ml_problem
+    to: collect_data
+  - from: collect_data
     to: preprocess
-    label: "ingest"
   - from: preprocess
-    to: features
-    label: "register"
-  - from: features
-    to: train_tune
-    label: "train"
-  - from: train_tune
-    to: registry
-    label: "log model"
-  - from: registry
-    to: deploy
-    label: "serve"
-  - from: deploy
-    to: monitor
-    label: "observe"
+    to: training
+  - from: training
+    to: evaluation
+  - from: evaluation
+    to: deployment
+  - from: deployment
+    to: monitoring
+  - from: monitoring
+    to: collect_data
+    label: "retrain /\ndrift detected"
