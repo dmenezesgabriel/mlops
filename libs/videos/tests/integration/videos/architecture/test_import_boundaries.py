@@ -1,23 +1,23 @@
 class TestImportBoundaries:
     def test_core_domain_does_not_import_manim(self) -> None:
-        import videos.core.domain.concept
-        import videos.core.domain.layout
-        import videos.core.domain.narrative
-        import videos.core.domain.quality
-        import videos.core.domain.scene_spec
-        import videos.core.domain.storyboard
-        import videos.core.domain.style
-        import videos.core.domain.timeline
+        import videos.domain.concept
+        import videos.domain.layout
+        import videos.domain.narrative
+        import videos.domain.quality
+        import videos.domain.scene_spec
+        import videos.domain.storyboard
+        import videos.domain.style
+        import videos.domain.timeline
 
         mods = [
-            videos.core.domain.concept,
-            videos.core.domain.narrative,
-            videos.core.domain.storyboard,
-            videos.core.domain.scene_spec,
-            videos.core.domain.layout,
-            videos.core.domain.timeline,
-            videos.core.domain.style,
-            videos.core.domain.quality,
+            videos.domain.concept,
+            videos.domain.narrative,
+            videos.domain.storyboard,
+            videos.domain.scene_spec,
+            videos.domain.layout,
+            videos.domain.timeline,
+            videos.domain.style,
+            videos.domain.quality,
         ]
         for mod in mods:
             src = getattr(mod, "__file__", "") or ""
@@ -26,16 +26,16 @@ class TestImportBoundaries:
             assert "manim" not in content.lower(), f"{src} imports manim"
 
     def test_core_application_does_not_import_manim(self) -> None:
-        import videos.core.application.director
-        import videos.core.application.quality_gate
-        import videos.core.application.render_pipeline
-        import videos.core.application.storyboard_planner
+        import videos.application.director
+        import videos.application.quality_gate
+        import videos.application.render_pipeline
+        import videos.application.storyboard_planner
 
         mods = [
-            videos.core.application.director,
-            videos.core.application.storyboard_planner,
-            videos.core.application.quality_gate,
-            videos.core.application.render_pipeline,
+            videos.application.director,
+            videos.application.storyboard_planner,
+            videos.application.quality_gate,
+            videos.application.render_pipeline,
         ]
         for mod in mods:
             src = getattr(mod, "__file__", "") or ""
@@ -44,16 +44,16 @@ class TestImportBoundaries:
             assert "manim" not in content.lower(), f"{src} imports manim"
 
     def test_validation_does_not_import_manim(self) -> None:
-        import videos.validation.layout_rules
-        import videos.validation.scene_rules
-        import videos.validation.text_rules
-        import videos.validation.timeline_rules
+        import videos.domain.validation.layout_rules
+        import videos.domain.validation.scene_rules
+        import videos.domain.validation.text_rules
+        import videos.domain.validation.timeline_rules
 
         mods = [
-            videos.validation.text_rules,
-            videos.validation.layout_rules,
-            videos.validation.timeline_rules,
-            videos.validation.scene_rules,
+            videos.domain.validation.text_rules,
+            videos.domain.validation.layout_rules,
+            videos.domain.validation.timeline_rules,
+            videos.domain.validation.scene_rules,
         ]
         for mod in mods:
             src = getattr(mod, "__file__", "") or ""

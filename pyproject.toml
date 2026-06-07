@@ -183,3 +183,16 @@ type = "forbidden"
 source_modules = ["diagrams_generation"]
 forbidden_modules = ["mlops_shared", "nyc_taxi_demand_forecasting", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "videos"]
 
+[[tool.importlinter.contracts]]
+name = "Videos domain stays independent"
+type = "forbidden"
+source_modules = ["videos.domain"]
+forbidden_modules = ["videos.infrastructure", "videos.presentation", "videos.application"]
+
+[[tool.importlinter.contracts]]
+name = "Videos application stays adapter independent"
+type = "forbidden"
+source_modules = ["videos.application"]
+forbidden_modules = ["videos.infrastructure", "videos.presentation"]
+
+

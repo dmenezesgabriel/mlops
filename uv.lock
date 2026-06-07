@@ -5924,10 +5924,12 @@ source = { editable = "libs/videos" }
 dependencies = [
     { name = "pillow" },
     { name = "pydantic" },
-    { name = "pyyaml" },
 ]
 
 [package.optional-dependencies]
+concepts = [
+    { name = "pyyaml" },
+]
 manim = [
     { name = "manim" },
 ]
@@ -5937,7 +5939,7 @@ requires-dist = [
     { name = "manim", marker = "extra == 'manim'" },
     { name = "pillow", specifier = ">=10.0" },
     { name = "pydantic", specifier = ">=2.0" },
-    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "pyyaml", marker = "extra == 'concepts'", specifier = ">=6.0" },
 ]
 provides-extras = ["manim", "concepts"]
 

@@ -6,17 +6,24 @@ import pytest
 pytest.importorskip("manim")
 pytestmark = pytest.mark.docker
 
-from videos.adapters.manim.layout_engine import ManimLayoutEngine  # noqa: E402
-from videos.adapters.manim.scene_builder import ManimSceneBuilder  # noqa: E402
-from videos.core.application.render_pipeline import (
+from videos.application.ports.artifact_store import ArtifactStore  # noqa: E402
+from videos.application.ports.renderer import (  # noqa: E402
+    Renderer,
+    RenderResult,
+)
+from videos.application.ports.telemetry import Telemetry  # noqa: E402
+from videos.application.render_pipeline import (
     RenderPipeline,  # noqa: E402
 )
-from videos.core.domain.layout import LayoutRegion, LayoutSpec  # noqa: E402
-from videos.core.domain.scene_spec import SceneSpec  # noqa: E402
-from videos.core.domain.storyboard import Storyboard  # noqa: E402
-from videos.core.ports.artifact_store import ArtifactStore  # noqa: E402
-from videos.core.ports.renderer import Renderer, RenderResult  # noqa: E402
-from videos.core.ports.telemetry import Telemetry  # noqa: E402
+from videos.domain.layout import LayoutRegion, LayoutSpec  # noqa: E402
+from videos.domain.scene_spec import SceneSpec  # noqa: E402
+from videos.domain.storyboard import Storyboard  # noqa: E402
+from videos.infrastructure.manim.layout_engine import (
+    ManimLayoutEngine,  # noqa: E402
+)
+from videos.infrastructure.manim.scene_builder import (
+    ManimSceneBuilder,  # noqa: E402
+)
 
 
 class StubRenderer(Renderer):

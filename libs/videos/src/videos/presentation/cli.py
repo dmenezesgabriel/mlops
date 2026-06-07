@@ -4,16 +4,21 @@ import argparse
 import sys
 from pathlib import Path
 
-from videos.adapters.filesystem.artifact_store import FileSystemArtifactStore
-from videos.adapters.logging.structured_logger import setup_structured_logging
-from videos.adapters.manim.components import register_default_components
-from videos.adapters.manim.layout_engine import ManimLayoutEngine
-from videos.adapters.manim.renderer import ManimRenderer
-from videos.adapters.manim.scene_builder import ManimSceneBuilder
-from videos.components.registry import ComponentRegistry
-from videos.concepts import register_all
-from videos.core.application.director import Director
-from videos.core.ports.telemetry import Telemetry
+from videos.application.components import ComponentRegistry
+from videos.application.director import Director
+from videos.application.ports.telemetry import Telemetry
+from videos.infrastructure.declarative import register_all
+from videos.infrastructure.filesystem.artifact_store import (
+    FileSystemArtifactStore,
+)
+from videos.infrastructure.logging.structured_logger import (
+    setup_structured_logging,
+)
+from videos.infrastructure.manim.components import register_default_components
+from videos.infrastructure.manim.layout_engine import ManimLayoutEngine
+from videos.infrastructure.manim.renderer import ManimRenderer
+from videos.infrastructure.manim.scene_builder import ManimSceneBuilder
+from videos.infrastructure.validation.linter_service import LinterService
 
 
 class ConsoleTelemetry(Telemetry):
@@ -65,6 +70,7 @@ def main() -> None:
     layout_engine = ManimLayoutEngine()
     artifact_store = FileSystemArtifactStore(output_root=args.output_dir)
     telemetry = ConsoleTelemetry()
+    linter_service = LinterService()
 
     director = Director(
         concept_id=args.concept_id,
@@ -73,6 +79,7 @@ def main() -> None:
         layout_engine=layout_engine,
         artifact_store=artifact_store,
         telemetry=telemetry,
+        linter_service=linter_service,
     )
 
     try:

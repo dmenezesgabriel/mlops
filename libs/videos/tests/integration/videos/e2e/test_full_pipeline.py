@@ -3,17 +3,19 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from videos.concepts.registry import ConceptRegistry
-from videos.core.application.quality_gate import QualityGate
-from videos.core.application.render_pipeline import RenderPipeline
-from videos.core.application.storyboard_planner import StoryboardPlanner
-from videos.core.domain.concept import ConceptId
-from videos.core.ports.artifact_store import ArtifactStore
-from videos.core.ports.layout_engine import LayoutEngine
-from videos.core.ports.renderer import Renderer, RenderResult
-from videos.core.ports.scene_builder import SceneBuilder
-from videos.core.ports.telemetry import Telemetry
-from videos.declarative.loader import load_concept_from_yaml_file
+from videos.application.ports.artifact_store import ArtifactStore
+from videos.application.ports.layout_engine import LayoutEngine
+from videos.application.ports.renderer import Renderer, RenderResult
+from videos.application.ports.scene_builder import SceneBuilder
+from videos.application.ports.telemetry import Telemetry
+from videos.application.quality_gate import QualityGate
+from videos.application.render_pipeline import RenderPipeline
+from videos.application.storyboard_planner import StoryboardPlanner
+from videos.domain.concept import ConceptId
+from videos.domain.concept_registry import ConceptRegistry
+from videos.infrastructure.declarative.loader import (
+    load_concept_from_yaml_file,
+)
 
 TEST_YAML_DIR = Path(__file__).parents[3] / "fixtures" / "concepts"
 
@@ -137,7 +139,7 @@ class TestE2EYamlConcepts:
 class TestE2EDirector:
     def test_director_with_yaml_concept_fails_unknown(self) -> None:
         # Arrange
-        from videos.core.application.director import Director
+        from videos.application.director import Director
 
         director = Director(
             concept_id="nonexistent",
@@ -170,7 +172,7 @@ class TestE2ERegisterAll:
     def test_register_all_includes_yaml(self) -> None:
         # Arrange
         ConceptRegistry._extensions.clear()
-        from videos.concepts import register_all
+        from videos.infrastructure.declarative import register_all
 
         # Act
         register_all(definitions_dir=TEST_YAML_DIR)

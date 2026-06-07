@@ -4,9 +4,12 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-from videos.core.application.director import Director
-from videos.core.ports.renderer import RenderResult
-from videos.validation.linter_service import LinterError
+from videos.application.director import Director
+from videos.application.ports.renderer import RenderResult
+from videos.infrastructure.validation.linter_service import (
+    LinterError,
+    LinterService,
+)
 
 
 class StubRenderer:
@@ -51,7 +54,7 @@ class TestLinterIntegration:
         self, concept_id: str, tmp_path: Path
     ) -> None:
         # Arrange
-        from videos.concepts import register_all
+        from videos.infrastructure.declarative import register_all
 
         test_defs = Path(__file__).parents[2] / "fixtures" / "concepts"
         register_all(definitions_dir=test_defs)
@@ -73,6 +76,7 @@ class TestLinterIntegration:
             layout_engine=MagicMock(),
             artifact_store=artifact_store,
             telemetry=MagicMock(),
+            linter_service=LinterService(),
         )
 
         # Act & Assert
@@ -84,7 +88,7 @@ class TestLinterIntegration:
         self, concept_id: str, tmp_path: Path
     ) -> None:
         # Arrange
-        from videos.concepts import register_all
+        from videos.infrastructure.declarative import register_all
 
         test_defs = Path(__file__).parents[2] / "fixtures" / "concepts"
         register_all(definitions_dir=test_defs)
@@ -105,6 +109,7 @@ class TestLinterIntegration:
             layout_engine=MagicMock(),
             artifact_store=artifact_store,
             telemetry=MagicMock(),
+            linter_service=LinterService(),
         )
 
         # Act

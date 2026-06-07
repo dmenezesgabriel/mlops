@@ -9,3 +9,5 @@ COPY src/ src/
 RUN pip install --no-cache-dir uv && \
     . /opt/venv/bin/activate && \
     uv pip install -e .
+
+USER manimuser
