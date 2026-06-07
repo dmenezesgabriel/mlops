@@ -6,6 +6,7 @@ dependencies = [
   "duckdb>=1.4.0",
   "fastapi>=0.110.0",
   "feast[duckdb]>=0.56.0",
+  "httpx2>=2.3.0",
   "ibis-framework>=9.0.0",
   "ipywidgets>=8.0.0",
   "mlflow>=3.7.0",
@@ -35,8 +36,11 @@ mlops-shared = "mlops_shared"
 
 [tool.deptry.per_rule_ignores]
 DEP001 = ["data_sources", "entities"]
+# httpx2 is imported by starlette.testclient (via fastapi.testclient)
+# to avoid a StarletteDeprecationWarning; not imported by project code.
 DEP002 = [
   "duckdb",
+  "httpx2",
   "mlflow",
   "pyarrow",
   "ipykernel",
