@@ -1,10 +1,44 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from videos.core.domain.narrative import Beat
 from videos.core.domain.scene_spec import ComponentSpec
 
 
 class ComponentFactory:
+    _diagram_rules: list[
+        tuple[Callable[[str], bool], Callable[[Beat], ComponentSpec | None]]
+    ] = []
+
+    @classmethod
+    def _init_diagram_rules(cls) -> None:
+        if cls._diagram_rules:
+            return
+        cls._diagram_rules = [
+            (lambda k: k == "target", cls._build_target_diagram),
+            (
+                lambda k: k == "cycle" or k.startswith("phase_"),
+                cls._build_cycle_diagram,
+            ),
+        ]
+
+    @staticmethod
+    def _build_target_diagram(beat: Beat) -> ComponentSpec | None:
+        return ComponentSpec(
+            type="diagram",
+            region="diagram",
+            props={"kind": "target", **beat.params},
+        )
+
+    @staticmethod
+    def _build_cycle_diagram(beat: Beat) -> ComponentSpec | None:
+        return ComponentSpec(
+            type="diagram",
+            region="diagram",
+            props={"kind": "cycle", **beat.params},
+        )
+
     def create_components(self, beat: Beat) -> list[ComponentSpec]:
         components = [
             self._create_title_component(beat),
@@ -32,16 +66,8 @@ class ComponentFactory:
         )
 
     def _create_diagram_component(self, beat: Beat) -> ComponentSpec | None:
-        if beat.visual_key == "target":
-            return ComponentSpec(
-                type="diagram",
-                region="diagram",
-                props={"kind": "target", **beat.params},
-            )
-        if "phase_" in beat.visual_key or beat.visual_key == "cycle":
-            return ComponentSpec(
-                type="diagram",
-                region="diagram",
-                props={"kind": "cycle", **beat.params},
-            )
+        self._init_diagram_rules()
+        for matches, builder in self._diagram_rules:
+            if matches(beat.visual_key):
+                return builder(beat)
         return None
