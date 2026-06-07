@@ -98,6 +98,9 @@ jobs:
       - name: Architecture checks
         run: make architecture
 
+      - name: Render diagrams
+        run: make render-diagram
+
       - name: Build configured site
         run: make build-site
 
