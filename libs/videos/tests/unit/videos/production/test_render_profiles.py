@@ -1,4 +1,4 @@
-from videos.production.render_profiles import BUILTIN_PROFILES, FINAL, PREVIEW
+from videos.production.render_profiles import BUILT_IN_PROFILES, FINAL, PREVIEW
 
 
 class TestRenderProfiles:
@@ -12,6 +12,6 @@ class TestRenderProfiles:
         assert FINAL.resolution == (1920, 1080)
 
     def test_builtin_profiles_accessible(self) -> None:
-        assert "preview" in BUILTIN_PROFILES
-        assert "final" in BUILTIN_PROFILES
-        assert len(BUILTIN_PROFILES) == 2
+        assert "preview" in BUILT_IN_PROFILES
+        assert "final" in BUILT_IN_PROFILES
+        assert len(BUILT_IN_PROFILES) == 2

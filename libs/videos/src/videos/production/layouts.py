@@ -57,7 +57,7 @@ FULL_FRAME = LayoutPreset(
     ),
 )
 
-BUILTIN_LAYOUTS: dict[str, LayoutPreset] = {
+BUILT_IN_LAYOUTS: dict[str, LayoutPreset] = {
     p.name: p
     for p in [
         TITLE_ONLY,

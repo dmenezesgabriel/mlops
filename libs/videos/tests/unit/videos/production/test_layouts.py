@@ -1,5 +1,5 @@
 from videos.production.layouts import (
-    BUILTIN_LAYOUTS,
+    BUILT_IN_LAYOUTS,
     COMPARISON,
     DIAGRAM_WITH_LABELS,
     FULL_FRAME,
@@ -28,6 +28,6 @@ class TestLayoutPresets:
         assert "equation" in FULL_FRAME.layout.region_names
 
     def test_builtin_layouts_are_accessible(self) -> None:
-        assert "title_only" in BUILTIN_LAYOUTS
-        assert "full_frame" in BUILTIN_LAYOUTS
-        assert len(BUILTIN_LAYOUTS) == 5
+        assert "title_only" in BUILT_IN_LAYOUTS
+        assert "full_frame" in BUILT_IN_LAYOUTS
+        assert len(BUILT_IN_LAYOUTS) == 5
