@@ -27,3 +27,6 @@ build-backend = "hatchling.build"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q -ra --tb=short --import-mode=importlib"
+markers = [
+  "integration: package-local integration tests",
+]
