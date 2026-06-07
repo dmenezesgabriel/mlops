@@ -30,6 +30,8 @@ class DiagramDefinition:
         nodes: tuple[DiagramNode, ...],
         clusters: tuple[DiagramCluster, ...],
         connections: tuple[DiagramConnection, ...],
+        graph_attr: dict[str, str] | None = None,
+        node_attr: dict[str, str] | None = None,
     ) -> None:
         self.name = name
         self.filename = filename
@@ -37,6 +39,11 @@ class DiagramDefinition:
         self.nodes = nodes
         self.clusters = clusters
         self.connections = connections
+        # Graphviz graph-level attributes (pad, ranksep, dpi, …).
+        # Defaults to empty so callers that omit it get standard layout.
+        self.graph_attr: dict[str, str] = graph_attr or {}
+        # Graphviz node-level attributes (fontsize, shape, …).
+        self.node_attr: dict[str, str] = node_attr or {}
         self._validate()
 
     def _validate(self) -> None:

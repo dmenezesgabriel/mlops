@@ -20,6 +20,8 @@ def load_from_yaml_string(yaml_string: str) -> DiagramDefinition:
     nodes = _parse_nodes(data.get("nodes", []))
     clusters = _parse_clusters(data.get("clusters", []))
     connections = _parse_connections(data.get("connections", []))
+    graph_attr = _parse_graph_attr(data.get("graph_attr"))
+    node_attr = _parse_graph_attr(data.get("node_attr"))
 
     return DiagramDefinition(
         name=str(data["name"]),
@@ -28,6 +30,8 @@ def load_from_yaml_string(yaml_string: str) -> DiagramDefinition:
         nodes=nodes,
         clusters=clusters,
         connections=connections,
+        graph_attr=graph_attr,
+        node_attr=node_attr,
     )
 
 
@@ -68,3 +72,19 @@ def _parse_connections(
         )
         for connection in raw_connections
     )
+
+
+def _parse_graph_attr(raw: Any) -> dict[str, str]:
+    """Return a str→str dict from the optional YAML graph_attr mapping.
+
+    Example YAML: graph_attr: {pad: "0.4", ranksep: "0.7"}
+    Returns {} when raw is None (key absent) so the diagram uses defaults.
+    """
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ValueError(
+            f"Invalid graph_attr {raw!r}: expected a string-keyed mapping, "
+            f"got {type(raw).__name__}"
+        )
+    return {str(k): str(v) for k, v in raw.items()}

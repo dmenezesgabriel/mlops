@@ -75,3 +75,73 @@ connections:
         assert definition.filename == "mlops_lifecycle"
         assert len(definition.nodes) == 1
         assert definition.nodes[0].identifier == "raw_data"
+
+    def test_should_load_graph_attr_when_present(self) -> None:
+        # Exercises the graph_attr YAML key → DiagramDefinition.graph_attr path.
+        # Example: load_from_yaml_string('...\ngraph_attr:\n  pad: "0.4"\n')
+        yaml_content = """
+name: "Test"
+filename: "test"
+direction: "TB"
+graph_attr:
+  pad: "0.4"
+  ranksep: "0.7"
+nodes:
+  - id: n1
+    label: "Node 1"
+    type: "programming.flowchart.Action"
+"""
+
+        definition = load_from_yaml_string(yaml_content)
+
+        assert definition.graph_attr == {"pad": "0.4", "ranksep": "0.7"}
+
+    def test_should_default_graph_attr_to_empty_dict_when_absent(self) -> None:
+        # graph_attr is optional; omitting it must not raise and must be {}.
+        yaml_content = """
+name: "Test"
+filename: "test"
+direction: "LR"
+nodes:
+  - id: n1
+    label: "Node 1"
+    type: "programming.flowchart.Action"
+"""
+
+        definition = load_from_yaml_string(yaml_content)
+
+        assert definition.graph_attr == {}
+
+    def test_should_load_node_attr_when_present(self) -> None:
+        # Exercises the node_attr YAML key → DiagramDefinition.node_attr path.
+        yaml_content = """
+name: "Test"
+filename: "test"
+direction: "LR"
+node_attr:
+  fontsize: "14"
+nodes:
+  - id: n1
+    label: "Node 1"
+    type: "programming.flowchart.Action"
+"""
+
+        definition = load_from_yaml_string(yaml_content)
+
+        assert definition.node_attr == {"fontsize": "14"}
+
+    def test_should_default_node_attr_to_empty_dict_when_absent(self) -> None:
+        # node_attr is optional; omitting it must not raise and must be {}.
+        yaml_content = """
+name: "Test"
+filename: "test"
+direction: "LR"
+nodes:
+  - id: n1
+    label: "Node 1"
+    type: "programming.flowchart.Action"
+"""
+
+        definition = load_from_yaml_string(yaml_content)
+
+        assert definition.node_attr == {}
