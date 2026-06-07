@@ -16,11 +16,12 @@ class TestCLI:
         mock_parse_args: MagicMock,
         mock_register_all: MagicMock,
         mock_director: MagicMock,
+        tmp_path: Path,
     ) -> None:
         # Arrange
         mock_parse_args.return_value = MagicMock(
             concept_id="test",
-            output_dir=Path("out"),
+            output_dir=tmp_path / "out",
             definitions_dir=Path("defs"),
         )
 
@@ -38,11 +39,12 @@ class TestCLI:
         mock_parse_args: MagicMock,
         mock_register_all: MagicMock,
         mock_director_class: MagicMock,
+        tmp_path: Path,
     ) -> None:
         # Arrange
         mock_parse_args.return_value = MagicMock(
             concept_id="test",
-            output_dir=Path("out"),
+            output_dir=tmp_path / "out",
             definitions_dir=Path("videos/definition"),
             quality="preview",
         )
@@ -63,11 +65,12 @@ class TestCLI:
         mock_parse_args: MagicMock,
         mock_register_all: MagicMock,
         mock_director_class: MagicMock,
+        tmp_path: Path,
     ) -> None:
         # Arrange
         mock_parse_args.return_value = MagicMock(
             concept_id="test",
-            output_dir=Path("out"),
+            output_dir=tmp_path / "out",
             definitions_dir=Path("defs"),
             quality="final",
         )
@@ -87,11 +90,12 @@ class TestCLI:
         mock_parse_args: MagicMock,
         mock_register_all: MagicMock,
         mock_director_class: MagicMock,
+        tmp_path: Path,
     ) -> None:
         # Arrange
         mock_parse_args.return_value = MagicMock(
             concept_id="test",
-            output_dir=Path("out"),
+            output_dir=tmp_path / "out",
             definitions_dir=Path("defs"),
         )
         mock_director = mock_director_class.return_value
