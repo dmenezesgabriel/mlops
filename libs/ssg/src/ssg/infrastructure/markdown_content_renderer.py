@@ -8,7 +8,7 @@ from markdown_it import MarkdownIt
 
 try:
     # Prefer the explicit table plugin when available
-    from mdit_py_plugins.table import table_plugin  # type: ignore
+    from mdit_py_plugins.table import table_plugin
 except (
     Exception
 ):  # pragma: no cover - optional runtime dependency during tests
@@ -17,11 +17,11 @@ except (
 # Some releases expose table support as part of the GFM plugin. Import the
 # GFM plugin as a fallback so we still get table parsing if available.
 try:
-    from mdit_py_plugins.gfm import gfm_plugin  # type: ignore
+    from mdit_py_plugins.gfm import gfm_plugin
 except (
     Exception
 ):  # pragma: no cover - optional runtime dependency during tests
-    gfm_plugin = None
+    gfm_plugin = None  # type: ignore[assignment]
 from markupsafe import Markup
 
 from ssg.application.html_headings import demote_top_level_headings
