@@ -18,6 +18,8 @@ diagrams-cli = "diagrams_generation.presentation.cli:main"
 [tool.deptry]
 known_first_party = ["diagrams_generation"]
 package_module_name_map = {diagrams-generation = "diagrams_generation"}
+# diagrams is imported dynamically via importlib.import_module("diagrams")
+# so deptry cannot detect it; DEP002 is a false positive.
 per_rule_ignores = {DEP002 = ["diagrams"]}
 
 [tool.pytest.ini_options]
