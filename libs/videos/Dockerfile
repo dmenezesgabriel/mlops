@@ -8,6 +8,7 @@ COPY src/ src/
 
 RUN pip install --no-cache-dir uv && \
     . /opt/venv/bin/activate && \
-    uv pip install -e .
+    uv pip install -e . && \
+    uv pip install pytest pytest-cov
 
 USER manimuser

@@ -30,3 +30,7 @@ projects/*/mlflow.db
 *.png
 
 node_modules/
+
+# Manim outputs
+media/
+logs/

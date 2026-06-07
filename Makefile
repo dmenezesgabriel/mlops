@@ -41,6 +41,7 @@ test-videos-docker: libs/videos/Dockerfile
 	docker run --rm \
 	  -v "$(CURDIR)/libs/videos/src:/app/src:ro" \
 	  -v "$(CURDIR)/libs/videos/tests:/app/tests:ro" \
+	  -w /tmp \
 	  mlops-manim-test sh -lc \
 	  '. /opt/venv/bin/activate && python -m pytest /app/tests/integration/ -m docker -q -ra --tb=short'
 
