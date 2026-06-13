@@ -37,6 +37,7 @@ def test_translate_preserves_italic_inline_formatting() -> None:
         {
             # Pre-translation of span content:
             "before": "antes",
+            "Before": "Antes",
             # Main line body with single {99900} placeholder for the span:
             "By predicting demand {99900} the ride requests occur.": (
                 "Ao prever a demanda {99900} que os pedidos de carona ocorram."
@@ -83,6 +84,7 @@ def test_translate_preserves_both_bold_and_italic_in_same_line() -> None:
             "DuckDB": "DuckDB",  # proper noun stays unchanged
             # Italic span content (pre-translated after bold placeholder is in text):
             "analytics": "análise",
+            "Analytics": "Análise",
             # Main line with both placeholders:
             "Use {99900} for {99901}.": "Use {99900} para {99901}.",
         }

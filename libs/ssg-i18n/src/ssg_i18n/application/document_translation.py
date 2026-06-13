@@ -321,18 +321,30 @@ class DocumentTranslator:
 
         def replace_bold(match: re.Match[str]) -> str:
             content = match.group(1)
-            translated = self._translate_text_with_protected_parts(
-                content, target_locale
+            is_lower = bool(content and content[0].islower())
+            temp_content = (
+                content[0].upper() + content[1:] if is_lower else content
             )
+            translated = self._translate_text_with_protected_parts(
+                temp_content, target_locale
+            )
+            if is_lower and translated:
+                translated = translated[0].lower() + translated[1:]
             marker = f"{{{99900 + len(protected_parts)}}}"
             protected_parts[marker] = f"**{translated}**"
             return marker
 
         def replace_italic(match: re.Match[str]) -> str:
             content = match.group(1)
-            translated = self._translate_text_with_protected_parts(
-                content, target_locale
+            is_lower = bool(content and content[0].islower())
+            temp_content = (
+                content[0].upper() + content[1:] if is_lower else content
             )
+            translated = self._translate_text_with_protected_parts(
+                temp_content, target_locale
+            )
+            if is_lower and translated:
+                translated = translated[0].lower() + translated[1:]
             marker = f"{{{99900 + len(protected_parts)}}}"
             protected_parts[marker] = f"*{translated}*"
             return marker
@@ -401,6 +413,8 @@ class DocumentTranslator:
             (r"\bencanamentos\b", "pipelines"),
             (r"\boleoduto\b", "pipeline"),
             (r"\boleodutos\b", "pipelines"),
+            (r"\bgasoduto\b", "pipeline"),
+            (r"\bgasodutos\b", "pipelines"),
             (r"\bMétricas Candida\b", "Métricas Candidatas"),
             (r"\bmétricas candida\b", "métricas candidatas"),
             (r"\bmétrica candida\b", "métrica candidata"),

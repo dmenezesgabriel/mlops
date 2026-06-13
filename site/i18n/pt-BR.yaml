@@ -37,12 +37,67 @@ translations:
 glossary:
   Feast: Feast
   Feature Store: Feature Store
-  model registry: registro de modelos
+  feature store: feature store
+  Model Registry: Model Registry
+  model registry: model registry
   dispatch latency: latência de despacho
   driver utilization: utilização do motorista
   passenger wait times: tempo de espera dos passageiros
   Ridge Regressor: Ridge Regressor
   RidgeDemandRegressor: RidgeDemandRegressor
   Optuna: Optuna
+  overfitting: overfitting
+  overfit: overfit
+  underfitting: underfitting
+  underfit: underfit
+  bagging: bagging
+  boosting: boosting
+  LightGBM: LightGBM
+  XGBoost: XGBoost
+  LightGBM/XGBoost: LightGBM/XGBoost
+  Gradient Boosted Trees: Gradient Boosted Trees
+  Gradient Boosted Trees (LightGBM/XGBoost): Gradient Boosted Trees (LightGBM/XGBoost)
+  Ridge Regression: Ridge Regression
+  Lasso Regression: Lasso Regression
+  Ridge: Ridge
+  Lasso: Lasso
+  Point-in-Time: Point-in-Time
+  dataframe: dataframe
+  dataframes: dataframes
+  timestamp: timestamp
+  lags: lags
+  lag: lag
+  Tracking Store: Tracking Store
+  tracking store: tracking store
+  Artifact Store: Artifact Store
+  artifact store: artifact store
+  Model Promotion: Promoção de Modelos
+  model promotion: promoção de modelos
+  Target: Target
+  target: target
+  Targets: Targets
+  targets: targets
+  Feature: Feature
+  feature: feature
+  Features: Features
+  features: features
+  Machine Learning: Machine Learning
+  machine learning: machine learning
+  Machine-learning: Machine-learning
+  machine-learning: machine-learning
+  Encoding: Encoding
+  encoding: encoding
+  Encodings: Encodings
+  encodings: encodings
+  SQLite: SQLite
+  DuckDB: DuckDB
+  MLflow: MLflow
+  Batch: Batch
+  batch: batch
+  Pipeline: Pipeline
+  pipeline: pipeline
+  Pipelines: Pipelines
+  pipelines: pipelines
+
 
 
