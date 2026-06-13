@@ -33,24 +33,16 @@ translations:
   Feast owns local feature definitions while DuckDB provides the offline store for reproducible development.: O Feast gerencia as definicoes locais de features, enquanto o DuckDB fornece o armazenamento offline para desenvolvimento reprodutivel.
   Hourly pickup demand features are intentionally small for the first reproducible pipeline.: As features horarias de demanda de embarques sao intencionalmente pequenas para o primeiro pipeline reprodutivel.
   Training writes metrics and model artifacts to a local SQLite-backed MLflow tracking store. This is suitable for development and education, not production registry operations.: O treinamento grava metricas e artefatos de modelo em um tracking store local do MLflow com SQLite. Isso e adequado para desenvolvimento e educacao, nao para operacoes de registro em producao.
+  Model Training & Algorithm Selection: Treinamento de Modelos & Selecao de Algoritmos
 glossary:
   Feast: Feast
   Feature Store: Feature Store
   model registry: registro de modelos
-  fitting: ajuste
-  fit: ajustar
-  deployment: implantação
-  deploy: implantar
-  monitoring: monitoramento
-  monitor: monitorar
   dispatch latency: latência de despacho
   driver utilization: utilização do motorista
   passenger wait times: tempo de espera dos passageiros
-  runs: execuções
-  run: execução
-  experiment: experimento
-  tuning: ajuste
   Ridge Regressor: Ridge Regressor
   RidgeDemandRegressor: RidgeDemandRegressor
   Optuna: Optuna
+
 

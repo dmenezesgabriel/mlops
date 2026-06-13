@@ -143,6 +143,14 @@ class DocumentTranslator:
         # Strip the list-item prefix so indentation is never sent to the MT model.
         prefix, body = _strip_list_prefix(line_body)
 
+        # Detect markdown table row
+        if body.strip().startswith("|") and body.count("|") >= 2:
+            return (
+                prefix
+                + self._translate_table_row(body, target_locale)
+                + line_ending
+            )
+
         heading_match = re.fullmatch(r"(#{1,6}\s+)(.*)", body)
         if heading_match:
             return prefix + self._translate_heading(
@@ -154,6 +162,37 @@ class DocumentTranslator:
             + self._translate_text_with_protected_parts(body, target_locale)
             + line_ending
         )
+
+    def _translate_table_row(self, row: str, target_locale: Locale) -> str:
+        cells = row.split("|")
+        translated_cells = []
+        for i, cell in enumerate(cells):
+            # First and last cells are empty if row starts/ends with |
+            if (i == 0 or i == len(cells) - 1) and not cell.strip():
+                translated_cells.append(cell)
+                continue
+
+            # Skip divider cells like " :--- "
+            if re.fullmatch(r"\s*[-:]+\s*", cell):
+                translated_cells.append(cell)
+                continue
+
+            if not cell.strip():
+                translated_cells.append(cell)
+                continue
+
+            # Keep spacing for alignment/padding
+            match = re.match(r"^(\s*)(.*?)(\s*)$", cell)
+            if match:
+                l_ws, content, t_ws = match.groups()
+                translated_content = self._translate_text_with_protected_parts(
+                    content, target_locale
+                )
+                translated_cells.append(l_ws + translated_content + t_ws)
+            else:
+                translated_cells.append(cell)
+
+        return "|".join(translated_cells)
 
     def _translate_heading(
         self,
@@ -175,20 +214,29 @@ class DocumentTranslator:
         self, source_text: str, target_locale: Locale
     ) -> str:
         protected_parts: dict[str, str] = {}
-        wikilink_targets: dict[str, str] = {}
 
-        # Pre-translate each ** and * inline span, storing the fully-reconstructed
-        # replacement in protected_parts as a single-occurrence marker.
-        # Single-occurrence markers in the 999xx range are reliably copied by the model.
-        source_text = self._pre_translate_inline_spans(
-            source_text, protected_parts, target_locale
-        )
+        # 1. Wikilinks pre-translation & protection
+        def replace_wikilink(match: re.Match[str]) -> str:
+            target = match.group(1)
+            label = match.group(2)
+            if label is not None:
+                # Pre-translate the label recursively
+                translated_label = self._translate_text_with_protected_parts(
+                    label, target_locale
+                )
+                reconstructed = f"[[{target}|{translated_label}]]"
+            else:
+                reconstructed = f"[[{target}]]"
 
-        wikilink_source = WIKILINK_PATTERN.sub(
-            lambda match: self._protect_wikilink_target(
-                match, wikilink_targets
-            ),
-            source_text,
+            marker = f"{{{99900 + len(protected_parts)}}}"
+            protected_parts[marker] = reconstructed
+            return marker
+
+        wikilink_source = WIKILINK_PATTERN.sub(replace_wikilink, source_text)
+
+        # 2. Inline markdown protection (bold & italic)
+        wikilink_source = self._pre_translate_inline_spans(
+            wikilink_source, protected_parts, target_locale
         )
 
         glossary_terms: dict[str, str] = {}
@@ -197,7 +245,7 @@ class DocumentTranslator:
         if isinstance(self.text_translator, CatalogFirstTextTranslator):
             glossary_terms = self.text_translator.catalog.glossary_terms
 
-        # Protect glossary terms (longer terms first to prevent substring matching)
+        # 3. Protect glossary terms (longest first to avoid substring conflicts)
         sorted_glossary = sorted(
             glossary_terms.items(), key=lambda x: len(x[0]), reverse=True
         )
@@ -213,13 +261,18 @@ class DocumentTranslator:
 
             wikilink_source = pattern.sub(replace_term, wikilink_source)
 
+        # 4. Protect LaTeX and URLs
         protected_source = PROTECTED_PATTERN.sub(
             lambda match: self._protect_match(match, protected_parts),
             wikilink_source,
         )
+
+        # 5. Translate using the translation engine
         translated_source = self.text_translator.translate(
             protected_source, target_locale
         )
+
+        # Normalize any spacing/braces inside markers
         translated_source = re.sub(
             r"\{\s*(999\d+|888\d+)\s*\}",
             lambda m: f"{{{m.group(1)}}}",
@@ -230,26 +283,31 @@ class DocumentTranslator:
             lambda m: f"{{{m.group(1)}}}",
             translated_source,
         )
-        if not self._all_markers_preserved(
-            translated_source, protected_parts | wikilink_targets
-        ):
+
+        # 6. Heal leading markers stripped from the beginning by the MT model
+        leading_match = re.match(
+            r"^(\{999\d+\}|\{888\d+\})(:?\s*)", protected_source
+        )
+        if leading_match:
+            marker = leading_match.group(1)
+            separator = leading_match.group(2)
+            if marker not in translated_source:
+                translated_source = marker + separator + translated_source
+
+        # 7. Validation: if any markers are missing, fallback to protected_source
+        if not self._all_markers_preserved(translated_source, protected_parts):
             translated_source = protected_source
 
-        # Repair any machine-translated wikilinks where the pipe "|" was lost or deleted
-        translated_source = re.sub(
-            r"\[\[(\{888\d+\})\s*([^\|\]]+)\]\]",
-            r"[[\1|\2]]",
-            translated_source,
-        )
-
-        for marker, protected_text in protected_parts.items():
+        # 8. Restore the protected parts in reverse order
+        for marker, protected_text in reversed(list(protected_parts.items())):
             translated_source = translated_source.replace(
                 marker, protected_text
             )
-        for marker, wikilink_target in wikilink_targets.items():
-            translated_source = translated_source.replace(
-                marker, wikilink_target
-            )
+
+        # 9. Post-translation terminology/grammar corrections
+        translated_source = self._apply_terminology_corrections(
+            translated_source
+        )
 
         return translated_source
 
@@ -259,17 +317,7 @@ class DocumentTranslator:
         protected_parts: dict[str, str],
         target_locale: Locale,
     ) -> str:
-        """Pre-translate each ** and * span; store result as a single-occurrence marker.
-
-        Each inline span is replaced by ONE {99900+N} marker whose value in
-        protected_parts is the fully-translated, delimiter-wrapped replacement.
-        Single-occurrence markers are reliably copied by the MT model, avoiding
-        the split-closing-marker problem that affects paired open/close tokens.
-        Bold is processed before italic to avoid treating ** as two *s.
-        Example: '**bold** and *italic*'
-                 -> '{99900} and {99901}' with
-                    protected_parts = {'{99900}': '**negrito**', '{99901}': '*itálico*'}
-        """
+        """Pre-translate each ** and * span; store result as a single-occurrence marker."""
 
         def replace_bold(match: re.Match[str]) -> str:
             content = match.group(1)
@@ -315,3 +363,58 @@ class DocumentTranslator:
             return f"[[{marker}]]"
 
         return f"[[{marker}|{label}]]"
+
+    def _apply_terminology_corrections(self, text: str) -> str:
+        corrections = [
+            (r"\bloja de recursos\b", "Feature Store"),
+            (r"\blojas de recursos\b", "Feature Stores"),
+            (r"\blago de dados\b", "data lake"),
+            (r"\blagos de dados\b", "data lakes"),
+            (r"\bloja de fluxo\b", "stream store"),
+            (r"\blojas de fluxo\b", "stream stores"),
+            (r"\bdrift característica\b", "feature drift"),
+            (r"\bderiva de recurso\b", "feature drift"),
+            (r"\bderiva de recursos\b", "feature drift"),
+            (r"\bderiva de característica\b", "feature drift"),
+            (r"\bderiva de características\b", "feature drift"),
+            (r"\bdrift de recurso\b", "feature drift"),
+            (r"\bdrift de recursos\b", "feature drift"),
+            (r"\bdrift de característica\b", "feature drift"),
+            (r"\bdrift de características\b", "feature drift"),
+            (r"\bcaracterísticas do atraso\b", "lags de features"),
+            (r"\batraso de coleta\b", "lag de embarques"),
+            (r"\batrasos de coleta\b", "lags de embarques"),
+            (r"\batraso horários\b", "lags horários"),
+            (r"\batrasos horários\b", "lags horários"),
+            (r"\bcaptadores de táxi\b", "embarques de táxi"),
+            (r"\bcaptador de táxi\b", "embarque de táxi"),
+            (r"\bcontagens de captação\b", "contagens de embarques"),
+            (r"\bcontagem de captação\b", "contagem de embarques"),
+            (r"\bcontagens de coleta\b", "contagens de embarques"),
+            (r"\bcontagem de coleta\b", "contagem de tempo de embarque"),
+            (r"\btempo de captação\b", "horário de embarque"),
+            (r"\btempo de coleta\b", "horário de embarque"),
+            (r"\btempo de entrega\b", "horário de desembarque"),
+            (r"\bpreços de alta\b", "preço dinâmico"),
+            (r"\bpreço de alta\b", "preço dinâmico"),
+            (r"\bencanamento\b", "pipeline"),
+            (r"\bencanamentos\b", "pipelines"),
+            (r"\boleoduto\b", "pipeline"),
+            (r"\boleodutos\b", "pipelines"),
+            (r"\bMétricas Candida\b", "Métricas Candidatas"),
+            (r"\bmétricas candida\b", "métricas candidatas"),
+            (r"\bmétrica candida\b", "métrica candidata"),
+            (r"\bimplantação Bloco\b", "Bloquear Implantação"),
+            (r"\bimplantação bloco\b", "bloquear implantação"),
+            (r"\bcavalos sazonalidade\b", "captura a sazonalidade"),
+            (r"\bcavalga sazonalidade\b", "captura a sazonalidade"),
+            (r"\bNegócios Trade-offs\b", "Trade-offs de Negócio"),
+            (r"\bNegócio Trade-offs\b", "Trade-offs de Negócio"),
+            (r"\bProblema Enquadramento\b", "Enquadramento do Problema"),
+            (r"\bFases de Ciclo de Vida\b", "Fases do Ciclo de Vida de"),
+        ]
+
+        for pattern, replacement in corrections:
+            text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+
+        return text

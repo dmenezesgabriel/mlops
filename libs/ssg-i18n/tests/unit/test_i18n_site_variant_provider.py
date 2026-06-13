@@ -221,7 +221,10 @@ def test_variants_translate_wikilink_labels_while_preserving_targets(
         extensions={"i18n": {"default_locale": "en", "locales": "en,pt-BR"}},
     )
     translator = InMemoryTextTranslator(
-        {"See [[{88800}|Overview]].": "Veja [[{88800}|Visao Geral]]."}
+        {
+            "Overview": "Visao Geral",
+            "See {99900}.": "Veja {99900}.",
+        }
     )
     context = BuildContext(
         tmp_path / "site.yaml", tmp_path / "build", None, "test"
@@ -238,7 +241,7 @@ def test_variants_translate_wikilink_labels_while_preserving_targets(
     )
 
 
-def test_variants_repairs_lost_pipe_in_machine_translation(
+def test_variants_protects_entire_wikilink_from_machine_translation(
     tmp_path: Path,
 ) -> None:
     # Arrange
@@ -261,9 +264,12 @@ def test_variants_repairs_lost_pipe_in_machine_translation(
         collections=(collection,),
         extensions={"i18n": {"default_locale": "en", "locales": "en,pt-BR"}},
     )
-    # The translator returns a string where the pipe is missing:
+    # The translator is called with pre-translated label and main sentence mapping:
     translator = InMemoryTextTranslator(
-        {"See [[{88800}|Overview]].": "Veja [[{88800} Visao Geral]]."}
+        {
+            "Overview": "Visão Geral",
+            "See {99900}.": "Veja {99900}.",
+        }
     )
     context = BuildContext(
         tmp_path / "site.yaml", tmp_path / "build", None, "test"
@@ -276,7 +282,7 @@ def test_variants_repairs_lost_pipe_in_machine_translation(
     translated_path = variants[1].site.collections[0].pages[0].source_path
     assert (
         translated_path.read_text(encoding="utf-8")
-        == "Veja [[overview|Visao Geral]].\n"
+        == "Veja [[overview|Visão Geral]].\n"
     )
 
 

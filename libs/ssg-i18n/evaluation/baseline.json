@@ -1,0 +1,8 @@
+{
+  "total_lines_evaluated": 144,
+  "english_fallback_lines": 10,
+  "english_fallback_rate_pct": 6.94,
+  "wikilink_syntax_mismatches": 0,
+  "table_formatting_mismatches": 0,
+  "bleu_score_against_catalog": 43.74
+}

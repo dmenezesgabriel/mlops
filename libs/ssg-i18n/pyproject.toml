@@ -10,6 +10,12 @@ dependencies = [
 [project.entry-points."ssg.site_variant_providers"]
 i18n = "ssg_i18n.presentation.plugin:create_i18n_site_variant_provider"
 
+[project.optional-dependencies]
+evaluation = [
+  "evaluate>=0.4.6",
+  "sacrebleu>=2.6.0",
+]
+
 [tool.uv.sources]
 ssg = { workspace = true }
 

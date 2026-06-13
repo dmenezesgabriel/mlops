@@ -23,6 +23,7 @@ dev = [
   "types-pygments==2.20.0.20260518",
   "types-PyYAML==6.0.12.20260518",
   "types-requests==2.33.0.20260518",
+  "ssg-i18n[evaluation]",
 ]
 
 [tool.uv.workspace]
@@ -204,5 +205,9 @@ name = "Videos linter is independent of site and other systems"
 type = "forbidden"
 source_modules = ["videos_linter"]
 forbidden_modules = ["mlops_shared", "nyc_taxi_demand_forecasting", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "diagrams_generation"]
+
+[tool.uv.sources]
+ssg-i18n = { workspace = true }
+
 
 

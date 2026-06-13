@@ -109,16 +109,15 @@ def test_translate_preserves_bold_in_top_level_list_item() -> None:
 def test_translate_falls_back_to_english_source_when_bold_marker_dropped() -> (
     None
 ):
-    # If MT drops the {99900} marker, the fallback kicks in and the span content
-    # (already pre-translated and stored as the marker's value) is still restored.
-    source = "**Overestimating Demand**:\n"
+    # Use a non-leading bold marker so that leading-marker healing does not apply.
+    # If MT drops the marker, the fallback kicks in and returns the original line.
+    source = "Avoid **Overestimating Demand** here.\n"
     translator = _make_translator(
         {
-            # Span content has no mapping → stays as English
-            # Main body "{99900}:" maps to a result that drops the marker:
-            "{99900}:": "Texto sem marcadores",
+            # MT drops the {99900} marker completely
+            "Avoid {99900} here.": "Evite aqui sem o marcador."
         }
     )
     result = translator.translate_markdown_source(source, PT_BR)
-    # Fallback restores protected_source = "{99900}:" → restore → "**Overestimating Demand**:"
-    assert result == "**Overestimating Demand**:\n"
+    # Validation fails (marker dropped) -> fallback to protected_source -> restore -> original English
+    assert result == "Avoid **Overestimating Demand** here.\n"
