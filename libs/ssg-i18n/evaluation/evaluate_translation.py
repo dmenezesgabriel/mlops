@@ -1,7 +1,9 @@
 import json
 import re
 from pathlib import Path
+from typing import Any
 
+import mistletoe
 import sacrebleu
 import yaml
 from ssg_i18n.application.document_translation import DocumentTranslator
@@ -38,9 +40,93 @@ def clean_line_for_comparison(line: str) -> str:
     return line.strip()
 
 
-def evaluate_translation_files():
-    docs_dir = repo_root / "projects" / "nyc_taxi_demand_forecasting" / "docs"
+def extract_text_nodes(node: object) -> list[object]:
+    class_name = node.__class__.__name__
+    if class_name in ("Document", "List", "ListItem", "Table", "TableRow"):
+        nodes = []
+        for child in getattr(node, "children", []):
+            nodes.extend(extract_text_nodes(child))
+        return nodes
+    if class_name not in ("Paragraph", "Heading", "TableCell"):
+        return []
+    children = getattr(node, "children", [])
+    has_jinja = any(
+        c.__class__.__name__ == "RawText"
+        and ("{{" in c.content or "{%" in c.content)
+        for c in children
+    )
+    if has_jinja:
+        return []
+    return [node]
 
+
+def _evaluate_node_pair(
+    src: str,
+    trans: str,
+    stats: dict[str, int],
+) -> None:
+    stats["total"] += 1
+    src_clean = clean_line_for_comparison(src)
+    trans_clean = clean_line_for_comparison(trans)
+
+    if (
+        src_clean == trans_clean
+        and len(src_clean) > 3
+        and not re.fullmatch(r"[^a-zA-Z]+", src_clean)
+    ):
+        stats["fallback"] += 1
+
+    src_pipes, trans_pipes = src.count("|"), trans.count("|")
+    src_opens, trans_opens = src.count("[["), trans.count("[[")
+    src_closes, trans_closes = src.count("]]"), trans.count("]]")
+
+    if src.strip().startswith("|"):
+        if src_pipes != trans_pipes:
+            stats["table_mismatch"] += 1
+        return
+
+    if (
+        src_pipes != trans_pipes
+        or src_opens != trans_opens
+        or src_closes != trans_closes
+    ):
+        stats["wiki_mismatch"] += 1
+
+
+def _render_node(
+    node: object, renderer: mistletoe.markdown_renderer.MarkdownRenderer
+) -> str:
+    if node.__class__.__name__ == "TableCell":
+        return next(
+            renderer.span_to_lines(
+                getattr(node, "children", None) or [], max_line_length=None
+            ),
+            "",
+        )
+    wrapper = mistletoe.block_token.Document([])
+    wrapper.children = [node]
+    return renderer.render(wrapper).strip()
+
+
+def _evaluate_file(
+    src_file: Path,
+    trans_file: Path,
+    stats: dict[str, int],
+) -> None:
+    src_doc = mistletoe.Document(src_file.read_text(encoding="utf-8"))
+    trans_doc = mistletoe.Document(trans_file.read_text(encoding="utf-8"))
+    src_nodes = extract_text_nodes(src_doc)
+    trans_nodes = extract_text_nodes(trans_doc)
+
+    with mistletoe.markdown_renderer.MarkdownRenderer() as renderer:
+        for src_node, trans_node in zip(src_nodes, trans_nodes, strict=True):
+            src_str = _render_node(src_node, renderer)
+            trans_str = _render_node(trans_node, renderer)
+            _evaluate_node_pair(src_str, trans_str, stats)
+
+
+def evaluate_translation_files() -> dict[str, Any]:
+    docs_dir = repo_root / "projects" / "nyc_taxi_demand_forecasting" / "docs"
     translated_docs_dir = (
         repo_root
         / "site"
@@ -50,121 +136,74 @@ def evaluate_translation_files():
         / "nyc_taxi_demand_forecasting"
         / "docs"
     )
-
-    total_lines_evaluated = 0
-    fallback_lines_count = 0
-    wikilink_mismatches = 0
-    table_mismatches = 0
-
-    # Process markdown docs
+    stats = {
+        "total": 0,
+        "fallback": 0,
+        "wiki_mismatch": 0,
+        "table_mismatch": 0,
+    }
     for src_file in docs_dir.glob("*.md"):
         trans_file = translated_docs_dir / src_file.name
-        if not trans_file.exists():
-            continue
+        if trans_file.exists():
+            _evaluate_file(src_file, trans_file, stats)
+    return _compile_results(stats)
 
-        src_lines = src_file.read_text(encoding="utf-8").splitlines()
-        trans_lines = trans_file.read_text(encoding="utf-8").splitlines()
 
-        inside_code = False
-        for src, trans in zip(src_lines, trans_lines, strict=True):
-            if is_code_fence(src):
-                inside_code = not inside_code
-                continue
-            if (
-                inside_code
-                or is_empty_or_whitespace(src)
-                or is_math_block(src)
-                or is_horizontal_rule(src)
-            ):
-                continue
-
-            total_lines_evaluated += 1
-
-            src_clean = clean_line_for_comparison(src)
-            trans_clean = clean_line_for_comparison(trans)
-
-            # Check for English fallback
-            # We ignore very short words or lines that are entirely markers or punctuation
-            if (
-                src_clean == trans_clean
-                and len(src_clean) > 3
-                and not re.fullmatch(r"[^a-zA-Z]+", src_clean)
-            ):
-                fallback_lines_count += 1
-
-            # Check for Wikilink syntax preservation
-            src_pipes = src.count("|")
-            trans_pipes = trans.count("|")
-            src_opens = src.count("[[")
-            trans_opens = trans.count("[[")
-            src_closes = src.count("]]")
-            trans_closes = trans.count("]]")
-
-            # If it's a table row, pipe counts are checked separately
-            if src.strip().startswith("|"):
-                if src_pipes != trans_pipes:
-                    table_mismatches += 1
-            else:
-                if (
-                    src_pipes != trans_pipes
-                    or src_opens != trans_opens
-                    or src_closes != trans_closes
-                ):
-                    wikilink_mismatches += 1
-
-    # Evaluate BLEU score against manually translated catalog items
-    catalog_path = repo_root / "site" / "i18n" / "pt-BR.yaml"
-    bleu_score = 0.0
-
-    if catalog_path.exists():
-        catalog = yaml.safe_load(catalog_path.read_text(encoding="utf-8"))
-        translations = catalog.get("translations", {})
-
-        translator = TransformersTextTranslator()
-        doc_translator = DocumentTranslator(translator)
-
-        hypotheses = []
-        references = []
-
-        # Test a representative sample of 10 long sentences from the catalog
-        # (avoiding simple titles to test translation capability)
-        test_sentences = [
-            k
-            for k in translations.keys()
-            if len(k.split()) > 5
-            and not k.startswith("Start with")
-            and not k.startswith("The collector")
-        ]
-
-        for eng_text in test_sentences:
-            ref_text = translations[eng_text]
-            # Translate using full document pipeline
-            trans_text = doc_translator.translate_markdown_source(
-                eng_text, PT_BR
-            ).strip()
-            hypotheses.append(trans_text)
-            references.append([ref_text])
-
-        if hypotheses:
-            bleu = sacrebleu.corpus_bleu(hypotheses, references)
-            bleu_score = bleu.score
-
+def _compile_results(stats: dict[str, int]) -> dict[str, Any]:
+    bleu_score = _calculate_bleu_score()
     fallback_rate = (
-        (fallback_lines_count / total_lines_evaluated * 100)
-        if total_lines_evaluated > 0
+        (stats["fallback"] / stats["total"] * 100)
+        if stats["total"] > 0
         else 0.0
     )
-
-    results = {
-        "total_lines_evaluated": total_lines_evaluated,
-        "english_fallback_lines": fallback_lines_count,
+    return {
+        "total_lines_evaluated": stats["total"],
+        "english_fallback_lines": stats["fallback"],
         "english_fallback_rate_pct": round(fallback_rate, 2),
-        "wikilink_syntax_mismatches": wikilink_mismatches,
-        "table_formatting_mismatches": table_mismatches,
+        "wikilink_syntax_mismatches": stats["wiki_mismatch"],
+        "table_formatting_mismatches": stats["table_mismatch"],
         "bleu_score_against_catalog": round(bleu_score, 2),
     }
 
-    return results
+
+def _calculate_bleu_score() -> float:
+    catalog_path = repo_root / "site" / "i18n" / "pt-BR.yaml"
+    if not catalog_path.exists():
+        return 0.0
+    catalog = yaml.safe_load(catalog_path.read_text(encoding="utf-8"))
+    translations = catalog.get("translations", {})
+    translator = TransformersTextTranslator()
+    doc_translator = DocumentTranslator(translator)
+    hypotheses: list[str] = []
+    references: list[list[str]] = []
+    test_sentences = [
+        k
+        for k in translations.keys()
+        if len(k.split()) > 5
+        and not k.startswith("Start with")
+        and not k.startswith("The collector")
+    ]
+    _gather_bleu_data(
+        test_sentences, translations, doc_translator, hypotheses, references
+    )
+    if not hypotheses:
+        return 0.0
+    return float(sacrebleu.corpus_bleu(hypotheses, references).score)
+
+
+def _gather_bleu_data(
+    sentences: list[str],
+    translations: dict[str, str],
+    translator: DocumentTranslator,
+    hypotheses: list[str],
+    references: list[list[str]],
+) -> None:
+    for eng_text in sentences:
+        trans_text = translator.translate_markdown_source(
+            eng_text, PT_BR
+        ).strip()
+        hypotheses.append(trans_text)
+        references.append([translations[eng_text]])
 
 
 if __name__ == "__main__":
