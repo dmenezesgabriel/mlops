@@ -24,4 +24,8 @@ class VisualValidationStep:
             image_path = result.output_path.with_suffix(".png")
             if image_path.exists():
                 self._linter_service.verify_visuals(image_path, "unknown")
+            if result.output_path.exists():
+                self._linter_service.verify_video(
+                    result.output_path, "unknown"
+                )
         return context

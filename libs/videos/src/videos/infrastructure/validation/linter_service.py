@@ -49,3 +49,6 @@ class LinterService:
                 f"Content is concentrated in the center (spread={result.spread_ratio:.2f}). "
                 "This usually indicates that the layout engine failed."
             )
+
+    def verify_video(self, video_path: Path, scene_id: str) -> None:
+        pass
