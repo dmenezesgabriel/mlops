@@ -1,0 +1,26 @@
+[project]
+name = "videos-linter"
+version = "0.1.0"
+description = "Advanced image and video linter plugin for the videos production engine"
+requires-python = ">=3.11"
+dependencies = [
+    "videos",
+    "numpy",
+    "opencv-python",
+    "Pillow>=10.0",
+]
+
+[tool.uv.sources]
+videos = { workspace = true }
+
+[tool.deptry]
+known_first_party = ["videos_linter"]
+package_module_name_map = {videos-linter = "videos_linter"}
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -ra --tb=short --import-mode=importlib"

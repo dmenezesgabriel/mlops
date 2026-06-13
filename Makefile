@@ -14,7 +14,7 @@ install:
 	uv sync --all-packages --dev --extra notebooks
 	uv run pre-commit install
 
-PACKAGES = libs/mlops-shared libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting libs/ssg-latex libs/videos libs/diagrams projects/$(PROJECT)
+PACKAGES = libs/mlops-shared libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting libs/ssg-latex libs/videos libs/diagrams libs/videos-linter projects/$(PROJECT)
 
 format:
 	for package in $(PACKAGES); do \
