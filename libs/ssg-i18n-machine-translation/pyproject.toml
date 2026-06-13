@@ -6,6 +6,16 @@ dependencies = [
   "ssg-i18n",
 ]
 
+[project.optional-dependencies]
+transformers = [
+  "transformers>=4.38.0,<5",
+  "torch>=2.0.0",
+  "sentencepiece>=0.2.0",
+]
+
+[project.entry-points."ssg_i18n.text_translators"]
+transformers = "ssg_i18n_machine_translation.presentation.plugin:create_transformers_text_translator"
+
 [tool.uv.sources]
 ssg-i18n = { workspace = true }
 

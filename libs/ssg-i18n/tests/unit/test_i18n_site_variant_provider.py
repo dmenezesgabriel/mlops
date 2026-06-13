@@ -6,6 +6,9 @@ from ssg_i18n.application.i18n_site_variant_provider import (
     I18nSiteVariantProvider,
 )
 from ssg_i18n.application.translation import InMemoryTextTranslator
+from ssg_i18n.infrastructure.yaml_translation_catalog_repository import (
+    YamlTranslationCatalogRepository,
+)
 
 
 def test_variants_create_localized_site_and_translated_sources(
@@ -45,9 +48,7 @@ def test_variants_create_localized_site_and_translated_sources(
             "Build machine learning systems.": "Construa sistemas de machine learning.",
             "Sample Collection": "Colecao de Exemplo",
             "Overview": "Visao Geral",
-            "Use {SSG_I18N_PROTECTED_0} for tracking.": (
-                "Use {SSG_I18N_PROTECTED_0} para rastreamento."
-            ),
+            "Use {99900} for tracking.": ("Use {99900} para rastreamento."),
         }
     )
     context = BuildContext(
@@ -126,8 +127,8 @@ def test_variants_translate_notebook_markdown_cells_without_code_cells(
     translator = InMemoryTextTranslator(
         {
             "Feature Engineering": "Engenharia de Features",
-            "Run {SSG_I18N_PROTECTED_0} after validation.": (
-                "Execute {SSG_I18N_PROTECTED_0} apos a validacao."
+            "Run {99900} after validation.": (
+                "Execute {99900} apos a validacao."
             ),
             "Learning Site": "Site de Aprendizado",
             "Notebook": "Caderno",
@@ -179,7 +180,7 @@ def test_variants_fall_back_to_source_text_when_machine_translation_drops_code_m
         extensions={"i18n": {"default_locale": "en", "locales": "en,pt-BR"}},
     )
     translator = InMemoryTextTranslator(
-        {"Use {SSG_I18N_PROTECTED_0} for tracking.": "Traducao sem marcador"}
+        {"Use {99900} for tracking.": "Traducao sem marcador"}
     )
     context = BuildContext(
         tmp_path / "site.yaml", tmp_path / "build", None, "test"
@@ -220,9 +221,7 @@ def test_variants_translate_wikilink_labels_while_preserving_targets(
         extensions={"i18n": {"default_locale": "en", "locales": "en,pt-BR"}},
     )
     translator = InMemoryTextTranslator(
-        {
-            "See [[{SSG_I18N_WIKILINK_0}|Overview]].": "Veja [[{SSG_I18N_WIKILINK_0}|Visao Geral]]."
-        }
+        {"See [[{88800}|Overview]].": "Veja [[{88800}|Visao Geral]]."}
     )
     context = BuildContext(
         tmp_path / "site.yaml", tmp_path / "build", None, "test"
@@ -236,4 +235,206 @@ def test_variants_translate_wikilink_labels_while_preserving_targets(
     assert (
         translated_path.read_text(encoding="utf-8")
         == "Veja [[overview|Visao Geral]].\n"
+    )
+
+
+def test_variants_repairs_lost_pipe_in_machine_translation(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    source_path = source_root / "README.md"
+    source_path.write_text("See [[overview|Overview]].\n", encoding="utf-8")
+    page = Page(slug="overview", title="Overview", source_path=source_path)
+    collection = ContentCollection(
+        name="sample_collection",
+        title="Sample Collection",
+        source_root=source_root,
+        output_slug="sample-collection",
+        pages=(page,),
+        videos={},
+    )
+    site = Site(
+        title="Learning Site",
+        description="",
+        collections=(collection,),
+        extensions={"i18n": {"default_locale": "en", "locales": "en,pt-BR"}},
+    )
+    # The translator returns a string where the pipe is missing:
+    translator = InMemoryTextTranslator(
+        {"See [[{88800}|Overview]].": "Veja [[{88800} Visao Geral]]."}
+    )
+    context = BuildContext(
+        tmp_path / "site.yaml", tmp_path / "build", None, "test"
+    )
+
+    # Act
+    variants = I18nSiteVariantProvider(translator).variants(site, context)
+
+    # Assert
+    translated_path = variants[1].site.collections[0].pages[0].source_path
+    assert (
+        translated_path.read_text(encoding="utf-8")
+        == "Veja [[overview|Visao Geral]].\n"
+    )
+
+
+def test_variants_preserves_latex_expressions_in_machine_translation(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    source_path = source_root / "README.md"
+    source_path.write_text(
+        "Optimize over strength $\\alpha$ using $$\\alpha = 0.5$$.\n",
+        encoding="utf-8",
+    )
+    page = Page(slug="overview", title="Overview", source_path=source_path)
+    collection = ContentCollection(
+        name="sample_collection",
+        title="Sample Collection",
+        source_root=source_root,
+        output_slug="sample-collection",
+        pages=(page,),
+        videos={},
+    )
+    site = Site(
+        title="Learning Site",
+        description="",
+        collections=(collection,),
+        extensions={"i18n": {"default_locale": "en", "locales": "en,pt-BR"}},
+    )
+    # The translator expects the protected LaTeX markers:
+    translator = InMemoryTextTranslator(
+        {
+            "Optimize over strength {99900} using {99901}.": (
+                "Otimize sobre a forca {99900} usando {99901}."
+            )
+        }
+    )
+    context = BuildContext(
+        tmp_path / "site.yaml", tmp_path / "build", None, "test"
+    )
+
+    # Act
+    variants = I18nSiteVariantProvider(translator).variants(site, context)
+
+    # Assert
+    translated_path = variants[1].site.collections[0].pages[0].source_path
+    assert (
+        translated_path.read_text(encoding="utf-8")
+        == "Otimize sobre a forca $\\alpha$ usando $$\\alpha = 0.5$$.\n"
+    )
+
+
+def test_variants_uses_catalog_glossary_to_protect_and_translate_technical_terms(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    source_path = source_root / "README.md"
+    source_path.write_text(
+        "We use Feast for features and a model registry for tracking.\n",
+        encoding="utf-8",
+    )
+    page = Page(slug="overview", title="Overview", source_path=source_path)
+    collection = ContentCollection(
+        name="sample_collection",
+        title="Sample Collection",
+        source_root=source_root,
+        output_slug="sample-collection",
+        pages=(page,),
+        videos={},
+    )
+    site = Site(
+        title="Learning Site",
+        description="",
+        collections=(collection,),
+        extensions={"i18n": {"default_locale": "en", "locales": "en,pt-BR"}},
+    )
+
+    # Write the YAML catalog containing the glossary terms
+    i18n_dir = tmp_path / "i18n"
+    i18n_dir.mkdir()
+    (i18n_dir / "pt-BR.yaml").write_text(
+        "glossary:\n  Feast: Feast\n  model registry: registro de modelos\n",
+        encoding="utf-8",
+    )
+
+    # The fallback translator expects the protected markers:
+    fallback_translator = InMemoryTextTranslator(
+        {
+            "We use {99901} for features and a {99900} for tracking.": (
+                "Usamos {99901} para features e um {99900} para rastreamento."
+            )
+        }
+    )
+    context = BuildContext(
+        tmp_path / "site.yaml", tmp_path / "build", None, "test"
+    )
+
+    # Act
+    variants = I18nSiteVariantProvider(
+        fallback_translator,
+        catalog_repository=YamlTranslationCatalogRepository(),
+        machine_text_translator_factory=None,
+    ).variants(site, context)
+
+    # Assert
+    translated_path = variants[1].site.collections[0].pages[0].source_path
+    assert (
+        translated_path.read_text(encoding="utf-8")
+        == "Usamos Feast para features e um registro de modelos para rastreamento.\n"
+    )
+
+
+def test_variants_restores_mutated_markers_from_machine_translation(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    source_path = source_root / "README.md"
+    source_path.write_text(
+        "Optimize over strength $\\alpha$ using $$\\alpha = 0.5$$.\n",
+        encoding="utf-8",
+    )
+    page = Page(slug="overview", title="Overview", source_path=source_path)
+    collection = ContentCollection(
+        name="sample_collection",
+        title="Sample Collection",
+        source_root=source_root,
+        output_slug="sample-collection",
+        pages=(page,),
+        videos={},
+    )
+    site = Site(
+        title="Learning Site",
+        description="",
+        collections=(collection,),
+        extensions={"i18n": {"default_locale": "en", "locales": "en,pt-BR"}},
+    )
+    # The translator returns the markers with mutated casing, spacing, and missing braces:
+    translator = InMemoryTextTranslator(
+        {
+            "Optimize over strength {99900} using {99901}.": (
+                "Otimize sobre a forca 99900 usando { 99901 }."
+            )
+        }
+    )
+    context = BuildContext(
+        tmp_path / "site.yaml", tmp_path / "build", None, "test"
+    )
+
+    # Act
+    variants = I18nSiteVariantProvider(translator).variants(site, context)
+
+    # Assert
+    translated_path = variants[1].site.collections[0].pages[0].source_path
+    assert (
+        translated_path.read_text(encoding="utf-8")
+        == "Otimize sobre a forca $\\alpha$ usando $$\\alpha = 0.5$$.\n"
     )

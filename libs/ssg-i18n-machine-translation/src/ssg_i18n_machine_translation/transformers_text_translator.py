@@ -14,17 +14,26 @@ class TransformersModule(Protocol):
 
 class TransformersTextTranslator(TextTranslator):
     def __init__(
-        self, model_name: str = "facebook/nllb-200-distilled-600M"
+        self, model_name: str = "Helsinki-NLP/opus-mt-tc-big-en-pt"
     ) -> None:
         self._model_name = model_name
         self._translation_pipeline: Callable[..., object] | None = None
 
     def translate(self, source_text: str, target_locale: Locale) -> str:
         translation_pipeline = self._pipeline()
+        generation_options: dict[str, object] = {
+            "max_new_tokens": max(16, min(128, len(source_text.split()) * 4)),
+            "no_repeat_ngram_size": 3,
+        }
+        if "nllb" in self._model_name.lower():
+            generation_options["src_lang"] = "eng_Latn"
+            generation_options["tgt_lang"] = self._flores_lang_code(
+                target_locale
+            )
+
         result = translation_pipeline(
             source_text,
-            max_new_tokens=max(16, min(128, len(source_text.split()) * 4)),
-            no_repeat_ngram_size=3,
+            **generation_options,
         )
         translated_text = self._translation_text(
             result, source_text, target_locale
@@ -33,6 +42,27 @@ class TransformersTextTranslator(TextTranslator):
             return source_text
 
         return translated_text
+
+    def _flores_lang_code(self, locale: Locale) -> str:
+        normalized = locale.tag.lower().replace("_", "-")
+        prefix = normalized.split("-")[0]
+        mapping = {
+            "en": "eng_Latn",
+            "pt": "por_Latn",
+            "es": "spa_Latn",
+            "fr": "fra_Latn",
+            "de": "deu_Latn",
+            "it": "ita_Latn",
+            "ru": "rus_Cyrl",
+            "zh": "zho_Hans",
+            "ja": "jpn_Jpan",
+            "ko": "kor_Hang",
+        }
+        if normalized in mapping:
+            return mapping[normalized]
+        if prefix in mapping:
+            return mapping[prefix]
+        return locale.tag
 
     def _pipeline(self) -> Callable[..., object]:
         if self._translation_pipeline is not None and callable(

@@ -33,11 +33,9 @@ def test_i18n_build_composes_with_content_and_html_extensions(
             "Sample Collection": "Colecao de Exemplo",
             "Overview": "Visao Geral",
             "Notebook": "Caderno",
-            "Use {SSG_I18N_PROTECTED_0} for tracking.": (
-                "Use {SSG_I18N_PROTECTED_0} para rastreamento."
-            ),
-            "Run {SSG_I18N_PROTECTED_0} after validation.": (
-                "Execute {SSG_I18N_PROTECTED_0} apos a validacao."
+            "Use {99900} for tracking.": ("Use {99900} para rastreamento."),
+            "Run {99900} after validation.": (
+                "Execute {99900} apos a validacao."
             ),
         }
     )

@@ -7,7 +7,7 @@ extensions:
     locales: en,pt-BR
     translations_path: i18n
     generated_path: .ssg/generated-i18n
-    translation_mode: manual
+    translation_mode: manual_with_machine_fallback
   syntax_highlighting:
     style: gruvbox-dark
   latex:

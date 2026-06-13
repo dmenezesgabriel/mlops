@@ -7,8 +7,38 @@ from typing import Any
 from ssg_i18n.application.translation import TextTranslator
 from ssg_i18n.domain.locale import Locale
 
-PROTECTED_PATTERN = re.compile(r"(`[^`]+`|https?://\S+)")
+PROTECTED_PATTERN = re.compile(
+    r"(`[^`]+`|https?://\S+|\$\$.*?\$\$|(?<!\$)\$[^\$\s](?:[^\$]*?[^\$\s])?\$(?!\d))",
+    re.DOTALL,
+)
 WIKILINK_PATTERN = re.compile(r"\[\[([a-zA-Z0-9_-]+)(?:\|([^\]]+))?\]\]")
+
+# Matches the leading whitespace + list marker on a list item line.
+# Captured as group(1) so it can be stripped before translation and re-added after.
+LIST_PREFIX_PATTERN = re.compile(r"^(\s*(?:[*\-+]|\d+\.)\s+)(.*)", re.DOTALL)
+
+# Match bold (**…**) before italic (*…*) to avoid treating ** as two * markers.
+INLINE_BOLD_PATTERN = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
+INLINE_ITALIC_PATTERN = re.compile(
+    r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", re.DOTALL
+)
+
+# _protect_inline_markup was removed — replaced by _pre_translate_inline_spans
+# (an instance method) which pre-translates each span's content and stores the
+# fully-reconstructed replacement as a single-occurrence marker in protected_parts.
+
+
+def _strip_list_prefix(line: str) -> tuple[str, str]:
+    """Return (prefix, body) by splitting off any leading list marker.
+
+    The prefix (e.g. '    *   ') is preserved verbatim so it can be
+    re-appended after translation without passing through the MT model.
+    Example: '    *   **Bold item**' -> ('    *   ', '**Bold item**')
+    """
+    match = LIST_PREFIX_PATTERN.match(line)
+    if match:
+        return match.group(1), match.group(2)
+    return "", line
 
 
 @dataclass(frozen=True)
@@ -106,14 +136,22 @@ class DocumentTranslator:
         if not line_body.strip():
             return line
 
-        heading_match = re.fullmatch(r"(#{1,6}\s+)(.*)", line_body)
+        # Pass horizontal rules through unchanged; MT models duplicate the dashes.
+        if re.fullmatch(r"\s*-{3,}\s*", line_body):
+            return line
+
+        # Strip the list-item prefix so indentation is never sent to the MT model.
+        prefix, body = _strip_list_prefix(line_body)
+
+        heading_match = re.fullmatch(r"(#{1,6}\s+)(.*)", body)
         if heading_match:
-            return self._translate_heading(
+            return prefix + self._translate_heading(
                 heading_match, target_locale, line_ending
             )
 
         return (
-            self._translate_text_with_protected_parts(line_body, target_locale)
+            prefix
+            + self._translate_text_with_protected_parts(body, target_locale)
             + line_ending
         )
 
@@ -138,12 +176,43 @@ class DocumentTranslator:
     ) -> str:
         protected_parts: dict[str, str] = {}
         wikilink_targets: dict[str, str] = {}
+
+        # Pre-translate each ** and * inline span, storing the fully-reconstructed
+        # replacement in protected_parts as a single-occurrence marker.
+        # Single-occurrence markers in the 999xx range are reliably copied by the model.
+        source_text = self._pre_translate_inline_spans(
+            source_text, protected_parts, target_locale
+        )
+
         wikilink_source = WIKILINK_PATTERN.sub(
             lambda match: self._protect_wikilink_target(
                 match, wikilink_targets
             ),
             source_text,
         )
+
+        glossary_terms: dict[str, str] = {}
+        from ssg_i18n.application.translation import CatalogFirstTextTranslator
+
+        if isinstance(self.text_translator, CatalogFirstTextTranslator):
+            glossary_terms = self.text_translator.catalog.glossary_terms
+
+        # Protect glossary terms (longer terms first to prevent substring matching)
+        sorted_glossary = sorted(
+            glossary_terms.items(), key=lambda x: len(x[0]), reverse=True
+        )
+        for term, translated_term in sorted_glossary:
+            pattern = re.compile(rf"\b{re.escape(term)}\b", re.IGNORECASE)
+
+            def replace_term(
+                match: re.Match[str], t_term: str = translated_term
+            ) -> str:
+                marker = f"{{{99900 + len(protected_parts)}}}"
+                protected_parts[marker] = t_term
+                return marker
+
+            wikilink_source = pattern.sub(replace_term, wikilink_source)
+
         protected_source = PROTECTED_PATTERN.sub(
             lambda match: self._protect_match(match, protected_parts),
             wikilink_source,
@@ -151,10 +220,27 @@ class DocumentTranslator:
         translated_source = self.text_translator.translate(
             protected_source, target_locale
         )
+        translated_source = re.sub(
+            r"\{\s*(999\d+|888\d+)\s*\}",
+            lambda m: f"{{{m.group(1)}}}",
+            translated_source,
+        )
+        translated_source = re.sub(
+            r"(?<!\{)(999\d+|888\d+)(?!\})",
+            lambda m: f"{{{m.group(1)}}}",
+            translated_source,
+        )
         if not self._all_markers_preserved(
             translated_source, protected_parts | wikilink_targets
         ):
             translated_source = protected_source
+
+        # Repair any machine-translated wikilinks where the pipe "|" was lost or deleted
+        translated_source = re.sub(
+            r"\[\[(\{888\d+\})\s*([^\|\]]+)\]\]",
+            r"[[\1|\2]]",
+            translated_source,
+        )
 
         for marker, protected_text in protected_parts.items():
             translated_source = translated_source.replace(
@@ -167,6 +253,46 @@ class DocumentTranslator:
 
         return translated_source
 
+    def _pre_translate_inline_spans(
+        self,
+        text: str,
+        protected_parts: dict[str, str],
+        target_locale: Locale,
+    ) -> str:
+        """Pre-translate each ** and * span; store result as a single-occurrence marker.
+
+        Each inline span is replaced by ONE {99900+N} marker whose value in
+        protected_parts is the fully-translated, delimiter-wrapped replacement.
+        Single-occurrence markers are reliably copied by the MT model, avoiding
+        the split-closing-marker problem that affects paired open/close tokens.
+        Bold is processed before italic to avoid treating ** as two *s.
+        Example: '**bold** and *italic*'
+                 -> '{99900} and {99901}' with
+                    protected_parts = {'{99900}': '**negrito**', '{99901}': '*itálico*'}
+        """
+
+        def replace_bold(match: re.Match[str]) -> str:
+            content = match.group(1)
+            translated = self._translate_text_with_protected_parts(
+                content, target_locale
+            )
+            marker = f"{{{99900 + len(protected_parts)}}}"
+            protected_parts[marker] = f"**{translated}**"
+            return marker
+
+        def replace_italic(match: re.Match[str]) -> str:
+            content = match.group(1)
+            translated = self._translate_text_with_protected_parts(
+                content, target_locale
+            )
+            marker = f"{{{99900 + len(protected_parts)}}}"
+            protected_parts[marker] = f"*{translated}*"
+            return marker
+
+        text = INLINE_BOLD_PATTERN.sub(replace_bold, text)
+        text = INLINE_ITALIC_PATTERN.sub(replace_italic, text)
+        return text
+
     def _all_markers_preserved(
         self, translated_source: str, protected_parts: dict[str, str]
     ) -> bool:
@@ -175,14 +301,14 @@ class DocumentTranslator:
     def _protect_match(
         self, match: re.Match[str], protected_parts: dict[str, str]
     ) -> str:
-        marker = f"{{SSG_I18N_PROTECTED_{len(protected_parts)}}}"
+        marker = f"{{{99900 + len(protected_parts)}}}"
         protected_parts[marker] = match.group(0)
         return marker
 
     def _protect_wikilink_target(
         self, match: re.Match[str], wikilink_targets: dict[str, str]
     ) -> str:
-        marker = f"{{SSG_I18N_WIKILINK_{len(wikilink_targets)}}}"
+        marker = f"{{{88800 + len(wikilink_targets)}}}"
         wikilink_targets[marker] = match.group(1)
         label = match.group(2)
         if label is None:
