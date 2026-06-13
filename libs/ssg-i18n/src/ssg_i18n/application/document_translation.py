@@ -1,49 +1,79 @@
 import json
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
+import mistletoe
+from mistletoe import block_token, span_token
+from mistletoe.markdown_renderer import MarkdownRenderer
+
+from ssg_i18n.application.terminology_mapper import TerminologyMapper
 from ssg_i18n.application.translation import TextTranslator
 from ssg_i18n.domain.locale import Locale
 
+# Monkeypatch mistletoe duplicate instantiation bug
+orig_remove_token = mistletoe.block_token.remove_token
+
+
+def safe_remove_token(token_cls):
+    try:
+        if token_cls in mistletoe.block_token._token_types:
+            orig_remove_token(token_cls)
+    except ValueError:
+        pass
+
+
+mistletoe.block_token.remove_token = safe_remove_token
+
+
+class CustomMarkdownRenderer(MarkdownRenderer):
+    def __init__(self, *args, **kwargs):
+        self.in_list_loose = None
+        super().__init__(*args, **kwargs)
+
+    def blocks_to_lines(
+        self, tokens: Iterable[block_token.BlockToken], max_line_length: int
+    ) -> Iterable[str]:
+        first = True
+        for token in tokens:
+            if not first:
+                if (
+                    token.__class__.__name__ == "ListItem"
+                    and self.in_list_loose is False
+                ):
+                    pass
+                else:
+                    yield ""
+            first = False
+            yield from self.render_map[token.__class__.__name__](
+                token, max_line_length=max_line_length
+            )
+
+    def render_list(
+        self, token: block_token.List, max_line_length: int
+    ) -> Iterable[str]:
+        old_loose = self.in_list_loose
+        self.in_list_loose = token.loose
+        try:
+            yield from self.blocks_to_lines(
+                token.children, max_line_length=max_line_length
+            )
+        finally:
+            self.in_list_loose = old_loose
+
+
 PROTECTED_PATTERN = re.compile(
-    r"(`[^`]+`|https?://\S+|\$\$.*?\$\$|(?<!\$)\$[^\$\s](?:[^\$]*?[^\$\s])?\$(?!\d))",
+    r"(\$\$.*?\$\$|(?<!\$)\$[^\$\s](?:[^\$]*?[^\$\s])?\$(?!\d)|https?://\S+)",
     re.DOTALL,
 )
 WIKILINK_PATTERN = re.compile(r"\[\[([a-zA-Z0-9_-]+)(?:\|([^\]]+))?\]\]")
-
-# Matches the leading whitespace + list marker on a list item line.
-# Captured as group(1) so it can be stripped before translation and re-added after.
-LIST_PREFIX_PATTERN = re.compile(r"^(\s*(?:[*\-+]|\d+\.)\s+)(.*)", re.DOTALL)
-
-# Match bold (**…**) before italic (*…*) to avoid treating ** as two * markers.
-INLINE_BOLD_PATTERN = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
-INLINE_ITALIC_PATTERN = re.compile(
-    r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", re.DOTALL
-)
-
-# _protect_inline_markup was removed — replaced by _pre_translate_inline_spans
-# (an instance method) which pre-translates each span's content and stores the
-# fully-reconstructed replacement as a single-occurrence marker in protected_parts.
-
-
-def _strip_list_prefix(line: str) -> tuple[str, str]:
-    """Return (prefix, body) by splitting off any leading list marker.
-
-    The prefix (e.g. '    *   ') is preserved verbatim so it can be
-    re-appended after translation without passing through the MT model.
-    Example: '    *   **Bold item**' -> ('    *   ', '**Bold item**')
-    """
-    match = LIST_PREFIX_PATTERN.match(line)
-    if match:
-        return match.group(1), match.group(2)
-    return "", line
 
 
 @dataclass(frozen=True)
 class DocumentTranslator:
     text_translator: TextTranslator
+    terminology_mapper: TerminologyMapper = TerminologyMapper()
 
     def translate_file(
         self, source_path: Path, output_path: Path, target_locale: Locale
@@ -90,7 +120,7 @@ class DocumentTranslator:
         if not isinstance(cell, dict) or cell.get("cell_type") != "markdown":
             return cell
 
-        translated_cell: dict[str, Any] = dict(cell)
+        translated_cell: dict[str, object] = dict(cell)
         translated_cell["source"] = self._translate_notebook_source(
             cell.get("source"), target_locale
         )
@@ -109,147 +139,100 @@ class DocumentTranslator:
     def translate_markdown_source(
         self, source: str, target_locale: Locale
     ) -> str:
-        translated_lines: list[str] = []
-        inside_code_fence = False
-        for line in source.splitlines(keepends=True):
-            if line.lstrip().startswith("```"):
-                inside_code_fence = not inside_code_fence
-                translated_lines.append(line)
-                continue
+        if not source.strip():
+            return source
 
-            translated_lines.append(
-                self._translate_markdown_line(
-                    line, target_locale, inside_code_fence
-                )
-            )
+        doc = mistletoe.Document(source)
+        with CustomMarkdownRenderer() as renderer:
+            self._translate_block(doc, target_locale, renderer)
+            translated = renderer.render(doc)
 
-        return "".join(translated_lines)
+        # Preserve trailing newline behavior
+        if not source.endswith("\n") and translated.endswith("\n"):
+            translated = translated.rstrip("\n")
+        return translated
 
-    def _translate_markdown_line(
-        self, line: str, target_locale: Locale, inside_code_fence: bool
-    ) -> str:
-        if inside_code_fence or "{{" in line or "{%" in line:
-            return line
-
-        line_body = line.removesuffix("\n")
-        line_ending = "\n" if line.endswith("\n") else ""
-        if not line_body.strip():
-            return line
-
-        # Pass horizontal rules through unchanged; MT models duplicate the dashes.
-        if re.fullmatch(r"\s*-{3,}\s*", line_body):
-            return line
-
-        # Strip the list-item prefix so indentation is never sent to the MT model.
-        prefix, body = _strip_list_prefix(line_body)
-
-        # Detect markdown table row
-        if body.strip().startswith("|") and body.count("|") >= 2:
-            return (
-                prefix
-                + self._translate_table_row(body, target_locale)
-                + line_ending
-            )
-
-        heading_match = re.fullmatch(r"(#{1,6}\s+)(.*)", body)
-        if heading_match:
-            return prefix + self._translate_heading(
-                heading_match, target_locale, line_ending
-            )
-
-        return (
-            prefix
-            + self._translate_text_with_protected_parts(body, target_locale)
-            + line_ending
-        )
-
-    def _translate_table_row(self, row: str, target_locale: Locale) -> str:
-        cells = row.split("|")
-        translated_cells = []
-        for i, cell in enumerate(cells):
-            # First and last cells are empty if row starts/ends with |
-            if (i == 0 or i == len(cells) - 1) and not cell.strip():
-                translated_cells.append(cell)
-                continue
-
-            # Skip divider cells like " :--- "
-            if re.fullmatch(r"\s*[-:]+\s*", cell):
-                translated_cells.append(cell)
-                continue
-
-            if not cell.strip():
-                translated_cells.append(cell)
-                continue
-
-            # Keep spacing for alignment/padding
-            match = re.match(r"^(\s*)(.*?)(\s*)$", cell)
-            if match:
-                l_ws, content, t_ws = match.groups()
-                translated_content = self._translate_text_with_protected_parts(
-                    content, target_locale
-                )
-                translated_cells.append(l_ws + translated_content + t_ws)
-            else:
-                translated_cells.append(cell)
-
-        return "|".join(translated_cells)
-
-    def _translate_heading(
+    def _translate_block(
         self,
-        heading_match: re.Match[str],
+        node: object,
         target_locale: Locale,
-        line_ending: str,
-    ) -> str:
-        heading_prefix = heading_match.group(1)
-        heading_text = heading_match.group(2)
-        return (
-            heading_prefix
-            + self._translate_text_with_protected_parts(
-                heading_text, target_locale
-            )
-            + line_ending
+        renderer: CustomMarkdownRenderer,
+    ) -> None:
+        class_name = node.__class__.__name__
+        children = getattr(node, "children", None)
+        if not children:
+            return
+        if class_name in ("Document", "List", "ListItem", "Table", "TableRow"):
+            self._translate_children(children, target_locale, renderer)
+            return
+        if class_name in ("Paragraph", "Heading", "TableCell"):
+            self._translate_container(node, children, target_locale, renderer)
+
+    def _translate_children(
+        self,
+        children: list[object],
+        target_locale: Locale,
+        renderer: CustomMarkdownRenderer,
+    ) -> None:
+        for child in children:
+            self._translate_block(child, target_locale, renderer)
+
+    def _translate_container(
+        self,
+        node: object,
+        children: list[object],
+        target_locale: Locale,
+        renderer: CustomMarkdownRenderer,
+    ) -> None:
+        has_jinja = any(
+            isinstance(child, span_token.RawText)
+            and ("{{" in child.content or "{%" in child.content)
+            for child in children
+        )
+        if has_jinja:
+            return
+        node.children = self._translate_inline_children(
+            children, target_locale, renderer
         )
 
-    def _translate_text_with_protected_parts(
-        self, source_text: str, target_locale: Locale
-    ) -> str:
+    def _translate_inline_children(
+        self,
+        children: list[object],
+        target_locale: Locale,
+        renderer: CustomMarkdownRenderer,
+    ) -> list[object]:
         protected_parts: dict[str, str] = {}
-
-        # 1. Wikilinks pre-translation & protection
-        def replace_wikilink(match: re.Match[str]) -> str:
-            target = match.group(1)
-            label = match.group(2)
-            if label is not None:
-                # Pre-translate the label recursively
-                translated_label = self._translate_text_with_protected_parts(
-                    label, target_locale
-                )
-                reconstructed = f"[[{target}|{translated_label}]]"
-            else:
-                reconstructed = f"[[{target}]]"
-
-            marker = f"{{{99900 + len(protected_parts)}}}"
-            protected_parts[marker] = reconstructed
-            return marker
-
-        wikilink_source = WIKILINK_PATTERN.sub(replace_wikilink, source_text)
-
-        # 2. Inline markdown protection (bold & italic)
-        wikilink_source = self._pre_translate_inline_spans(
-            wikilink_source, protected_parts, target_locale
+        english = self._translate_inline_nodes(
+            children, target_locale, protected_parts, renderer
         )
+        english = self._protect_and_translate_raw_text(
+            english, protected_parts, target_locale
+        )
+        english = self._protect_glossary_terms(english, protected_parts)
+        if not english.strip():
+            return children
+        translated = self.text_translator.translate(english, target_locale)
+        translated = self._normalize_and_heal_markers(translated, english)
+        finalized = self._restore_and_postprocess(
+            translated, english, protected_parts
+        )
+        return span_token.tokenize_inner(finalized)
 
-        glossary_terms: dict[str, str] = {}
+    def _get_glossary_terms(self) -> dict[str, str]:
         from ssg_i18n.application.translation import CatalogFirstTextTranslator
 
-        if isinstance(self.text_translator, CatalogFirstTextTranslator):
-            glossary_terms = self.text_translator.catalog.glossary_terms
+        if not isinstance(self.text_translator, CatalogFirstTextTranslator):
+            return {}
+        return self.text_translator.catalog.glossary_terms
 
-        # 3. Protect glossary terms (longest first to avoid substring conflicts)
-        sorted_glossary = sorted(
-            glossary_terms.items(), key=lambda x: len(x[0]), reverse=True
+    def _protect_glossary_terms(
+        self, sentence: str, protected_parts: dict[str, str]
+    ) -> str:
+        terms = self._get_glossary_terms()
+        sorted_terms = sorted(
+            terms.items(), key=lambda x: len(x[0]), reverse=True
         )
-        for term, translated_term in sorted_glossary:
+        for term, translated_term in sorted_terms:
             pattern = re.compile(rf"\b{re.escape(term)}\b", re.IGNORECASE)
 
             def replace_term(
@@ -259,176 +242,153 @@ class DocumentTranslator:
                 protected_parts[marker] = t_term
                 return marker
 
-            wikilink_source = pattern.sub(replace_term, wikilink_source)
+            sentence = pattern.sub(replace_term, sentence)
+        return sentence
 
-        # 4. Protect LaTeX and URLs
-        protected_source = PROTECTED_PATTERN.sub(
-            lambda match: self._protect_match(match, protected_parts),
-            wikilink_source,
-        )
-
-        # 5. Translate using the translation engine
-        translated_source = self.text_translator.translate(
-            protected_source, target_locale
-        )
-
-        # Normalize any spacing/braces inside markers
-        translated_source = re.sub(
+    def _normalize_and_heal_markers(
+        self,
+        translated: str,
+        original: str,
+    ) -> str:
+        normalized = re.sub(
             r"\{\s*(999\d+|888\d+)\s*\}",
             lambda m: f"{{{m.group(1)}}}",
-            translated_source,
+            translated,
         )
-        translated_source = re.sub(
+        normalized = re.sub(
             r"(?<!\{)(999\d+|888\d+)(?!\})",
             lambda m: f"{{{m.group(1)}}}",
-            translated_source,
+            normalized,
         )
+        leading_match = re.match(r"^(\{999\d+\}|\{888\d+\})(:?\s*)", original)
+        if not leading_match:
+            return normalized
+        marker = leading_match.group(1)
+        if marker in normalized:
+            return normalized
+        return marker + leading_match.group(2) + normalized
 
-        # 6. Heal leading markers stripped from the beginning by the MT model
-        leading_match = re.match(
-            r"^(\{999\d+\}|\{888\d+\})(:?\s*)", protected_source
-        )
-        if leading_match:
-            marker = leading_match.group(1)
-            separator = leading_match.group(2)
-            if marker not in translated_source:
-                translated_source = marker + separator + translated_source
-
-        # 7. Validation: if any markers are missing, fallback to protected_source
-        if not self._all_markers_preserved(translated_source, protected_parts):
-            translated_source = protected_source
-
-        # 8. Restore the protected parts in reverse order
-        for marker, protected_text in reversed(list(protected_parts.items())):
-            translated_source = translated_source.replace(
-                marker, protected_text
-            )
-
-        # 9. Post-translation terminology/grammar corrections
-        translated_source = self._apply_terminology_corrections(
-            translated_source
-        )
-
-        return translated_source
-
-    def _pre_translate_inline_spans(
+    def _restore_and_postprocess(
         self,
-        text: str,
+        translated: str,
+        original: str,
         protected_parts: dict[str, str],
+    ) -> str:
+        if not all(marker in translated for marker in protected_parts):
+            translated = original
+        for marker, text in reversed(list(protected_parts.items())):
+            translated = translated.replace(marker, text)
+        return self.terminology_mapper.map_text(translated)
+
+    def _translate_inline_nodes(
+        self,
+        tokens: list[object],
         target_locale: Locale,
+        protected_parts: dict[str, str],
+        renderer: CustomMarkdownRenderer,
     ) -> str:
-        """Pre-translate each ** and * span; store result as a single-occurrence marker."""
-
-        def replace_bold(match: re.Match[str]) -> str:
-            content = match.group(1)
-            is_lower = bool(content and content[0].islower())
-            temp_content = (
-                content[0].upper() + content[1:] if is_lower else content
+        parts = []
+        for child in tokens:
+            parts.append(
+                self._render_token_in_sentence(
+                    child, target_locale, protected_parts, renderer
+                )
             )
-            translated = self._translate_text_with_protected_parts(
-                temp_content, target_locale
-            )
-            if is_lower and translated:
-                translated = translated[0].lower() + translated[1:]
-            marker = f"{{{99900 + len(protected_parts)}}}"
-            protected_parts[marker] = f"**{translated}**"
-            return marker
+        return "".join(parts)
 
-        def replace_italic(match: re.Match[str]) -> str:
-            content = match.group(1)
-            is_lower = bool(content and content[0].islower())
-            temp_content = (
-                content[0].upper() + content[1:] if is_lower else content
-            )
-            translated = self._translate_text_with_protected_parts(
-                temp_content, target_locale
-            )
-            if is_lower and translated:
-                translated = translated[0].lower() + translated[1:]
-            marker = f"{{{99900 + len(protected_parts)}}}"
-            protected_parts[marker] = f"*{translated}*"
-            return marker
-
-        text = INLINE_BOLD_PATTERN.sub(replace_bold, text)
-        text = INLINE_ITALIC_PATTERN.sub(replace_italic, text)
-        return text
-
-    def _all_markers_preserved(
-        self, translated_source: str, protected_parts: dict[str, str]
-    ) -> bool:
-        return all(marker in translated_source for marker in protected_parts)
-
-    def _protect_match(
-        self, match: re.Match[str], protected_parts: dict[str, str]
+    def _render_token_in_sentence(
+        self,
+        child: object,
+        target_locale: Locale,
+        protected_parts: dict[str, str],
+        renderer: CustomMarkdownRenderer,
     ) -> str:
-        marker = f"{{{99900 + len(protected_parts)}}}"
-        protected_parts[marker] = match.group(0)
+        name = child.__class__.__name__
+        if name == "RawText":
+            return getattr(child, "content", "")
+        if name in ("Strong", "Emphasis"):
+            return self._render_styled_nodes(
+                child, target_locale, protected_parts, renderer
+            )
+        if name == "Link":
+            return self._translate_and_protect_link(
+                child, target_locale, protected_parts, renderer
+            )
+        if name in ("InlineCode", "LineBreak"):
+            return self._protect_node(child, protected_parts, renderer)
+        return renderer.render(child).rstrip("\n")
+
+    def _render_styled_nodes(
+        self,
+        node: object,
+        target_locale: Locale,
+        protected_parts: dict[str, str],
+        renderer: CustomMarkdownRenderer,
+    ) -> str:
+        children = self._translate_inline_nodes(
+            node.children, target_locale, protected_parts, renderer
+        )
+        if node.__class__.__name__ == "Strong":
+            return f"**{children}**"
+        return f"*{children}*"
+
+    def _translate_and_protect_link(
+        self,
+        link: object,
+        target_locale: Locale,
+        protected_parts: dict[str, str],
+        renderer: CustomMarkdownRenderer,
+    ) -> str:
+        label = self._translate_inline_nodes(
+            link.children, target_locale, protected_parts, renderer
+        )
+        original = link.children
+        link.children = [span_token.RawText(label)]
+        marker = self._protect_node(link, protected_parts, renderer)
+        link.children = original
         return marker
 
-    def _protect_wikilink_target(
-        self, match: re.Match[str], wikilink_targets: dict[str, str]
+    def _protect_node(
+        self,
+        node: object,
+        protected_parts: dict[str, str],
+        renderer: CustomMarkdownRenderer,
     ) -> str:
-        marker = f"{{{88800 + len(wikilink_targets)}}}"
-        wikilink_targets[marker] = match.group(1)
-        label = match.group(2)
-        if label is None:
-            return f"[[{marker}]]"
+        rendered = renderer.render(node).rstrip("\n")
+        marker = f"{{{99900 + len(protected_parts)}}}"
+        protected_parts[marker] = rendered
+        return marker
 
-        return f"[[{marker}|{label}]]"
+    def _protect_and_translate_raw_text(
+        self, text: str, protected_parts: dict[str, str], target_locale: Locale
+    ) -> str:
+        text = self._protect_wikilinks(text, protected_parts, target_locale)
+        return self._protect_patterns(text, protected_parts)
 
-    def _apply_terminology_corrections(self, text: str) -> str:
-        corrections = [
-            (r"\bloja de recursos\b", "Feature Store"),
-            (r"\blojas de recursos\b", "Feature Stores"),
-            (r"\blago de dados\b", "data lake"),
-            (r"\blagos de dados\b", "data lakes"),
-            (r"\bloja de fluxo\b", "stream store"),
-            (r"\blojas de fluxo\b", "stream stores"),
-            (r"\bdrift característica\b", "feature drift"),
-            (r"\bderiva de recurso\b", "feature drift"),
-            (r"\bderiva de recursos\b", "feature drift"),
-            (r"\bderiva de característica\b", "feature drift"),
-            (r"\bderiva de características\b", "feature drift"),
-            (r"\bdrift de recurso\b", "feature drift"),
-            (r"\bdrift de recursos\b", "feature drift"),
-            (r"\bdrift de característica\b", "feature drift"),
-            (r"\bdrift de características\b", "feature drift"),
-            (r"\bcaracterísticas do atraso\b", "lags de features"),
-            (r"\batraso de coleta\b", "lag de embarques"),
-            (r"\batrasos de coleta\b", "lags de embarques"),
-            (r"\batraso horários\b", "lags horários"),
-            (r"\batrasos horários\b", "lags horários"),
-            (r"\bcaptadores de táxi\b", "embarques de táxi"),
-            (r"\bcaptador de táxi\b", "embarque de táxi"),
-            (r"\bcontagens de captação\b", "contagens de embarques"),
-            (r"\bcontagem de captação\b", "contagem de embarques"),
-            (r"\bcontagens de coleta\b", "contagens de embarques"),
-            (r"\bcontagem de coleta\b", "contagem de tempo de embarque"),
-            (r"\btempo de captação\b", "horário de embarque"),
-            (r"\btempo de coleta\b", "horário de embarque"),
-            (r"\btempo de entrega\b", "horário de desembarque"),
-            (r"\bpreços de alta\b", "preço dinâmico"),
-            (r"\bpreço de alta\b", "preço dinâmico"),
-            (r"\bencanamento\b", "pipeline"),
-            (r"\bencanamentos\b", "pipelines"),
-            (r"\boleoduto\b", "pipeline"),
-            (r"\boleodutos\b", "pipelines"),
-            (r"\bgasoduto\b", "pipeline"),
-            (r"\bgasodutos\b", "pipelines"),
-            (r"\bMétricas Candida\b", "Métricas Candidatas"),
-            (r"\bmétricas candida\b", "métricas candidatas"),
-            (r"\bmétrica candida\b", "métrica candidata"),
-            (r"\bimplantação Bloco\b", "Bloquear Implantação"),
-            (r"\bimplantação bloco\b", "bloquear implantação"),
-            (r"\bcavalos sazonalidade\b", "captura a sazonalidade"),
-            (r"\bcavalga sazonalidade\b", "captura a sazonalidade"),
-            (r"\bNegócios Trade-offs\b", "Trade-offs de Negócio"),
-            (r"\bNegócio Trade-offs\b", "Trade-offs de Negócio"),
-            (r"\bProblema Enquadramento\b", "Enquadramento do Problema"),
-            (r"\bFases de Ciclo de Vida\b", "Fases do Ciclo de Vida de"),
-        ]
+    def _protect_wikilinks(
+        self, text: str, protected_parts: dict[str, str], target_locale: Locale
+    ) -> str:
+        def replace_wikilink(match: re.Match[str]) -> str:
+            target = match.group(1)
+            label = match.group(2)
+            reconstructed = f"[[{target}]]"
+            if label is not None:
+                translated = self.text_translator.translate(
+                    label, target_locale
+                )
+                reconstructed = f"[[{target}|{translated}]]"
+            marker = f"{{{99900 + len(protected_parts)}}}"
+            protected_parts[marker] = reconstructed
+            return marker
 
-        for pattern, replacement in corrections:
-            text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+        return WIKILINK_PATTERN.sub(replace_wikilink, text)
 
-        return text
+    def _protect_patterns(
+        self, text: str, protected_parts: dict[str, str]
+    ) -> str:
+        def replace_protected(match: re.Match[str]) -> str:
+            marker = f"{{{99900 + len(protected_parts)}}}"
+            protected_parts[marker] = match.group(0)
+            return marker
+
+        return PROTECTED_PATTERN.sub(replace_protected, text)
