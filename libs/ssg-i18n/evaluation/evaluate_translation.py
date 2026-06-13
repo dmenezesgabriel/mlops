@@ -1,28 +1,16 @@
 import json
 import re
-import sys
 from pathlib import Path
 
 import sacrebleu
 import yaml
-
-# Add ssg-i18n and ssg-i18n-machine-translation to path
-repo_root = Path(__file__).resolve().parents[3]
-sys.path.extend(
-    [
-        str(repo_root / "libs" / "ssg-i18n" / "src"),
-        str(repo_root / "libs" / "ssg-i18n-machine-translation" / "src"),
-    ]
-)
-
-from ssg_i18n.application.document_translation import (  # noqa: E402
-    DocumentTranslator,
-)
-from ssg_i18n.domain.locale import Locale  # noqa: E402
-from ssg_i18n_machine_translation.transformers_text_translator import (  # noqa: E402
+from ssg_i18n.application.document_translation import DocumentTranslator
+from ssg_i18n.domain.locale import Locale
+from ssg_i18n_machine_translation.transformers_text_translator import (
     TransformersTextTranslator,
 )
 
+repo_root = Path(__file__).resolve().parents[3]
 PT_BR = Locale("pt-BR")
 
 
