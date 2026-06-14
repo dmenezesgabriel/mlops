@@ -1,6 +1,6 @@
+from ssg.domain import demote_top_level_headings
 from ssg.infrastructure.html_article_outline_builder import (
     HtmlArticleOutlineBuilder,
-    demote_top_level_headings,
 )
 
 
