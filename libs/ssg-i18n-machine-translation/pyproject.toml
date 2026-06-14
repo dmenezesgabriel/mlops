@@ -12,6 +12,12 @@ transformers = [
   "torch>=2.0.0",
   "sentencepiece>=0.2.0",
 ]
+evaluation = [
+  "sacrebleu>=2.6.0",
+]
+
+[project.scripts]
+ssg-i18n-evaluate = "ssg_i18n_machine_translation.presentation.cli:main"
 
 [project.entry-points."ssg_i18n.text_translators"]
 transformers = "ssg_i18n_machine_translation.presentation.plugin:create_transformers_text_translator"
