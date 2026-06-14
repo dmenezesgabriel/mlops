@@ -49,3 +49,21 @@ class TestImageOverlapDetector:
         violations = detector.check_image(img_path)
         assert len(violations) > 0
         assert "overlap" in violations[0].rule
+
+    def test_passes_on_close_elements(self, temp_image_dir: Path) -> None:
+        # Create an image with two rectangles placed very close (2 pixels apart)
+        # representing characters in a word
+        img = Image.new("RGB", (300, 300), color=(30, 30, 30))
+        draw = ImageDraw.Draw(img)
+        # Draw a thick L-shape
+        draw.rectangle([50, 65, 70, 70], fill=(255, 255, 255))
+        draw.rectangle([50, 50, 55, 70], fill=(255, 255, 255))
+        # Draw a thick vertical line inside the L-shape's bounding box, but not touching it
+        draw.rectangle([62, 50, 67, 60], fill=(255, 255, 255))
+
+        path = temp_image_dir / "close_elements.png"
+        img.save(path)
+
+        detector = ImageOverlapDetector()
+        violations = detector.check_image(path)
+        assert len(violations) == 0

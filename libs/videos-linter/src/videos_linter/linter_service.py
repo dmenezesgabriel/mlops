@@ -45,11 +45,11 @@ class ContrastChecker:
                 continue
 
             fg_pixels = roi_bgr[fg_mask]
-            fg_mean = np.mean(fg_pixels, axis=0)
+            fg_mean = np.percentile(fg_pixels, 95, axis=0)
 
             if np.any(bg_mask):
                 bg_pixels = roi_bgr[bg_mask]
-                bg_mean = np.mean(bg_pixels, axis=0)
+                bg_mean = np.percentile(bg_pixels, 5, axis=0)
             else:
                 bg_mean = np.array([30.0, 30.0, 30.0])
 
@@ -131,8 +131,10 @@ class ImageOverlapDetector:
         channels = list(cv2.split(img)) + [
             cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         ]
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 20))
         for ch in channels:
             _, thresh = cv2.threshold(ch, 40, 255, cv2.THRESH_BINARY)
+            thresh = cv2.dilate(thresh, kernel, iterations=1)
             contours, _ = cv2.findContours(
                 thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
             )
@@ -166,6 +168,16 @@ class ImageOverlapDetector:
 
                 if x_right > x_left and y_bottom > y_top:
                     intersection_area = (x_right - x_left) * (y_bottom - y_top)
+
+                    # Calculate ratio of intersection over the smaller box
+                    area_a = w_a * h_a
+                    area_b = w_b * h_b
+                    min_area = min(area_a, area_b)
+
+                    if min_area > 0 and (intersection_area / min_area) > 0.7:
+                        # Skip almost identical or heavily nested boxes (channel duplicates)
+                        continue
+
                     if intersection_area > 10:
                         violations.append(
                             RuleViolation(
@@ -187,7 +199,7 @@ class ImageOverlapDetector:
 class VideoMotionAnalyzer:
     def __init__(
         self,
-        max_frozen_seconds: float = 2.0,
+        max_frozen_seconds: float = 15.0,
         stutter_threshold: float = 80.0,
     ) -> None:
         self._max_frozen_seconds = max_frozen_seconds
