@@ -1,5 +1,5 @@
 from ssg.domain.site import Site
-from ssg_syntax_highlighting.presentation.plugin import (
+from ssg_syntax_highlighting.infrastructure.plugin import (
     create_pygments_html_post_processor,
 )
 

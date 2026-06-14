@@ -8,7 +8,7 @@ dependencies = [
 ]
 
 [project.entry-points."ssg.html_post_processors"]
-pygments = "ssg_syntax_highlighting.presentation.plugin:create_pygments_html_post_processor"
+pygments = "ssg_syntax_highlighting.infrastructure.plugin:create_pygments_html_post_processor"
 
 [tool.uv.sources]
 ssg = { workspace = true }
