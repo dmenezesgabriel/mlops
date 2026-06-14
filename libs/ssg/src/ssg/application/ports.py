@@ -15,57 +15,45 @@ from ssg.domain.site import (
 
 
 class SiteRepository(Protocol):
-    def load(self, config_path: Path) -> Site:
-        pass
+    def load(self, config_path: Path) -> Site: ...
 
 
 class PageRenderer(Protocol):
-    def render_page(self, rendered_page: RenderedPage) -> str:
-        pass
+    def render_page(self, rendered_page: RenderedPage) -> str: ...
 
-    def render_index(self, rendered_index: RenderedIndex) -> str:
-        pass
+    def render_index(self, rendered_index: RenderedIndex) -> str: ...
 
-    def assets(self) -> dict[str, str]:
-        pass
+    def assets(self) -> dict[str, str]: ...
 
 
 class DependencyTracker(Protocol):
-    def register_dependency(self, page: Page, path: Path) -> None:
-        pass
+    def register_dependency(self, page: Page, path: Path) -> None: ...
 
-    def affected_pages(self, changed_paths: set[Path]) -> set[Page]:
-        pass
+    def affected_pages(self, changed_paths: set[Path]) -> set[Page]: ...
 
-    def clear(self) -> None:
-        pass
+    def clear(self) -> None: ...
 
 
 class ContentRenderer(Protocol):
-    def can_render(self, source_path: Path) -> bool:
-        pass
+    def can_render(self, source_path: Path) -> bool: ...
 
     def render(
         self, collection: ContentCollection, page: Page, context: BuildContext
-    ) -> str:
-        pass
+    ) -> str: ...
 
 
 class HtmlPostProcessor(Protocol):
-    def process(self, rendered_html: str, site: Site) -> str:
-        pass
+    def process(self, rendered_html: str, site: Site) -> str: ...
 
 
 class SiteVariantProvider(Protocol):
     def variants(
         self, site: Site, context: BuildContext
-    ) -> tuple[SiteVariant, ...]:
-        pass
+    ) -> tuple[SiteVariant, ...]: ...
 
 
 class ArticleOutlineBuilder(Protocol):
-    def build(self, title: str, body: str) -> Article:
-        pass
+    def build(self, title: str, body: str) -> Article: ...
 
 
 class MarkdownRenderer(Protocol):
@@ -75,8 +63,7 @@ class MarkdownRenderer(Protocol):
         collection: ContentCollection,
         context: BuildContext,
         page: Page,
-    ) -> str:
-        pass
+    ) -> str: ...
 
 
 class SiteReloader(Protocol):
@@ -86,10 +73,8 @@ class SiteReloader(Protocol):
         on_change: Callable[[set[Path]], None],
         interval_seconds: float,
         ignored_paths: tuple[Path, ...] = (),
-    ) -> None:
-        pass
+    ) -> None: ...
 
 
 class PreviewServer(Protocol):
-    def serve(self, directory: Path, host: str, port: int) -> None:
-        pass
+    def serve(self, directory: Path, host: str, port: int) -> None: ...

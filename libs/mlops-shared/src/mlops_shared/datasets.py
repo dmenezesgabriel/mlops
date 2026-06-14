@@ -12,8 +12,7 @@ class DatasetLoader(Protocol[LoadedDatasetType]):
         rows = loader.load(Path("data/processed/training.parquet"))
     """
 
-    def load(self, dataset_path: Path) -> LoadedDatasetType:
-        pass
+    def load(self, dataset_path: Path) -> LoadedDatasetType: ...
 
 
 class DatasetWriter(Protocol[WrittenDatasetType]):
@@ -23,5 +22,6 @@ class DatasetWriter(Protocol[WrittenDatasetType]):
         writer.write(rows, Path("data/processed/training.parquet"))
     """
 
-    def write(self, dataset: WrittenDatasetType, dataset_path: Path) -> None:
-        pass
+    def write(
+        self, dataset: WrittenDatasetType, dataset_path: Path
+    ) -> None: ...

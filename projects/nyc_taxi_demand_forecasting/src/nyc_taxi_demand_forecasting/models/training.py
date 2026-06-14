@@ -20,11 +20,9 @@ from nyc_taxi_demand_forecasting.evaluation.metrics import RegressionMetrics
 class DemandRegressor(Protocol):
     def fit(
         self, features: pd.DataFrame, target: pd.Series
-    ) -> "DemandRegressor":
-        pass
+    ) -> "DemandRegressor": ...
 
-    def predict(self, features: pd.DataFrame) -> pd.Series:
-        pass
+    def predict(self, features: pd.DataFrame) -> pd.Series: ...
 
 
 class MedianDemandRegressor:
@@ -123,7 +121,7 @@ class PyfuncDemandModel(mlflow.pyfunc.PythonModel):  # type: ignore[name-defined
     def __init__(self, model: DemandRegressor) -> None:
         self.model = model
 
-    def predict(self, context: object, model_input: pd.DataFrame) -> pd.Series:
+    def predict(self, context: object, model_input: pd.DataFrame) -> pd.Series:  # type: ignore
         return self.model.predict(model_input)
 
 

@@ -13,18 +13,18 @@ from ssg_i18n.application.translation import TextTranslator
 from ssg_i18n.domain.locale import Locale
 
 # Monkeypatch mistletoe duplicate instantiation bug
-orig_remove_token = mistletoe.block_token.remove_token
+orig_remove_token = block_token.remove_token
 
 
 def safe_remove_token(token_cls: type) -> None:
     try:
-        if token_cls in mistletoe.block_token._token_types:
+        if token_cls in block_token._token_types:
             orig_remove_token(token_cls)
     except ValueError:
         pass
 
 
-mistletoe.block_token.remove_token = safe_remove_token
+block_token.remove_token = safe_remove_token
 
 
 class CustomMarkdownRenderer(MarkdownRenderer):
@@ -157,7 +157,7 @@ class DocumentTranslator:
         )
         source_protected = math_pattern.sub(protect_math, source)
 
-        doc = mistletoe.Document(source_protected)
+        doc = mistletoe.Document(source_protected)  # type: ignore
         with CustomMarkdownRenderer() as renderer:
             self._translate_block(doc, target_locale, renderer)
             translated = renderer.render(doc)

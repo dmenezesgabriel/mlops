@@ -72,13 +72,13 @@ class MingrammerDiagramRenderer:
             from_instance = instances[connection.from_node]
             to_instance = instances[connection.to_node]
             if connection.label:
-                (
+                _ = (
                     from_instance
                     >> edge_class(label=connection.label)
                     >> to_instance
                 )
                 continue
-            from_instance >> to_instance
+            _ = from_instance >> to_instance
 
     def render(
         self, definition: DiagramDefinition, output_directory: str

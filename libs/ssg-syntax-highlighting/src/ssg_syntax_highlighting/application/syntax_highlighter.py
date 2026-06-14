@@ -10,13 +10,11 @@ LOGGER = getLogger(__name__)
 
 
 class CodeSyntaxHighlighter(Protocol):
-    def highlight(self, source: str, language: str) -> str:
-        pass
+    def highlight(self, source: str, language: str) -> str: ...
 
 
 class CodeSyntaxHighlighterFactory(Protocol):
-    def create(self, style_name: str) -> CodeSyntaxHighlighter:
-        pass
+    def create(self, style_name: str) -> CodeSyntaxHighlighter: ...
 
 
 class CodeBlockSyntaxHighlightingProcessor(HtmlPostProcessor):

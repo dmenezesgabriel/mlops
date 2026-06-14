@@ -19,7 +19,7 @@ except ImportError:
             pass
 
 
-class ConfigurableScene(Scene):
+class ConfigurableScene(Scene):  # type: ignore
     def __init__(
         self,
         scene_spec: SceneSpec,
@@ -48,7 +48,7 @@ class ConfigurableScene(Scene):
         self.wait(self._scene_spec.duration_seconds)
 
 
-class StoryboardScene(Scene):
+class StoryboardScene(Scene):  # type: ignore
     def __init__(
         self,
         storyboard: Storyboard,

@@ -24,13 +24,11 @@ from ssg_i18n.domain.translation_catalog import (
 
 
 class TranslationCatalogRepository(Protocol):
-    def load(self, catalog_path: Path) -> TranslationCatalog:
-        pass
+    def load(self, catalog_path: Path) -> TranslationCatalog: ...
 
 
 class TextTranslatorFactory(Protocol):
-    def create(self) -> TextTranslator:
-        pass
+    def create(self) -> TextTranslator: ...
 
 
 class I18nSiteVariantProvider(SiteVariantProvider):

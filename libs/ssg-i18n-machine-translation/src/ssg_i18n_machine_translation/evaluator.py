@@ -2,9 +2,10 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-import mistletoe
 import sacrebleu
 import yaml
+from mistletoe.block_token import Document
+from mistletoe.markdown_renderer import MarkdownRenderer
 from ssg_i18n.application.document_translation import DocumentTranslator
 from ssg_i18n.application.translation import TextTranslator
 from ssg_i18n.domain.locale import Locale
@@ -83,15 +84,13 @@ def extract_text_nodes(node: object) -> list[object]:
     return [node]
 
 
-def render_node(
-    node: object, renderer: mistletoe.markdown_renderer.MarkdownRenderer
-) -> str:
+def render_node(node: object, renderer: MarkdownRenderer) -> str:
     if node.__class__.__name__ == "TableCell":
         lines = renderer.span_to_lines(
             getattr(node, "children", None) or [], max_line_length=0
         )
         return next(iter(lines), "")
-    wrapper = mistletoe.block_token.Document([])
+    wrapper = Document([])
     wrapper.children = [node]  # type: ignore[list-item]
     return renderer.render(wrapper).strip()
 
@@ -156,8 +155,8 @@ class MachineTranslationEvaluator:
     def _get_matched_nodes(
         self, src_file: Path, trans_file: Path, logs: list[str]
     ) -> list[tuple[object, object]]:
-        src_doc = mistletoe.Document(src_file.read_text(encoding="utf-8"))
-        trans_doc = mistletoe.Document(trans_file.read_text(encoding="utf-8"))
+        src_doc = Document(src_file.read_text(encoding="utf-8"))
+        trans_doc = Document(trans_file.read_text(encoding="utf-8"))
         src_nodes = extract_text_nodes(src_doc)
         trans_nodes = extract_text_nodes(trans_doc)
         if len(src_nodes) != len(trans_nodes):
@@ -176,7 +175,7 @@ class MachineTranslationEvaluator:
         logs: list[str],
     ) -> tuple[int, int, int, int]:
         total, fallback, wiki, table = 0, 0, 0, 0
-        with mistletoe.markdown_renderer.MarkdownRenderer() as renderer:
+        with MarkdownRenderer() as renderer:
             for src_node, trans_node in node_pairs:
                 src_str = render_node(src_node, renderer)
                 trans_str = render_node(trans_node, renderer)

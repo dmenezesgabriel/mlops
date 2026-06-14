@@ -7,15 +7,14 @@ from ssg_i18n.domain.translation_catalog import TranslationCatalog
 
 @runtime_checkable
 class TextTranslator(Protocol):
-    def translate(self, source_text: str, target_locale: Locale) -> str:
-        pass
+    def translate(self, source_text: str, target_locale: Locale) -> str: ...
 
 
 @dataclass(frozen=True)
 class InMemoryTextTranslator(TextTranslator):
     translations: dict[str, str]
 
-    def translate(self, source_text: str, _target_locale: Locale) -> str:
+    def translate(self, source_text: str, target_locale: Locale) -> str:
         return self.translations.get(source_text, source_text)
 
 

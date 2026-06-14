@@ -8,8 +8,7 @@ from ssg_i18n.domain.locale import Locale
 
 @runtime_checkable
 class TransformersModule(Protocol):
-    def pipeline(self, task: str, model: str) -> Callable[..., object]:
-        pass
+    def pipeline(self, task: str, model: str) -> Callable[..., object]: ...
 
 
 class TransformersTextTranslator(TextTranslator):

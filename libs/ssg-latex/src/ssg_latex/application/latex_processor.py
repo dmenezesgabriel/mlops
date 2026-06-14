@@ -54,6 +54,7 @@ class LatexRenderer(Protocol):
 
     def render(self, expression: str, display_mode: bool) -> str:
         """Render a LaTeX expression to HTML."""
+        ...
 
 
 class LatexHtmlParser(HTMLParser):

@@ -21,7 +21,7 @@ class DensityAnalyzer:
             # Manim background is dark (#1e1e1e = 30 in grayscale)
             # Use a threshold to find content
             threshold = 40
-            mask = gray.point(lambda p: 255 if p > threshold else 0)
+            mask = gray.point(lambda p: 255 if p > threshold else 0)  # type: ignore
 
             # getbbox returns the bounding box of non-zero pixels
             bbox = mask.getbbox()
