@@ -32,6 +32,8 @@ narrative:
         text: Data Collection. Version your data like you version your code.
         duration_seconds: 5.0
       visual_key: phase_collect
+      params:
+        labels: [Collect, Features, Train, Register, Deploy, Monitor]
 
     - kind: reveal
       narration:
@@ -41,6 +43,8 @@ narrative:
           Store features for reuse between training and serving.
         duration_seconds: 5.0
       visual_key: phase_features
+      params:
+        labels: [Collect, Features, Train, Register, Deploy, Monitor]
 
     - kind: reveal
       narration:
@@ -49,6 +53,8 @@ narrative:
           If you didn't log it, it didn't happen.
         duration_seconds: 6.0
       visual_key: phase_train
+      params:
+        labels: [Collect, Features, Train, Register, Deploy, Monitor]
 
     - kind: reveal
       narration:
@@ -58,6 +64,8 @@ narrative:
           Governance matters.
         duration_seconds: 5.0
       visual_key: phase_register
+      params:
+        labels: [Collect, Features, Train, Register, Deploy, Monitor]
 
     - kind: reveal
       narration:
@@ -66,6 +74,8 @@ narrative:
           Your model deserves the same care as any software.
         duration_seconds: 6.0
       visual_key: phase_deploy
+      params:
+        labels: [Collect, Features, Train, Register, Deploy, Monitor]
 
     - kind: reveal
       narration:
@@ -74,6 +84,8 @@ narrative:
           Watch for data drift, concept drift, performance degradation.
         duration_seconds: 6.0
       visual_key: phase_monitor
+      params:
+        labels: [Collect, Features, Train, Register, Deploy, Monitor]
 
     - kind: reveal
       narration:

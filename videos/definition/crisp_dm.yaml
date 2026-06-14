@@ -22,12 +22,16 @@ narrative:
         text: Business Understanding. Define the goal before touching any data.
         duration_seconds: 5.0
       visual_key: phase_business
+      params:
+        labels: [Business, Data, Prepare, Model, Evaluate, Deploy]
 
     - kind: reveal
       narration:
         text: Data Understanding. Explore distributions, spot quality issues.
         duration_seconds: 5.0
       visual_key: phase_data
+      params:
+        labels: [Business, Data, Prepare, Model, Evaluate, Deploy]
 
     - kind: reveal
       narration:
@@ -36,12 +40,16 @@ narrative:
           This takes 80 percent of the time.
         duration_seconds: 5.0
       visual_key: phase_prepare
+      params:
+        labels: [Business, Data, Prepare, Model, Evaluate, Deploy]
 
     - kind: reveal
       narration:
         text: Modeling. Training candidate models, tuning parameters.
         duration_seconds: 5.0
       visual_key: phase_model
+      params:
+        labels: [Business, Data, Prepare, Model, Evaluate, Deploy]
 
     - kind: reveal
       narration:
@@ -50,12 +58,16 @@ narrative:
           Not just accuracy — business value.
         duration_seconds: 5.0
       visual_key: phase_evaluate
+      params:
+        labels: [Business, Data, Prepare, Model, Evaluate, Deploy]
 
     - kind: reveal
       narration:
         text: Deployment. A model in a notebook does nobody any good. Ship it.
         duration_seconds: 5.0
       visual_key: phase_deploy
+      params:
+        labels: [Business, Data, Prepare, Model, Evaluate, Deploy]
 
     - kind: reveal
       narration:
@@ -71,6 +83,8 @@ narrative:
         text: It is not a one-way street. It is a cycle.
         duration_seconds: 5.0
       visual_key: cycle
+      params:
+        labels: [Business, Data, Prepare, Model, Evaluate, Deploy]
 
     - kind: transition
       narration:

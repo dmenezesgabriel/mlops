@@ -19,6 +19,7 @@ class LayoutRules:
             else [
                 self._check_known_regions,
                 self._check_objects_have_regions,
+                self._check_diagram_labels,
             ]
         )
 
@@ -65,4 +66,31 @@ class LayoutRules:
                         ),
                     )
                 )
+        return violations
+
+    def _check_diagram_labels(self, scene: SceneSpec) -> list[RuleViolation]:
+        violations: list[RuleViolation] = []
+        for index, comp in enumerate(scene.components):
+            if comp.type == "diagram":
+                kind = comp.props.get("kind")
+                if kind in ("cycle", "linear"):
+                    labels = comp.props.get("labels")
+                    if (
+                        not labels
+                        or not isinstance(labels, (list, tuple))
+                        or len(labels) == 0
+                    ):
+                        violations.append(
+                            RuleViolation(
+                                scene_id=scene.scene_id,
+                                object_id=f"component_{index}",
+                                rule="diagram_requires_labels",
+                                actual=f"labels={labels}",
+                                expected="non-empty list of labels",
+                                suggestion=(
+                                    f"Add a 'labels' list parameter to the diagram component "
+                                    f"in scene {scene.scene_id!r}."
+                                ),
+                            )
+                        )
         return violations

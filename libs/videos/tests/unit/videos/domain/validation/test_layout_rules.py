@@ -1,9 +1,12 @@
 from videos.domain.layout import LayoutSpec
-from videos.domain.scene_spec import SceneSpec, VisualObject
+from videos.domain.scene_spec import ComponentSpec, SceneSpec, VisualObject
 from videos.domain.validation.layout_rules import LayoutRules
 
 
-def _scene(visual_objects: tuple[VisualObject, ...] = ()) -> SceneSpec:
+def _scene(
+    visual_objects: tuple[VisualObject, ...] = (),
+    components: tuple[ComponentSpec, ...] = (),
+) -> SceneSpec:
     return SceneSpec(
         scene_id="test_scene",
         title="Test",
@@ -11,6 +14,7 @@ def _scene(visual_objects: tuple[VisualObject, ...] = ()) -> SceneSpec:
         duration_seconds=5.0,
         layout=LayoutSpec(),
         visual_objects=visual_objects,
+        components=components,
     )
 
 
@@ -60,3 +64,16 @@ class TestLayoutRules:
         )
         violations = rules.validate(scene)
         assert len(violations) >= 1
+
+    def test_fails_diagram_without_labels(self) -> None:
+        rules = LayoutRules()
+        comp = ComponentSpec(
+            type="diagram",
+            region="diagram",
+            props={"kind": "cycle"},
+        )
+        scene = _scene(components=(comp,))
+        violations = rules.validate(scene)
+        assert len(violations) == 1
+        assert violations[0].rule == "diagram_requires_labels"
+        assert "labels" in violations[0].suggestion
