@@ -70,7 +70,14 @@ def main() -> None:
     layout_engine = ManimLayoutEngine()
     artifact_store = FileSystemArtifactStore(output_root=args.output_dir)
     telemetry = ConsoleTelemetry()
-    linter_service = LinterService()
+    try:
+        from videos_linter.linter_service import (
+            LinterService as AdvancedLinter,
+        )
+
+        linter_service = AdvancedLinter()
+    except ImportError:
+        linter_service = LinterService()
 
     director = Director(
         concept_id=args.concept_id,

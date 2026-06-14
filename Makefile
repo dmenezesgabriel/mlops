@@ -37,13 +37,14 @@ test:
 	done
 
 test-videos-docker: libs/videos/Dockerfile
-	docker build -f libs/videos/Dockerfile -t mlops-manim-test libs/videos
+	docker build -f libs/videos/Dockerfile -t mlops-manim-test .
 	docker run --rm \
-	  -v "$(CURDIR)/libs/videos/src:/app/src:ro" \
-	  -v "$(CURDIR)/libs/videos/tests:/app/tests:ro" \
+	  -v "$(CURDIR)/libs/videos/src:/app/libs/videos/src:ro" \
+	  -v "$(CURDIR)/libs/videos/tests:/app/libs/videos/tests:ro" \
+	  -v "$(CURDIR)/libs/videos-linter/src:/app/libs/videos-linter/src:ro" \
 	  -w /tmp \
 	  mlops-manim-test sh -lc \
-	  '. /opt/venv/bin/activate && python -m pytest /app/tests/integration/ -m docker -q -ra --tb=short'
+	  '. /opt/venv/bin/activate && python -m pytest /app/libs/videos/tests/integration/ -m docker -q -ra --tb=short'
 
 test-bdd:
 	uv run pytest projects/$(PROJECT)/tests/bdd
@@ -88,11 +89,12 @@ preview-site:
 	uv run python -m ssg.presentation.cli preview --config $(SITE_CONFIG) --output $(SITE_OUTPUT)
 
 render-video: libs/videos/Dockerfile
-	docker build -f libs/videos/Dockerfile -t $(MANIM_CUSTOM_IMAGE) libs/videos
+	docker build -f libs/videos/Dockerfile -t $(MANIM_CUSTOM_IMAGE) .
 	mkdir -p $(VIDEO_OUTPUT_DIR)
 	chmod 777 $(VIDEO_OUTPUT_DIR)
 	docker run --rm \
-	  -v "$(CURDIR)/libs/videos/src:/app/src:ro" \
+	  -v "$(CURDIR)/libs/videos/src:/app/libs/videos/src:ro" \
+	  -v "$(CURDIR)/libs/videos-linter/src:/app/libs/videos-linter/src:ro" \
 	  -v "$(CURDIR)/videos/definition:/app/definition:ro" \
 	  -v "$(CURDIR)/videos/output:/app/output:delegated" \
 	  $(MANIM_CUSTOM_IMAGE) sh -lc \
