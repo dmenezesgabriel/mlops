@@ -145,12 +145,17 @@ class StaticSiteBuilder:
         )
         self._write_assets(site_variant.output_path)
         self._write_index(site_variant, site_variants, selected_collections)
+        from dataclasses import replace
+
+        variant_context = replace(
+            context, output_path=site_variant.output_path
+        )
         for collection in selected_collections:
             self._build_collection(
                 site_variant,
                 site_variants,
                 collection,
-                context,
+                variant_context,
                 affected_pages,
             )
 

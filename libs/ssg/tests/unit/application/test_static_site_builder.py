@@ -270,9 +270,10 @@ class TestStaticSiteBuilder:
             title="Learning Site", description="", collections=(collection,)
         )
         page_renderer = SpyPageRenderer()
+        content_renderer = SpyContentRenderer()
         builder = StaticSiteBuilder(
             site_repository=SpySiteRepository(site),
-            content_renderers=(SpyContentRenderer(),),
+            content_renderers=(content_renderer,),
             page_renderer=page_renderer,
             site_variant_provider=LocalizedSiteVariantProvider(),
         )
@@ -296,6 +297,15 @@ class TestStaticSiteBuilder:
         assert [
             call.site.locale for call in page_renderer.render_page_calls
         ] == ["en", "pt-BR"]
+        assert len(content_renderer.render_calls) == 2
+        assert (
+            content_renderer.render_calls[0][2].output_path
+            == tmp_path / "build"
+        )
+        assert (
+            content_renderer.render_calls[1][2].output_path
+            == tmp_path / "build" / "pt-BR"
+        )
 
     def test_build_adds_relative_language_links_for_index_and_pages(
         self, tmp_path: Path
