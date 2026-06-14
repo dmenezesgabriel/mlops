@@ -1,10 +1,10 @@
 import pytest
-from diagrams_generation.core.loader import load_from_yaml_string
 from diagrams_generation.domain.diagram import (
     DiagramConnection,
     DiagramDefinition,
     DiagramNode,
 )
+from diagrams_generation.infrastructure.loader import load_from_yaml_string
 
 
 class TestDiagramNode:

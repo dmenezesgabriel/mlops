@@ -1,13 +1,13 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from diagrams_generation.adapters.mingrammer_renderer import (
-    MingrammerDiagramRenderer,
-)
 from diagrams_generation.domain.diagram import (
     DiagramCluster,
     DiagramDefinition,
     DiagramNode,
+)
+from diagrams_generation.infrastructure.mingrammer_renderer import (
+    MingrammerDiagramRenderer,
 )
 
 

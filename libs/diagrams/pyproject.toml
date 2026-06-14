@@ -13,7 +13,7 @@ diagrams = [
 ]
 
 [project.scripts]
-diagrams-cli = "diagrams_generation.presentation.cli:main"
+diagrams-cli = "diagrams_generation.infrastructure.cli:main"
 
 [tool.deptry]
 known_first_party = ["diagrams_generation"]

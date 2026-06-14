@@ -2,11 +2,11 @@ import argparse
 import sys
 from pathlib import Path
 
-from diagrams_generation.adapters.logging import setup_structured_logging
-from diagrams_generation.adapters.mingrammer_renderer import (
+from diagrams_generation.infrastructure.loader import load_from_file
+from diagrams_generation.infrastructure.logging import setup_structured_logging
+from diagrams_generation.infrastructure.mingrammer_renderer import (
     MingrammerDiagramRenderer,
 )
-from diagrams_generation.core.loader import load_from_file
 
 
 def _parse_arguments() -> argparse.Namespace:

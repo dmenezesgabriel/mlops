@@ -2,14 +2,14 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from diagrams_generation.presentation.cli import main
+from diagrams_generation.infrastructure.cli import main
 
 
 class TestCLIOrchestration:
-    @patch("diagrams_generation.presentation.cli.MingrammerDiagramRenderer")
-    @patch("diagrams_generation.presentation.cli.load_from_file")
+    @patch("diagrams_generation.infrastructure.cli.MingrammerDiagramRenderer")
+    @patch("diagrams_generation.infrastructure.cli.load_from_file")
     @patch(
-        "diagrams_generation.presentation.cli.Path.exists", return_value=True
+        "diagrams_generation.infrastructure.cli.Path.exists", return_value=True
     )
     @patch(
         "sys.argv",
