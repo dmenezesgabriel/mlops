@@ -12,7 +12,7 @@ from ssg.infrastructure.site_config_repository import SiteConfigRepository
 from ssg_notebook_render.notebook_content_renderer import (
     NotebookContentRenderer,
 )
-from ssg_syntax_highlighting.presentation.plugin import (
+from ssg_syntax_highlighting.infrastructure.plugin import (
     create_pygments_html_post_processor,
 )
 

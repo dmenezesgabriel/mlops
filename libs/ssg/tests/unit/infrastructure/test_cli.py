@@ -1,6 +1,6 @@
 import pytest
-from ssg.presentation import cli
-from ssg.presentation.cli import (
+from ssg.infrastructure import cli
+from ssg.infrastructure.cli import (
     create_parser,
     load_html_post_processors,
     load_site_variant_provider,
