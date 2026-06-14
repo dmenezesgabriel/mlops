@@ -12,7 +12,7 @@ lint:
 	uv run ruff check .
 
 type-check:
-	uv run mypy src
+	uv run pyright src
 
 test:
 	uv run pytest

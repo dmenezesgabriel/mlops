@@ -47,3 +47,12 @@ markers = [
   "integration: package-local integration tests",
   "playwright: browser-based static site checks",
 ]
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
+reportMissingParameterType = true
+reportMissingReturnType = true
+reportUnnecessaryCast = true
+reportUnusedIgnoreComment = true
+reportMissingImports = false
