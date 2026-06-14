@@ -327,13 +327,19 @@ a:focus-visible, button:focus-visible { outline: 4px solid var(--focus); outline
 }
 .hero h1, .article h1 {
   font-family: var(--font-display);
-  font-size: clamp(3rem, 9vw, 8rem);
   font-weight: 800;
   letter-spacing: -0.055em;
   line-height: 0.88;
   margin: 0.35rem 0 1rem;
-  max-width: 11ch;
   overflow-wrap: break-word;
+}
+.hero h1 {
+  font-size: clamp(3rem, 9vw, 8rem);
+  max-width: 11ch;
+}
+.article h1 {
+  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  max-width: 18ch;
 }
 .article { overflow: clip; }
 .article-header {
@@ -545,7 +551,8 @@ a:focus-visible, button:focus-visible { outline: 4px solid var(--focus); outline
   .site-header { gap: 0.65rem; padding: 0.7rem 0.85rem; }
   .masthead-mark { min-height: 2.8rem; padding: 0 0.6rem; }
   .site-description { display: none; }
-  .hero h1, .article h1 { font-size: clamp(2.3rem, 13.5vw, 3.7rem); }
+  .hero h1 { font-size: clamp(2.3rem, 13.5vw, 3.7rem); }
+  .article h1 { font-size: clamp(2rem, 8vw, 3rem); }
   .article-body { padding: 1rem; }
   .source-panel, .media-frame, .notebook-cell { box-shadow: 0.35rem 0.35rem 0 var(--ink); }
 }
