@@ -130,3 +130,40 @@ class TestMarkdownContentRendererImages:
             / "images"
             / "diagram.png"
         ).exists()
+
+    def test_should_render_embedded_image_and_copy_file_with_localized_output_path(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange
+        source_root, markdown_path, image_path = self._setup_files(tmp_path)
+        collection = ContentCollection(
+            name="col",
+            title="Col",
+            source_root=source_root,
+            output_slug="col-slug",
+            pages=(),
+            videos={},
+            images={"diagram": image_path},
+        )
+        page = Page(slug="index", title="Index", source_path=markdown_path)
+        context = BuildContext(
+            config_path=tmp_path / "site.yaml",
+            output_path=tmp_path / "build" / "pt-BR",
+            collection_name=None,
+            correlation_id="test",
+        )
+
+        # Act
+        rendered = MarkdownContentRenderer().render(collection, page, context)
+
+        # Assert
+        assert '<img src="assets/images/diagram.png"' in rendered
+        assert (
+            tmp_path
+            / "build"
+            / "pt-BR"
+            / "col-slug"
+            / "assets"
+            / "images"
+            / "diagram.png"
+        ).exists()
