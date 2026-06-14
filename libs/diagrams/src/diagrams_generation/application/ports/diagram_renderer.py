@@ -1,6 +1,8 @@
 from typing import Protocol
 
-from diagrams_generation.domain.diagram import DiagramDefinition
+from diagrams_generation.domain.entities.diagram_definition import (
+    DiagramDefinition,
+)
 
 
 class DiagramRendererPort(Protocol):

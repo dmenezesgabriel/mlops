@@ -1,27 +1,15 @@
-from dataclasses import dataclass
-
-
-@dataclass(frozen=True)
-class DiagramNode:
-    identifier: str
-    label: str
-    node_type: str
-
-
-@dataclass(frozen=True)
-class DiagramCluster:
-    name: str
-    nodes: tuple[DiagramNode, ...]
-
-
-@dataclass(frozen=True)
-class DiagramConnection:
-    from_node: str
-    to_node: str
-    label: str | None = None
+from diagrams_generation.domain.value_objects.diagram_cluster import (
+    DiagramCluster,
+)
+from diagrams_generation.domain.value_objects.diagram_connection import (
+    DiagramConnection,
+)
+from diagrams_generation.domain.value_objects.diagram_node import DiagramNode
 
 
 class DiagramDefinition:
+    """Domain Entity representing a structured architecture diagram."""
+
     def __init__(
         self,
         name: str,
@@ -39,10 +27,7 @@ class DiagramDefinition:
         self.nodes = nodes
         self.clusters = clusters
         self.connections = connections
-        # Graphviz graph-level attributes (pad, ranksep, dpi, …).
-        # Defaults to empty so callers that omit it get standard layout.
         self.graph_attr: dict[str, str] = graph_attr or {}
-        # Graphviz node-level attributes (fontsize, shape, …).
         self.node_attr: dict[str, str] = node_attr or {}
         self._validate()
 
@@ -57,6 +42,9 @@ class DiagramDefinition:
         for cluster in self.clusters:
             all_identifiers.update(node.identifier for node in cluster.nodes)
 
+        self._validate_connections(all_identifiers)
+
+    def _validate_connections(self, all_identifiers: set[str]) -> None:
         for connection in self.connections:
             if connection.from_node not in all_identifiers:
                 raise ValueError(

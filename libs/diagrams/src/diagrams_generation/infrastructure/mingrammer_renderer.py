@@ -2,7 +2,7 @@ import importlib
 from pathlib import Path
 from typing import Any
 
-from diagrams_generation.domain.diagram import DiagramDefinition
+from diagrams_generation.domain import DiagramDefinition
 
 
 class MingrammerDiagramRenderer:

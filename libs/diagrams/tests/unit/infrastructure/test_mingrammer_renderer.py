@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from diagrams_generation.domain.diagram import (
+from diagrams_generation.domain import (
     DiagramCluster,
     DiagramDefinition,
     DiagramNode,

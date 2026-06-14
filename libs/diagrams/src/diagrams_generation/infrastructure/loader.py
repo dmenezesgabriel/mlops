@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from diagrams_generation.domain.diagram import (
+from diagrams_generation.domain import (
     DiagramCluster,
     DiagramConnection,
     DiagramDefinition,
