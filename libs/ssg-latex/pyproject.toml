@@ -7,7 +7,7 @@ dependencies = [
 ]
 
 [project.entry-points."ssg.html_post_processors"]
-latex = "ssg_latex.presentation.plugin:create_latex_html_post_processor"
+latex = "ssg_latex.infrastructure.plugin:create_latex_html_post_processor"
 
 [tool.uv.sources]
 ssg = { workspace = true }
