@@ -16,7 +16,7 @@ from ssg_i18n.domain.locale import Locale
 orig_remove_token = mistletoe.block_token.remove_token
 
 
-def safe_remove_token(token_cls):
+def safe_remove_token(token_cls: type) -> None:
     try:
         if token_cls in mistletoe.block_token._token_types:
             orig_remove_token(token_cls)
@@ -28,9 +28,9 @@ mistletoe.block_token.remove_token = safe_remove_token
 
 
 class CustomMarkdownRenderer(MarkdownRenderer):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         self.in_list_loose = None
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
 
     def blocks_to_lines(
         self, tokens: Iterable[block_token.BlockToken], max_line_length: int
@@ -50,14 +50,15 @@ class CustomMarkdownRenderer(MarkdownRenderer):
                 token, max_line_length=max_line_length
             )
 
-    def render_list(
+    def render_list(  # type: ignore[override]
         self, token: block_token.List, max_line_length: int
     ) -> Iterable[str]:
         old_loose = self.in_list_loose
         self.in_list_loose = token.loose
         try:
             yield from self.blocks_to_lines(
-                token.children, max_line_length=max_line_length
+                token.children or [],  # type: ignore[arg-type]
+                max_line_length=max_line_length,
             )
         finally:
             self.in_list_loose = old_loose
@@ -161,14 +162,15 @@ class DocumentTranslator:
             self._translate_block(doc, target_locale, renderer)
             translated = renderer.render(doc)
 
+        translated_str = str(translated)
         for i, expr in reversed(list(enumerate(math_expressions))):
             placeholder = f"MATHEXPR{i}"
-            translated = translated.replace(placeholder, expr)
+            translated_str = translated_str.replace(placeholder, expr)
 
         # Preserve trailing newline behavior
-        if not source.endswith("\n") and translated.endswith("\n"):
-            translated = translated.rstrip("\n")
-        return translated
+        if not source.endswith("\n") and translated_str.endswith("\n"):
+            translated_str = translated_str.rstrip("\n")
+        return translated_str
 
     def _translate_block(
         self,
@@ -181,8 +183,9 @@ class DocumentTranslator:
         if not children:
             return
         if class_name in ("Document", "List", "ListItem", "Table", "TableRow"):
-            if class_name == "Table" and getattr(node, "header", None):
-                self._translate_block(node.header, target_locale, renderer)
+            header = getattr(node, "header", None)
+            if class_name == "Table" and header is not None:
+                self._translate_block(header, target_locale, renderer)
             self._translate_children(children, target_locale, renderer)
             return
         if class_name in ("Paragraph", "Heading", "TableCell"):
@@ -204,8 +207,10 @@ class DocumentTranslator:
         target_locale: Locale,
         renderer: CustomMarkdownRenderer,
     ) -> None:
-        node.children = self._translate_inline_children(
-            children, target_locale, renderer
+        setattr(  # noqa: B010
+            node,
+            "children",
+            self._translate_inline_children(children, target_locale, renderer),
         )
 
     def _translate_inline_children(
@@ -229,7 +234,7 @@ class DocumentTranslator:
         finalized = self._restore_and_postprocess(
             translated, english, protected_parts
         )
-        return span_token.tokenize_inner(finalized)
+        return list(span_token.tokenize_inner(finalized))
 
     def _get_glossary_terms(self) -> dict[str, str]:
         from ssg_i18n.application.translation import CatalogFirstTextTranslator
@@ -316,7 +321,7 @@ class DocumentTranslator:
     ) -> str:
         name = child.__class__.__name__
         if name == "RawText":
-            return getattr(child, "content", "")
+            return str(getattr(child, "content", ""))
         if name in ("Strong", "Emphasis"):
             return self._translate_and_protect_styled(
                 child, target_locale, protected_parts, renderer
@@ -327,7 +332,7 @@ class DocumentTranslator:
             )
         if name in ("InlineCode", "LineBreak"):
             return self._protect_node(child, protected_parts, renderer)
-        return renderer.render(child).rstrip("\n")
+        return renderer.render(child).rstrip("\n")  # type: ignore[arg-type]
 
     def _translate_and_protect_styled(
         self,
@@ -338,14 +343,17 @@ class DocumentTranslator:
     ) -> str:
         # Recursively translate the children first using _translate_inline_children
         # to ensure all wikilinks, glossary terms, and nested styling are properly translated.
-        original_children = node.children
-        node.children = self._translate_inline_children(
+        original_children = getattr(node, "children", None)
+        if original_children is None:
+            original_children = []
+        translated_children = self._translate_inline_children(
             original_children, target_locale, renderer
         )
+        setattr(node, "children", translated_children)  # noqa: B010
         # Render the styled node (which now has translated children)
-        rendered = renderer.render(node).rstrip("\n")
+        rendered = renderer.render(node).rstrip("\n")  # type: ignore[arg-type]
         # Restore original children to avoid modifying the AST permanently
-        node.children = original_children
+        setattr(node, "children", original_children)  # noqa: B010
         # Protect the entire rendered styled node as a marker
         marker = f"TR{len(protected_parts)}"
         protected_parts[marker] = rendered
@@ -358,13 +366,16 @@ class DocumentTranslator:
         protected_parts: dict[str, str],
         renderer: CustomMarkdownRenderer,
     ) -> str:
+        children = getattr(link, "children", None)
+        if children is None:
+            children = []
         label = self._translate_inline_nodes(
-            link.children, target_locale, protected_parts, renderer
+            children, target_locale, protected_parts, renderer
         )
-        original = link.children
-        link.children = [span_token.RawText(label)]
+        original = children
+        setattr(link, "children", [span_token.RawText(label)])  # noqa: B010
         marker = self._protect_node(link, protected_parts, renderer)
-        link.children = original
+        setattr(link, "children", original)  # noqa: B010
         return marker
 
     def _protect_node(
@@ -373,7 +384,7 @@ class DocumentTranslator:
         protected_parts: dict[str, str],
         renderer: CustomMarkdownRenderer,
     ) -> str:
-        rendered = renderer.render(node)
+        rendered = renderer.render(node)  # type: ignore[arg-type]
         if node.__class__.__name__ != "LineBreak" and rendered.endswith("\n"):
             rendered = rendered.rstrip("\n")
         marker = f"TR{len(protected_parts)}"
