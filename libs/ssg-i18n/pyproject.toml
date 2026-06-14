@@ -9,7 +9,7 @@ dependencies = [
 ]
 
 [project.entry-points."ssg.site_variant_providers"]
-i18n = "ssg_i18n.presentation.plugin:create_i18n_site_variant_provider"
+i18n = "ssg_i18n.infrastructure.plugin:create_i18n_site_variant_provider"
 
 [tool.uv.sources]
 ssg = { workspace = true }
