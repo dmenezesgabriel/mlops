@@ -14,7 +14,7 @@ def build_cycle_nodes(
     scene: Scene,
     labels: Sequence[str],
     colors: Sequence[str],
-    radius: float = 0.6,
+    radius: float = 0.4,
 ) -> VGroup:
     import itertools
     import math
@@ -29,12 +29,12 @@ def build_cycle_nodes(
     nodes = VGroup()
     for index, (label, color) in enumerate(zip(labels, colors, strict=True)):
         angle = 2 * math.pi * index / n - math.pi / 2
-        x = 2.5 * math.cos(angle)
-        y = 2.5 * math.sin(angle)
+        x = 1.4 * math.cos(angle)
+        y = 1.4 * math.sin(angle)
         circle = Circle(radius=radius, color=color, fill_opacity=0.2).move_to(
             [x, y, 0]
         )
-        text = Text(label, font_size=18).move_to(circle.get_center())
+        text = Text(label, font_size=12).move_to(circle.get_center())
         nodes.add(VGroup(circle, text))
     return nodes
 
@@ -65,7 +65,7 @@ def build_linear_nodes(
 def create_target(
     scene: Scene,
     rings: int = 4,
-    max_radius: float = 2.0,
+    max_radius: float = 1.3,
 ) -> VGroup:
     from manim import Circle, VGroup
 
