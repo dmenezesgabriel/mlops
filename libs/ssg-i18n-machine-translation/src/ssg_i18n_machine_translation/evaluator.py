@@ -64,8 +64,9 @@ def extract_text_nodes(node: object) -> list[object]:
     class_name = node.__class__.__name__
     if class_name in ("Document", "List", "ListItem", "Table", "TableRow"):
         nodes = []
-        if class_name == "Table" and getattr(node, "header", None):
-            nodes.extend(extract_text_nodes(node.header))
+        header = getattr(node, "header", None)
+        if class_name == "Table" and header:
+            nodes.extend(extract_text_nodes(header))
         for child in getattr(node, "children", []):
             nodes.extend(extract_text_nodes(child))
         return nodes
@@ -86,14 +87,12 @@ def render_node(
     node: object, renderer: mistletoe.markdown_renderer.MarkdownRenderer
 ) -> str:
     if node.__class__.__name__ == "TableCell":
-        return next(
-            renderer.span_to_lines(
-                getattr(node, "children", None) or [], max_line_length=None
-            ),
-            "",
+        lines = renderer.span_to_lines(
+            getattr(node, "children", None) or [], max_line_length=0
         )
+        return next(iter(lines), "")
     wrapper = mistletoe.block_token.Document([])
-    wrapper.children = [node]
+    wrapper.children = [node]  # type: ignore[list-item]
     return renderer.render(wrapper).strip()
 
 
