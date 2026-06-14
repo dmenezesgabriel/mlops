@@ -3,7 +3,7 @@ from pathlib import Path
 
 import nbformat
 import pytest
-from ssg.application.static_site_builder import StaticSiteBuilder
+from ssg.application import StaticSiteBuilder
 from ssg.infrastructure.jinja_page_renderer import JinjaPageRenderer
 from ssg.infrastructure.markdown_content_renderer import (
     MarkdownContentRenderer,
@@ -23,6 +23,16 @@ def test_static_site_generation_from_configured_content_collection(
 ) -> None:
     config_path = _create_site_with_notebook_collection(tmp_path)
     output_path = tmp_path / "site" / "build"
+    from ssg.infrastructure.html_article_outline_builder import (
+        HtmlArticleOutlineBuilder,
+    )
+    from ssg.infrastructure.in_memory_dependency_tracker import (
+        InMemoryDependencyTracker,
+    )
+    from ssg.infrastructure.single_site_variant_provider import (
+        SingleSiteVariantProvider,
+    )
+
     builder = StaticSiteBuilder(
         site_repository=SiteConfigRepository(),
         content_renderers=(
@@ -31,6 +41,9 @@ def test_static_site_generation_from_configured_content_collection(
         ),
         html_post_processors=(create_pygments_html_post_processor(),),
         page_renderer=JinjaPageRenderer(),
+        site_variant_provider=SingleSiteVariantProvider(),
+        article_outline_builder=HtmlArticleOutlineBuilder(),
+        dependency_tracker=InMemoryDependencyTracker(),
     )
 
     builder.build(config_path, output_path)

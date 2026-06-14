@@ -2,7 +2,7 @@ from importlib.resources import files
 from pathlib import Path
 
 import nbformat
-from ssg.domain.site import BuildContext, ContentCollection, Page
+from ssg.domain import BuildContext, ContentCollection, Page
 from ssg_notebook_render.notebook_content_renderer import (
     NotebookContentRenderer,
 )

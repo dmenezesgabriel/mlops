@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
-from ssg.application.static_site_builder import StaticSiteBuilder
+from ssg.application import StaticSiteBuilder
 from ssg.infrastructure.jinja_page_renderer import JinjaPageRenderer
 from ssg.infrastructure.markdown_content_renderer import (
     MarkdownContentRenderer,
@@ -37,6 +37,13 @@ def test_i18n_build_composes_with_content_and_html_extensions(
             "Run TR0 after validation.": ("Execute TR0 apos a validacao."),
         }
     )
+    from ssg.infrastructure.html_article_outline_builder import (
+        HtmlArticleOutlineBuilder,
+    )
+    from ssg.infrastructure.in_memory_dependency_tracker import (
+        InMemoryDependencyTracker,
+    )
+
     builder = StaticSiteBuilder(
         site_repository=SiteConfigRepository(),
         content_renderers=(
@@ -46,6 +53,8 @@ def test_i18n_build_composes_with_content_and_html_extensions(
         html_post_processors=(create_pygments_html_post_processor(),),
         page_renderer=JinjaPageRenderer(),
         site_variant_provider=I18nSiteVariantProvider(translator),
+        article_outline_builder=HtmlArticleOutlineBuilder(),
+        dependency_tracker=InMemoryDependencyTracker(),
     )
 
     # Act

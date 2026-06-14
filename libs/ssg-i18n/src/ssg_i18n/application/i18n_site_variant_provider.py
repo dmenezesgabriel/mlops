@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Protocol
 
 from ssg.application.ports import SiteVariantProvider
-from ssg.domain.site import (
+from ssg.domain import (
     BuildContext,
     ContentCollection,
     Page,

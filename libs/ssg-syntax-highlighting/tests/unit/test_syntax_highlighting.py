@@ -1,4 +1,4 @@
-from ssg.domain.site import Site
+from ssg.domain import Site
 from ssg_syntax_highlighting.infrastructure.plugin import (
     create_pygments_html_post_processor,
 )

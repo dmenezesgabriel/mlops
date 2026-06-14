@@ -4,7 +4,7 @@ from html.parser import HTMLParser
 from typing import Protocol
 
 from ssg.application.ports import HtmlPostProcessor
-from ssg.domain.site import Site
+from ssg.domain import Site
 
 # Regular expression matching display math ($$.*$$) or inline math ($...$)
 # - Display math: matches anything enclosed between double dollar signs non-greedily.

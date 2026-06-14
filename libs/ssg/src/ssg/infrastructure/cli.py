@@ -3,13 +3,12 @@ from importlib.metadata import entry_points
 from logging import getLogger
 from pathlib import Path
 
+from ssg.application import StaticSiteBuilder, StaticSitePreview
 from ssg.application.ports import (
     ContentRenderer,
     HtmlPostProcessor,
     SiteVariantProvider,
 )
-from ssg.application.site_preview import StaticSitePreview
-from ssg.application.static_site_builder import StaticSiteBuilder
 from ssg.infrastructure.jinja_page_renderer import JinjaPageRenderer
 from ssg.infrastructure.local_preview_server import LocalPreviewServer
 from ssg.infrastructure.logging import StructuredLoggingConfigurator
@@ -65,12 +64,25 @@ def build_site(
     collection_name: str | None = None,
     changed_paths: set[Path] | None = None,
 ) -> None:
+    from ssg.infrastructure.html_article_outline_builder import (
+        HtmlArticleOutlineBuilder,
+    )
+    from ssg.infrastructure.in_memory_dependency_tracker import (
+        InMemoryDependencyTracker,
+    )
+    from ssg.infrastructure.single_site_variant_provider import (
+        SingleSiteVariantProvider,
+    )
+
     builder = StaticSiteBuilder(
         site_repository=SiteConfigRepository(),
         content_renderers=load_content_renderers(),
         html_post_processors=load_html_post_processors(),
-        site_variant_provider=load_site_variant_provider(),
+        site_variant_provider=load_site_variant_provider()
+        or SingleSiteVariantProvider(),
         page_renderer=JinjaPageRenderer(),
+        article_outline_builder=HtmlArticleOutlineBuilder(),
+        dependency_tracker=InMemoryDependencyTracker(),
     )
     builder.build(config_path, output_path, collection_name, changed_paths)
 

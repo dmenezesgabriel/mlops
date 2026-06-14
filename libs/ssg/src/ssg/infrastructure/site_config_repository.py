@@ -4,7 +4,7 @@ from pathlib import Path
 import yaml
 
 from ssg.application.ports import SiteRepository
-from ssg.domain.site import ContentCollection, Page, Site
+from ssg.domain import ContentCollection, Page, Site
 
 
 class SiteConfigRepository(SiteRepository):

@@ -24,9 +24,13 @@ except (
     gfm_plugin = None  # type: ignore[assignment]
 from markupsafe import Markup
 
-from ssg.application.html_headings import demote_top_level_headings
 from ssg.application.ports import ContentRenderer
-from ssg.domain.site import BuildContext, ContentCollection, Page
+from ssg.domain import (
+    BuildContext,
+    ContentCollection,
+    Page,
+    demote_top_level_headings,
+)
 from ssg.infrastructure.frontend.media_components import (
     FrontendFragmentRenderer,
 )

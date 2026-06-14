@@ -1,8 +1,8 @@
 from collections import defaultdict
 from pathlib import Path
 
-from ssg.application.ports import DependencyTracker
-from ssg.domain.site import Page
+from ssg.application.ports.dependency_tracker import DependencyTracker
+from ssg.domain import Page
 
 
 class InMemoryDependencyTracker(DependencyTracker):

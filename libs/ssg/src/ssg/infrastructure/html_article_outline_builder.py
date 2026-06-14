@@ -1,18 +1,8 @@
 import re
 from html import escape, unescape
 
-from ssg.application.ports import ArticleOutlineBuilder
-from ssg.domain.site import Article, ArticleHeading
-
-
-def demote_top_level_headings(rendered_html: str) -> str:
-    """Keep generated pages to one document h1 by demoting article body h1 tags.
-
-    Example:
-        demote_top_level_headings("<h1>Intro</h1>")
-    """
-    opening_tags_demoted = re.sub(r"<h1(\s[^>]*)?>", r"<h2\1>", rendered_html)
-    return opening_tags_demoted.replace("</h1>", "</h2>")
+from ssg.application.ports.article_outline_builder import ArticleOutlineBuilder
+from ssg.domain import Article, ArticleHeading
 
 
 class HtmlArticleOutlineBuilder(ArticleOutlineBuilder):

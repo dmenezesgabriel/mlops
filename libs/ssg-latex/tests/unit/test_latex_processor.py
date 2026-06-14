@@ -1,4 +1,4 @@
-from ssg.domain.site import Site
+from ssg.domain import Site
 from ssg_latex.application.latex_processor import (
     LatexHtmlPostProcessor,
     LatexRenderer,

@@ -1,7 +1,7 @@
 from importlib.resources import files
 from pathlib import Path
 
-from ssg.domain.site import (
+from ssg.domain import (
     Article,
     ArticleHeading,
     ContentCollection,

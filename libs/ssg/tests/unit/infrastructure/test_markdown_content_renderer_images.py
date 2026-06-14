@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import pytest
-from ssg.domain.site import BuildContext, ContentCollection, Page
+from ssg.domain import BuildContext, ContentCollection, Page
 from ssg.infrastructure.markdown_content_renderer import (
     MarkdownContentRenderer,
 )

@@ -4,7 +4,7 @@ from logging import getLogger
 from typing import Protocol
 
 from ssg.application.ports import HtmlPostProcessor
-from ssg.domain.site import Site
+from ssg.domain import Site
 
 LOGGER = getLogger(__name__)
 

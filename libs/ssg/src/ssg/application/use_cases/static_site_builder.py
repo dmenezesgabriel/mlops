@@ -3,18 +3,14 @@ from logging import getLogger
 from pathlib import Path
 from uuid import uuid4
 
-from ssg.application.dependency_tracker import InMemoryDependencyTracker
-from ssg.application.html_headings import HtmlArticleOutlineBuilder
-from ssg.application.ports import (
-    ArticleOutlineBuilder,
-    ContentRenderer,
-    DependencyTracker,
-    HtmlPostProcessor,
-    PageRenderer,
-    SiteRepository,
-    SiteVariantProvider,
-)
-from ssg.domain.site import (
+from ssg.application.ports.article_outline_builder import ArticleOutlineBuilder
+from ssg.application.ports.content_renderer import ContentRenderer
+from ssg.application.ports.dependency_tracker import DependencyTracker
+from ssg.application.ports.html_post_processor import HtmlPostProcessor
+from ssg.application.ports.page_renderer import PageRenderer
+from ssg.application.ports.site_repository import SiteRepository
+from ssg.application.ports.site_variant_provider import SiteVariantProvider
+from ssg.domain import (
     BuildContext,
     ContentCollection,
     LanguageLink,
@@ -29,37 +25,26 @@ from ssg.domain.site import (
 LOGGER = getLogger(__name__)
 
 
-class SingleSiteVariantProvider(SiteVariantProvider):
-    def variants(
-        self, site: Site, context: BuildContext
-    ) -> tuple[SiteVariant, ...]:
-        return (SiteVariant(site=site, output_path=context.output_path),)
-
-
 class StaticSiteBuilder:
+    """Use Case for compiling configured content collections into static pages."""
+
     def __init__(
         self,
         site_repository: SiteRepository,
         page_renderer: PageRenderer,
         content_renderers: tuple[ContentRenderer, ...],
+        site_variant_provider: SiteVariantProvider,
+        article_outline_builder: ArticleOutlineBuilder,
+        dependency_tracker: DependencyTracker,
         html_post_processors: tuple[HtmlPostProcessor, ...] = (),
-        site_variant_provider: SiteVariantProvider | None = None,
-        article_outline_builder: ArticleOutlineBuilder | None = None,
-        dependency_tracker: DependencyTracker | None = None,
     ) -> None:
         self._site_repository = site_repository
         self._page_renderer = page_renderer
         self._content_renderers = content_renderers
         self._html_post_processors = html_post_processors
-        self._site_variant_provider = (
-            site_variant_provider or SingleSiteVariantProvider()
-        )
-        self._article_outline_builder = (
-            article_outline_builder or HtmlArticleOutlineBuilder()
-        )
-        self._dependency_tracker = (
-            dependency_tracker or InMemoryDependencyTracker()
-        )
+        self._site_variant_provider = site_variant_provider
+        self._article_outline_builder = article_outline_builder
+        self._dependency_tracker = dependency_tracker
 
     def build(
         self,

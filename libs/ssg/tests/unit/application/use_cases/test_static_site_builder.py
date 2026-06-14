@@ -1,8 +1,8 @@
 from pathlib import Path
 
 import pytest
-from ssg.application.static_site_builder import StaticSiteBuilder
-from ssg.domain.site import (
+from ssg.application.use_cases.static_site_builder import StaticSiteBuilder
+from ssg.domain import (
     Article,
     ArticleHeading,
     BuildContext,
@@ -12,6 +12,12 @@ from ssg.domain.site import (
     RenderedPage,
     Site,
     SiteVariant,
+)
+from ssg.infrastructure.in_memory_dependency_tracker import (
+    InMemoryDependencyTracker,
+)
+from ssg.infrastructure.single_site_variant_provider import (
+    SingleSiteVariantProvider,
 )
 
 
@@ -135,6 +141,8 @@ class TestStaticSiteBuilder:
             content_renderers=(content_renderer,),
             page_renderer=page_renderer,
             article_outline_builder=article_outline_builder,
+            site_variant_provider=SingleSiteVariantProvider(),
+            dependency_tracker=InMemoryDependencyTracker(),
         )
 
         # Act
@@ -205,6 +213,8 @@ class TestStaticSiteBuilder:
             page_renderer=SpyPageRenderer(),
             article_outline_builder=article_outline_builder,
             html_post_processors=(html_post_processor,),
+            site_variant_provider=SingleSiteVariantProvider(),
+            dependency_tracker=InMemoryDependencyTracker(),
         )
 
         # Act
@@ -242,6 +252,9 @@ class TestStaticSiteBuilder:
             site_repository=SpySiteRepository(site),
             content_renderers=(SpyContentRenderer(),),
             page_renderer=SpyPageRenderer(),
+            site_variant_provider=SingleSiteVariantProvider(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
         )
 
         # Act / Assert
@@ -276,6 +289,8 @@ class TestStaticSiteBuilder:
             content_renderers=(content_renderer,),
             page_renderer=page_renderer,
             site_variant_provider=LocalizedSiteVariantProvider(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
         )
 
         # Act
@@ -333,6 +348,8 @@ class TestStaticSiteBuilder:
             content_renderers=(SpyContentRenderer(),),
             page_renderer=page_renderer,
             site_variant_provider=LocalizedSiteVariantProvider(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
         )
 
         # Act
@@ -400,10 +417,6 @@ class TestStaticSiteBuilder:
         )
         site = Site(title="Site", description="", collections=(collection,))
 
-        from ssg.application.dependency_tracker import (
-            InMemoryDependencyTracker,
-        )
-
         dependency_tracker = InMemoryDependencyTracker()
         dependency_tracker.register_dependency(page2, page2.source_path)
 
@@ -414,6 +427,7 @@ class TestStaticSiteBuilder:
             page_renderer=page_renderer,
             article_outline_builder=SpyArticleOutlineBuilder(),
             dependency_tracker=dependency_tracker,
+            site_variant_provider=SingleSiteVariantProvider(),
         )
 
         # Act
@@ -444,10 +458,6 @@ class TestStaticSiteBuilder:
         )
         site = Site(title="Site", description="", collections=(collection,))
 
-        from ssg.application.dependency_tracker import (
-            InMemoryDependencyTracker,
-        )
-
         dependency_tracker = InMemoryDependencyTracker()
         page_renderer = SpyPageRenderer()
         builder = StaticSiteBuilder(
@@ -455,6 +465,8 @@ class TestStaticSiteBuilder:
             content_renderers=(SpyContentRenderer(),),
             page_renderer=page_renderer,
             dependency_tracker=dependency_tracker,
+            site_variant_provider=SingleSiteVariantProvider(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
         )
 
         # Act

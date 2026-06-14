@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from pathlib import Path
 
-from ssg.application.site_preview import StaticSitePreview
+from ssg.application.use_cases.site_preview import StaticSitePreview
 
 
 class SpySiteReloader:

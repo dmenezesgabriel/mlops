@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from ssg.domain.site import BuildContext, ContentCollection, Page, Site
+from ssg.domain import BuildContext, ContentCollection, Page, Site
 from ssg_i18n.application.i18n_site_variant_provider import (
     I18nSiteVariantProvider,
 )

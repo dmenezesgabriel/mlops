@@ -8,9 +8,13 @@ import nbformat
 from jinja2 import Environment, StrictUndefined
 from markdown_it import MarkdownIt
 from markupsafe import Markup
-from ssg.application.html_headings import demote_top_level_headings
 from ssg.application.ports import ContentRenderer, MarkdownRenderer
-from ssg.domain.site import BuildContext, ContentCollection, Page
+from ssg.domain import (
+    BuildContext,
+    ContentCollection,
+    Page,
+    demote_top_level_headings,
+)
 
 from ssg_notebook_render.notebook_fragment_renderer import (
     NotebookFragmentRenderer,
