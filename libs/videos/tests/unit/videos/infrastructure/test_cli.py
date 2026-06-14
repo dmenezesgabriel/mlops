@@ -4,12 +4,12 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from videos.presentation.cli import main
+from videos.infrastructure.cli import main
 
 
 class TestCLI:
-    @patch("videos.presentation.cli.Director")
-    @patch("videos.presentation.cli.register_all")
+    @patch("videos.infrastructure.cli.Director")
+    @patch("videos.infrastructure.cli.register_all")
     @patch("argparse.ArgumentParser.parse_args")
     def test_main_calls_register_all_with_definitions_dir(
         self,
@@ -31,8 +31,8 @@ class TestCLI:
         # Assert
         mock_register_all.assert_called_once_with(definitions_dir=Path("defs"))
 
-    @patch("videos.presentation.cli.Director")
-    @patch("videos.presentation.cli.register_all")
+    @patch("videos.infrastructure.cli.Director")
+    @patch("videos.infrastructure.cli.register_all")
     @patch("argparse.ArgumentParser.parse_args")
     def test_main_uses_default_definitions_dir(
         self,
@@ -57,8 +57,8 @@ class TestCLI:
             definitions_dir=Path("videos/definition")
         )
 
-    @patch("videos.presentation.cli.Director")
-    @patch("videos.presentation.cli.register_all")
+    @patch("videos.infrastructure.cli.Director")
+    @patch("videos.infrastructure.cli.register_all")
     @patch("argparse.ArgumentParser.parse_args")
     def test_main_passes_quality_to_director(
         self,
@@ -82,8 +82,8 @@ class TestCLI:
         # Assert
         mock_director.produce.assert_called_once_with(quality="final")
 
-    @patch("videos.presentation.cli.Director")
-    @patch("videos.presentation.cli.register_all")
+    @patch("videos.infrastructure.cli.Director")
+    @patch("videos.infrastructure.cli.register_all")
     @patch("argparse.ArgumentParser.parse_args")
     def test_main_exits_on_error(
         self,
@@ -107,8 +107,8 @@ class TestCLI:
 
         assert excinfo.value.code == 1
 
-    @patch("videos.presentation.cli.Director")
-    @patch("videos.presentation.cli.register_all")
+    @patch("videos.infrastructure.cli.Director")
+    @patch("videos.infrastructure.cli.register_all")
     @patch("argparse.ArgumentParser.parse_args")
     def test_main_uses_advanced_linter_if_installed(
         self,
@@ -148,8 +148,8 @@ class TestCLI:
             called_linter = mock_director_class.call_args[1]["linter_service"]
             assert called_linter == mock_advanced_linter_service
 
-    @patch("videos.presentation.cli.Director")
-    @patch("videos.presentation.cli.register_all")
+    @patch("videos.infrastructure.cli.Director")
+    @patch("videos.infrastructure.cli.register_all")
     @patch("argparse.ArgumentParser.parse_args")
     def test_main_uses_local_linter_if_not_installed(
         self,

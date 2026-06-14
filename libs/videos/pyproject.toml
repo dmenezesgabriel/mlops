@@ -15,7 +15,7 @@ concepts = [
 ]
 
 [project.scripts]
-videos = "videos.presentation.cli:main"
+videos = "videos.infrastructure.cli:main"
 
 [tool.deptry]
 known_first_party = ["videos"]
