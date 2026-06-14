@@ -2,13 +2,13 @@ from importlib.metadata import entry_points
 
 from ssg.application.ports import SiteVariantProvider
 
-from ssg_i18n.application.i18n_site_variant_provider import (
+from ssg_i18n.application.ports.text_translator import TextTranslator
+from ssg_i18n.infrastructure.i18n_site_variant_provider import (
     I18nSiteVariantProvider,
     TextTranslatorFactory,
 )
-from ssg_i18n.application.translation import (
+from ssg_i18n.infrastructure.in_memory_text_translator import (
     InMemoryTextTranslator,
-    TextTranslator,
 )
 from ssg_i18n.infrastructure.yaml_translation_catalog_repository import (
     YamlTranslationCatalogRepository,

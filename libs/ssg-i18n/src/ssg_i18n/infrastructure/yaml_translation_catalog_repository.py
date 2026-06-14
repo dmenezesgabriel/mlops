@@ -2,10 +2,18 @@ from pathlib import Path
 
 import yaml
 
-from ssg_i18n.domain.translation_catalog import TranslationCatalog
+from ssg_i18n.domain.value_objects.translation_catalog import (
+    TranslationCatalog,
+)
 
 
 class YamlTranslationCatalogRepository:
+    """Loads a TranslationCatalog from a YAML file.
+
+    Example:
+        YamlTranslationCatalogRepository().load(Path("i18n/pt-BR.yaml"))
+    """
+
     def load(self, catalog_path: Path) -> TranslationCatalog:
         manifest = self._load_manifest(catalog_path)
         return TranslationCatalog(

@@ -1,15 +1,7 @@
-from dataclasses import dataclass
-
-
-@dataclass(frozen=True)
-class TranslationCatalog:
-    translations: dict[str, str]
-    glossary_terms: dict[str, str]
-
-    def translation_for(self, source_text: str) -> str | None:
-        return self.translations.get(source_text)
-
-
-EMPTY_TRANSLATION_CATALOG = TranslationCatalog(
-    translations={}, glossary_terms={}
+# Backward-compatible re-exports — import from the canonical location instead.
+from ssg_i18n.domain.value_objects.translation_catalog import (
+    EMPTY_TRANSLATION_CATALOG,
+    TranslationCatalog,
 )
+
+__all__ = ["TranslationCatalog", "EMPTY_TRANSLATION_CATALOG"]
