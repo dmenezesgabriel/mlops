@@ -2,7 +2,7 @@ from pathlib import Path
 
 from ssg_i18n.application.translation import InMemoryTextTranslator
 from ssg_i18n.domain.locale import Locale
-from ssg_i18n_machine_translation.evaluator import (
+from ssg_i18n_machine_translation.application.evaluator import (
     MachineTranslationEvaluator,
 )
 

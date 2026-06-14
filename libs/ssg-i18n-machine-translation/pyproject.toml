@@ -19,10 +19,10 @@ evaluation = [
 ]
 
 [project.scripts]
-ssg-i18n-evaluate = "ssg_i18n_machine_translation.presentation.cli:main"
+ssg-i18n-evaluate = "ssg_i18n_machine_translation.infrastructure.cli:main"
 
 [project.entry-points."ssg_i18n.text_translators"]
-transformers = "ssg_i18n_machine_translation.presentation.plugin:create_transformers_text_translator"
+transformers = "ssg_i18n_machine_translation.infrastructure.plugin:create_transformers_text_translator"
 
 [tool.uv.sources]
 ssg-i18n = { workspace = true }

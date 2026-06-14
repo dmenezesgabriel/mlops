@@ -130,7 +130,7 @@ class MachineTranslationEvaluator:
         min_bleu_score: float = 40.0,
     ) -> None:
         if translator is None:
-            from ssg_i18n_machine_translation.transformers_text_translator import (
+            from ssg_i18n_machine_translation.infrastructure.transformers_text_translator import (
                 TransformersTextTranslator,
             )
 
