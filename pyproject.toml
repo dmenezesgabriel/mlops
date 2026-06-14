@@ -23,7 +23,8 @@ dev = [
   "types-pygments==2.20.0.20260518",
   "types-PyYAML==6.0.12.20260518",
   "types-requests==2.33.0.20260518",
-  "ssg-i18n[evaluation]",
+  "ssg-i18n",
+  "ssg-i18n-machine-translation[evaluation]",
 ]
 
 [tool.uv.workspace]
@@ -208,6 +209,7 @@ forbidden_modules = ["mlops_shared", "nyc_taxi_demand_forecasting", "ssg", "ssg_
 
 [tool.uv.sources]
 ssg-i18n = { workspace = true }
+ssg-i18n-machine-translation = { workspace = true }
 
 
 

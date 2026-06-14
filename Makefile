@@ -6,7 +6,7 @@ MANIM_CUSTOM_IMAGE ?= mlops-manim-prod
 VIDEO_OUTPUT_DIR ?= videos/output
 
 .SILENT:
-.PHONY: install format lint type-check test test-bdd test-e2e test-videos-docker coverage complexity dependencies architecture security quality build-site preview-site render-video check-videos diagrams-build diagrams-render collect preprocess features train tune evaluate deploy monitor mlflow
+.PHONY: install format lint type-check test test-bdd test-e2e test-videos-docker coverage complexity dependencies architecture security quality build-site preview-site evaluate-translation render-video check-videos diagrams-build diagrams-render collect preprocess features train tune evaluate deploy monitor mlflow
 SITE_CONFIG ?= site/site.yaml
 SITE_OUTPUT ?= site/build
 
@@ -84,6 +84,14 @@ mlflow:
 
 build-site:
 	uv run python -m ssg.presentation.cli build --config $(SITE_CONFIG) --output $(SITE_OUTPUT)
+
+evaluate-translation:
+	uv run ssg-i18n-evaluate \
+	  --source-dir projects/nyc_taxi_demand_forecasting/docs \
+	  --translated-dir site/.ssg/generated-i18n/pt-BR/nyc_taxi_demand_forecasting/docs \
+	  --catalog-path site/i18n/pt-BR.yaml \
+	  --locale pt-BR
+
 
 preview-site:
 	uv run python -m ssg.presentation.cli preview --config $(SITE_CONFIG) --output $(SITE_OUTPUT)
