@@ -59,3 +59,18 @@ class TestManimLayoutEngine:
         assert "position" in diag_comp.props
         # Assuming DIAGRAM maps to [0, -1, 0] or similar
         assert diag_comp.props["position"] == [0, -1, 0]
+
+    def test_apply_stacks_multiple_components_in_same_region(
+        self, engine: ManimLayoutEngine
+    ) -> None:
+        comp1 = ComponentSpec(type="text", region="body")
+        comp2 = ComponentSpec(type="text", region="body")
+        comp3 = ComponentSpec(type="text", region="body")
+        scene = _minimal_scene((comp1, comp2, comp3))
+
+        result = engine.apply(scene)
+
+        assert len(result.components) == 3
+        assert result.components[0].props["position"] == [0.0, 0.0, 0.0]
+        assert result.components[1].props["position"] == [0.0, -0.8, 0.0]
+        assert result.components[2].props["position"] == [0.0, -1.6, 0.0]
