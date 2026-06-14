@@ -31,3 +31,21 @@ def test_map_gasoduto_term() -> None:
         mapper.map_text("O gasoduto de deploy") == "O pipeline de implantação"
     )
     assert mapper.map_text("gasodutos") == "pipelines"
+
+
+def test_map_new_terminology_rules() -> None:
+    mapper = TerminologyMapper()
+    # Check that generic aliases are not modified incorrectly
+    assert (
+        mapper.map_text("usando um alias lógico") == "usando um alias lógico"
+    )
+
+    # Check that specific alias rules work with articles and prepositions
+    assert mapper.map_text("o alias TR0") == "a tag TR0"
+    assert mapper.map_text("um alias champion") == "uma tag champion"
+    assert mapper.map_text("do alias @champion") == "da tag @champion"
+
+    # Check new term replacements
+    assert mapper.map_text("encanamento de dados") == "pipeline de dados"
+    assert mapper.map_text("captadores de táxi") == "embarques de táxi"
+    assert mapper.map_text("drift característica") == "drift de característica"
