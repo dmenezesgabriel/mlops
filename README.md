@@ -24,7 +24,7 @@ make preview-site
 - `make test`: Run unit and integration tests (excludes heavy Docker/Playwright tests).
 - `make test-e2e`: Run browser-based smoke tests using Playwright.
 - `make lint`: Verify code style and linting rules.
-- `make type-check`: Run static type analysis with MyPy.
+- `make type-check`: Run static type analysis with Pyright.
 - `make coverage`: Run tests and display a coverage report.
 
 ### Static Site (SSG)

@@ -120,7 +120,7 @@ check-videos:
 	uv run ruff format --check --quiet libs/videos/src/videos/
 	uv run ruff check --quiet libs/videos/src/videos/
 	@echo "=== Type-checking video source ==="
-	uv run mypy libs/videos/src/videos/ --no-error-summary
+	uv run pyright libs/videos/src/videos/
 	@echo "=== Running video unit tests ==="
 	uv run pytest libs/videos/tests/ -m "not docker" -q -ra --tb=short
 	@echo "=== Running Docker visual regression tests ==="
