@@ -85,16 +85,6 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
             self._fragment_renderer.render_source_panel(source, source_path),
         )
 
-    def _resolve_output_path(
-        self, base_output_path: Path, source_path: Path
-    ) -> Path:
-        parts = source_path.parts
-        if "generated-i18n" in parts:
-            index = parts.index("generated-i18n")
-            if index + 1 < len(parts):
-                return base_output_path / parts[index + 1]
-        return base_output_path
-
     def _embed_video(
         self,
         collection: ContentCollection,
@@ -113,7 +103,7 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
             )
 
         video_path = (
-            self._resolve_output_path(context.output_path, page.source_path)
+            context.output_path
             / collection.output_slug
             / "assets"
             / "videos"
@@ -146,7 +136,7 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
             )
 
         image_path = (
-            self._resolve_output_path(context.output_path, page.source_path)
+            context.output_path
             / collection.output_slug
             / "assets"
             / "images"
