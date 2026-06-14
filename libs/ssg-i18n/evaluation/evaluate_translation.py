@@ -44,6 +44,8 @@ def extract_text_nodes(node: object) -> list[object]:
     class_name = node.__class__.__name__
     if class_name in ("Document", "List", "ListItem", "Table", "TableRow"):
         nodes = []
+        if class_name == "Table" and getattr(node, "header", None):
+            nodes.extend(extract_text_nodes(node.header))
         for child in getattr(node, "children", []):
             nodes.extend(extract_text_nodes(child))
         return nodes

@@ -39,7 +39,7 @@ class CustomMarkdownRenderer(MarkdownRenderer):
         for token in tokens:
             if not first:
                 if (
-                    token.__class__.__name__ == "ListItem"
+                    token.__class__.__name__ in ("ListItem", "List")
                     and self.in_list_loose is False
                 ):
                     pass
@@ -64,7 +64,7 @@ class CustomMarkdownRenderer(MarkdownRenderer):
 
 
 PROTECTED_PATTERN = re.compile(
-    r"(\$\$.*?\$\$|(?<!\$)\$[^\$\s](?:[^\$]*?[^\$\s])?\$(?!\d)|https?://\S+)",
+    r"(\{\{.*?\}\}|\{\%.*?\}\}|\$\$.*?\$\$|(?<!\$)\$[^\$\s](?:[^\$]*?[^\$\s])?\$(?!\d)|https?://\S+|\bMATHEXPR\d+\b)",
     re.DOTALL,
 )
 WIKILINK_PATTERN = re.compile(r"\[\[([a-zA-Z0-9_-]+)(?:\|([^\]]+))?\]\]")
@@ -142,10 +142,28 @@ class DocumentTranslator:
         if not source.strip():
             return source
 
-        doc = mistletoe.Document(source)
+        math_expressions: list[str] = []
+
+        def protect_math(match: re.Match[str]) -> str:
+            expr = match.group(0)
+            placeholder = f"MATHEXPR{len(math_expressions)}"
+            math_expressions.append(expr)
+            return placeholder
+
+        math_pattern = re.compile(
+            r"(\$\$.*?\$\$|(?<!\$)\$[^\$\s](?:[^\$]*?[^\$\s])?\$(?!\d))",
+            re.DOTALL,
+        )
+        source_protected = math_pattern.sub(protect_math, source)
+
+        doc = mistletoe.Document(source_protected)
         with CustomMarkdownRenderer() as renderer:
             self._translate_block(doc, target_locale, renderer)
             translated = renderer.render(doc)
+
+        for i, expr in reversed(list(enumerate(math_expressions))):
+            placeholder = f"MATHEXPR{i}"
+            translated = translated.replace(placeholder, expr)
 
         # Preserve trailing newline behavior
         if not source.endswith("\n") and translated.endswith("\n"):
@@ -163,6 +181,8 @@ class DocumentTranslator:
         if not children:
             return
         if class_name in ("Document", "List", "ListItem", "Table", "TableRow"):
+            if class_name == "Table" and getattr(node, "header", None):
+                self._translate_block(node.header, target_locale, renderer)
             self._translate_children(children, target_locale, renderer)
             return
         if class_name in ("Paragraph", "Heading", "TableCell"):
@@ -184,13 +204,6 @@ class DocumentTranslator:
         target_locale: Locale,
         renderer: CustomMarkdownRenderer,
     ) -> None:
-        has_jinja = any(
-            isinstance(child, span_token.RawText)
-            and ("{{" in child.content or "{%" in child.content)
-            for child in children
-        )
-        if has_jinja:
-            return
         node.children = self._translate_inline_children(
             children, target_locale, renderer
         )
@@ -238,7 +251,7 @@ class DocumentTranslator:
             def replace_term(
                 match: re.Match[str], t_term: str = translated_term
             ) -> str:
-                marker = f"{{{99900 + len(protected_parts)}}}"
+                marker = f"TR{len(protected_parts)}"
                 protected_parts[marker] = t_term
                 return marker
 
@@ -250,17 +263,13 @@ class DocumentTranslator:
         translated: str,
         original: str,
     ) -> str:
+        # Heal case and space variations of TR{index} markers, e.g. "tr 0", "Tr0" -> "TR0"
         normalized = re.sub(
-            r"\{\s*(999\d+|888\d+)\s*\}",
-            lambda m: f"{{{m.group(1)}}}",
+            r"\b[Tt][Rr]\s*(\d+)\b",
+            lambda m: f"TR{m.group(1)}",
             translated,
         )
-        normalized = re.sub(
-            r"(?<!\{)(999\d+|888\d+)(?!\})",
-            lambda m: f"{{{m.group(1)}}}",
-            normalized,
-        )
-        leading_match = re.match(r"^(\{999\d+\}|\{888\d+\})(:?\s*)", original)
+        leading_match = re.match(r"^(TR\d+)(:?\s*)", original)
         if not leading_match:
             return normalized
         marker = leading_match.group(1)
@@ -276,9 +285,11 @@ class DocumentTranslator:
     ) -> str:
         if not all(marker in translated for marker in protected_parts):
             translated = original
+        else:
+            translated = self.terminology_mapper.map_text(translated)
         for marker, text in reversed(list(protected_parts.items())):
             translated = translated.replace(marker, text)
-        return self.terminology_mapper.map_text(translated)
+        return translated
 
     def _translate_inline_nodes(
         self,
@@ -307,7 +318,7 @@ class DocumentTranslator:
         if name == "RawText":
             return getattr(child, "content", "")
         if name in ("Strong", "Emphasis"):
-            return self._render_styled_nodes(
+            return self._translate_and_protect_styled(
                 child, target_locale, protected_parts, renderer
             )
         if name == "Link":
@@ -318,19 +329,27 @@ class DocumentTranslator:
             return self._protect_node(child, protected_parts, renderer)
         return renderer.render(child).rstrip("\n")
 
-    def _render_styled_nodes(
+    def _translate_and_protect_styled(
         self,
         node: object,
         target_locale: Locale,
         protected_parts: dict[str, str],
         renderer: CustomMarkdownRenderer,
     ) -> str:
-        children = self._translate_inline_nodes(
-            node.children, target_locale, protected_parts, renderer
+        # Recursively translate the children first using _translate_inline_children
+        # to ensure all wikilinks, glossary terms, and nested styling are properly translated.
+        original_children = node.children
+        node.children = self._translate_inline_children(
+            original_children, target_locale, renderer
         )
-        if node.__class__.__name__ == "Strong":
-            return f"**{children}**"
-        return f"*{children}*"
+        # Render the styled node (which now has translated children)
+        rendered = renderer.render(node).rstrip("\n")
+        # Restore original children to avoid modifying the AST permanently
+        node.children = original_children
+        # Protect the entire rendered styled node as a marker
+        marker = f"TR{len(protected_parts)}"
+        protected_parts[marker] = rendered
+        return marker
 
     def _translate_and_protect_link(
         self,
@@ -354,8 +373,10 @@ class DocumentTranslator:
         protected_parts: dict[str, str],
         renderer: CustomMarkdownRenderer,
     ) -> str:
-        rendered = renderer.render(node).rstrip("\n")
-        marker = f"{{{99900 + len(protected_parts)}}}"
+        rendered = renderer.render(node)
+        if node.__class__.__name__ != "LineBreak" and rendered.endswith("\n"):
+            rendered = rendered.rstrip("\n")
+        marker = f"TR{len(protected_parts)}"
         protected_parts[marker] = rendered
         return marker
 
@@ -377,7 +398,7 @@ class DocumentTranslator:
                     label, target_locale
                 )
                 reconstructed = f"[[{target}|{translated}]]"
-            marker = f"{{{99900 + len(protected_parts)}}}"
+            marker = f"TR{len(protected_parts)}"
             protected_parts[marker] = reconstructed
             return marker
 
@@ -387,7 +408,7 @@ class DocumentTranslator:
         self, text: str, protected_parts: dict[str, str]
     ) -> str:
         def replace_protected(match: re.Match[str]) -> str:
-            marker = f"{{{99900 + len(protected_parts)}}}"
+            marker = f"TR{len(protected_parts)}"
             protected_parts[marker] = match.group(0)
             return marker
 

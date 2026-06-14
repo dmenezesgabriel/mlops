@@ -48,7 +48,7 @@ def test_variants_create_localized_site_and_translated_sources(
             "Build machine learning systems.": "Construa sistemas de machine learning.",
             "Sample Collection": "Colecao de Exemplo",
             "Overview": "Visao Geral",
-            "Use {99900} for tracking.": ("Use {99900} para rastreamento."),
+            "Use TR0 for tracking.": "Use TR0 para rastreamento.",
         }
     )
     context = BuildContext(
@@ -127,9 +127,7 @@ def test_variants_translate_notebook_markdown_cells_without_code_cells(
     translator = InMemoryTextTranslator(
         {
             "Feature Engineering": "Engenharia de Features",
-            "Run {99900} after validation.": (
-                "Execute {99900} apos a validacao."
-            ),
+            "Run TR0 after validation.": "Execute TR0 apos a validacao.",
             "Learning Site": "Site de Aprendizado",
             "Notebook": "Caderno",
             "Sample Collection": "Colecao de Exemplo",
@@ -180,7 +178,7 @@ def test_variants_fall_back_to_source_text_when_machine_translation_drops_code_m
         extensions={"i18n": {"default_locale": "en", "locales": "en,pt-BR"}},
     )
     translator = InMemoryTextTranslator(
-        {"Use {99900} for tracking.": "Traducao sem marcador"}
+        {"Use TR0 for tracking.": "Traducao sem marcador"}
     )
     context = BuildContext(
         tmp_path / "site.yaml", tmp_path / "build", None, "test"
@@ -223,7 +221,7 @@ def test_variants_translate_wikilink_labels_while_preserving_targets(
     translator = InMemoryTextTranslator(
         {
             "Overview": "Visao Geral",
-            "See {99900}.": "Veja {99900}.",
+            "See TR0.": "Veja TR0.",
         }
     )
     context = BuildContext(
@@ -268,7 +266,7 @@ def test_variants_protects_entire_wikilink_from_machine_translation(
     translator = InMemoryTextTranslator(
         {
             "Overview": "Visão Geral",
-            "See {99900}.": "Veja {99900}.",
+            "See TR0.": "Veja TR0.",
         }
     )
     context = BuildContext(
@@ -315,8 +313,8 @@ def test_variants_preserves_latex_expressions_in_machine_translation(
     # The translator expects the protected LaTeX markers:
     translator = InMemoryTextTranslator(
         {
-            "Optimize over strength {99900} using {99901}.": (
-                "Otimize sobre a forca {99900} usando {99901}."
+            "Optimize over strength TR0 using TR1.": (
+                "Otimize sobre a forca TR0 usando TR1."
             )
         }
     )
@@ -373,8 +371,8 @@ def test_variants_uses_catalog_glossary_to_protect_and_translate_technical_terms
     # The fallback translator expects the protected markers:
     fallback_translator = InMemoryTextTranslator(
         {
-            "We use {99901} for features and a {99900} for tracking.": (
-                "Usamos {99901} para features e um {99900} para rastreamento."
+            "We use TR1 for features and a TR0 for tracking.": (
+                "Usamos TR1 para features e um TR0 para rastreamento."
             )
         }
     )
@@ -426,8 +424,8 @@ def test_variants_restores_mutated_markers_from_machine_translation(
     # The translator returns the markers with mutated casing, spacing, and missing braces:
     translator = InMemoryTextTranslator(
         {
-            "Optimize over strength {99900} using {99901}.": (
-                "Otimize sobre a forca 99900 usando { 99901 }."
+            "Optimize over strength TR0 using TR1.": (
+                "Otimize sobre a forca tr 0 usando Tr1."
             )
         }
     )
