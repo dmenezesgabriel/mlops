@@ -123,13 +123,13 @@ forbidden_modules = ["nyc_taxi_demand_forecasting"]
 name = "Site domain stays independent"
 type = "forbidden"
 source_modules = ["ssg.domain"]
-forbidden_modules = ["ssg.infrastructure", "ssg.presentation"]
+forbidden_modules = ["ssg.infrastructure"]
 
 [[tool.importlinter.contracts]]
 name = "Site application stays adapter independent"
 type = "forbidden"
 source_modules = ["ssg.application"]
-forbidden_modules = ["ssg.infrastructure", "ssg.presentation"]
+forbidden_modules = ["ssg.infrastructure"]
 
 [[tool.importlinter.contracts]]
 name = "Static site generator stays MLOps agnostic"
@@ -147,26 +147,26 @@ forbidden_modules = ["ssg", "ssg_notebook_render", "ssg_syntax_highlighting"]
 name = "I18n stays an SSG extension"
 type = "forbidden"
 source_modules = ["ssg_i18n"]
-forbidden_modules = ["ssg.infrastructure", "ssg.presentation"]
+forbidden_modules = ["ssg.infrastructure"]
 
 
 [[tool.importlinter.contracts]]
 name = "Notebook renderer stays an SSG extension"
 type = "forbidden"
 source_modules = ["ssg_notebook_render"]
-forbidden_modules = ["ssg.infrastructure", "ssg.presentation"]
+forbidden_modules = ["ssg.infrastructure"]
 
 [[tool.importlinter.contracts]]
 name = "Syntax highlighting stays an SSG extension"
 type = "forbidden"
 source_modules = ["ssg_syntax_highlighting"]
-forbidden_modules = ["ssg.infrastructure", "ssg.presentation"]
+forbidden_modules = ["ssg.infrastructure"]
 
 [[tool.importlinter.contracts]]
 name = "Latex stays an SSG extension"
 type = "forbidden"
 source_modules = ["ssg_latex"]
-forbidden_modules = ["ssg.infrastructure", "ssg.presentation"]
+forbidden_modules = ["ssg.infrastructure"]
 
 [[tool.importlinter.contracts]]
 name = "Diagrams generation stays independent"
@@ -178,13 +178,13 @@ forbidden_modules = ["mlops_shared", "nyc_taxi_demand_forecasting", "ssg", "ssg_
 name = "Videos domain stays independent"
 type = "forbidden"
 source_modules = ["videos.domain"]
-forbidden_modules = ["videos.infrastructure", "videos.presentation", "videos.application"]
+forbidden_modules = ["videos.infrastructure", "videos.application"]
 
 [[tool.importlinter.contracts]]
 name = "Videos application stays adapter independent"
 type = "forbidden"
 source_modules = ["videos.application"]
-forbidden_modules = ["videos.infrastructure", "videos.presentation"]
+forbidden_modules = ["videos.infrastructure"]
 
 [[tool.importlinter.contracts]]
 name = "Videos linter is independent of site and other systems"

@@ -30,7 +30,7 @@ make preview-site
 ### Static Site (SSG)
 - `make preview-site`: **Live view** with automatic reload and incremental builds.
   - **Default**: `http://127.0.0.1:8000`.
-  - **Customization**: Use `uv run python -m ssg.presentation.cli preview --help` for full options.
+  - **Customization**: Use `uv run python -m ssg.infrastructure.cli preview --help` for full options.
   - **Key Arguments**:
     - `--host`: Host to bind the server (default: `127.0.0.1`).
     - `--port`: Port to run the server (default: `8000`).

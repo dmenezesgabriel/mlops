@@ -83,7 +83,7 @@ mlflow:
 	uv run mlflow server --backend-store-uri sqlite:///projects/$(PROJECT)/mlflow.db --default-artifact-root ./projects/$(PROJECT)/mlruns --host 127.0.0.1 --port 5000
 
 build-site:
-	uv run python -m ssg.presentation.cli build --config $(SITE_CONFIG) --output $(SITE_OUTPUT)
+	uv run python -m ssg.infrastructure.cli build --config $(SITE_CONFIG) --output $(SITE_OUTPUT)
 
 evaluate-translation:
 	uv run ssg-i18n-evaluate \
@@ -94,7 +94,7 @@ evaluate-translation:
 
 
 preview-site:
-	uv run python -m ssg.presentation.cli preview --config $(SITE_CONFIG) --output $(SITE_OUTPUT)
+	uv run python -m ssg.infrastructure.cli preview --config $(SITE_CONFIG) --output $(SITE_OUTPUT)
 
 render-video: libs/videos/Dockerfile
 	docker build -f libs/videos/Dockerfile -t $(MANIM_CUSTOM_IMAGE) .
