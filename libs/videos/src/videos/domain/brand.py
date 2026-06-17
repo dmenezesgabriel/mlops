@@ -1,18 +1,4 @@
-from __future__ import annotations
+# Backward-compatible re-export — import from canonical location instead.
+from videos.domain.value_objects.brand import DEFAULT_BRAND, BrandColors
 
-from dataclasses import dataclass
-
-
-@dataclass(frozen=True)
-class BrandColors:
-    primary: str = "#4A90D9"
-    secondary: str = "#50C878"
-    accent: str = "#FF8C42"
-    danger: str = "#E74C3C"
-    warning: str = "#FFD700"
-    background: str = "#1e1e1e"
-    text_primary: str = "#FFFFFF"
-    text_secondary: str = "#CCCCCC"
-
-
-DEFAULT_BRAND = BrandColors()
+__all__ = ["BrandColors", "DEFAULT_BRAND"]

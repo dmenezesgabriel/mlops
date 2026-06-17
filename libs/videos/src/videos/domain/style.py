@@ -1,13 +1,4 @@
-from __future__ import annotations
+# Backward-compatible re-export — import from canonical location instead.
+from videos.domain.value_objects.style import StyleSpec
 
-from pydantic.dataclasses import dataclass
-
-from videos.domain._base import PydanticModel
-
-
-@dataclass(frozen=True)
-class StyleSpec(PydanticModel):
-    typography_preset: str = "default"
-    color_palette: str = "default"
-    spacing_scale: str = "default"
-    render_profile: str = "default"
+__all__ = ["StyleSpec"]

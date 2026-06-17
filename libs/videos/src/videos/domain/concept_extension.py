@@ -1,15 +1,4 @@
-from __future__ import annotations
+# Backward-compatible re-export — import from canonical location instead.
+from videos.domain.entities.concept_extension import ConceptExtension
 
-from abc import ABC, abstractmethod
-
-from videos.domain.concept import Concept
-from videos.domain.narrative import Narrative
-
-
-class ConceptExtension(ABC):
-    @property
-    @abstractmethod
-    def concept(self) -> Concept: ...
-
-    @abstractmethod
-    def create_narrative(self) -> Narrative: ...
+__all__ = ["ConceptExtension"]
