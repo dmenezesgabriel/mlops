@@ -1,0 +1,78 @@
+[project]
+name = "ml-specialization"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "duckdb>=1.4.0",
+  "fastapi>=0.110.0",
+  "feast[duckdb]>=0.56.0",
+  "httpx2>=2.3.0",
+  "ibis-framework>=9.0.0",
+  "ipywidgets>=8.0.0",
+  "mlflow>=3.7.0",
+  "mlops-shared",
+  "numpy>=2.0.0",
+  "pandas==2.3.3",
+  "pyarrow==24.0.0",
+  "requests==2.34.2",
+  "uvicorn>=0.28.0",
+  "optuna>=3.6.0",
+]
+
+[project.optional-dependencies]
+notebooks = [
+  "ipykernel>=7.1.0",
+  "jupyter-ai-magic-commands",
+  "matplotlib>=3.10.0",
+  "nbclient>=0.11.0",
+  "nbconvert>=7.17.1",
+]
+
+[tool.uv.sources]
+mlops-shared = { workspace = true }
+
+[tool.deptry.package_module_name_map]
+ml-specialization = "ml_specialization"
+mlops-shared = "mlops_shared"
+
+[tool.deptry.per_rule_ignores]
+DEP001 = ["data_sources", "entities"]
+# httpx2 is imported by starlette.testclient (via fastapi.testclient)
+# to avoid a StarletteDeprecationWarning; not imported by project code.
+# numpy and requests are scaffolded dependencies for the reference
+# implementation; the generated stubs do not import them yet.
+DEP002 = [
+  "duckdb",
+  "httpx2",
+  "mlflow",
+  "pyarrow",
+  "numpy",
+  "requests",
+  "ipykernel",
+  "jupyter-ai-magic-commands",
+  "matplotlib",
+  "nbclient",
+  "nbconvert",
+  "ibis-framework",
+  "uvicorn",
+  "ipywidgets",
+  "optuna",
+]
+DEP003 = ["ml_specialization", "fastapi"]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -ra --tb=short --import-mode=importlib"
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
+reportMissingParameterType = true
+reportMissingReturnType = true
+reportUnnecessaryCast = true
+reportUnusedIgnoreComment = true
+reportMissingImports = false

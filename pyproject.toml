@@ -38,6 +38,7 @@ members = [
   "libs/ssg-syntax-highlighting",
   "libs/ssg-latex",
   "projects/nyc_taxi_demand_forecasting",
+  "projects/ml_specialization",
   "libs/videos",
   "libs/diagrams",
   "libs/videos-linter",
@@ -83,6 +84,7 @@ known_first_party = [
   "mlops_shared",
   "data_science_scaffold",
   "nyc_taxi_demand_forecasting",
+  "ml_specialization",
   "ssg",
   "ssg_i18n",
   "ssg_i18n_machine_translation",
@@ -99,6 +101,7 @@ root_packages = [
   "mlops_shared",
   "data_science_scaffold",
   "nyc_taxi_demand_forecasting",
+  "ml_specialization",
   "ssg",
   "ssg_i18n",
   "ssg_i18n_machine_translation",
@@ -114,13 +117,13 @@ root_packages = [
 name = "Shared libraries do not import projects"
 type = "forbidden"
 source_modules = ["mlops_shared", "data_science_scaffold", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "diagrams_generation"]
-forbidden_modules = ["nyc_taxi_demand_forecasting"]
+forbidden_modules = ["nyc_taxi_demand_forecasting", "ml_specialization"]
 
 [[tool.importlinter.contracts]]
 name = "Videos library does not import projects"
 type = "forbidden"
 source_modules = ["videos"]
-forbidden_modules = ["nyc_taxi_demand_forecasting"]
+forbidden_modules = ["nyc_taxi_demand_forecasting", "ml_specialization"]
 
 [[tool.importlinter.contracts]]
 name = "Site domain stays independent"
@@ -138,7 +141,7 @@ forbidden_modules = ["ssg.infrastructure"]
 name = "Static site generator stays MLOps agnostic"
 type = "forbidden"
 source_modules = ["ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex"]
-forbidden_modules = ["mlops_shared", "nyc_taxi_demand_forecasting"]
+forbidden_modules = ["mlops_shared", "nyc_taxi_demand_forecasting", "ml_specialization"]
 
 [[tool.importlinter.contracts]]
 name = "Machine translation stays an i18n extension"
@@ -175,7 +178,7 @@ forbidden_modules = ["ssg.infrastructure"]
 name = "Diagrams generation stays independent"
 type = "forbidden"
 source_modules = ["diagrams_generation"]
-forbidden_modules = ["mlops_shared", "data_science_scaffold", "nyc_taxi_demand_forecasting", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "videos"]
+forbidden_modules = ["mlops_shared", "data_science_scaffold", "nyc_taxi_demand_forecasting", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "videos", "ml_specialization"]
 
 [[tool.importlinter.contracts]]
 name = "Videos domain stays independent"
@@ -193,7 +196,7 @@ forbidden_modules = ["videos.infrastructure"]
 name = "Videos linter is independent of site and other systems"
 type = "forbidden"
 source_modules = ["videos_linter"]
-forbidden_modules = ["mlops_shared", "data_science_scaffold", "nyc_taxi_demand_forecasting", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "diagrams_generation"]
+forbidden_modules = ["mlops_shared", "data_science_scaffold", "nyc_taxi_demand_forecasting", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "diagrams_generation", "ml_specialization"]
 
 [tool.uv.sources]
 ssg-i18n = { workspace = true }

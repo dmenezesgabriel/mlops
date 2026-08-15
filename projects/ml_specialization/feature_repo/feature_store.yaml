@@ -1,0 +1,9 @@
+project: ml_specialization
+provider: local
+registry: data/registry.db
+offline_store:
+  type: duckdb
+online_store:
+  type: sqlite
+  path: data/online_store.db
+entity_key_serialization_version: 3

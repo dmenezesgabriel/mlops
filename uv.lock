@@ -27,6 +27,7 @@ resolution-markers = [
 members = [
     "data-science-scaffold",
     "diagrams-generation",
+    "ml-specialization",
     "mlops-monorepo",
     "mlops-shared",
     "nyc-taxi-demand-forecasting",
@@ -3428,6 +3429,60 @@ sdist = { url = "https://files.pythonhosted.org/packages/ca/84/620cc3f7e3adf6f50
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2a/7f/a946aa4f8752b37102b41e64dca18a1976ac705c3a0d1dfe74d820a02552/mistune-3.2.1-py3-none-any.whl", hash = "sha256:78cdb0ba5e938053ccf63651b352508d2efa9411dc8810bfb05f2dc5140c0048", size = 53749, upload-time = "2026-05-03T14:33:20.551Z" },
 ]
+
+[[package]]
+name = "ml-specialization"
+version = "0.1.0"
+source = { editable = "projects/ml_specialization" }
+dependencies = [
+    { name = "duckdb" },
+    { name = "fastapi" },
+    { name = "feast", extra = ["duckdb"] },
+    { name = "httpx2" },
+    { name = "ibis-framework" },
+    { name = "ipywidgets" },
+    { name = "mlflow" },
+    { name = "mlops-shared" },
+    { name = "numpy" },
+    { name = "optuna" },
+    { name = "pandas" },
+    { name = "pyarrow" },
+    { name = "requests" },
+    { name = "uvicorn" },
+]
+
+[package.optional-dependencies]
+notebooks = [
+    { name = "ipykernel" },
+    { name = "jupyter-ai-magic-commands" },
+    { name = "matplotlib" },
+    { name = "nbclient" },
+    { name = "nbconvert" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "duckdb", specifier = ">=1.4.0" },
+    { name = "fastapi", specifier = ">=0.110.0" },
+    { name = "feast", extras = ["duckdb"], specifier = ">=0.56.0" },
+    { name = "httpx2", specifier = ">=2.3.0" },
+    { name = "ibis-framework", specifier = ">=9.0.0" },
+    { name = "ipykernel", marker = "extra == 'notebooks'", specifier = ">=7.1.0" },
+    { name = "ipywidgets", specifier = ">=8.0.0" },
+    { name = "jupyter-ai-magic-commands", marker = "extra == 'notebooks'" },
+    { name = "matplotlib", marker = "extra == 'notebooks'", specifier = ">=3.10.0" },
+    { name = "mlflow", specifier = ">=3.7.0" },
+    { name = "mlops-shared", editable = "libs/mlops-shared" },
+    { name = "nbclient", marker = "extra == 'notebooks'", specifier = ">=0.11.0" },
+    { name = "nbconvert", marker = "extra == 'notebooks'", specifier = ">=7.17.1" },
+    { name = "numpy", specifier = ">=2.0.0" },
+    { name = "optuna", specifier = ">=3.6.0" },
+    { name = "pandas", specifier = "==2.3.3" },
+    { name = "pyarrow", specifier = "==24.0.0" },
+    { name = "requests", specifier = "==2.34.2" },
+    { name = "uvicorn", specifier = ">=0.28.0" },
+]
+provides-extras = ["notebooks"]
 
 [[package]]
 name = "mlflow"
