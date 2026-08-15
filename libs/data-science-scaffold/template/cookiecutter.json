@@ -1,0 +1,6 @@
+{
+  "project_slug": "my_project",
+  "project_title": "My Project",
+  "description": "A short description of the project.",
+  "_copy_without_render": [".gitkeep", "py.typed", ".python-version", ".feastignore"]
+}

@@ -3,8 +3,10 @@ repos:
     rev: v0.15.15
     hooks:
       - id: ruff-format
+        exclude: ^libs/data-science-scaffold/template/
       - id: ruff
         args: [--fix]
+        exclude: ^libs/data-science-scaffold/template/
   - repo: local
     hooks:
       - id: deptry

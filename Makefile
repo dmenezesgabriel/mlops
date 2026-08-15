@@ -6,7 +6,7 @@ MANIM_CUSTOM_IMAGE ?= mlops-manim-prod
 VIDEO_OUTPUT_DIR ?= videos/output
 
 .SILENT:
-.PHONY: install format lint type-check test test-bdd test-e2e test-videos-docker coverage complexity dependencies architecture security quality build-site preview-site evaluate-translation render-video check-videos diagrams-build diagrams-render jupyterlab-build jupyterlab collect preprocess features train tune evaluate deploy monitor mlflow
+.PHONY: install scaffold format lint type-check test test-bdd test-e2e test-videos-docker coverage complexity dependencies architecture security quality build-site preview-site evaluate-translation render-video check-videos diagrams-build diagrams-render jupyterlab-build jupyterlab collect preprocess features train tune evaluate deploy monitor mlflow
 SITE_CONFIG ?= site/site.yaml
 SITE_OUTPUT ?= site/build
 
@@ -14,7 +14,15 @@ install:
 	uv sync --all-packages --dev --extra notebooks
 	uv run pre-commit install
 
-PACKAGES = libs/mlops-shared libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting libs/ssg-latex libs/videos libs/diagrams libs/videos-linter projects/$(PROJECT)
+scaffold:
+	uvx cookiecutter --output-dir projects --no-input \
+	  libs/data-science-scaffold/template project_slug=$(PROJECT)
+	uv run python -m data_science_scaffold.register $(PROJECT)
+	uv sync --all-packages --dev --extra notebooks
+	$(MAKE) -C projects/$(PROJECT) format
+	cd projects/$(PROJECT) && uv run ruff check --fix .
+
+PACKAGES = libs/mlops-shared libs/data-science-scaffold libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting libs/ssg-latex libs/videos libs/diagrams libs/videos-linter projects/$(PROJECT)
 
 format:
 	for package in $(PACKAGES); do \

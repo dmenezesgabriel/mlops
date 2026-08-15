@@ -1,0 +1,38 @@
+[project]
+name = "data-science-scaffold"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "cookiecutter==2.7.1",
+]
+
+[tool.deptry.package_module_name_map]
+data-science-scaffold = "data_science_scaffold"
+
+[tool.deptry]
+exclude = ["template"]
+
+[tool.deptry.per_rule_ignores]
+DEP003 = ["data_science_scaffold", "pytest"]
+
+[tool.coverage.run]
+# template/ holds jinja files that cookiecutter renders as code objects
+# named after the template path; they must not skew the src coverage report.
+source = ["src"]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -ra --tb=short --import-mode=importlib"
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
+reportMissingParameterType = true
+reportMissingReturnType = true
+reportUnnecessaryCast = true
+reportUnusedIgnoreComment = true
+reportMissingImports = false

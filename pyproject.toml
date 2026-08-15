@@ -30,6 +30,7 @@ dev = [
 [tool.uv.workspace]
 members = [
   "libs/mlops-shared",
+  "libs/data-science-scaffold",
   "libs/ssg",
   "libs/ssg-i18n",
   "libs/ssg-i18n-machine-translation",
@@ -80,6 +81,7 @@ reportMissingImports = false
 [tool.deptry]
 known_first_party = [
   "mlops_shared",
+  "data_science_scaffold",
   "nyc_taxi_demand_forecasting",
   "ssg",
   "ssg_i18n",
@@ -95,6 +97,7 @@ known_first_party = [
 [tool.importlinter]
 root_packages = [
   "mlops_shared",
+  "data_science_scaffold",
   "nyc_taxi_demand_forecasting",
   "ssg",
   "ssg_i18n",
@@ -110,7 +113,7 @@ root_packages = [
 [[tool.importlinter.contracts]]
 name = "Shared libraries do not import projects"
 type = "forbidden"
-source_modules = ["mlops_shared", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "diagrams_generation"]
+source_modules = ["mlops_shared", "data_science_scaffold", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "diagrams_generation"]
 forbidden_modules = ["nyc_taxi_demand_forecasting"]
 
 [[tool.importlinter.contracts]]
@@ -172,7 +175,7 @@ forbidden_modules = ["ssg.infrastructure"]
 name = "Diagrams generation stays independent"
 type = "forbidden"
 source_modules = ["diagrams_generation"]
-forbidden_modules = ["mlops_shared", "nyc_taxi_demand_forecasting", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "videos"]
+forbidden_modules = ["mlops_shared", "data_science_scaffold", "nyc_taxi_demand_forecasting", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "videos"]
 
 [[tool.importlinter.contracts]]
 name = "Videos domain stays independent"
@@ -190,7 +193,7 @@ forbidden_modules = ["videos.infrastructure"]
 name = "Videos linter is independent of site and other systems"
 type = "forbidden"
 source_modules = ["videos_linter"]
-forbidden_modules = ["mlops_shared", "nyc_taxi_demand_forecasting", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "diagrams_generation"]
+forbidden_modules = ["mlops_shared", "data_science_scaffold", "nyc_taxi_demand_forecasting", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "diagrams_generation"]
 
 [tool.uv.sources]
 ssg-i18n = { workspace = true }
