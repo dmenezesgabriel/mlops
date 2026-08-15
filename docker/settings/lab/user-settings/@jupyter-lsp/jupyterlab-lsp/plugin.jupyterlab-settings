@@ -1,0 +1,9 @@
+{
+  "language_servers": {
+    "pylsp": {
+      "serverSettings": {
+        "pylsp.plugins.jedi.environment": "/opt/mlops-venv/bin/python"
+      }
+    }
+  }
+}

@@ -1,0 +1,30 @@
+services:
+  jupyterlab:
+    build: .
+    image: mlops-jupyterlab
+    user: "${UID:-1000}:${GID:-1000}"
+    ports:
+      - "8888:8888"
+    volumes:
+      - .:/workspace
+      - jupyterlab-venv:/opt/jupyterlab
+      - mlops-venv:/opt/mlops-venv
+      - jupyter-config:/home/jupyter/.config/jupyter
+      - jupyter-data:/home/jupyter/.local/share/jupyter
+      - uv-data:/home/jupyter/.local/share/uv
+      - uv-cache:/tmp/uv-cache
+    environment:
+      JUPYTER_TOKEN: ""
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      GH_TOKEN: "${GH_TOKEN:-}"
+      GITHUB_TOKEN: "${GITHUB_TOKEN:-}"
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+
+volumes:
+  jupyterlab-venv:
+  mlops-venv:
+  jupyter-config:
+  jupyter-data:
+  uv-data:
+  uv-cache:

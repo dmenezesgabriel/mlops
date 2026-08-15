@@ -6,7 +6,7 @@ MANIM_CUSTOM_IMAGE ?= mlops-manim-prod
 VIDEO_OUTPUT_DIR ?= videos/output
 
 .SILENT:
-.PHONY: install format lint type-check test test-bdd test-e2e test-videos-docker coverage complexity dependencies architecture security quality build-site preview-site evaluate-translation render-video check-videos diagrams-build diagrams-render collect preprocess features train tune evaluate deploy monitor mlflow
+.PHONY: install format lint type-check test test-bdd test-e2e test-videos-docker coverage complexity dependencies architecture security quality build-site preview-site evaluate-translation render-video check-videos diagrams-build diagrams-render jupyterlab-build jupyterlab collect preprocess features train tune evaluate deploy monitor mlflow
 SITE_CONFIG ?= site/site.yaml
 SITE_OUTPUT ?= site/build
 
@@ -151,4 +151,10 @@ test-diagrams-docker: libs/diagrams/Dockerfile
 
 collect preprocess features train tune evaluate deploy monitor:
 	uv run python -m $(PROJECT).interfaces.cli $@ --config projects/$(PROJECT)/configs/project.yaml
+
+jupyterlab-build:
+	docker compose build jupyterlab
+
+jupyterlab:
+	docker compose up jupyterlab
 

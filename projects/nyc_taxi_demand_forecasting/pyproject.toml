@@ -22,6 +22,7 @@ dependencies = [
 [project.optional-dependencies]
 notebooks = [
   "ipykernel>=7.1.0",
+  "jupyter-ai-magic-commands",
   "matplotlib>=3.10.0",
   "nbclient>=0.11.0",
   "nbconvert>=7.17.1",
@@ -44,6 +45,7 @@ DEP002 = [
   "mlflow",
   "pyarrow",
   "ipykernel",
+  "jupyter-ai-magic-commands",
   "matplotlib",
   "nbclient",
   "nbconvert",
