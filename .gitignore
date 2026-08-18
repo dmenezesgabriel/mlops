@@ -41,3 +41,4 @@ logs/
 .playwright-cli
 .virtual_documents
 .Trash-1000
+.env
