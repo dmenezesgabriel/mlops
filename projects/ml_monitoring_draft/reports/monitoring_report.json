@@ -1,0 +1,102 @@
+{
+  "run_at": "2026-08-31T19:17:48.810633+00:00",
+  "batch_size": 4128,
+  "thresholds": {
+    "psi_alert": 0.1,
+    "ks_p_value_alert": 0.05,
+    "hellinger_alert": 0.1,
+    "missing_rate_alert": 0.02
+  },
+  "variables": [
+    {
+      "name": "MedInc",
+      "missing_rate": 0.0,
+      "ks": {
+        "statistic": 0.02525436046511631
+      },
+      "psi": 0.003978556956306256,
+      "hellinger": 0.022298984780891914,
+      "status": "OK"
+    },
+    {
+      "name": "HouseAge",
+      "missing_rate": 0.0,
+      "ks": {
+        "statistic": 0.011870155038759655
+      },
+      "psi": 0.00388024403112059,
+      "hellinger": 0.022021396227561517,
+      "status": "OK"
+    },
+    {
+      "name": "AveRooms",
+      "missing_rate": 0.0,
+      "ks": {
+        "statistic": 0.031916182170542706
+      },
+      "psi": 0.004001847001099386,
+      "hellinger": 0.02236347424167041,
+      "status": "OK"
+    },
+    {
+      "name": "AveBedrms",
+      "missing_rate": 0.0,
+      "ks": {
+        "statistic": 0.02737403100775193
+      },
+      "psi": 0.0020682346321231485,
+      "hellinger": 0.016078282407956338,
+      "status": "OK"
+    },
+    {
+      "name": "Population",
+      "missing_rate": 0.0,
+      "ks": {
+        "statistic": 0.018713662790697694
+      },
+      "psi": 0.0010118907272881877,
+      "hellinger": 0.011246110830265972,
+      "status": "OK"
+    },
+    {
+      "name": "AveOccup",
+      "missing_rate": 0.0,
+      "ks": {
+        "statistic": 0.0174418604651162
+      },
+      "psi": 0.005304429576553827,
+      "hellinger": 0.025747423998242664,
+      "status": "OK"
+    },
+    {
+      "name": "Latitude",
+      "missing_rate": 0.0,
+      "ks": {
+        "statistic": 0.018168604651162767
+      },
+      "psi": 0.0022274155123000942,
+      "hellinger": 0.01668515731503412,
+      "status": "OK"
+    },
+    {
+      "name": "Longitude",
+      "missing_rate": 0.0,
+      "ks": {
+        "statistic": 0.022044573643410836
+      },
+      "psi": 0.0035644460448442748,
+      "hellinger": 0.021106396704716587,
+      "status": "OK"
+    },
+    {
+      "name": "prediction",
+      "missing_rate": 0.0,
+      "ks": {
+        "statistic": 0.017078488372093026
+      },
+      "psi": 0.0025173377502127523,
+      "hellinger": 0.017738115666998622,
+      "status": "OK"
+    }
+  ]
+}
