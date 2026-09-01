@@ -11,9 +11,12 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
+        docker-cli \
+        docker-compose \
         git \
         nodejs \
         npm \
+        procps \
         vim \
         zsh \
     && rm -rf /var/lib/apt/lists/*

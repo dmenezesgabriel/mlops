@@ -1,6 +1,9 @@
 .venv/
 *.chat
 __pycache__/
+# CatBoost writes its training log dir to cwd; train.py routes it to /tmp, but
+# keep it ignored in case a raw training container runs outside the entry point.
+catboost_info/
 .pytest_cache/
 .ruff_cache/
 .coverage
@@ -42,3 +45,6 @@ logs/
 .virtual_documents
 .Trash-1000
 .env
+
+research_repos
+*.joblib

@@ -1,12 +1,22 @@
 services:
+  moto:
+    image: motoserver/moto:5.1.16
+    command: -H 0.0.0.0
+    networks:
+      - mlops_net
+
   jupyterlab:
     build: .
     image: mlops-jupyterlab
     user: "${UID:-1000}:${GID:-1000}"
+    group_add:
+      - "${DOCKER_GID:-973}"
     ports:
       - "8888:8888"
     volumes:
-      - .:/workspace
+      - "${PWD}:${PWD}"
+      - /tmp:/tmp
+      - /var/run/docker.sock:/var/run/docker.sock
       - jupyterlab-venv:/opt/jupyterlab
       - mlops-venv:/opt/mlops-venv
       - jupyter-config:/home/jupyter/.config/jupyter
@@ -15,11 +25,27 @@ services:
       - uv-cache:/tmp/uv-cache
     environment:
       JUPYTER_TOKEN: ""
+      AWS_ACCESS_KEY_ID: "test"
+      AWS_SECRET_ACCESS_KEY: "test"
+      AWS_DEFAULT_REGION: "us-east-1"
+      AWS_ENDPOINT_URL: "http://moto:5000"
+      SAGEMAKER_LOCAL_REPO_PATH: "${PWD}"
+      SAGEMAKER_LOCAL_S3_ENDPOINT_URL: "http://moto:5000"
+      SAGEMAKER_LOCAL_BUCKET: "sagemaker-local"
+      SAGEMAKER_LOCAL_NETWORK: "mlops_net"
+      SAGEMAKER_LOCAL_IMAGE_TAG: "sagemaker-local:latest"
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
       GH_TOKEN: "${GH_TOKEN:-}"
       GITHUB_TOKEN: "${GITHUB_TOKEN:-}"
       OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+    networks:
+      - mlops_net
+
+networks:
+  mlops_net:
+    name: mlops_net
+    external: true
 
 volumes:
   jupyterlab-venv:
