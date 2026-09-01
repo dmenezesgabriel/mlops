@@ -1,0 +1,10 @@
+# Reference sagemaker-local configuration for the offline JupyterLab stack.
+# These values are injected as SAGEMAKER_LOCAL_* environment variables by
+# docker-compose.yml (see the jupyterlab service). The notebooks build their
+# LocalModeConfig from process environment via sagemaker_local.config_from_env.
+s3_endpoint_url: http://moto:5000
+bucket: sagemaker-xgboost
+network: mlops_net
+image_tag: sagemaker-local:latest
+region: us-east-1
+serving_port: 8080
