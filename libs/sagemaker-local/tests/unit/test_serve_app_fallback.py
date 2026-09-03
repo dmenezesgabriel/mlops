@@ -60,3 +60,20 @@ class TestMissingScriptFallback:
             handler = module._resolve("custom_fn", default)
             assert handler is not default
             assert handler() == "custom"
+
+
+class TestExecutionParameters:
+    """The local batch-transform flow queries /execution-parameters (see
+    sagemaker.local.entities._LocalTransformJob.start) and falls back to SDK
+    defaults on a non-200. A production server declares its batch contract."""
+
+    def test_get_execution_parameters_reports_batch_contract(self):
+        module = _load_serve_app("train.py")
+
+        response = module.app.test_client().get("/execution-parameters")
+
+        assert response.status_code == 200
+        assert response.get_json() == {
+            "BatchStrategy": "MultiRecord",
+            "MaxPayloadInMB": 6,
+        }

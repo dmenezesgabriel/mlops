@@ -103,6 +103,23 @@ def ping():
     return "", 200
 
 
+@app.get("/execution-parameters")
+def execution_parameters():
+    # Declared so the local batch-transform flow (entities._LocalTransformJob)
+    # uses the server's contract instead of SDK defaults; SageMaker honors
+    # {BatchStrategy, MaxPayloadInMB} from this endpoint. CamelCase follows the
+    # AWS BatchStrategy enum (the SDK compares with the literal strings
+    # "MultiRecord" / "SingleRecord", raising otherwise).
+    #
+    # MultiRecord is the deliberate choice here: the default text/csv input
+    # handler parses the multi-line body into a 2-D matrix. Under SingleRecord
+    # each request body is one 1-D row, which that handler rejects.
+    return {
+        "BatchStrategy": "MultiRecord",
+        "MaxPayloadInMB": 6,
+    }
+
+
 @app.post("/invocations")
 def invocations():
     content_type = flask.request.content_type or "text/csv"
