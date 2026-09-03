@@ -29,6 +29,9 @@ DEP001 = ["lightgbm", "joblib", "sklearn"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q -ra --tb=short --import-mode=importlib"
+markers = [
+    "integration: requires docker + moto + a Jupyter kernel; run inside the offline JupyterLab stack",
+]
 
 [tool.pyright]
 pythonVersion = "3.11"
