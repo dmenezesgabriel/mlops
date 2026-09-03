@@ -1,0 +1,3 @@
+# Generated batch-transform scratch: the notebook writes the input CSV here and
+# the serving container writes predictions; both are reproduced on every run.
+data/

@@ -1,0 +1,22 @@
+FROM python:3.12-slim
+
+# Inference-only image for the XGBoost example: used by batch transform (and
+# suitable for online serving). Leaner than the training image: no
+# sagemaker-training toolkit, no build toolchain, no pandas.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir \
+        numpy==1.26.4 \
+        xgboost==2.1.4 \
+        joblib==1.4.2 \
+        flask==3.1.1 \
+        gunicorn==23.0.0
+
+# The serving entry point and inference hooks come from the library's docker
+# assets (single source of truth). Build with context = libs/sagemaker-local/docker
+# so these COPY sources resolve.
+COPY --chmod=0755 serve serve_app.py /opt/ml/serve/
+RUN ln -s /opt/ml/serve/serve /usr/local/bin/serve
+
+WORKDIR /opt/ml
