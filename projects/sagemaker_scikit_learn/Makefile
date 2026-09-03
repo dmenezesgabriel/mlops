@@ -1,8 +1,18 @@
 .SILENT:
-.PHONY: format lint type-check quality sync
+.PHONY: format lint type-check quality sync build-images test test-notebooks
 
 format:
 	uv run ruff format src
+
+build-images:
+	docker build -f Dockerfile -t sagemaker-scikit-learn:train ../../libs/sagemaker-local/docker
+	docker build -f Dockerfile.inference -t sagemaker-scikit-learn:inference ../../libs/sagemaker-local/docker
+
+test:
+	uv run pytest -m "not integration"
+
+test-notebooks:
+	/opt/mlops-venv/bin/python -m pytest -m integration
 
 lint:
 	uv run ruff format --check src
@@ -14,4 +24,4 @@ type-check:
 sync:
 	uv sync --all-packages
 
-quality: format lint type-check
+quality: format lint type-check test
