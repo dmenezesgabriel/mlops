@@ -9,6 +9,24 @@ repos:
         exclude: ^libs/data-science-scaffold/template/
   - repo: local
     hooks:
+      - id: bandit
+        name: bandit security scan
+        entry: uv run bandit -r libs/athena-local/src -ll
+        language: system
+        pass_filenames: false
+        files: ^libs/athena-local/
+      - id: vulture
+        name: vulture dead code check
+        entry: uv run vulture libs/athena-local/src
+        language: system
+        pass_filenames: false
+        files: ^libs/athena-local/
+      - id: xenon
+        name: xenon maintainability check
+        entry: uv run xenon --max-absolute B --max-modules A --max-average A libs/athena-local/src
+        language: system
+        pass_filenames: false
+        files: ^libs/athena-local/
       - id: deptry
         name: deptry
         entry: make dependencies

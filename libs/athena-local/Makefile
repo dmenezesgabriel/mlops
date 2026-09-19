@@ -1,5 +1,5 @@
 .SILENT:
-.PHONY: format lint type-check test coverage complexity dependencies security quality
+.PHONY: format lint type-check test coverage complexity dependencies security maintainability quality
 
 format:
 	uv run ruff format .
@@ -27,6 +27,11 @@ dependencies:
 	uv run deptry .
 
 security:
+	uv run bandit -r src -ll
+	uv run vulture src
 	uv run semgrep --quiet --config auto .
 
-quality: lint type-check test coverage complexity dependencies security
+maintainability:
+	uv run xenon --max-absolute B --max-modules A --max-average A src
+
+quality: lint type-check test coverage complexity dependencies security maintainability

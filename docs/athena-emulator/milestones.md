@@ -61,7 +61,13 @@ Steps:
 1. [x] QC-2: scaffold `libs/athena-local` (src layout `py.typed`, pyproject
    hatchling, Makefile canonical) — mirror `libs/mlops-shared`.
 2. [x] QC-1: register in root workspace/members/PACKAGES/deptry/importlinter.
-3. QC-3: add bandit, vulture, xenon; wire per-lib targets + pre-commit.
+3. [x] QC-3: add bandit, vulture, xenon; wire per-lib targets + pre-commit.
+   - Verified 2026-09-19: pinned `bandit==1.9.4`, `vulture==2.16`, `xenon==0.9.3`
+     in root dev group; athena-local `security` = `bandit -r src -ll` + `vulture
+     src` + `semgrep --config auto .`, new `maintainability` = `xenon
+     --max-absolute B --max-modules A --max-average A` (per §8.4); all three
+     wired as pre-commit hooks scoped to `libs/athena-local/`; semgrep stays
+     per-lib/manual.
 4. QC-4/5/6: import-linter contracts, pyright baseline, pytest-bdd features
    vs config file.
 5. PC-1: FastAPI `POST /` catch-all + health; empty dispatch (all 70 targets →
