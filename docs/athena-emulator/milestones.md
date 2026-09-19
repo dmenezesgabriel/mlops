@@ -32,6 +32,15 @@ Steps:
    `GetUserDefinedFunctions` usage against moto Glue (SP-3): the confirmed risk
    in architecture §11.
 5. Commit only the pinned tag + proven `docker/trino/` configs (SP-4).
+6. [ ] Known-failure matrix (spike results): BOTH data-plane links proven —
+   CTAS parquet files observed on moto S3 mid-run; external-parquet SELECT
+   returns rows. BLOCKED by two missing moto Glue APIs (5.1.16 and moto
+   master): column-statistics (`update`/`delete_column_statistics_for_table`)
+   and `get_user_defined_functions`. Trino calls
+   `updateTableStatistics(OVERWRITE_ALL)` unconditionally after every
+   create-table commit (`SemiTransactionalHiveMetastore.CreateTableOperation`),
+   so no catalog property avoids it. Decision needed: minimal moto Glue patch
+   (architecture §11 mitigation) vs defer.
 
 **Exit criteria:** CTAS partitions readable from moto S3 via Trino; catalog
 DDL visible via moto Glue; known-failure matrix (incl. GUDF) documented in
