@@ -523,6 +523,25 @@ wheels = [
 ]
 
 [[package]]
+name = "awswrangler"
+version = "3.17.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "boto3" },
+    { name = "botocore" },
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "pandas" },
+    { name = "pyarrow" },
+    { name = "setuptools", marker = "python_full_version >= '3.12'" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fc/34/bc4d3ec4f613bf4920fe479879fcdb278b0c7667b24b2cd06e6c841b3f29/awswrangler-3.17.1.tar.gz", hash = "sha256:cc9735a854446c2ccfa25a87295078036361fc170a01c0246e4cf30d4739a2d1", size = 277708, upload-time = "2026-08-03T11:57:35.66Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2d/54/3b3e8d15d7e7210efeca136f9741e9ae8e1a4fc0b3f3e42903356686daf8/awswrangler-3.17.1-py3-none-any.whl", hash = "sha256:d1f454266813f7929a3ecd420ef9e4816dc1ae85e2b5ee84d7d1f85ac2df0fdd", size = 396289, upload-time = "2026-08-03T11:57:34.087Z" },
+]
+
+[[package]]
 name = "bandit"
 version = "1.9.4"
 source = { registry = "https://pypi.org/simple" }
@@ -3812,6 +3831,7 @@ source = { virtual = "." }
 
 [package.dev-dependencies]
 dev = [
+    { name = "awswrangler" },
     { name = "bandit" },
     { name = "deptry" },
     { name = "import-linter" },
@@ -3839,6 +3859,7 @@ dev = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "awswrangler", specifier = "==3.17.1" },
     { name = "bandit", specifier = "==1.9.4" },
     { name = "deptry", specifier = "==0.25.1" },
     { name = "import-linter", specifier = "==2.11" },
