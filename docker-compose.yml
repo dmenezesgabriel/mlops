@@ -1,6 +1,13 @@
 services:
   moto:
     image: motoserver/moto:5.1.16
+    # The Glue overlay (docker/moto/) adds the column-statistics and
+    # user-defined-function operations the Trino hive connector needs
+    # (docker/moto/glue_overlay.py). The official image stays unchanged; the
+    # entrypoint applies the overlay at startup.
+    volumes:
+      - ./docker/moto:/docker/moto:ro
+    entrypoint: ["/bin/sh", "/docker/moto/entrypoint.sh"]
     command: -H 0.0.0.0
     networks:
       - mlops_net

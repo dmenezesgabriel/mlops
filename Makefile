@@ -22,7 +22,7 @@ scaffold:
 	$(MAKE) -C projects/$(PROJECT) format
 	cd projects/$(PROJECT) && uv run ruff check --fix .
 
-PACKAGES = libs/mlops-shared libs/data-science-scaffold libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting libs/ssg-latex libs/videos libs/diagrams libs/videos-linter libs/sagemaker-local projects/$(PROJECT)
+PACKAGES = libs/mlops-shared libs/data-science-scaffold libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting libs/ssg-latex libs/videos libs/diagrams libs/videos-linter libs/sagemaker-local docker/moto projects/$(PROJECT)
 
 format:
 	for package in $(PACKAGES); do \
