@@ -49,7 +49,7 @@ never the working document that produced the requirement.
 
 | Topic | Anchor |
 |---|---|
-| Athena service model: 70 ops, JSON 1.1, `POST /`, `X-Amz-Target: Athena_2017_05_18.<Op>` | `research_repos/aws-cli/awscli/botocore/data/athena/2017-05-18/service-2.json` (== venv botocore 1.42.97 model) |
+| Athena service model: 70 ops, JSON 1.1, `POST /`, `X-Amz-Target: AmazonAthena.<Op>` (dispatched on the segment after the final dot — moto `responses.py:462-464`) | `research_repos/aws-cli/awscli/botocore/data/athena/2017-05-18/service-2.json` (== venv botocore 1.42.97 model) |
 | moto Athena is metadata-only; queries are not executed | `research_repos/moto/docs/docs/services/athena.rst:48` |
 | moto Athena backend | `research_repos/moto/moto/athena/models.py:314` start, `:345` `_process_ddl`, `:415` get_query_results, `:475` `_store_query_result_in_s3`, `:140` `OutputLocation += f"{self.id}.csv"` |
 | moto Athena dispatch / URLs / error statuses | `research_repos/moto/moto/athena/responses.py:26` (400 "WorkGroup already exists"), `research_repos/moto/moto/athena/urls.py:3`, `research_repos/moto/moto/core/responses.py:462-464` (X-Amz-Target split) |

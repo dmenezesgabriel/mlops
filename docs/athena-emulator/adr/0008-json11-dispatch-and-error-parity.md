@@ -7,7 +7,9 @@
 
 The Athena protocol is AWS JSON 1.1: `protocol=json`, `jsonVersion=1.1`, 70
 operations, all `POST /`, dispatch via the `X-Amz-Target:
-Athena_2017_05_18.<Operation>` header — from the canonical model
+AmazonAthena.<Operation>` header (measured from a live boto3 client against
+botocore 1.42.97; the target is `f"{targetPrefix}.{operation}"` — installed
+botocore `serialize.py:423-425`) — from the canonical model
 `research_repos/aws-cli/awscli/botocore/data/athena/2017-05-18/service-2.json`
 (byte-identical to the installed botocore model; verified shapes equal).
 moto shows the reference shapes of dispatch and error serialization:

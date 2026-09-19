@@ -224,6 +224,12 @@ type = "forbidden"
 source_modules = ["videos_linter"]
 forbidden_modules = ["mlops_shared", "data_science_scaffold", "nyc_taxi_demand_forecasting", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "diagrams_generation", "ml_specialization", "sagemaker_scikit_learn", "sagemaker_xgboost", "sagemaker_lightgbm", "sagemaker_catboost"]
 
+[[tool.importlinter.contracts]]
+name = "Athena emulator stays independent of the monorepo's other packages"
+type = "forbidden"
+source_modules = ["athena_local"]
+forbidden_modules = ["mlops_shared", "data_science_scaffold", "nyc_taxi_demand_forecasting", "sagemaker_catboost", "sagemaker_lightgbm", "sagemaker_xgboost", "sagemaker_scikit_learn", "ml_specialization", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "videos", "diagrams_generation", "videos_linter", "sagemaker_local"]
+
 [tool.uv.sources]
 ssg-i18n = { workspace = true }
 ssg-i18n-machine-translation = { workspace = true }

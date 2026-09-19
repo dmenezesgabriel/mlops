@@ -71,7 +71,7 @@ consumers pass unmodified:
 ## 4. Solution Strategy
 
 1. **Protocol**: one FastAPI route `POST /` dispatching on
-   `X-Amz-Target: Athena_2017_05_18.<Op>` (ADR-0008), typed schemas mirroring
+   `X-Amz-Target: AmazonAthena.<Op>` (ADR-0008), typed schemas mirroring
    `service-2.json`, botocore-parity error serialization.
 2. **Engine**: Apache Trino via `POST /v1/statement` + `nextUri` polling
    (ADR-0001). Catalog = Hive connector with `hive.metastore=glue` pointing at

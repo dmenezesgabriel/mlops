@@ -33,7 +33,7 @@ against `http://localhost:5001`:
 
 ## 3. Protocol contract (all FRs rest on this)
 
-JSON 1.1, 70 ops, `POST /`, header `X-Amz-Target: Athena_2017_05_18.<Op>` —
+JSON 1.1, 70 ops, `POST /`, header `X-Amz-Target: AmazonAthena.<Op>` (dispatch on the segment after the final dot) —
 canonical model `research_repos/aws-cli/awscli/botocore/data/athena/2017-05-18/service-2.json`.
 Errors: `{"__type": "<ExceptionShape>", "message": "..."}` + `X-Amzn-Errortype`
 header, status from model `httpStatusCode` (ADR-0008). moto reference:

@@ -68,8 +68,15 @@ Steps:
      --max-absolute B --max-modules A --max-average A` (per §8.4); all three
      wired as pre-commit hooks scoped to `libs/athena-local/`; semgrep stays
      per-lib/manual.
-4. QC-4/5/6: import-linter contracts, pyright baseline, pytest-bdd features
+4. [x] QC-4/5/6: import-linter contracts, pyright baseline, pytest-bdd features
    vs config file.
+   - Verified 2026-09-19: `athena_local` independence contract added (15
+     contracts green); pyright standard 0 errors (`uv run pyright src`);
+     pytest-bdd harness green — 3 scenarios in `tests/bdd/canonical_model.feature`
+     (installed botocore model byte-identical to the reference, 70 ops,
+     JSON-1.1), per-flow features land with M2/M3. Docs also corrected on the
+     measured wire literal: `X-Amz-Target` is `AmazonAthena.<Op>` (captured
+     from a live boto3 request), not `Athena_2017_05_18.<Op>`.
 5. PC-1: FastAPI `POST /` catch-all + health; empty dispatch (all 70 targets →
    shaped `InvalidRequestException`) with PC-3 error serializer; first
    end-to-end test: botocore stub call to `:5001` parses error.
