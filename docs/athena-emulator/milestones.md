@@ -12,7 +12,9 @@ before any integration code. Spike code is throwaway in a scratch dir (never
 `src/`); evidence is captured as notes (SP-5), never in code comments.
 
 Steps:
-1. Pin Trino tag, boot `trino` alone against moto (SP-1).
+1. [x] Pin Trino tag (`trinodb/trino:483`), boot `trino` alone against moto (SP-1).
+   - Verified 2026-09-19: `POST /v1/statement` `SELECT 1`, `nextUri` chain
+     QUEUED→RUNNING→FINISHED, rows `[[1]]`, column `_col0 integer`.
    - Evidence: trino.io `develop/client-protocol.html` (statement API),
      ADR-0001.
 2. Configure `catalog/hive.properties`: `hive.metastore=glue`,

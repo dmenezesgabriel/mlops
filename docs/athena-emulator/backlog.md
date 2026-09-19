@@ -21,7 +21,7 @@
 
 | ID | Item | Work | Evidence / decision link | Depends |
 |---|---|---|---|---|
-| SP-1 | Pin Trino tag; boot `trino` container; verify `/v1/statement` responds; capture exact tag used | S | trino.io client-protocol; ADR-0001 | — |
+| SP-1 | [x] Pin Trino tag (**`trinodb/trino:483`**, current stable); boot `trino` container; verify `/v1/statement` round-trip (`SELECT 1` → `[1]`, QUEUED→RUNNING→FINISHED); capture exact tag used | S | trino.io client-protocol; ADR-0001 | — |
 | SP-2 | Prove **Trino native S3 ↔ moto S3**: `CREATE TABLE … WITH(external_location='s3://bucket/…')` then `SELECT` returns rows; catalog `hive/hive.properties` with `fs.s3.enabled=true`, `s3.endpoint=http://moto:5000`, `s3.path-style-access=true`, `us-east-1`, static keys | M | ADR-0006; trino.io `object-storage/file-system-s3.html` — hard gate; if moto S3 fails, stop and review (no preemptive MinIO swap) | SP-1 |
 | SP-3 | Prove **Trino Glue metastore ↔ moto Glue**: `CREATE DATABASE`/`CREATE TABLE` via hive catalog with `hive.metastore=glue` + glue endpoint props; `SHOW FUNCTIONS` (probes `GetUserDefinedFunctions` risk) | M | ADR-0005; trino.io `object-storage/metastores.html`; moto Glue ops `models.py:360,1240` | SP-1 |
 | SP-4 | Lock hive catalog config files (`config.properties`, `catalog/hive.properties`) as artifacts under `docker/trino/` and commit them | S | SPI output → architecture §7 | SP-2, SP-3 |
