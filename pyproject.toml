@@ -48,6 +48,7 @@ members = [
   "libs/diagrams",
   "libs/videos-linter",
   "libs/sagemaker-local",
+  "libs/athena-local",
   "docker/moto",
 ]
 
@@ -109,6 +110,7 @@ known_first_party = [
   "diagrams_generation",
   "videos_linter",
   "sagemaker_local",
+  "athena_local",
 ]
 
 [tool.importlinter]
@@ -131,6 +133,7 @@ root_packages = [
   "diagrams_generation",
   "videos_linter",
   "sagemaker_local",
+  "athena_local",
 ]
 
 [[tool.importlinter.contracts]]

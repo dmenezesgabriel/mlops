@@ -58,9 +58,9 @@ notes. If SP-2 hard-fails → stop, revisit store choice with user (ADR-0006).
 ## M1 — Skeleton + quality gates (QC-*)
 
 Steps:
-1. QC-2: scaffold `libs/athena-local` (src layout `py.typed`, pyproject
+1. [x] QC-2: scaffold `libs/athena-local` (src layout `py.typed`, pyproject
    hatchling, Makefile canonical) — mirror `libs/mlops-shared`.
-2. QC-1: register in root workspace/members/PACKAGES/deptry/importlinter.
+2. [x] QC-1: register in root workspace/members/PACKAGES/deptry/importlinter.
 3. QC-3: add bandit, vulture, xenon; wire per-lib targets + pre-commit.
 4. QC-4/5/6: import-linter contracts, pyright baseline, pytest-bdd features
    vs config file.

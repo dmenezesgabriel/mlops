@@ -9,8 +9,8 @@
 
 | ID | Item | Work | Evidence / contract | Depends |
 |---|---|---|---|---|
-| QC-1 | Register `libs/athena-local` in root: uv workspace `members`, `[tool.deptry].known_first_party`, `[tool.importlinter].root_packages`, root `Makefile` `PACKAGES` | S | root `pyproject.toml` (`members`, deptry, importlinter), root `Makefile:25`; mirror `sagemaker-local` entry | — |
-| QC-2 | Lib skeleton: `src/athena_local/` + `py.typed` + `pyproject.toml` (hatchling, pins per pattern) + `Makefile` (format/lint/type-check/test/coverage/complexity/dependencies/security/quality) | S | `libs/mlops-shared/Makefile`, `pyproject.toml` (canonical pattern); `libs/sagemaker-local` layout | QC-1 |
+| QC-1 | [x] Register `libs/athena-local` in root: uv workspace `members`, `[tool.deptry].known_first_party`, `[tool.importlinter].root_packages`, root `Makefile` `PACKAGES` | S | root `pyproject.toml` (`members`, deptry, importlinter), root `Makefile:25`; mirror `sagemaker-local` entry | — |
+| QC-2 | [x] Lib skeleton: `src/athena_local/` + `py.typed` + `pyproject.toml` (hatchling, pins per pattern) + `Makefile` (format/lint/type-check/test/coverage/complexity/dependencies/security/quality) | S | `libs/mlops-shared/Makefile`, `pyproject.toml` (canonical pattern); `libs/sagemaker-local` layout | QC-1 |
 | QC-3 | Add **bandit, vulture, xenon** to lib gate + dev deps; wire into per-lib `make security`/`quality` and root pre-commit | M | PRD NFR-02; user tooling list; current pre-commit lacks them (`.pre-commit-config.yaml` has ruff/ruff-format/deptry/import-linter/radon only) | QC-2 |
 | QC-4 | Import-linter contracts for `athena_local` (boundaries: `schemas/errors` vs `executor/artifacts` vs `glue_proxy`) | S | root `pyproject.toml [tool.importlinter]`; ADR-0008 (own dispatch, no moto import) | QC-1 |
 | QC-5 | pyright standard baseline VSCode + CI command; enforce per-package `uv run pyright src` | S | root `pyproject.toml [tool.pyright]`; NFR-03 | QC-2 |

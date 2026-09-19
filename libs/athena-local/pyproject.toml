@@ -1,0 +1,30 @@
+[project]
+name = "athena-local"
+version = "0.1.0"
+description = "Local AWS Athena emulator backed by Apache Trino and moto (S3/Glue) with JSON-1.1 protocol parity for boto3, awswrangler, AWS CLI, and terraform-provider-aws."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.deptry.package_module_name_map]
+athena-local = "athena_local"
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/athena_local"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -ra --tb=short --import-mode=importlib"
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
+reportMissingParameterType = true
+reportMissingReturnType = true
+reportUnnecessaryCast = true
+reportUnusedIgnoreComment = true
+reportMissingImports = false
