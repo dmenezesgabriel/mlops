@@ -4,7 +4,22 @@ version = "0.1.0"
 description = "Local AWS Athena emulator backed by Apache Trino and moto (S3/Glue) with JSON-1.1 protocol parity for boto3, awswrangler, AWS CLI, and terraform-provider-aws."
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+  "botocore==1.42.97",
+  "fastapi==0.136.3",
+]
+
+[dependency-groups]
+dev = [
+  "boto3==1.42.82",
+  "httpx==0.28.1",
+  "pytest==9.0.3",
+  "pytest-cov==7.1.0",
+  "uvicorn==0.34.0",
+]
+
+[tool.deptry]
+known_first_party = ["athena_local"]
 
 [tool.deptry.package_module_name_map]
 athena-local = "athena_local"

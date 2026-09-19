@@ -77,9 +77,21 @@ Steps:
      JSON-1.1), per-flow features land with M2/M3. Docs also corrected on the
      measured wire literal: `X-Amz-Target` is `AmazonAthena.<Op>` (captured
      from a live boto3 request), not `Athena_2017_05_18.<Op>`.
-5. PC-1: FastAPI `POST /` catch-all + health; empty dispatch (all 70 targets →
+5. [x] PC-1: FastAPI `POST /` catch-all + health; empty dispatch (all 70 targets →
    shaped `InvalidRequestException`) with PC-3 error serializer; first
    end-to-end test: botocore stub call to `:5001` parses error.
+   - Verified 2026-09-19: dispatch registry loads the 70 op names from the
+     installed botocore Athena model (public `ServiceModel.operation_names`);
+     `POST /` answers every one of the 70 targets with
+     `InvalidRequestException` 400 (`__type`+`message` body,
+     `X-Amzn-Errortype`, `application/x-amz-json-1.1`); `GET /health` → 200;
+     unknown/missing `X-Amz-Target` → shaped 400 naming the segment. Smoke:
+     threaded uvicorn on a random port + real boto3 client,
+     `list_engine_versions()` → same shaped `InvalidRequestException`/400
+     round-trip (95 tests, 99% cov, all §8.4 gates green). Provenance
+     correction: `service-2.json` carries no `httpStatusCode` (0 hits) — the
+     400/404/429/500 codes are AWS-documented statuses (moto `JsonRESTError
+     .code`); ADR-0008 text left as-is (append-only rule).
 
 Exit: `make quality` green from a fresh checkout; repo pre-commit green;
 stub-driven smoke test passes (botocore stub → JSON-1.1 error round-trip).

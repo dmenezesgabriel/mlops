@@ -31,9 +31,9 @@
 
 | ID | Item | Work | Evidence | Depends |
 |---|---|---|---|---|
-| PC-1 | FastAPI app: single `POST /` route + health; `X-Amz-Target` dispatch table generated/verified from `service-2.json` op names (all 70 present, out-of-scope → shaped errors) | M | ADR-0008; model op list | QC-2 |
+| PC-1 | [x] FastAPI app: single `POST /` route + health; `X-Amz-Target` dispatch table generated/verified from `service-2.json` op names (all 70 present, out-of-scope → shaped errors) | M | ADR-0008; model op list | QC-2 |
 | PC-2 | Typed schemas for implemented ops (request/response dataclasses, optionality from model) + fixtures derived from model | M | model `shapes`; NFR-03 | PC-1 |
-| PC-3 | Error serializer/parity: `{"__type","message"}` + `X-Amzn-Errortype`, statuses 400/404/429/500; unknown target handling; `InvalidRequestException` pre-finish variant (FR-03) | M | moto `core/serialize.py:492,538`; `core/exceptions.py:100`; ADR-0008 | PC-1 |
+| PC-3 | [x] Error serializer/parity: `{"__type","message"}` + `X-Amzn-Errortype`, statuses 400/404/429/500 (four shapes, §8.2); unknown target handling. Pre-finish `InvalidRequestException` variant (FR-03) is owned by QE-3 — it needs `GetQueryResults` + execution state | M | moto `core/serialize.py:492,538`; `core/exceptions.py:100`; ADR-0008 | PC-1 |
 | PC-4 | Body parsing resilient to content-type variants (`application/x-amz-json-1.1`), charset, empty bodies | S | botocore parsers behavior; moto `core/responses.py:468` | PC-1 |
 | PC-5 | JSON logging middleware per §8.3 | S | AGENTS.md Logging | PC-1 |
 
