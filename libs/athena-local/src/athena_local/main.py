@@ -2,7 +2,9 @@
 
 Service entry point: ``POST /`` catch-all dispatches ``X-Amz-Target`` through
 ``athena_local.dispatch``; ``GET /health`` is an operational probe for compose
-``depends_on``, outside the AWS wire protocol.
+``depends_on``, outside the AWS wire protocol. ``POST /`` is the composition
+root for control-plane state: it owns the in-memory workgroup store and binds
+the workgroup handlers to it (ADR-0003, MD-1).
 """
 
 from __future__ import annotations
@@ -10,10 +12,15 @@ from __future__ import annotations
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
 
-from athena_local.dispatch import dispatch
+from athena_local.dispatch import WireResponse, dispatch
 from athena_local.errors import serialize_error
+from athena_local.state import WorkGroupStore
+from athena_local.workgroups import register_workgroup_handlers
 
 app = FastAPI(title="Athena Local Emulator")
+
+workgroup_store = WorkGroupStore()
+register_workgroup_handlers(workgroup_store)
 
 
 @app.get("/health")  # noqa (route handler bound by FastAPI)
@@ -25,6 +32,14 @@ def health() -> dict[str, str]:
 @app.post("/")  # noqa (route handler bound by FastAPI)
 async def athena_endpoint(request: Request) -> Response:
     """Dispatch a JSON-1.1 request addressed by its X-Amz-Target header."""
-    error = dispatch(request.headers.get("x-amz-target"))
-    status, headers, body = serialize_error(error)
+    result = dispatch(
+        request.headers.get("x-amz-target"), await request.body()
+    )
+    if isinstance(result, WireResponse):
+        return Response(
+            content=result.body,
+            status_code=result.status_code,
+            headers=result.headers,
+        )
+    status, headers, body = serialize_error(result)
     return Response(content=body, status_code=status, headers=headers)

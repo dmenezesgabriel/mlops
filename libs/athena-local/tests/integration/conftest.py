@@ -14,7 +14,7 @@ from collections.abc import Iterator
 
 import pytest
 import uvicorn
-from athena_local.main import app
+from athena_local.main import app, workgroup_store
 from uvicorn.config import Config
 
 STARTUP_TIMEOUT_SECONDS = 10.0
@@ -65,7 +65,11 @@ class LiveAthenaServer:
 
 @pytest.fixture()
 def live_athena_server() -> Iterator[LiveAthenaServer]:
+    # The app owns one in-memory workgroup store that survives server
+    # restarts, so reset it around each test (ADR-0003, MD-1).
+    workgroup_store.reset()
     server = LiveAthenaServer()
     server.start()
     yield server
+    workgroup_store.reset()
     server.stop()

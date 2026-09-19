@@ -1,4 +1,5 @@
 .SILENT:
+unexport VIRTUAL_ENV
 .PHONY: format lint type-check test coverage complexity dependencies security maintainability quality
 
 format:

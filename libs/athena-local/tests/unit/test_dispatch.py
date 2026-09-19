@@ -9,7 +9,13 @@ as long as it matches that model exactly and stays at 70 operations.
 from __future__ import annotations
 
 import pytest
-from athena_local.dispatch import dispatch, operation_names, resolve_operation
+from athena_local.dispatch import (
+    dispatch,
+    implemented_operations,
+    operation_names,
+    parse_body,
+    resolve_operation,
+)
 from athena_local.errors import InvalidRequestException
 from botocore.session import Session
 
@@ -75,3 +81,28 @@ def test_dispatch_missing_target_is_a_shaped_error() -> None:
     error = dispatch(None)
 
     assert isinstance(error, InvalidRequestException)
+
+
+def test_parse_body_parses_json_object() -> None:
+    assert parse_body(b'{"Name": "analytics"}') == {"Name": "analytics"}
+
+
+def test_parse_body_returns_none_for_empty_body() -> None:
+    assert parse_body(None) is None
+    assert parse_body(b"") is None
+    assert parse_body(b"   ") is None
+
+
+def test_parse_body_raises_on_malformed_json() -> None:
+    with pytest.raises(InvalidRequestException, match="body"):
+        parse_body(b'{"Name": ')
+
+
+def test_parse_body_raises_on_non_object_json() -> None:
+    with pytest.raises(InvalidRequestException, match="object"):
+        parse_body(b'["analytics"]')
+
+
+def test_implemented_operations_is_derived_from_the_registry() -> None:
+    assert isinstance(implemented_operations(), frozenset)
+    assert implemented_operations() <= operation_names()

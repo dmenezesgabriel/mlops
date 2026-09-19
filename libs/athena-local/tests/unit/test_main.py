@@ -1,8 +1,9 @@
-"""App-level tests: POST / dispatch, health endpoint, 70-op error shape.
+"""App-level tests: POST / dispatch, health endpoint, shaped-error contract.
 
-Every operation is out of scope while the dispatch table is empty, so each of
-the 70 targets must answer with a shaped ``InvalidRequestException`` (400) that
-botocore parses cleanly (PRD FR-17).
+Every operation without a registered handler must answer with a shaped
+``InvalidRequestException`` (400) that botocore parses cleanly (PRD FR-17);
+implemented operations answer with JSON-1.1 success responses (MD-1: the five
+workgroup operations).
 """
 
 from __future__ import annotations
@@ -10,8 +11,8 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 import pytest
-from athena_local.dispatch import operation_names
-from athena_local.main import app
+from athena_local.dispatch import implemented_operations, operation_names
+from athena_local.main import app, workgroup_store
 from fastapi.testclient import TestClient
 
 
@@ -19,6 +20,13 @@ from fastapi.testclient import TestClient
 def client() -> Iterator[TestClient]:
     with TestClient(app) as test_client:
         yield test_client
+
+
+@pytest.fixture(autouse=True)
+def _reset_workgroups() -> Iterator[None]:
+    workgroup_store.reset()
+    yield
+    workgroup_store.reset()
 
 
 def test_health_endpoint_reports_ok(client: TestClient) -> None:
@@ -37,9 +45,11 @@ def test_health_endpoint_is_not_part_of_the_wire_protocol(
 
 
 @pytest.mark.parametrize(
-    "operation", sorted(operation_names()), ids=sorted(operation_names())
+    "operation",
+    sorted(operation_names() - implemented_operations()),
+    ids=sorted(operation_names() - implemented_operations()),
 )
-def test_every_operation_answers_shaped_error(
+def test_every_unimplemented_operation_answers_shaped_error(
     client: TestClient, operation: str
 ) -> None:
     response = client.post(
@@ -74,3 +84,179 @@ def test_error_content_type_is_json_11(client: TestClient) -> None:
     )
 
     assert response.headers["Content-Type"] == "application/x-amz-json-1.1"
+
+
+def test_create_work_group_returns_json11_empty_object(
+    client: TestClient,
+) -> None:
+    create = client.post(
+        "/",
+        headers={"X-Amz-Target": "AmazonAthena.CreateWorkGroup"},
+        json={
+            "Name": "analytics",
+            "Configuration": {"EnforceWorkGroupConfiguration": True},
+        },
+    )
+    assert create.status_code == 200
+    assert create.headers["Content-Type"] == "application/x-amz-json-1.1"
+    assert create.json() == {}
+
+
+def test_get_work_group_returns_stored_configuration(
+    client: TestClient,
+) -> None:
+    client.post(
+        "/",
+        headers={"X-Amz-Target": "AmazonAthena.CreateWorkGroup"},
+        json={
+            "Name": "analytics",
+            "Configuration": {"EnforceWorkGroupConfiguration": True},
+        },
+    )
+    get = client.post(
+        "/",
+        headers={"X-Amz-Target": "AmazonAthena.GetWorkGroup"},
+        json={"WorkGroup": "analytics"},
+    )
+    assert get.status_code == 200
+    assert get.json()["WorkGroup"]["Name"] == "analytics"
+    assert (
+        get.json()["WorkGroup"]["Configuration"][
+            "EnforceWorkGroupConfiguration"
+        ]
+        is True
+    )
+
+
+def test_list_work_groups_returns_primary_and_created(
+    client: TestClient,
+) -> None:
+    client.post(
+        "/",
+        headers={"X-Amz-Target": "AmazonAthena.CreateWorkGroup"},
+        json={"Name": "analytics"},
+    )
+    listing = client.post(
+        "/",
+        headers={"X-Amz-Target": "AmazonAthena.ListWorkGroups"},
+        json={},
+    )
+    assert [item["Name"] for item in listing.json()["WorkGroups"]] == [
+        "primary",
+        "analytics",
+    ]
+
+
+def test_update_work_group_modifies_state(client: TestClient) -> None:
+    client.post(
+        "/",
+        headers={"X-Amz-Target": "AmazonAthena.CreateWorkGroup"},
+        json={"Name": "analytics"},
+    )
+    update = client.post(
+        "/",
+        headers={"X-Amz-Target": "AmazonAthena.UpdateWorkGroup"},
+        json={"WorkGroup": "analytics", "State": "DISABLED"},
+    )
+    assert update.status_code == 200
+    assert update.json() == {}
+    get = client.post(
+        "/",
+        headers={"X-Amz-Target": "AmazonAthena.GetWorkGroup"},
+        json={"WorkGroup": "analytics"},
+    )
+    assert get.json()["WorkGroup"]["State"] == "DISABLED"
+
+
+def test_delete_work_group_removes_from_registry(
+    client: TestClient,
+) -> None:
+    client.post(
+        "/",
+        headers={"X-Amz-Target": "AmazonAthena.CreateWorkGroup"},
+        json={"Name": "analytics"},
+    )
+    delete = client.post(
+        "/",
+        headers={"X-Amz-Target": "AmazonAthena.DeleteWorkGroup"},
+        json={"WorkGroup": "analytics"},
+    )
+    assert delete.status_code == 200
+    assert delete.json() == {}
+    listing = client.post(
+        "/",
+        headers={"X-Amz-Target": "AmazonAthena.ListWorkGroups"},
+        json={},
+    )
+    assert [item["Name"] for item in listing.json()["WorkGroups"]] == [
+        "primary"
+    ]
+
+
+def test_create_work_group_accepts_charset_content_type(
+    client: TestClient,
+) -> None:
+    response = client.post(
+        "/",
+        headers={
+            "X-Amz-Target": "AmazonAthena.CreateWorkGroup",
+            "Content-Type": "application/x-amz-json-1.1; charset=utf-8",
+        },
+        content=b'{"Name": "analytics"}',
+    )
+
+    assert response.status_code == 200
+
+
+def test_create_work_group_parses_without_content_type(
+    client: TestClient,
+) -> None:
+    response = client.post(
+        "/",
+        headers={"X-Amz-Target": "AmazonAthena.CreateWorkGroup"},
+        content=b'{"Name": "analytics"}',
+    )
+
+    assert response.status_code == 200
+
+
+def test_create_work_group_duplicate_is_shaped_400(client: TestClient) -> None:
+    client.post(
+        "/",
+        headers={"X-Amz-Target": "AmazonAthena.CreateWorkGroup"},
+        json={"Name": "analytics"},
+    )
+
+    response = client.post(
+        "/",
+        headers={"X-Amz-Target": "AmazonAthena.CreateWorkGroup"},
+        json={"Name": "analytics"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["__type"] == "InvalidRequestException"
+    assert "analytics" in response.json()["message"]
+
+
+def test_get_missing_workgroup_is_shaped_400(client: TestClient) -> None:
+    response = client.post(
+        "/",
+        headers={"X-Amz-Target": "AmazonAthena.GetWorkGroup"},
+        json={"WorkGroup": "missing"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["__type"] == "InvalidRequestException"
+    assert "missing" in response.json()["message"]
+
+
+def test_delete_primary_is_shaped_400(client: TestClient) -> None:
+    response = client.post(
+        "/",
+        headers={"X-Amz-Target": "AmazonAthena.DeleteWorkGroup"},
+        json={"WorkGroup": "primary"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["__type"] == "InvalidRequestException"
+    assert "primary" in response.json()["message"]
