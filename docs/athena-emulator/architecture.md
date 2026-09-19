@@ -228,7 +228,7 @@ libs never leak into handlers (per `AGENTS.md` deps rule).
 | Risk | Mitigation |
 |---|---|
 | Trino native S3 client ↔ moto S3 incompatibility (Trino tests only AWS S3/MinIO) | ADR-0006; Phase-0 spike proves read/write before integration; emulator writes artifacts itself via boto3 as a guaranteed path |
-| Trino Glue metastore client needs `GetUserDefinedFunctions`, absent in moto Glue | Spike item; test `SHOW FUNCTIONS`/DDL paths; if hard-fail, evaluate a tiny moto Glue patch or Trino `hive.security`/`metastore` tweak (evidence-gated, no invention) |
+| Trino Glue metastore needs the column-statistics and `GetUserDefinedFunctions` ops, absent in moto Glue | **Handled**: repo-owned minimal overlay (`docker/moto/glue_overlay.py`, entrypoint shim on the official image) serves the four ops Trino calls; validated end-to-end in M0 step 6 |
 | moto appends `{id}.csv` to `OutputLocation` (models.py:140) — must not leak into our paths | ADR-0007: we own artifact naming; never delegate it to moto |
 | 400 "Query has not yet finished" must not fire for wrangler's 1 s poll | ADR-0009: only fail pre-finish inline reads; always allow `GetQueryExecution` |
 | Terraform-provider-aws can't be driven locally easily | Validate via AWS SDK Go v2 + boto3 op-shape parity tests; provider runs as stretch (backlog TM-*) |

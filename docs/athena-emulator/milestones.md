@@ -32,15 +32,24 @@ Steps:
    `GetUserDefinedFunctions` usage against moto Glue (SP-3): the confirmed risk
    in architecture §11.
 5. Commit only the pinned tag + proven `docker/trino/` configs (SP-4).
-6. [ ] Known-failure matrix (spike results): BOTH data-plane links proven —
+6. [x] Known-failure matrix (spike results) + resolution: both data-plane links proven —
    CTAS parquet files observed on moto S3 mid-run; external-parquet SELECT
-   returns rows. BLOCKED by two missing moto Glue APIs (5.1.16 and moto
-   master): column-statistics (`update`/`delete_column_statistics_for_table`)
-   and `get_user_defined_functions`. Trino calls
-   `updateTableStatistics(OVERWRITE_ALL)` unconditionally after every
-   create-table commit (`SemiTransactionalHiveMetastore.CreateTableOperation`),
-   so no catalog property avoids it. Decision needed: minimal moto Glue patch
-   (architecture §11 mitigation) vs defer.
+   returns rows. Three moto Glue APIs (5.1.16 and master) were missing and
+   confirmed as the blocker: column-statistics (`update`/
+   `delete`/`get_column_statistics_for_table`) and
+   `get_user_defined_functions`; the singular `get_user_defined_function`
+   also stays absent (out of scope, no flow needs it). Trino calls `updateTableStatistics(OVERWRITE_ALL)`
+   unconditionally after every create-table commit
+   (`SemiTransactionalHiveMetastore.CreateTableOperation`), so no catalog
+   property avoids it. Decision: repo-owned minimal overlay in `docker/moto/`
+   — entrypoint shim on the official `motoserver/moto:5.1.16` image (unpinned
+   build) serving exactly those four ops (architecture §11 mitigation).
+   Verified 2026-09-19 against the running stack: CTAS
+   `WITH(external_location='s3://athena-results/spike-ctas/')` → SUCCEEDED
+   (`[[2]]` rows); `SELECT` back → `[[1,"alpha"],[2,"beta"]]`; parquet file
+   present on moto S3 (`ListObjectsV2`); `SHOW FUNCTIONS FROM hive.analytics`
+   → 0 UDF rows (no 500); `SHOW FUNCTIONS` → 900 built-ins; managed
+   `CREATE TABLE` on a located Glue database commits clean.
 
 **Exit criteria:** CTAS partitions readable from moto S3 via Trino; catalog
 DDL visible via moto Glue; known-failure matrix (incl. GUDF) documented in
