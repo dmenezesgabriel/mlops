@@ -1,0 +1,96 @@
+# Backlog — Athena Local Emulator (EPHEMERAL)
+
+> **EPHEMERAL WORK BACKLOG — iterates freely; never cited from code.**
+> Every item traces to evidence anchors (research_repos/… and upstream docs).
+> DoD = TDD (red→green tests included) + §8.4 gates green at commit.
+> Work sizes: S ≤ 1 day · M = 1–3 days · L = 3–5 days.
+
+## A. Repo wiring & quality gates (QC)
+
+| ID | Item | Work | Evidence / contract | Depends |
+|---|---|---|---|---|
+| QC-1 | Register `libs/athena-local` in root: uv workspace `members`, `[tool.deptry].known_first_party`, `[tool.importlinter].root_packages`, root `Makefile` `PACKAGES` | S | root `pyproject.toml` (`members`, deptry, importlinter), root `Makefile:25`; mirror `sagemaker-local` entry | — |
+| QC-2 | Lib skeleton: `src/athena_local/` + `py.typed` + `pyproject.toml` (hatchling, pins per pattern) + `Makefile` (format/lint/type-check/test/coverage/complexity/dependencies/security/quality) | S | `libs/mlops-shared/Makefile`, `pyproject.toml` (canonical pattern); `libs/sagemaker-local` layout | QC-1 |
+| QC-3 | Add **bandit, vulture, xenon** to lib gate + dev deps; wire into per-lib `make security`/`quality` and root pre-commit | M | PRD NFR-02; user tooling list; current pre-commit lacks them (`.pre-commit-config.yaml` has ruff/ruff-format/deptry/import-linter/radon only) | QC-2 |
+| QC-4 | Import-linter contracts for `athena_local` (boundaries: `schemas/errors` vs `executor/artifacts` vs `glue_proxy`) | S | root `pyproject.toml [tool.importlinter]`; ADR-0008 (own dispatch, no moto import) | QC-1 |
+| QC-5 | pyright standard baseline VSCode + CI command; enforce per-package `uv run pyright src` | S | root `pyproject.toml [tool.pyright]`; NFR-03 | QC-2 |
+| QC-6 | pytest-bdd setup: `tests/bdd/` feature files per consumer-flow (wrangler, cli, api) | M | Pytest-bdd patterns; NFR-01; milestones M2/M3 suites | QC-2 |
+| QC-7 | Coverage gate: `pytest --cov --cov-report=term-missing:skip-covered`, minimum per-module target (set at M3 close, evidence-based on consumer suites) | S | pattern `libs/mlops-shared` coverage target | QC-2 |
+
+## B. Phase 0 spike (SP) — evidence-gated risks
+
+| ID | Item | Work | Evidence / decision link | Depends |
+|---|---|---|---|---|
+| SP-1 | Pin Trino tag; boot `trino` container; verify `/v1/statement` responds; capture exact tag used | S | trino.io client-protocol; ADR-0001 | — |
+| SP-2 | Prove **Trino native S3 ↔ moto S3**: `CREATE TABLE … WITH(external_location='s3://bucket/…')` then `SELECT` returns rows; catalog `hive/hive.properties` with `fs.s3.enabled=true`, `s3.endpoint=http://moto:5000`, `s3.path-style-access=true`, `us-east-1`, static keys | M | ADR-0006; trino.io `object-storage/file-system-s3.html` — hard gate; if moto S3 fails, stop and review (no preemptive MinIO swap) | SP-1 |
+| SP-3 | Prove **Trino Glue metastore ↔ moto Glue**: `CREATE DATABASE`/`CREATE TABLE` via hive catalog with `hive.metastore=glue` + glue endpoint props; `SHOW FUNCTIONS` (probes `GetUserDefinedFunctions` risk) | M | ADR-0005; trino.io `object-storage/metastores.html`; moto Glue ops `models.py:360,1240` | SP-1 |
+| SP-4 | Lock hive catalog config files (`config.properties`, `catalog/hive.properties`) as artifacts under `docker/trino/` and commit them | S | SPI output → architecture §7 | SP-2, SP-3 |
+| SP-5 | Write spike evidence note (NOT into code) with measured tags, endpoints, errors | S | Dispo: capture to backlog/milestone notes only | SP-2…4 |
+
+## C. Protocol core (PC) — ADR-0008
+
+| ID | Item | Work | Evidence | Depends |
+|---|---|---|---|---|
+| PC-1 | FastAPI app: single `POST /` route + health; `X-Amz-Target` dispatch table generated/verified from `service-2.json` op names (all 70 present, out-of-scope → shaped errors) | M | ADR-0008; model op list | QC-2 |
+| PC-2 | Typed schemas for implemented ops (request/response dataclasses, optionality from model) + fixtures derived from model | M | model `shapes`; NFR-03 | PC-1 |
+| PC-3 | Error serializer/parity: `{"__type","message"}` + `X-Amzn-Errortype`, statuses 400/404/429/500; unknown target handling; `InvalidRequestException` pre-finish variant (FR-03) | M | moto `core/serialize.py:492,538`; `core/exceptions.py:100`; ADR-0008 | PC-1 |
+| PC-4 | Body parsing resilient to content-type variants (`application/x-amz-json-1.1`), charset, empty bodies | S | botocore parsers behavior; moto `core/responses.py:468` | PC-1 |
+| PC-5 | JSON logging middleware per §8.3 | S | AGENTS.md Logging | PC-1 |
+
+## D. Metadata/control-plane (MD) — ADR-0003, ADR-0005
+
+| ID | Item | Work | Evidence | Depends |
+|---|---|---|---|---|
+| MD-1 | Workgroup CRUD + `primary` default + `UpdateWorkGroup` (moto lacks update — we add) | M | FR-09; moto `athena.rst` gaps; wrangler `_utils.py:158-187` | PC-1 |
+| MD-2 | Named queries CRUD + BatchGet + pagination (`ListNamedQueries`/`ListQueryExecutions` NextToken) | M | FR-10; CLI examples | PC-1 |
+| MD-3 | Prepared statement CRUD + list + batch; RNFE on missing | S | FR-11; wrangler `_statements.py:26-29` | PC-1 |
+| MD-4 | Data catalog CRUD (`GLUE/HIVE/LAMBDA`) | M | FR-12 | PC-1 |
+| MD-5 | `ListEngineVersions` (pinned list) | S | FR-13; ADR-0004 | PC-1 |
+| MD-6 | Tags CRUD | S | FR-16 | PC-1 |
+| MD-7 | Catalog read proxy → moto Glue: `list_databases`, `get_database`, `list_table_metadata`, `get_table_metadata` | M | FR-08; ADR-0005 | PC-1, SP-3 |
+| MD-8 | `GetWorkGroup` must expose `ResultConfiguration.OutputLocation` handling that wrangler honors (see PC/AD-0007 interplay) | S | FR-09; wrangler `_utils.py` config resolution | MD-1 |
+
+## E. Query engine (QE) — ADR-0001, ADR-0009
+
+| ID | Item | Work | Evidence | Depends |
+|---|---|---|---|---|
+| QE-1 | `trino_client.py` thin wrapper: POST statement, poll nextUri (with `X-Trino-Catalog/Schema/User`), DELETE cancel, map errors | M | trino.io client-protocol; ADR-0001 | PC-1 |
+| QE-2 | Async executor: QUEUED→RUNNING→terminal task registry, semaphore bound, execution records in `state.py` | M | ADR-0009; wrangler `_utils.py:41-42` | QE-1 |
+| QE-3 | `StartQueryExecution` + `StopQueryExecution` + `GetQueryExecution`/`BatchGetQueryExecution` + `GetQueryResults` + `GetQueryRuntimeStatistics` | M | FR-01/02/03/14/15; ADR-0009 | QE-2 |
+| QE-4 | Statement classification → `StatementType`/`SubstatementType` (DML/DDL/UTILITY + CTAS/INSERT/UNLOAD detection) | S | ADR-0007; model enums | QE-2 |
+| QE-5 | SQL error mapping Trino→Athena (`InvalidRequestException` 400 incl. wrangler-recognizable fragments) | M | FR-18; wrangler `_utils.py:888-898` | QE-1 |
+
+## F. Artifacts (AR) — ADR-0007
+
+| ID | Item | Work | Evidence | Depends |
+|---|---|---|---|---|
+| AR-1 | `artifacts.py`: writers for `.csv` (headerless, QUOTE_ALL) + `.csv.metadata`, `.txt` (tab, QUOTE_ALL) + `.txt.metadata`, `-manifest.csv` + `.metadata` (CTAS/INSERT/UNLOAD) via boto3→moto S3 | M | FR-04/05/06; wrangler `_read.py:209-238`, `_utils.py:190-221`, `_read.py:62-81,135-206` | QE-2 |
+| AR-2 | `OutputLocation` = full artifact path; write-before-SUCCEEDED ordering; `Statistics.DataManifestLocation` set for manifest ops | M | ADR-0007; AWS docs output-files | AR-1 |
+| AR-3 | Inline `GetQueryResults` page semantics (header row, pagination, MaxResults cap, cell encoding) | M | FR-03; wrangler `_read.py:335-384` | QE-3 |
+| AR-4 | Type→VarCharValue serialization for all Trino column types (numbers/bools/dates/decimals/timestamps; null → absent key) | S | model `VarCharValue` optional; wrangler dtype mapping | AR-3 |
+
+## G. Consumers (CS)
+
+| ID | Item | Work | Evidence | Depends |
+|---|---|---|---|---|
+| CS-1 | Assert boto3/botocore parity: loop all 70 ops against service-2.json through stubs against `:5001` | M | README evidence index; ADR-0008 | PC/CMD/QE/AR done |
+| CS-2 | awswrangler suite: `read_sql_query` (api + csv), cache, `to_parquet`/CTAS, prepared statements, workgroup config, bad-SQL error path — in docker pytest against running stack | L | FR matrix; wrangler evidence anchors | E/QE/AR |
+| CS-3 | AWS CLI `athena` suite: examples from `research_repos/aws-cli/awscli/examples/athena/` via `--endpoint-url` | M | CLI evidence index | PC…AR |
+| CS-4 | terraform-provider-aws: op-shape parity via AWS SDK Go v2 + boto3 (resources `aws_athena_*`); stretch: real `terraform apply` if provider runnable locally | M–L | TF core = CLI only (`research_repos/terraform/main.go`); registry docs | CS-1 |
+| CS-5 | Endpoint-routing test: Athena-only traffic → `:5001`; S3/Glue → moto `:5000` unchanged | S | ADR-0002; PRD FR-19 | CS-2 |
+
+## H. Deployment & docs (DP)
+
+| ID | Item | Work | Evidence | Depends |
+|---|---|---|---|---|
+| DP-1 | `docker/` for `athena` image (uvicorn entrypoint) + `trino` configs from SP-4 | M | architecture §7; ADR-0002 | SP-4 |
+| DP-2 | Extend `docker-compose.yml`: `trino` + `athena` services on `mlops_net`, port 5001; env wiring | M | ADR-0002; existing compose | DP-1 |
+| DP-3 | README (lib usage: endpoint env vars per consumer; compose up flow; reset semantics ADR-0003) | S | PRD NFR-09 | DP-2 |
+| DP-4 | Docs sync check: permanent docs (architecture.md, adr/) updated as design moves; ephemeral docs never enter code | S | README doc map | DP-2 |
+| DP-5 | Hardening: request size limits, asyncio bound (QE-2), graceful error on trino-down, health endpoint for compose depends_on | M | AGENTS.md Logging; NFR-10 | QE/AR |
+
+## Definition of Done (all items)
+
+- Red→green test written first (TDD) — regression test where bug fix.
+- Final commit passes: `make format lint type-check test coverage complexity dependencies security` + `uv run lint-imports`; bandit/vulture/xenon where wired (QC-3).
+- No moto internals imported (ADR-0008); no ephemeral doc references in code.
