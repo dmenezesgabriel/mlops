@@ -8,6 +8,7 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+  "awswrangler==3.17.1",
   "bandit==1.9.4",
   "deptry==0.25.1",
   "import-linter==2.11",
@@ -58,6 +59,7 @@ members = [
 [tool.ruff]
 line-length = 79
 target-version = "py311"
+output-format = "concise"
 
 [tool.ruff.lint]
 select = ["B", "E", "F", "I", "N", "UP", "W"]
@@ -68,7 +70,8 @@ known-first-party = ["glue_overlay"]
 
 [tool.pytest.ini_options]
 testpaths = ["libs", "projects"]
-addopts = "-q -ra --tb=short --import-mode=importlib --strict-markers --strict-config"
+addopts = "-q -rfEs --tb=short --show-capture=no --import-mode=importlib --strict-markers --strict-config"
+console_output_style = "classic"
 markers = [
   "integration: package-local integration tests",
   "playwright: browser-based static site checks",
@@ -82,6 +85,7 @@ source = ["libs", "projects"]
 [tool.coverage.report]
 show_missing = true
 skip_empty = true
+skip_covered = true
 
 [tool.pyright]
 pythonVersion = "3.11"
@@ -94,6 +98,7 @@ reportMissingImports = false
 
 
 [tool.deptry]
+no_ansi = true
 known_first_party = [
   "mlops_shared",
   "data_science_scaffold",

@@ -27,7 +27,7 @@ dependencies:
 	uv run deptry .
 
 security:
-	uv run bandit -r src -ll
+	uv run bandit -q -r src -ll
 	uv run vulture src
 	uv run semgrep --quiet --config auto .
 

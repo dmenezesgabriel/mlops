@@ -33,7 +33,8 @@ packages = ["src/athena_local"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q -ra --tb=short --import-mode=importlib"
+addopts = "-q -rfEs --tb=short --show-capture=no --import-mode=importlib"
+console_output_style = "classic"
 
 [tool.pyright]
 pythonVersion = "3.11"
@@ -43,3 +44,8 @@ reportMissingReturnType = true
 reportUnnecessaryCast = true
 reportUnusedIgnoreComment = true
 reportMissingImports = false
+
+[tool.vulture]
+min_confidence = 80
+ignore_names = ["implemented_operations", "test_*", "*_test", "*kwargs", "__*__"]
+sort_by_size = true

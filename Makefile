@@ -52,7 +52,7 @@ test-videos-docker: libs/videos/Dockerfile
 	  -v "$(CURDIR)/libs/videos-linter/src:/app/libs/videos-linter/src:ro" \
 	  -w /tmp \
 	  mlops-manim-test sh -lc \
-	  '. /opt/venv/bin/activate && python -m pytest /app/libs/videos/tests/integration/ -m docker -q -ra --tb=short'
+	  '. /opt/venv/bin/activate && python -m pytest /app/libs/videos/tests/integration/ -m docker -q -rfEs --tb=short --show-capture=no'
 
 test-bdd:
 	uv run pytest projects/$(PROJECT)/tests/bdd
@@ -130,7 +130,7 @@ check-videos:
 	@echo "=== Type-checking video source ==="
 	uv run pyright libs/videos/src/videos/
 	@echo "=== Running video unit tests ==="
-	uv run pytest libs/videos/tests/ -m "not docker" -q -ra --tb=short
+	uv run pytest libs/videos/tests/ -m "not docker" -q -rfEs --tb=short --show-capture=no
 	@echo "=== Running Docker visual regression tests ==="
 	$(MAKE) test-videos-docker
 	@echo "=== All video checks passed ==="
@@ -155,7 +155,7 @@ test-diagrams-docker: libs/diagrams/Dockerfile
 	docker run --rm \
 	  -v "$(CURDIR)/libs/diagrams/src:/app/src:ro" \
 	  -v "$(CURDIR)/libs/diagrams/tests:/app/tests:ro" \
-	  mlops-diagrams-test pytest /app/tests/ -q -ra --tb=short
+	  mlops-diagrams-test pytest /app/tests/ -q -rfEs --tb=short --show-capture=no
 
 collect preprocess features train tune evaluate deploy monitor:
 	uv run python -m $(PROJECT).interfaces.cli $@ --config projects/$(PROJECT)/configs/project.yaml

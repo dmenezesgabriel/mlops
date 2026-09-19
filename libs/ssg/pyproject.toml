@@ -42,7 +42,8 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q -ra --tb=short --import-mode=importlib"
+addopts = "-q -rfEs --tb=short --show-capture=no --import-mode=importlib"
+console_output_style = "classic"
 markers = [
   "integration: package-local integration tests",
   "playwright: browser-based static site checks",

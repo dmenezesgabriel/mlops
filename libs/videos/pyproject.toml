@@ -23,7 +23,8 @@ package_module_name_map = {videos = "videos"}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q -ra --tb=short --import-mode=importlib"
+addopts = "-q -rfEs --tb=short --show-capture=no --import-mode=importlib"
+console_output_style = "classic"
 markers = [
     "docker: tests that require Docker with Manim to render scenes",
 ]

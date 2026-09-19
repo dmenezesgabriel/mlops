@@ -24,7 +24,8 @@ per_rule_ignores = {DEP002 = ["diagrams"]}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q -ra --tb=short --import-mode=importlib"
+addopts = "-q -rfEs --tb=short --show-capture=no --import-mode=importlib"
+console_output_style = "classic"
 
 [build-system]
 requires = ["hatchling==1.27.0"]

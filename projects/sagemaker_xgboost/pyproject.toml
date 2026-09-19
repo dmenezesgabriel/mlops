@@ -28,7 +28,8 @@ DEP001 = ["xgboost", "joblib", "sklearn"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q -ra --tb=short --import-mode=importlib"
+addopts = "-q -rfEs --tb=short --show-capture=no --import-mode=importlib"
+console_output_style = "classic"
 markers = [
     "integration: requires docker + moto + a Jupyter kernel; run inside the offline JupyterLab stack",
 ]
