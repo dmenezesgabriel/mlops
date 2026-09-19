@@ -1,6 +1,7 @@
-"""Typed wire shapes for Athena JSON-1.1 operations (PC-2, MD-1).
+"""Typed wire shapes for Athena JSON-1.1 operations (PC-2, MD-1, MD-2).
 
-Re-exports shared Athena types and WorkGroup configuration shapes.
+Re-exports shared Athena types, WorkGroup configuration shapes, and NamedQuery
+shapes.
 """
 
 from __future__ import annotations

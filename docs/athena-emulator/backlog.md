@@ -42,7 +42,7 @@
 | ID | Item | Work | Evidence | Depends |
 |---|---|---|---|---|
 | MD-1 | [x] Workgroup CRUD + `primary` default + `UpdateWorkGroup` (moto lacks update — we add) | M | FR-09; moto `athena.rst` gaps; wrangler `_utils.py:158-187` | PC-1 |
-| MD-2 | Named queries CRUD + BatchGet + pagination (`ListNamedQueries`/`ListQueryExecutions` NextToken) | M | FR-10; CLI examples | PC-1 |
+| MD-2 | [x] Named queries CRUD + BatchGet + pagination (`ListNamedQueries`/`ListQueryExecutions` NextToken) | M | FR-10; CLI examples | PC-1 |
 | MD-3 | Prepared statement CRUD + list + batch; RNFE on missing | S | FR-11; wrangler `_statements.py:26-29` | PC-1 |
 | MD-4 | Data catalog CRUD (`GLUE/HIVE/LAMBDA`) | M | FR-12 | PC-1 |
 | MD-5 | `ListEngineVersions` (pinned list) | S | FR-13; ADR-0004 | PC-1 |

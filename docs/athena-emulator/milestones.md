@@ -102,7 +102,7 @@ Steps (each TDD):
 1. [x] MD-1 workgroups (incl. `primary` default, `UpdateWorkGroup`) —
    wrangler-config parity test using `_get_workgroup_config`
    (`awswrangler/athena/_utils.py:158-187`).
-2. MD-2 named queries (+ pagination), MD-3 prepared statements (RNFE policy
+2. [x] MD-2 named queries (+ pagination), MD-3 prepared statements (RNFE policy
    per `awswrangler/athena/_statements.py:26-29`), MD-4 data catalogs,
    MD-5 engine versions, MD-6 tags.
 3. MD-7 catalog read proxy to moto Glue (needs M0 SP-3 proven); parity test:
