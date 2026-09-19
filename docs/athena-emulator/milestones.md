@@ -99,7 +99,7 @@ stub-driven smoke test passes (botocore stub → JSON-1.1 error round-trip).
 ## M2 — Control-plane & metadata API (MD-*)
 
 Steps (each TDD):
-1. MD-1 workgroups (incl. `primary` default, `UpdateWorkGroup`) —
+1. [x] MD-1 workgroups (incl. `primary` default, `UpdateWorkGroup`) —
    wrangler-config parity test using `_get_workgroup_config`
    (`awswrangler/athena/_utils.py:158-187`).
 2. MD-2 named queries (+ pagination), MD-3 prepared statements (RNFE policy
