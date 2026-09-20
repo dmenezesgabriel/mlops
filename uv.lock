@@ -360,12 +360,12 @@ source = { editable = "libs/athena-local" }
 dependencies = [
     { name = "botocore" },
     { name = "fastapi" },
+    { name = "httpx" },
 ]
 
 [package.dev-dependencies]
 dev = [
     { name = "boto3" },
-    { name = "httpx" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "uvicorn" },
@@ -375,12 +375,12 @@ dev = [
 requires-dist = [
     { name = "botocore", specifier = "==1.42.97" },
     { name = "fastapi", specifier = "==0.136.3" },
+    { name = "httpx", specifier = "==0.28.1" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "boto3", specifier = "==1.42.82" },
-    { name = "httpx", specifier = "==0.28.1" },
     { name = "pytest", specifier = "==9.0.3" },
     { name = "pytest-cov", specifier = "==7.1.0" },
     { name = "uvicorn", specifier = "==0.34.0" },
