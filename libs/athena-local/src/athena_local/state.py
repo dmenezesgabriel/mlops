@@ -10,6 +10,11 @@ deleted (AWS: "The primary workgroup cannot be deleted").
 
 Named queries are scoped to workgroups and use UUID4 IDs (moto
 ``models.py:193-207``).
+
+Prepared statements are scoped to workgroups and use user-provided names
+as keys (service model ``PreparedStatement`` shape); ``GetPreparedStatement``
+raises ``ResourceNotFoundException`` for missing statements per awswrangler
+expectations (``research_repos/aws-sdk-pandas/awswrangler/athena/_statements.py:26-29``).
 """
 
 from __future__ import annotations
@@ -18,7 +23,10 @@ import uuid
 from dataclasses import dataclass, field
 from time import time
 
-from athena_local.errors import InvalidRequestException
+from athena_local.errors import (
+    InvalidRequestException,
+    ResourceNotFoundException,
+)
 from athena_local.schemas import (
     Tag,
     WorkGroupConfiguration,
@@ -292,4 +300,163 @@ class NamedQueryStore:
                 found.append(self.by_id[query_id])
             else:
                 unprocessed.append(query_id)
+        return found, unprocessed
+
+
+@dataclass
+class PreparedStatementRecord:
+    """A stored prepared statement; the wire shape is built by ``to_payload``."""
+
+    statement_name: str
+    query_statement: str
+    workgroup: str
+    description: str | None = None
+    last_modified_time: float = field(default_factory=time)
+
+    def to_payload(self) -> dict[str, object]:
+        """Serialize to the GetPreparedStatement ``PreparedStatement`` wire shape."""
+        payload: dict[str, object] = {
+            "StatementName": self.statement_name,
+            "QueryStatement": self.query_statement,
+            "WorkGroupName": self.workgroup,
+            "LastModifiedTime": self.last_modified_time,
+        }
+        if self.description is not None:
+            payload["Description"] = self.description
+        return payload
+
+    def to_summary_payload(self) -> dict[str, object]:
+        """Serialize to the ListPreparedStatements ``PreparedStatementSummary`` shape."""
+        return {
+            "StatementName": self.statement_name,
+            "LastModifiedTime": self.last_modified_time,
+        }
+
+
+@dataclass
+class PreparedStatementStore:
+    """In-memory prepared statement registry; single-process, race-free (ADR-0003)."""
+
+    by_key: dict[tuple[str, str], PreparedStatementRecord] = field(
+        default_factory=dict, init=False
+    )
+    by_workgroup: dict[str, list[str]] = field(
+        default_factory=dict, init=False
+    )
+
+    def reset(self) -> None:
+        """Drop every prepared statement (test reset point)."""
+        self.by_key = {}
+        self.by_workgroup = {}
+
+    def create(
+        self,
+        statement_name: str,
+        query_statement: str,
+        workgroup: str,
+        description: str | None,
+    ) -> PreparedStatementRecord:
+        key = (workgroup, statement_name)
+        if key in self.by_key:
+            raise InvalidRequestException(
+                f"PreparedStatement {statement_name} already exists in workgroup {workgroup}"
+            )
+        record = PreparedStatementRecord(
+            statement_name=statement_name,
+            query_statement=query_statement,
+            workgroup=workgroup,
+            description=description,
+        )
+        self.by_key[key] = record
+        if workgroup not in self.by_workgroup:
+            self.by_workgroup[workgroup] = []
+        self.by_workgroup[workgroup].append(statement_name)
+        return record
+
+    def get(
+        self, statement_name: str, workgroup: str
+    ) -> PreparedStatementRecord:
+        key = (workgroup, statement_name)
+        if key not in self.by_key:
+            raise ResourceNotFoundException(
+                f"PreparedStatement {statement_name} does not exist in workgroup {workgroup}"
+            )
+        return self.by_key[key]
+
+    def list(
+        self,
+        workgroup: str,
+        max_results: int | None = None,
+        next_token: str | None = None,
+    ) -> tuple[list[str], str | None]:
+        """Return statement names for a workgroup with pagination.
+
+        Returns a tuple of (statement_names, next_token). ``next_token`` is None
+        when there are no more results.
+        """
+        all_names = self.by_workgroup.get(workgroup, [])
+        start_index = 0
+        if next_token is not None:
+            try:
+                start_index = int(next_token)
+            except ValueError:
+                raise InvalidRequestException(
+                    f"Invalid NextToken: {next_token}"
+                ) from None
+        if start_index >= len(all_names):
+            return [], None
+        end_index = len(all_names)
+        if max_results is not None and max_results > 0:
+            end_index = min(start_index + max_results, len(all_names))
+        page_names = all_names[start_index:end_index]
+        next_token_out = str(end_index) if end_index < len(all_names) else None
+        return page_names, next_token_out
+
+    def update(
+        self,
+        statement_name: str,
+        workgroup: str,
+        query_statement: str,
+        description: str | None,
+    ) -> PreparedStatementRecord:
+        key = (workgroup, statement_name)
+        if key not in self.by_key:
+            raise ResourceNotFoundException(
+                f"PreparedStatement {statement_name} does not exist in workgroup {workgroup}"
+            )
+        record = self.by_key[key]
+        record.query_statement = query_statement
+        record.description = description
+        record.last_modified_time = time()
+        return record
+
+    def delete(self, statement_name: str, workgroup: str) -> None:
+        key = (workgroup, statement_name)
+        if key not in self.by_key:
+            raise ResourceNotFoundException(
+                f"PreparedStatement {statement_name} does not exist in workgroup {workgroup}"
+            )
+        del self.by_key[key]
+        if workgroup in self.by_workgroup:
+            self.by_workgroup[workgroup] = [
+                name
+                for name in self.by_workgroup[workgroup]
+                if name != statement_name
+            ]
+
+    def batch_get(
+        self, statement_names: list[str], workgroup: str
+    ) -> tuple[list[PreparedStatementRecord], list[str]]:
+        """Return found records and list of unprocessed names.
+
+        Returns a tuple of (found_records, unprocessed_names).
+        """
+        found: list[PreparedStatementRecord] = []
+        unprocessed: list[str] = []
+        for statement_name in statement_names:
+            key = (workgroup, statement_name)
+            if key in self.by_key:
+                found.append(self.by_key[key])
+            else:
+                unprocessed.append(statement_name)
         return found, unprocessed
