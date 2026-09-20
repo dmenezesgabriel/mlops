@@ -48,7 +48,7 @@
 | MD-5 | [x] `ListEngineVersions` (pinned list) | S | FR-13; ADR-0004 | PC-1 |
 | MD-6 | [x] Tags CRUD | S | FR-16 | PC-1 |
 | MD-7 | [x] Catalog read proxy → moto Glue: `list_databases`, `get_database`, `list_table_metadata`, `get_table_metadata` | M | FR-08; ADR-0005 | PC-1, SP-3 |
-| MD-8 | `GetWorkGroup` must expose `ResultConfiguration.OutputLocation` handling that wrangler honors (see PC/AD-0007 interplay) | S | FR-09; wrangler `_utils.py` config resolution | MD-1 |
+| MD-8 | [x] `GetWorkGroup` must expose `ResultConfiguration.OutputLocation` handling that wrangler honors (see PC/AD-0007 interplay) — verified: wrangler `_get_workgroup_config` parity tests (`integration/test_workgroups.py:104-156`) + `workgroups.feature` OutputLocation round-trip | S | FR-09; wrangler `_utils.py` config resolution | MD-1 |
 
 ## E. Query engine (QE) — ADR-0001, ADR-0009
 

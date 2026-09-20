@@ -116,8 +116,12 @@ CLI `athena list-*` examples pass.
 ## M3 — Query engine + artifacts (QE-*, AR-*)
 
 Steps:
-1. QE-1 `trino_client.py` (statement POST / poll / DEL). Test with fake
+1. [x] QE-1 `trino_client.py` (statement POST / poll / DEL). Test with fake
    transport (F.I.R.S.T., no docker needed in unit tests).
+   - Verified 2026-09-20: httpx AsyncClient + MockTransport, 15 unit tests pin POST
+     body/session headers, nextUri GET poll, DELETE cancel (204), retry on
+     429/502/503/504 + empty-200 (Retry-After honored, capped), query `error` carried
+     in the page as data (mapper-owned later), transport failures → TrinoTransportError.
 2. QE-2 async executor + state registry (ADR-0009). Unit tests: state
    transitions, pre-finish `GetQueryResults` 400 text parity.
 3. QE-3 ops (`Start/Stop/Get/BatchGet/GetResults/GetRuntimeStatistics`),
