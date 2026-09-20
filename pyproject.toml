@@ -257,6 +257,12 @@ type = "forbidden"
 source_modules = ["athena_local.catalog_metadata"]
 forbidden_modules = ["athena_local.executor", "athena_local.artifacts", "athena_local.trino_client"]
 
+[[tool.importlinter.contracts]]
+name = "Athena query engine stays independent of the protocol core"
+type = "forbidden"
+source_modules = ["athena_local.executor", "athena_local.executions"]
+forbidden_modules = ["athena_local.dispatch", "athena_local.main", "athena_local.workgroups", "athena_local.named_queries", "athena_local.prepared_statements", "athena_local.data_catalogs", "athena_local.engine_versions", "athena_local.tags", "athena_local.catalog_metadata"]
+
 [tool.uv.sources]
 ssg-i18n = { workspace = true }
 ssg-i18n-machine-translation = { workspace = true }

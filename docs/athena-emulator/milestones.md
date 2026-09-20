@@ -122,8 +122,16 @@ Steps:
      body/session headers, nextUri GET poll, DELETE cancel (204), retry on
      429/502/503/504 + empty-200 (Retry-After honored, capped), query `error` carried
      in the page as data (mapper-owned later), transport failures → TrinoTransportError.
-2. QE-2 async executor + state registry (ADR-0009). Unit tests: state
+2. [x] QE-2 async executor + state registry (ADR-0009). Unit tests: state
    transitions, pre-finish `GetQueryResults` 400 text parity.
+   - Verified 2026-09-20: `executions.py` (record+store, transition matrix
+     QUEUED→RUNNING→terminal, terminal states immutable, StatementStats
+     `processedBytes`/`wallTimeMillis` → Statistics per trino
+     `client/trino-client/.../StatementStats.java`) + `executor.py` (`start`
+     sync, semaphore-bound background task, writer-before-SUCCEEDED ordering,
+     CANCELLED via DELETE incl. QUEUED/RUNNING windows, exact 400
+     `Query has not yet finished. Current state: <state>`). 29 new unit tests;
+     import-linter boundary contract added; all §8.4 gates green.
 3. QE-3 ops (`Start/Stop/Get/BatchGet/GetResults/GetRuntimeStatistics`),
    QE-4 statement classification, QE-5 error mapping.
    - Regression anchor: wrangler's bad-SQL expectations
