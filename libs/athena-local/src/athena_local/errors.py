@@ -36,6 +36,15 @@ class InvalidRequestException(AthenaError):
     status_code = 400
 
 
+class MetadataException(AthenaError):  # noqa (protocol vocabulary, ADR-0008)
+    # "An exception that Athena received when it called a custom metastore";
+    # the AWS API reference documents HTTP 400 for this shape (the service
+    # model carries no httpStatusCode). Used for Glue EntityNotFoundException
+    # surfacing through the catalog read proxy (ADR-0005).
+    shape_name = "MetadataException"
+    status_code = 400
+
+
 class ResourceNotFoundException(AthenaError):  # noqa (protocol vocabulary, ADR-0008)
     shape_name = "ResourceNotFoundException"
     status_code = 404

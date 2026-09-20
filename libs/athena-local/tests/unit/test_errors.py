@@ -15,6 +15,7 @@ from athena_local.errors import (
     AthenaError,
     InternalServerException,
     InvalidRequestException,
+    MetadataException,
     ResourceNotFoundException,
     TooManyRequestsException,
     serialize_error,
@@ -25,6 +26,9 @@ PARITY_CASES: list[tuple[type[AthenaError], int]] = [
     (ResourceNotFoundException, 404),
     (TooManyRequestsException, 429),
     (InternalServerException, 500),
+    # Custom-metastore errors carry HTTP 400 per the AWS API reference (the
+    # service model has no httpStatusCode metadata for this exception).
+    (MetadataException, 400),
 ]
 
 
@@ -36,6 +40,7 @@ PARITY_CASES: list[tuple[type[AthenaError], int]] = [
         "resource-not-found",
         "too-many-requests",
         "internal-server",
+        "metadata",
     ],
 )
 def test_serialize_error_matches_wire_contract(

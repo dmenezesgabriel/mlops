@@ -47,5 +47,7 @@ reportMissingImports = false
 
 [tool.vulture]
 min_confidence = 80
-ignore_names = ["implemented_operations", "test_*", "*_test", "*kwargs", "__*__"]
+# CatalogClient (glue_proxy.py) mirrors the botocore Glue client keyword names
+# exactly so pyright checks call sites; protocol stubs never reference them.
+ignore_names = ["implemented_operations", "test_*", "*_test", "*kwargs", "__*__", "Name", "DatabaseName", "Expression"]
 sort_by_size = true
