@@ -244,7 +244,7 @@ forbidden_modules = ["athena_local.executor", "athena_local.artifacts", "athena_
 [[tool.importlinter.contracts]]
 name = "Athena metadata handlers stay independent of the query engine"
 type = "forbidden"
-source_modules = ["athena_local.named_queries", "athena_local.prepared_statements", "athena_local.workgroups"]
+source_modules = ["athena_local.named_queries", "athena_local.prepared_statements", "athena_local.workgroups", "athena_local.data_catalogs", "athena_local.engine_versions"]
 forbidden_modules = ["athena_local.executor", "athena_local.artifacts", "athena_local.glue_proxy", "athena_local.trino_client"]
 
 [tool.uv.sources]

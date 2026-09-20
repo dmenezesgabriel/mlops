@@ -44,8 +44,8 @@
 | MD-1 | [x] Workgroup CRUD + `primary` default + `UpdateWorkGroup` (moto lacks update — we add) | M | FR-09; moto `athena.rst` gaps; wrangler `_utils.py:158-187` | PC-1 |
 | MD-2 | [x] Named queries CRUD + BatchGet + pagination (`ListNamedQueries`/`ListQueryExecutions` NextToken) | M | FR-10; CLI examples | PC-1 |
 | MD-3 | [x] Prepared statement CRUD + list + batch; RNFE on missing | S | FR-11; wrangler `_statements.py:26-29` | PC-1 |
-| MD-4 | Data catalog CRUD (`GLUE/HIVE/LAMBDA`) | M | FR-12 | PC-1 |
-| MD-5 | `ListEngineVersions` (pinned list) | S | FR-13; ADR-0004 | PC-1 |
+| MD-4 | [x] Data catalog CRUD (`GLUE/HIVE/LAMBDA`) | M | FR-12 | PC-1 |
+| MD-5 | [x] `ListEngineVersions` (pinned list) | S | FR-13; ADR-0004 | PC-1 |
 | MD-6 | Tags CRUD | S | FR-16 | PC-1 |
 | MD-7 | Catalog read proxy → moto Glue: `list_databases`, `get_database`, `list_table_metadata`, `get_table_metadata` | M | FR-08; ADR-0005 | PC-1, SP-3 |
 | MD-8 | `GetWorkGroup` must expose `ResultConfiguration.OutputLocation` handling that wrangler honors (see PC/AD-0007 interplay) | S | FR-09; wrangler `_utils.py` config resolution | MD-1 |

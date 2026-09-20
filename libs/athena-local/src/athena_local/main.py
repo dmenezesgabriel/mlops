@@ -3,8 +3,9 @@
 Service entry point: ``POST /`` catch-all dispatches ``X-Amz-Target`` through
 ``athena_local.dispatch``; ``GET /health`` is an operational probe for compose
 ``depends_on``, outside the AWS wire protocol. ``POST /`` is the composition
-root for control-plane state: it owns the in-memory workgroup, named query, and
-prepared statement stores and binds their handlers (ADR-0003, MD-1, MD-2, MD-3).
+root for control-plane state (ADR-0003): it owns the in-memory workgroup,
+named query, prepared statement, and data catalog stores and binds their
+handlers.
 """
 
 from __future__ import annotations
@@ -12,7 +13,10 @@ from __future__ import annotations
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
 
+from athena_local.data_catalog_state import DataCatalogStore
+from athena_local.data_catalogs import register_data_catalog_handlers
 from athena_local.dispatch import WireResponse, dispatch
+from athena_local.engine_versions import register_engine_version_handlers
 from athena_local.errors import serialize_error
 from athena_local.named_queries import register_named_query_handlers
 from athena_local.prepared_statements import (
@@ -35,6 +39,11 @@ register_named_query_handlers(named_query_store)
 
 prepared_statement_store = PreparedStatementStore()
 register_prepared_statement_handlers(prepared_statement_store)
+
+data_catalog_store = DataCatalogStore()
+register_data_catalog_handlers(data_catalog_store)
+
+register_engine_version_handlers()
 
 
 @app.get("/health")  # noqa (route handler bound by FastAPI)

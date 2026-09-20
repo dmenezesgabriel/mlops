@@ -16,6 +16,7 @@ import pytest
 import uvicorn
 from athena_local.main import (
     app,
+    data_catalog_store,
     named_query_store,
     prepared_statement_store,
     workgroup_store,
@@ -70,16 +71,18 @@ class LiveAthenaServer:
 
 @pytest.fixture()
 def live_athena_server() -> Iterator[LiveAthenaServer]:
-    # The app owns in-memory workgroup, named query, and prepared statement
-    # stores that survive server restarts, so reset them around each test
-    # (ADR-0003, MD-1, MD-2, MD-3).
+    # The app owns in-memory stores that survive server restarts, so reset them
+    # around each test (ADR-0003). Data catalogs re-seed ``AwsDataCatalog`` on
+    # reset.
     workgroup_store.reset()
     named_query_store.reset()
     prepared_statement_store.reset()
+    data_catalog_store.reset()
     server = LiveAthenaServer()
     server.start()
     yield server
     workgroup_store.reset()
     named_query_store.reset()
     prepared_statement_store.reset()
+    data_catalog_store.reset()
     server.stop()
