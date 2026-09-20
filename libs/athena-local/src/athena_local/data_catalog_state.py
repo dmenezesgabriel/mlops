@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from athena_local.errors import InvalidRequestException
+from athena_local.schemas import Tag
 
 AWS_DATA_CATALOG_NAME = "AwsDataCatalog"
 
@@ -32,6 +33,7 @@ class DataCatalogRecord:
     catalog_type: str
     description: str | None = None
     parameters: dict[str, str] = field(default_factory=dict)
+    tags: list[Tag] = field(default_factory=list)
 
     def to_payload(self) -> dict[str, object]:
         """Serialize to the GetDataCatalog ``DataCatalog`` wire shape."""

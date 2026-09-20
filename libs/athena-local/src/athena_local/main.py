@@ -27,6 +27,7 @@ from athena_local.state import (
     PreparedStatementStore,
     WorkGroupStore,
 )
+from athena_local.tags import register_tag_handlers
 from athena_local.workgroups import register_workgroup_handlers
 
 app = FastAPI(title="Athena Local Emulator")
@@ -44,6 +45,8 @@ data_catalog_store = DataCatalogStore()
 register_data_catalog_handlers(data_catalog_store)
 
 register_engine_version_handlers()
+
+register_tag_handlers(workgroup_store, data_catalog_store)
 
 
 @app.get("/health")  # noqa (route handler bound by FastAPI)
