@@ -13,6 +13,7 @@ from __future__ import annotations
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
 
+from athena_local.catalog_metadata import register_catalog_metadata_handlers
 from athena_local.data_catalog_state import DataCatalogStore
 from athena_local.data_catalogs import register_data_catalog_handlers
 from athena_local.dispatch import WireResponse, dispatch
@@ -43,6 +44,8 @@ register_prepared_statement_handlers(prepared_statement_store)
 
 data_catalog_store = DataCatalogStore()
 register_data_catalog_handlers(data_catalog_store)
+
+register_catalog_metadata_handlers(data_catalog_store)
 
 register_engine_version_handlers()
 

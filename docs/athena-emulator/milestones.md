@@ -105,9 +105,10 @@ Steps (each TDD):
 2. [x] MD-2 named queries (+ pagination), MD-3 prepared statements (RNFE policy
    per `awswrangler/athena/_statements.py:26-29`), MD-4 data catalogs,
    MD-5 engine versions, MD-6 tags.
-3. MD-7 catalog read proxy to moto Glue (needs M0 SP-3 proven); parity test:
-   AT data create via CLI then `list_table_metadata` returns the same table.
-4. BDD features for each flow (`tests/bdd/`).
+3. [x] MD-7 catalog read proxy to moto Glue (needs M0 SP-3 proven); parity test:
+   AT data create via CLI then `list_table_metadata` returns the same table
+   (integration suite covers Glue-write → API-read single-store parity).
+4. [x] BDD features for each flow (`tests/bdd/`).
 
 Exit: metadata ops green against botocore stubs AND awswrangler config path;
 CLI `athena list-*` examples pass.

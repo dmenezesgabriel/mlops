@@ -238,6 +238,10 @@ forbidden_modules = ["mlops_shared", "data_science_scaffold", "nyc_taxi_demand_f
 [[tool.importlinter.contracts]]
 name = "Athena protocol core stays independent of the query engine"
 type = "forbidden"
+# main reaches Glue only indirectly, through the sanctioned catalog_metadata
+# boundary (MD-7); indirect imports are therefore allowed — direct imports of
+# the forbidden modules by dispatch/errors/main still break the contract.
+allow_indirect_imports = true
 source_modules = ["athena_local.dispatch", "athena_local.errors", "athena_local.main"]
 forbidden_modules = ["athena_local.executor", "athena_local.artifacts", "athena_local.glue_proxy", "athena_local.trino_client"]
 
@@ -246,6 +250,12 @@ name = "Athena metadata handlers stay independent of the query engine"
 type = "forbidden"
 source_modules = ["athena_local.named_queries", "athena_local.prepared_statements", "athena_local.workgroups", "athena_local.data_catalogs", "athena_local.engine_versions", "athena_local.tags"]
 forbidden_modules = ["athena_local.executor", "athena_local.artifacts", "athena_local.glue_proxy", "athena_local.trino_client"]
+
+[[tool.importlinter.contracts]]
+name = "Athena catalog metadata handlers reach only the Glue read boundary"
+type = "forbidden"
+source_modules = ["athena_local.catalog_metadata"]
+forbidden_modules = ["athena_local.executor", "athena_local.artifacts", "athena_local.trino_client"]
 
 [tool.uv.sources]
 ssg-i18n = { workspace = true }

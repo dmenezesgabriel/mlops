@@ -1,8 +1,9 @@
-"""Live uvicorn server fixture for real-HTTP botocore round-trips.
+"""Live uvicorn and moto server fixtures for real-HTTP round-trips.
 
-Mirrors the ``LiveMotoServer`` pattern used by sagemaker-local: an in-process
-server on a random localhost port, so unit/integration tests need no docker
-stack to exercise the JSON-1.1 wire protocol end to end.
+Mirrors the ``LiveMotoServer`` pattern used by sagemaker-local: in-process
+servers on random localhost ports, so unit/integration tests need no docker
+stack to exercise the JSON-1.1 wire protocol end to end (the moto server backs
+the Glue reads the catalog-introspection ops proxy to, ADR-0005).
 """
 
 from __future__ import annotations
@@ -21,9 +22,30 @@ from athena_local.main import (
     prepared_statement_store,
     workgroup_store,
 )
+from moto.server import ThreadedMotoServer
 from uvicorn.config import Config
 
 STARTUP_TIMEOUT_SECONDS = 10.0
+
+
+class LiveMotoServer:
+    """Threaded moto server bound to a random localhost port."""
+
+    def __init__(self) -> None:
+        self.url = ""
+        self._server: ThreadedMotoServer | None = None
+
+    def start(self) -> None:
+        server = ThreadedMotoServer(ip_address="127.0.0.1", port=0)
+        self._server = server
+        server.start()
+        host, port = server.get_host_and_port()
+        self.url = f"http://{host}:{port}"
+
+    def stop(self) -> None:
+        if self._server is not None:
+            self._server.stop()
+            self._server = None
 
 
 class LiveAthenaServer:
@@ -67,6 +89,14 @@ class LiveAthenaServer:
                     f"{STARTUP_TIMEOUT_SECONDS}s"
                 )
             time.sleep(0.01)
+
+
+@pytest.fixture()
+def live_moto_server() -> Iterator[LiveMotoServer]:
+    server = LiveMotoServer()
+    server.start()
+    yield server
+    server.stop()
 
 
 @pytest.fixture()
