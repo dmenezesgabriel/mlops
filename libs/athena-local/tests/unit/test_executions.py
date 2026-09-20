@@ -221,3 +221,41 @@ def test_payload_includes_statement_type_and_manifest_when_set(
     assert payload["Statistics"]["DataManifestLocation"] == (
         "s3://bucket/q-manifest.csv"
     )
+
+
+def test_cache_result_page_starts_empty_and_copies_rows(
+    store: ExecutionStore,
+) -> None:
+    record = store.create(query="SELECT 1", workgroup="primary")
+
+    assert record.result_columns == []
+    assert record.result_rows == []
+
+    record.cache_result_page(
+        [("col_a", "varchar"), ("col_b", "integer")], [[1, 2], [3, 4]]
+    )
+
+    assert record.result_columns == [
+        ("col_a", "varchar"),
+        ("col_b", "integer"),
+    ]
+    assert record.result_rows == [[1, 2], [3, 4]]
+
+
+def test_batch_get_returns_found_records_and_unprocessed_ids(
+    store: ExecutionStore,
+) -> None:
+    first = store.create(query="SELECT 1", workgroup="primary")
+    second = store.create(query="SELECT 2", workgroup="primary")
+
+    found, unprocessed = store.batch_get(
+        [
+            first.query_execution_id,
+            "missing-1",
+            second.query_execution_id,
+            "missing-2",
+        ]
+    )
+
+    assert found == [first, second]
+    assert unprocessed == ["missing-1", "missing-2"]

@@ -258,6 +258,13 @@ source_modules = ["athena_local.catalog_metadata"]
 forbidden_modules = ["athena_local.executor", "athena_local.artifacts", "athena_local.trino_client"]
 
 [[tool.importlinter.contracts]]
+name = "Athena query handlers reach Trino only through the executor"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = ["athena_local.query_executions"]
+forbidden_modules = ["athena_local.artifacts", "athena_local.glue_proxy", "athena_local.trino_client"]
+
+[[tool.importlinter.contracts]]
 name = "Athena query engine stays independent of the protocol core"
 type = "forbidden"
 source_modules = ["athena_local.executor", "athena_local.executions"]

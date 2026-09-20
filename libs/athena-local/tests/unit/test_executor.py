@@ -466,6 +466,39 @@ def test_cancel_after_finish_raises(store: ExecutionStore) -> None:
     asyncio.run(scenario())
 
 
+def test_completion_stashes_final_page_on_record(
+    store: ExecutionStore,
+) -> None:
+    async def scenario() -> None:
+        client = ScriptedStatementClient(
+            [
+                result_page(
+                    next_uri=None,
+                    columns=[
+                        TrinoColumn(name="col_a", column_type="varchar"),
+                        TrinoColumn(name="col_b", column_type="integer"),
+                    ],
+                    data=[["alpha", 1], ["beta", 2]],
+                    stats={"state": "FINISHED"},
+                )
+            ]
+        )
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        record = executor.start(query="SELECT 1", workgroup="primary")
+        await executor._tasks[record.query_execution_id]
+
+        assert record.state == SUCCEEDED
+        assert record.result_columns == [
+            ("col_a", "varchar"),
+            ("col_b", "integer"),
+        ]
+        assert record.result_rows == [["alpha", 1], ["beta", 2]]
+
+    asyncio.run(scenario())
+
+
 def test_semaphore_bounds_concurrency(store: ExecutionStore) -> None:
     async def scenario() -> None:
         gate = asyncio.Event()

@@ -199,6 +199,10 @@ class QueryExecutor:
         self, record: QueryExecutionRecord, page: TrinoPage
     ) -> None:
         record.apply_engine_statistics(page.stats)
+        record.cache_result_page(
+            [(column.name, column.column_type) for column in page.columns],
+            page.data,
+        )
         try:
             await self._writer.write(record, page)
         except ArtifactWriteError as error:

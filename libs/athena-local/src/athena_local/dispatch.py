@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import cast
@@ -34,7 +34,13 @@ ATHENA_SERVICE_NAME = "athena"
 
 # A handler receives the parsed JSON request object (or None for an empty
 # body) and returns the operation's output object for success serialization.
-OperationHandler = Callable[[dict[str, object] | None], dict[str, object]]
+# Coroutine handlers are supported so query-plane operations can await the
+# async executor (stop_query_execution drives the Trino DELETE, ADR-0009 #5);
+# ``dispatch`` awaits their result.
+OperationHandler = Callable[
+    [dict[str, object] | None],
+    dict[str, object] | Awaitable[dict[str, object]],
+]
 
 OPERATION_HANDLERS: dict[str, OperationHandler] = {}
 
@@ -119,7 +125,7 @@ def serialize_success(payload: dict[str, object]) -> WireResponse:
     return WireResponse(status_code=200, headers=headers, body=body)
 
 
-def dispatch(
+async def dispatch(
     target_header: str | None, body: bytes | None = None
 ) -> AthenaError | WireResponse:
     """Resolve the target, run its handler, and return the wire outcome.
@@ -127,6 +133,8 @@ def dispatch(
     Unknown or unimplemented targets return a shaped
     ``InvalidRequestException``; handler ``AthenaError``s propagate unchanged;
     a handler's output object is serialized as a successful JSON-1.1 response.
+    Coroutine handlers are awaited so the query-plane operations can drive the
+    async executor (ADR-0009).
     """
     try:
         operation = resolve_operation(target_header)
@@ -139,6 +147,8 @@ def dispatch(
         )
     try:
         result = handler(parse_body(body))
+        if isinstance(result, Awaitable):
+            result = await result
     except AthenaError as error:
         return error
     return serialize_success(result)

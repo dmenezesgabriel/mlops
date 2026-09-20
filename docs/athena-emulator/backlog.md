@@ -56,7 +56,7 @@
 |---|---|---|---|---|
 | QE-1 | [x] `trino_client.py` thin wrapper: POST statement, poll nextUri (with `X-Trino-Catalog/Schema/User`), DELETE cancel, map errors | M | trino.io client-protocol; ADR-0001 | PC-1 |
 | QE-2 | [x] Async executor + `executions.py` state registry: QUEUED→RUNNING→terminal machine, semaphore bound, records per ADR-0009; unit-verified transitions, writer-before-SUCCEEDED ordering, cancel paths, pre-finish `GetQueryResults` 400 text parity, StatementStats→Statistics mapping | M | ADR-0009; wrangler `_utils.py:41-42` (Trino Stats fields: `client/trino-client/.../StatementStats.java`) | QE-1 |
-| QE-3 | `StartQueryExecution` + `StopQueryExecution` + `GetQueryExecution`/`BatchGetQueryExecution` + `GetQueryResults` + `GetQueryRuntimeStatistics` | M | FR-01/02/03/14/15; ADR-0009 | QE-2 |
+| QE-3 | [x] `StartQueryExecution` + `StopQueryExecution` + `GetQueryExecution`/`BatchGetQueryExecution` + `GetQueryResults` + `GetQueryRuntimeStatistics` | M | FR-01/02/03/14/15; ADR-0009 | QE-2 |
 | QE-4 | Statement classification → `StatementType`/`SubstatementType` (DML/DDL/UTILITY + CTAS/INSERT/UNLOAD detection) | S | ADR-0007; model enums | QE-2 |
 | QE-5 | SQL error mapping Trino→Athena (`InvalidRequestException` 400 incl. wrangler-recognizable fragments) | M | FR-18; wrangler `_utils.py:888-898` | QE-1 |
 

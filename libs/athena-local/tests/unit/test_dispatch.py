@@ -8,8 +8,13 @@ as long as it matches that model exactly and stays at 70 operations.
 
 from __future__ import annotations
 
+import asyncio
+import json
+
 import pytest
 from athena_local.dispatch import (
+    OPERATION_HANDLERS,
+    WireResponse,
     dispatch,
     implemented_operations,
     operation_names,
@@ -62,7 +67,7 @@ def test_resolve_operation_rejects_unknown_operation() -> None:
 
 
 def test_dispatch_known_operation_names_its_own_target() -> None:
-    error = dispatch("AmazonAthena.ListQueryExecutions")
+    error = asyncio.run(dispatch("AmazonAthena.ListQueryExecutions"))
 
     assert isinstance(error, InvalidRequestException)
     assert "ListQueryExecutions" in error.message
@@ -71,16 +76,68 @@ def test_dispatch_known_operation_names_its_own_target() -> None:
 def test_dispatch_unknown_target_is_a_shaped_error_naming_the_segment() -> (
     None
 ):
-    error = dispatch("AmazonAthena.Nope")
+    error = asyncio.run(dispatch("AmazonAthena.Nope"))
 
     assert isinstance(error, InvalidRequestException)
     assert "Nope" in error.message
 
 
 def test_dispatch_missing_target_is_a_shaped_error() -> None:
-    error = dispatch(None)
+    error = asyncio.run(dispatch(None))
 
     assert isinstance(error, InvalidRequestException)
+
+
+def test_dispatch_executes_coroutine_handlers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def handler(
+        payload: dict[str, object] | None,
+    ) -> dict[str, object]:
+        assert payload == {"Query": "SELECT 1"}
+        return {"QueryExecutionId": "async-ok"}
+
+    monkeypatch.setitem(OPERATION_HANDLERS, "StopQueryExecution", handler)
+
+    response = asyncio.run(
+        dispatch("AmazonAthena.StopQueryExecution", b'{"Query": "SELECT 1"}')
+    )
+
+    assert isinstance(response, WireResponse)
+    assert json.loads(response.body) == {"QueryExecutionId": "async-ok"}
+
+
+def test_dispatch_runs_sync_handlers_under_async_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(
+        OPERATION_HANDLERS,
+        "GetQueryExecution",
+        lambda _payload: {"QueryExecution": {"QueryExecutionId": "sync-ok"}},
+    )
+
+    response = asyncio.run(dispatch("AmazonAthena.GetQueryExecution"))
+
+    assert isinstance(response, WireResponse)
+    assert json.loads(response.body) == {
+        "QueryExecution": {"QueryExecutionId": "sync-ok"}
+    }
+
+
+def test_dispatch_async_handler_errors_propagate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def handler(
+        _payload: dict[str, object] | None,
+    ) -> dict[str, object]:
+        raise InvalidRequestException("async failure")
+
+    monkeypatch.setitem(OPERATION_HANDLERS, "StopQueryExecution", handler)
+
+    error = asyncio.run(dispatch("AmazonAthena.StopQueryExecution"))
+
+    assert isinstance(error, InvalidRequestException)
+    assert "async failure" in error.message
 
 
 def test_parse_body_parses_json_object() -> None:

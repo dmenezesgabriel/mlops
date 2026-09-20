@@ -61,6 +61,11 @@ class QueryExecutionRecord:
     data_scanned_bytes: int | None = None
     data_manifest_location: str | None = None
     statement_type: str | None = None
+    # The final Trino page the executor stashed before the terminal transition
+    # (ADR-0009 #4): GetQueryResults serves rows from here without re-reading
+    # S3, matching Athena's inline results endpoint (ADR-0007).
+    result_columns: list[tuple[str, str]] = field(default_factory=list)
+    result_rows: list[list[object]] = field(default_factory=list)
     # The in-flight nextUri cursor the executor cancels against (ADR-0009);
     # never serialized to the wire.
     active_next_uri: str | None = None
@@ -85,6 +90,19 @@ class QueryExecutionRecord:
         wall_time_ms = stats.get("wallTimeMillis")
         if isinstance(wall_time_ms, int):
             self.engine_execution_time_ms = wall_time_ms
+
+    def cache_result_page(
+        self,
+        columns: list[tuple[str, str]],
+        rows: list[list[object]],
+    ) -> None:
+        """Stash the final statement page as plain (name, type) + row lists.
+
+        Cached in place of the TrinoPage itself so this module never sees
+        trino_client types (architecture §8.5: only the executor speaks Trino).
+        """
+        self.result_columns = list(columns)
+        self.result_rows = [list(row) for row in rows]
 
     def to_payload(self) -> dict[str, object]:
         """Serialize to the GetQueryExecution ``QueryExecution`` wire shape."""
@@ -176,3 +194,21 @@ class ExecutionStore:
                 f"QueryExecution {query_execution_id} does not exist"
             )
         return self.by_id[query_execution_id]
+
+    def batch_get(
+        self, query_execution_ids: list[str]
+    ) -> tuple[list[QueryExecutionRecord], list[str]]:
+        """Split the requested IDs into found records and missing IDs.
+
+        BatchGetQueryExecution answers per-item: found records are returned
+        and missing ones surface as ``UnprocessedQueryExecutionIds`` instead
+        of failing the whole call (model BatchGetQueryExecutionOutput).
+        """
+        found: list[QueryExecutionRecord] = []
+        unprocessed: list[str] = []
+        for query_execution_id in query_execution_ids:
+            if query_execution_id in self.by_id:
+                found.append(self.by_id[query_execution_id])
+            else:
+                unprocessed.append(query_execution_id)
+        return found, unprocessed

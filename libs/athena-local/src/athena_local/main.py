@@ -61,7 +61,7 @@ def health() -> dict[str, str]:
 @app.post("/")  # noqa (route handler bound by FastAPI)
 async def athena_endpoint(request: Request) -> Response:
     """Dispatch a JSON-1.1 request addressed by its X-Amz-Target header."""
-    result = dispatch(
+    result = await dispatch(
         request.headers.get("x-amz-target"), await request.body()
     )
     if isinstance(result, WireResponse):
