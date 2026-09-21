@@ -134,6 +134,12 @@ Steps:
      import-linter boundary contract added; all §8.4 gates green.
 3. QE-3 ops (`Start/Stop/Get/BatchGet/GetResults/GetRuntimeStatistics`),
    QE-4 statement classification, QE-5 error mapping.
+   - Verified 2026-09-21 (QE-3/4): the six QE-3 ops bound to the dispatch
+     registry on commit `2726ece`; `StatementType`/`SubstatementType`
+     classified at submit for QE-4 — DML/DDL/UTILITY per the model enum
+     (`service-2.json:4689-4696`), free-form `SubstatementType`
+     (`:3922-3925`), CTAS→DDL + UNLOAD→DML honoring wrangler
+     `_read.py:912-934`; 443 unit tests, 99% cov, all §8.4 gates green.
    - Regression anchor: wrangler's bad-SQL expectations
      (`awswrangler/athena/_utils.py:888-898`).
 4. AR-1..4 artifact writers + OutputLocation semantics + inline pagination.

@@ -29,6 +29,7 @@ from athena_local.state import (
     WorkGroupRecord,
     WorkGroupStore,
 )
+from athena_local.statement_classification import classify_statement
 
 
 def _member(payload: dict[str, object] | None, member: str) -> object | None:
@@ -165,8 +166,9 @@ def start_query_execution(
     ) or PRIMARY_WORKGROUP_NAME
     workgroup_record = workgroup_store.get(workgroup)
     database, catalog = _query_execution_context(payload)
+    query = _required_string(payload, "QueryString")
     record = executor.start(
-        query=_required_string(payload, "QueryString"),
+        query=query,
         workgroup=workgroup,
         database=database,
         catalog=catalog,
@@ -179,6 +181,9 @@ def start_query_execution(
         execution_parameters=_optional_string_list(
             payload, "ExecutionParameters"
         ),
+        # Classified at submit, like real Athena: StatementType and
+        # SubstatementType are reported even when the query later fails.
+        statement_classification=classify_statement(query),
     )
     return {"QueryExecutionId": record.query_execution_id}
 

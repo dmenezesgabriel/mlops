@@ -174,6 +174,49 @@ def test_start_defaults_to_primary_workgroup(
     asyncio.run(scenario())
 
 
+def test_get_query_execution_reports_classified_statement_types(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    async def scenario() -> None:
+        select_id = start_query_execution(
+            executor,
+            workgroups,
+            {
+                "QueryString": "-- question\nSELECT 1",
+                "ResultConfiguration": {"OutputLocation": "s3://bucket/q.csv"},
+            },
+        )["QueryExecutionId"]
+        ctas_id = start_query_execution(
+            executor,
+            workgroups,
+            {
+                "QueryString": (
+                    "CREATE TABLE db.t WITH (external_location = 's3://b/k') "
+                    "AS SELECT 1"
+                ),
+                "ResultConfiguration": {"OutputLocation": "s3://bucket/q.csv"},
+            },
+        )["QueryExecutionId"]
+        await executor._tasks[select_id]
+        await executor._tasks[ctas_id]
+
+        select_payload = get_query_execution(
+            store, {"QueryExecutionId": select_id}
+        )["QueryExecution"]
+        ctas_payload = get_query_execution(
+            store, {"QueryExecutionId": ctas_id}
+        )["QueryExecution"]
+
+        assert select_payload["StatementType"] == "DML"
+        assert select_payload["SubstatementType"] == "SELECT"
+        assert ctas_payload["StatementType"] == "DDL"
+        assert ctas_payload["SubstatementType"] == "CREATE_TABLE_AS_SELECT"
+
+    asyncio.run(scenario())
+
+
 def test_start_falls_back_to_workgroup_output_location(
     store: ExecutionStore,
     executor: QueryExecutor,

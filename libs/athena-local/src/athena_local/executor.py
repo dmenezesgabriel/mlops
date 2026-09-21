@@ -26,6 +26,7 @@ from athena_local.executions import (
     ExecutionStore,
     QueryExecutionRecord,
 )
+from athena_local.statement_classification import StatementClassification
 from athena_local.trino_client import TrinoPage, TrinoTransportError
 
 TRINO_CATALOG = "hive"
@@ -94,12 +95,15 @@ class QueryExecutor:
         catalog: str | None = None,
         result_configuration: ResultConfiguration | None = None,
         execution_parameters: list[str] | None = None,
+        statement_classification: StatementClassification | None = None,
     ) -> QueryExecutionRecord:
         """Create a QUEUED execution and dispatch it as a background task.
 
         Synchronous by contract (ADR-0009 #2): the caller gets the execution
         ID back immediately, exactly like ``StartQueryExecution``. Requires a
-        running asyncio loop (FastAPI serves on one).
+        running asyncio loop (FastAPI serves on one). The statement
+        classification is captured at submit time, matching how real Athena
+        reports StatementType/SubstatementType even for failed executions.
         """
         record = self._store.create(
             query=query,
@@ -108,6 +112,16 @@ class QueryExecutor:
             catalog=catalog,
             result_configuration=result_configuration,
             execution_parameters=execution_parameters,
+            statement_type=(
+                statement_classification.statement_type
+                if statement_classification is not None
+                else None
+            ),
+            substatement_type=(
+                statement_classification.substatement_type
+                if statement_classification is not None
+                else None
+            ),
         )
         task = asyncio.create_task(self._execute(record))
         self._tasks[record.query_execution_id] = task

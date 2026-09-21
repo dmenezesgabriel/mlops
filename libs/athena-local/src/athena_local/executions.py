@@ -61,6 +61,7 @@ class QueryExecutionRecord:
     data_scanned_bytes: int | None = None
     data_manifest_location: str | None = None
     statement_type: str | None = None
+    substatement_type: str | None = None
     # The final Trino page the executor stashed before the terminal transition
     # (ADR-0009 #4): GetQueryResults serves rows from here without re-reading
     # S3, matching Athena's inline results endpoint (ADR-0007).
@@ -121,6 +122,8 @@ class QueryExecutionRecord:
             payload["QueryExecutionContext"] = self._context_payload()
         if self.statement_type is not None:
             payload["StatementType"] = self.statement_type
+        if self.substatement_type is not None:
+            payload["SubstatementType"] = self.substatement_type
         if self.execution_parameters is not None:
             payload["ExecutionParameters"] = self.execution_parameters
         return payload
@@ -174,6 +177,8 @@ class ExecutionStore:
         catalog: str | None = None,
         result_configuration: ResultConfiguration | None = None,
         execution_parameters: list[str] | None = None,
+        statement_type: str | None = None,
+        substatement_type: str | None = None,
     ) -> QueryExecutionRecord:
         execution_id = str(uuid.uuid4())
         record = QueryExecutionRecord(
@@ -184,6 +189,8 @@ class ExecutionStore:
             catalog=catalog,
             result_configuration=result_configuration,
             execution_parameters=execution_parameters,
+            statement_type=statement_type,
+            substatement_type=substatement_type,
         )
         self.by_id[execution_id] = record
         return record

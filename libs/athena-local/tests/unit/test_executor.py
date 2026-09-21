@@ -29,6 +29,7 @@ from athena_local.executor import (
     ArtifactWriteError,
     QueryExecutor,
 )
+from athena_local.statement_classification import StatementClassification
 from athena_local.trino_client import (
     TrinoColumn,
     TrinoPage,
@@ -207,6 +208,31 @@ def test_happy_path_polls_and_succeeds(store: ExecutionStore) -> None:
     assert writer.calls == [
         "write:RUNNING"
     ]  # writer saw RUNNING, before SUCCEEDED
+
+
+def test_start_records_statement_classification(
+    store: ExecutionStore,
+) -> None:
+    async def scenario() -> None:
+        client = ScriptedStatementClient([result_page(next_uri=None)])
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        classification = StatementClassification(
+            statement_type="DDL", substatement_type="CREATE_TABLE_AS_SELECT"
+        )
+
+        record = executor.start(
+            query="CREATE TABLE db.t WITH (format='PARQUET') AS SELECT 1",
+            workgroup="primary",
+            statement_classification=classification,
+        )
+        await executor._tasks[record.query_execution_id]
+
+        assert record.statement_type == "DDL"
+        assert record.substatement_type == "CREATE_TABLE_AS_SELECT"
+
+    asyncio.run(scenario())
 
 
 def test_happy_path_submits_with_database_schema(

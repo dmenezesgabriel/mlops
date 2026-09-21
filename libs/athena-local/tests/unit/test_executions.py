@@ -206,6 +206,7 @@ def test_payload_always_carries_statistics_defaults(
     }
     assert "QueryExecutionContext" not in payload
     assert "StatementType" not in payload
+    assert "SubstatementType" not in payload
 
 
 def test_payload_includes_statement_type_and_manifest_when_set(
@@ -221,6 +222,19 @@ def test_payload_includes_statement_type_and_manifest_when_set(
     assert payload["Statistics"]["DataManifestLocation"] == (
         "s3://bucket/q-manifest.csv"
     )
+
+
+def test_payload_includes_substatement_type_when_set(
+    store: ExecutionStore,
+) -> None:
+    record = store.create(query="SELECT 1", workgroup="primary")
+    record.statement_type = "DML"
+    record.substatement_type = "SELECT"
+
+    payload = record.to_payload()
+
+    assert payload["StatementType"] == "DML"
+    assert payload["SubstatementType"] == "SELECT"
 
 
 def test_cache_result_page_starts_empty_and_copies_rows(
