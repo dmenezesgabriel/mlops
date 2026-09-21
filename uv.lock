@@ -366,6 +366,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "boto3" },
+    { name = "pandas" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "uvicorn" },
@@ -381,6 +382,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "boto3", specifier = "==1.42.82" },
+    { name = "pandas", specifier = "==2.3.3" },
     { name = "pytest", specifier = "==9.0.3" },
     { name = "pytest-cov", specifier = "==7.1.0" },
     { name = "uvicorn", specifier = "==0.34.0" },

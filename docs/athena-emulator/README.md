@@ -60,7 +60,7 @@ never the working document that produced the requirement.
 | awswrangler workgroup resolution (`GetWorkGroup`) | `research_repos/aws-sdk-pandas/awswrangler/athena/_utils.py:158-187` |
 | awswrangler `.txt` utility-result contract | `research_repos/aws-sdk-pandas/awswrangler/athena/_utils.py:190-221` |
 | awswrangler CTAS SQL template + error mapping | `research_repos/aws-sdk-pandas/awswrangler/athena/_utils.py:860-872`, `:888-898` |
-| awswrangler `.csv` result contract (headerless file) | `research_repos/aws-sdk-pandas/awswrangler/athena/_read.py:209-238` |
+| awswrangler `.csv` result contract (quoted header row as line 1 + QUOTE_ALL — ADR-0010) | `research_repos/aws-sdk-pandas/awswrangler/athena/_read.py:209-238` |
 | awswrangler CTAS manifest contract | `research_repos/aws-sdk-pandas/awswrangler/athena/_read.py:62-81,135-206` (metadata path `:153`) |
 | awswrangler inline `GetQueryResults` header-row semantics | `research_repos/aws-sdk-pandas/awswrangler/athena/_read.py:335-384` (`page_rows[1:]` at `:357`, `:383`) |
 | awswrangler cache → `batch_get_query_execution` | `research_repos/aws-sdk-pandas/awswrangler/athena/_cache.py:36-45` |

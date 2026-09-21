@@ -60,11 +60,12 @@
 | QE-4 | [x] Statement classification → `StatementType`/`SubstatementType` (DML/DDL/UTILITY + CTAS/INSERT/UNLOAD detection) | S | ADR-0007; model enums | QE-2 |
 | QE-5 | [x] SQL error mapping Trino→Athena (`InvalidRequestException` 400 incl. wrangler-recognizable fragments) | M | FR-18; wrangler `_utils.py:888-898` | QE-1 |
 
-## F. Artifacts (AR) — ADR-0007
+## F. Artifacts (AR) — ADR-0007/0010
 
 | ID | Item | Work | Evidence | Depends |
 |---|---|---|---|---|
-| AR-1 | `artifacts.py`: writers for `.csv` (headerless, QUOTE_ALL) + `.csv.metadata`, `.txt` (tab, QUOTE_ALL) + `.txt.metadata`, `-manifest.csv` + `.metadata` (CTAS/INSERT/UNLOAD) via boto3→moto S3 | M | FR-04/05/06; wrangler `_read.py:209-238`, `_utils.py:190-221`, `_read.py:62-81,135-206` | QE-2 |
+| AR-1 | [x] `artifacts.py` + `s3_writer.py`: writers for `.csv` (quoted header row as line 1 — ADR-0010 — + `.csv.metadata`), `.txt` (tab, QUOTE_ALL) + `.txt.metadata`, CTAS `-manifest.csv` + `.metadata` via boto3→moto S3; manifest enumerates the CTAS `external_location` from the SQL; BDD + integration acceptance incl. pandas re-read with wrangler's exact args | M | FR-04/05/06; wrangler `_read.py:209-238`, `_utils.py:190-221`, `_read.py:62-81,135-206`; ADR-0010 | QE-2 |
+| AR-1a | INSERT/UNLOAD `-manifest.csv` enumeration: exact file list for existing-table writers (list the table location, over-stating files is wrong); deferred — AR-1 ships exact enumeration for fresh CTAS tables only | S | `read.py:135-206` (INSERT example); own evidence | AR-1 |
 | AR-2 | `OutputLocation` = full artifact path; write-before-SUCCEEDED ordering; `Statistics.DataManifestLocation` set for manifest ops | M | ADR-0007; AWS docs output-files | AR-1 |
 | AR-3 | Inline `GetQueryResults` page semantics (header row, pagination, MaxResults cap, cell encoding) | M | FR-03; wrangler `_read.py:335-384` | QE-3 |
 | AR-4 | Type→VarCharValue serialization for all Trino column types (numbers/bools/dates/decimals/timestamps; null → absent key) | S | model `VarCharValue` optional; wrangler dtype mapping | AR-3 |

@@ -97,7 +97,8 @@ consumers pass unmodified:
 | `state.py` | In-memory registries: workgroups, named queries, prepared statements, data catalogs, executions (ADR-0003) |
 | `executor.py` | async query lifecycle; Trino client; cancellation (ADR-0009) |
 | `trino_client.py` | thin wrapper over `POST /v1/statement`, `GET nextUri`, `DELETE` (thin interface owned by the project — per `AGENTS.md` deps rule) |
-| `artifacts.py` | `.csv` / `.txt` / `-manifest.csv` + `.metadata` writers; `DataManifestLocation` (ADR-0007) |
+| `artifacts.py` | `.csv` / `.txt` / `-manifest.csv` + `.metadata` writers; `DataManifestLocation` (ADR-0007, ADR-0010) |
+| `s3_writer.py` | project-owned interface over the boto3 S3 client; put/list against moto S3 (ADR-0008) |
 | `glue_proxy.py` | boto3 client proxying catalog reads to moto Glue (ADR-0005) |
 | `config.py` | dataclass: port, moto_endpoint, trino_endpoint, region, credentials, permissive interval |
 | `logging.py` | structured JSON logs; plain text on CLI |
@@ -116,8 +117,8 @@ Deployment artifacts (docker/): `Dockerfile` (emulator image), `trino/`
 2. Emulator: create execution (QUEUED) → spawn async task → Trino
    `POST /v1/statement` with `X-Trino-Catalog: hive`, `X-Trino-Schema: <db>`,
    `X-Trino-User: <principal>`; poll `nextUri`.
-3. Emulator writes `{QueryID}.csv` (headerless, quoted) + `.csv.metadata` to
-   moto S3 (ADR-0007) and marks SUCCEEDED.
+3. Emulator writes `{QueryID}.csv` (quoted header row as line 1 — ADR-0010)
+   + `.csv.metadata` to moto S3 (ADR-0007) and marks SUCCEEDED.
 4. wrangler polls `GetQueryExecution` until terminal (`_utils.py:41`),
    then `GetQueryResults` (header row = `Rows[0]`, stripped at
    `_read.py:357,383`) and/or `s3.read_csv` of the `.csv` (`_read.py:209-238`).
@@ -209,6 +210,7 @@ libs never leak into handlers (per `AGENTS.md` deps rule).
 | [0007](adr/0007-result-artifacts-and-outputlocation-semantics.md) | Artifact naming/format + `OutputLocation` semantics per wrangler |
 | [0008](adr/0008-json11-dispatch-and-error-parity.md) | JSON 1.1 dispatch + botocore-parity errors; no moto internals |
 | [0009](adr/0009-async-query-execution-state-machine.md) | Async execution state machine + pre-finish read error parity |
+| [0010](adr/0010-csv-header-row-and-bytes.md) | `{QueryID}.csv` carries the quoted header row as line 1 (supersedes ADR-0007's headerless descriptor) |
 
 ## 10. Quality Requirements
 

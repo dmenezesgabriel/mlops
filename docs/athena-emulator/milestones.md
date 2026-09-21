@@ -153,8 +153,14 @@ Steps:
      (`awswrangler/athena/_utils.py:888-898`).
 4. AR-1..4 artifact writers + OutputLocation semantics + inline pagination.
    - Contract tests: files byte-compare to wrangler expectations (QUOTE_ALL,
-     headerless CSV; tab TXT; manifest → `.metadata` via `.replace` at
-     `awswrangler/athena/_read.py:153`).
+     csv with the quoted header row as line 1 — ADR-0010; tab TXT; manifest
+     → `.metadata` via `.replace` at `awswrangler/athena/_read.py:153`).
+   - Verified 2026-09-21 (AR-1): `artifacts.py` + `s3_writer.py` write the
+     three artifact shapes via boto3→moto S3; CTAS manifest enumerates the
+     SQL `external_location` (INSERT/UNLOAD deferred to AR-1a); 473 tests
+     (17 new unit + 3 live-moto integration + 2 BDD), incl. a pandas re-read
+     of the csv with `_fetch_csv_result`'s exact args (dtypes round-trip);
+     all §8.4 gates green.
 5. Integration: docker stack, `SELECT` via wrangler end-to-end (M0 config).
 
 Exit: wrangler `read_sql_query` (api + csv + cache), `to_parquet` CTAS,

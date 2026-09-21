@@ -13,6 +13,7 @@ dependencies = [
 [dependency-groups]
 dev = [
   "boto3==1.42.82",
+  "pandas==2.3.3",
   "pytest==9.0.3",
   "pytest-cov==7.1.0",
   "uvicorn==0.34.0",
@@ -47,7 +48,8 @@ reportMissingImports = false
 
 [tool.vulture]
 min_confidence = 80
-# CatalogClient (glue_proxy.py) mirrors the botocore Glue client keyword names
-# exactly so pyright checks call sites; protocol stubs never reference them.
-ignore_names = ["implemented_operations", "test_*", "*_test", "*kwargs", "__*__", "Name", "DatabaseName", "Expression"]
+# CatalogClient (glue_proxy.py) and ObjectStoreClient (s3_writer.py) mirror the
+# botocore client keyword names exactly so pyright checks call sites; protocol
+# stubs never reference them.
+ignore_names = ["implemented_operations", "test_*", "*_test", "*kwargs", "__*__", "Name", "DatabaseName", "Expression", "Bucket", "Key", "Body", "Prefix", "ContinuationToken"]
 sort_by_size = true

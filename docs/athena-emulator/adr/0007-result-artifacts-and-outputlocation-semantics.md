@@ -2,6 +2,9 @@
 
 - Status: Accepted
 - Date: 2026-09-19
+- Note: the "headerless CSV" descriptor is superseded by
+  [ADR-0010](0010-csv-header-row-and-bytes.md) — `{QueryID}.csv` **does** carry
+  the quoted header row as line 1. Everything else here stands.
 
 ## Context
 
@@ -9,8 +12,8 @@ awswrangler is the strictest consumer and dictates artifact shapes:
 
 - CSV / DML results: needs `OutputLocation` ending `.csv`
   (`research_repos/aws-sdk-pandas/awswrangler/athena/_read.py:209-238`) and
-  reads the file with `quoting=csv.QUOTE_ALL` and a **headerless** CSV;
-  deletes the sidecar `{path}.metadata` after reading.
+  reads the file with `quoting=csv.QUOTE_ALL`; the quoted header row is line 1
+  (ADR-0010); deletes the sidecar `{path}.metadata` after reading.
 - TXT / UTILITY results (`SHOW CREATE TABLE`, `DESCRIBE`): `.txt`,
   tab-separated, `QUOTE_ALL`, sidecar `.metadata`
   (`awswrangler/athena/_utils.py:190-221`).
@@ -32,7 +35,8 @@ awswrangler is the strictest consumer and dictates artifact shapes:
 ## Decision
 
 1. `StatementType` classification drives artifacts:
-   - `SELECT` → `DML` → `{QueryID}.csv` (headerless, QUOTE_ALL) + `.csv.metadata`.
+   - `SELECT` → `DML` → `{QueryID}.csv` (quoted header row as line 1 — see
+     ADR-0010 — QUOTE_ALL) + `.csv.metadata`.
    - `DESCRIBE`, `SHOW CREATE TABLE` → `UTILITY` → `{QueryID}.txt`
      (tab-separated, QUOTE_ALL) + `.txt.metadata`.
    - CTAS / `INSERT` / `UNLOAD` → manifest mode: `{QueryID}-manifest.csv`
