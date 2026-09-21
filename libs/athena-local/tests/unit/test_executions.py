@@ -93,7 +93,20 @@ def test_illegal_transition_is_rejected(store: ExecutionStore) -> None:
     with pytest.raises(ValueError):
         record.transition_to(
             SUCCEEDED
-        )  # QUEUED may only reach RUNNING/CANCELLED
+        )  # QUEUED may reach RUNNING/CANCELLED/FAILED only
+
+
+def test_failed_from_queued_is_valid(store: ExecutionStore) -> None:
+    # Submit-time rejection (QE-5): a start preflight transport failure
+    # terminals the execution straight from QUEUED, like Athena rejecting a
+    # query before it ever runs.
+    record = store.create(query="SELECT 1", workgroup="primary")
+
+    record.transition_to(FAILED, reason="Trino unreachable: timeout")
+
+    assert record.state == FAILED
+    assert record.state_change_reason == "Trino unreachable: timeout"
+    assert record.completion_time is not None
 
 
 def test_cancelled_from_queued_is_valid(store: ExecutionStore) -> None:

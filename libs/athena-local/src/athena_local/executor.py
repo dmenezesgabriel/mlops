@@ -1,9 +1,11 @@
 """Async query execution lifecycle (ADR-0009).
 
-``QueryExecutor`` owns the QUEUED → RUNNING → terminal machine: ``start`` is
-synchronous and returns the execution immediately (matching Athena and
-wrangler's poll loop), a background task drives the Trino statement protocol
-until completion, and the terminal SUCCEEDED transition fires only after the
+``QueryExecutor`` owns the QUEUED → RUNNING → terminal machine: ``start``
+validates the statement against Trino (a bounded submit + one nextUri fetch,
+mirroring how real Athena rejects bad syntax at StartQueryExecution, QE-5),
+then returns the execution immediately (matching Athena and wrangler's poll
+loop); a background task drives the Trino statement protocol until
+completion, and the terminal SUCCEEDED transition fires only after the
 injected :class:`ResultArtifactWriter` persisted the artifacts (ADR-0007,
 ADR-0009 #4). Trino-speak stops here: handlers depend on the executor, never
 on ``trino_client`` (architecture §8.5).
@@ -12,9 +14,14 @@ on ``trino_client`` (architecture §8.5).
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from typing import Protocol
 
 from athena_local.common_schemas import ResultConfiguration
+from athena_local.error_mapping import (
+    is_syntax_error,
+    syntax_error_invalid_request,
+)
 from athena_local.errors import InvalidRequestException
 from athena_local.executions import (
     CANCELLED,
@@ -69,6 +76,19 @@ class ArtifactWriteError(Exception):
     """Result artifacts could not be persisted; the execution stays failed."""
 
 
+@dataclass(frozen=True)
+class PreflightVerdict:
+    """Outcome of the start-time Trino check (ADR-0009 #2, QE-5).
+
+    ``page`` is the QueryResults document the poll task resumes from — the
+    statement is never re-submitted — or None when ``failure_reason`` is set
+    and the execution must start FAILED because Trino was unreachable.
+    """
+
+    page: TrinoPage | None
+    failure_reason: str | None
+
+
 class QueryExecutor:
     """Bounded async runner for Athena query executions (ADR-0009)."""
 
@@ -87,7 +107,7 @@ class QueryExecutor:
         self._trino_user = trino_user
         self._tasks: dict[str, asyncio.Task[None]] = {}
 
-    def start(
+    async def start(
         self,
         query: str,
         workgroup: str,
@@ -97,14 +117,17 @@ class QueryExecutor:
         execution_parameters: list[str] | None = None,
         statement_classification: StatementClassification | None = None,
     ) -> QueryExecutionRecord:
-        """Create a QUEUED execution and dispatch it as a background task.
+        """Validate against Trino, create a QUEUED execution, dispatch it.
 
-        Synchronous by contract (ADR-0009 #2): the caller gets the execution
-        ID back immediately, exactly like ``StartQueryExecution``. Requires a
-        running asyncio loop (FastAPI serves on one). The statement
-        classification is captured at submit time, matching how real Athena
-        reports StatementType/SubstatementType even for failed executions.
+        A bounded preflight (submit + one nextUri fetch, ADR-0009 #2)
+        mirrors real Athena: StartQueryExecution rejects syntactically
+        invalid SQL with the exact 400 before any execution exists, yet still
+        returns the execution ID without waiting for the query to run. The
+        statement classification is captured at submit time, matching how
+        real Athena reports StatementType/SubstatementType even for failed
+        executions. Requires a running asyncio loop (FastAPI serves on one).
         """
+        verdict = await self._preflight(query, database)
         record = self._store.create(
             query=query,
             workgroup=workgroup,
@@ -123,12 +146,50 @@ class QueryExecutor:
                 else None
             ),
         )
-        task = asyncio.create_task(self._execute(record))
+        if verdict.failure_reason is not None:
+            record.transition_to(FAILED, verdict.failure_reason)
+            return record
+        assert (
+            verdict.page is not None
+        )  # page is forwarded exactly when no failure
+        task = asyncio.create_task(self._execute(record, verdict.page))
         self._tasks[record.query_execution_id] = task
         task.add_done_callback(
             lambda _: self._tasks.pop(record.query_execution_id, None)
         )
         return record
+
+    async def _preflight(
+        self, query: str, database: str | None
+    ) -> PreflightVerdict:
+        """POST the statement and follow one nextUri (ADR-0009 #2, QE-5).
+
+        Trino's first page is always clean; syntax failures surface on the
+        first following page (measured), which bounds syntax detection to a
+        single fetch. A SYNTAX_ERROR page becomes the submit-time 400
+        (error_mapping); any other page is forwarded for the poll task to
+        continue from, and a transport failure becomes an immediate FAILED
+        reason so a dead coordinator degrades gracefully (DP-5).
+        """
+        try:
+            first_page = await self._client.submit_statement(
+                query, TRINO_CATALOG, database or "", self._trino_user
+            )
+        except TrinoTransportError as error:
+            return PreflightVerdict(
+                page=None, failure_reason=f"Trino unreachable: {error}"
+            )
+        page = first_page
+        if page.next_uri is not None:
+            try:
+                page = await self._client.fetch_next(page.next_uri)
+            except TrinoTransportError as error:
+                return PreflightVerdict(
+                    page=None, failure_reason=f"Trino unreachable: {error}"
+                )
+        if is_syntax_error(page.error):
+            raise syntax_error_invalid_request(page.error)
+        return PreflightVerdict(page=page, failure_reason=None)
 
     async def cancel(self, query_execution_id: str) -> QueryExecutionRecord:
         """Stop a QUEUED or RUNNING execution and mark it CANCELLED."""
@@ -154,17 +215,16 @@ class QueryExecutor:
             )
         return record
 
-    async def _execute(self, record: QueryExecutionRecord) -> None:
+    async def _execute(
+        self, record: QueryExecutionRecord, first_page: TrinoPage
+    ) -> None:
         async with self._semaphore:
             if record.state != QUEUED:
+                # A cancel that beat the task, or a preflight failure the
+                # caller already made terminal, disarms the runner (ADR-0009).
                 return
             record.transition_to(RUNNING)
-            first_page = await self._first_page(record)
-            if first_page is None:
-                return
-            if record.state == CANCELLED:
-                await self._stop_statement(record)
-                return
+            record.active_next_uri = first_page.next_uri
             page = await self._poll_to_end(record, first_page)
             if page is None:
                 return
@@ -174,22 +234,6 @@ class QueryExecutor:
                 record.transition_to(FAILED, page.error.message)
                 return
             await self._complete(record, page)
-
-    async def _first_page(
-        self, record: QueryExecutionRecord
-    ) -> TrinoPage | None:
-        try:
-            page = await self._client.submit_statement(
-                record.query,
-                TRINO_CATALOG,
-                record.database or "",
-                self._trino_user,
-            )
-        except TrinoTransportError as error:
-            record.transition_to(FAILED, f"Trino unreachable: {error}")
-            return None
-        record.active_next_uri = page.next_uri
-        return page
 
     async def _poll_to_end(
         self, record: QueryExecutionRecord, first_page: TrinoPage

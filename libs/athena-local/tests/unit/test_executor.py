@@ -72,6 +72,7 @@ class ScriptedStatementClient:
         fetch_delay_seconds: float = 0.0,
         submit_error: TrinoTransportError | None = None,
         fetch_error: TrinoTransportError | None = None,
+        fetch_error_uri: str | None = None,
         cancel_error: TrinoTransportError | None = None,
     ) -> None:
         self._pages = list(pages)
@@ -79,6 +80,7 @@ class ScriptedStatementClient:
         self._fetch_delay = fetch_delay_seconds
         self._submit_error = submit_error
         self._fetch_error = fetch_error
+        self._fetch_error_uri = fetch_error_uri
         self._cancel_error = cancel_error
         self.submissions: list[tuple[str, str, str, str]] = []
         self.fetches: list[str] = []
@@ -96,7 +98,12 @@ class ScriptedStatementClient:
     async def fetch_next(self, next_uri: str) -> TrinoPage:
         self.fetches.append(next_uri)
         await self._pause(self._fetch_delay)
-        if self._fetch_error is not None:
+        # fetch_error_uri scopes a transport failure to one statement URI so
+        # tests can keep the preflight fetch (URI_1) healthy and break a
+        # later poll (QE-5 preflight consumes the first fetch).
+        if self._fetch_error is not None and (
+            self._fetch_error_uri is None or next_uri == self._fetch_error_uri
+        ):
             raise self._fetch_error
         return self._pages.pop(0)
 
@@ -112,11 +119,12 @@ class ScriptedStatementClient:
 
 
 class GatedStatementClient:
-    """StatementClient fake whose submission blocks on a shared event.
+    """StatementClient fake that parks *poll* fetches inside a shared gate.
 
-    Opens deterministic windows for semaphore-bound and cancellation tests: a
-    task holding a semaphore slot parks inside ``submit_statement`` until the
-    gate is released, so sibling tasks stay QUEUED at the semaphore.
+    Preflight (submit + the first nextUri fetch) completes immediately so
+    ``start`` returns and the task reaches the semaphore; the second fetch
+    parks until the gate opens, pinning RUNNING executions at the concurrency
+    bound and holding siblings QUEUED (ADR-0009 semaphore).
     """
 
     def __init__(self, gate: asyncio.Event, query_id: str = QUERY_ID) -> None:
@@ -129,18 +137,24 @@ class GatedStatementClient:
     async def submit_statement(
         self, query: str, catalog: str, schema: str, user: str
     ) -> TrinoPage:
-        await self._gate.wait()
         self.submission_count += 1
+        return result_page(next_uri=URI_1, stats={"state": "QUEUED"})
+
+    async def fetch_next(self, next_uri: str) -> TrinoPage:
+        if next_uri == URI_1:
+            return result_page(
+                next_uri=URI_2, stats={"state": "RUNNING"}
+            )  # the preflight fetch, never gated
         self._active += 1
         self.peak_active = max(self.peak_active, self._active)
         try:
-            await asyncio.sleep(0.05)
-            return result_page(next_uri=None, stats={"state": "FINISHED"})
+            await self._gate.wait()
+            await asyncio.sleep(0.02)
+            return result_page(
+                next_uri=None, data=[[1]], stats={"state": "FINISHED"}
+            )
         finally:
             self._active -= 1
-
-    async def fetch_next(self, next_uri: str) -> TrinoPage:
-        raise AssertionError("gated client never pages")
 
     async def cancel(self, next_uri: str) -> None:
         raise AssertionError("gated client is never cancelled")
@@ -193,7 +207,7 @@ def test_happy_path_polls_and_succeeds(store: ExecutionStore) -> None:
             ]
         )
         executor = QueryExecutor(store=store, client=client, writer=writer)
-        record = executor.start(query="SELECT 1", workgroup="primary")
+        record = await executor.start(query="SELECT 1", workgroup="primary")
         await executor._tasks[record.query_execution_id]
 
         assert client.submissions == [
@@ -222,7 +236,7 @@ def test_start_records_statement_classification(
             statement_type="DDL", substatement_type="CREATE_TABLE_AS_SELECT"
         )
 
-        record = executor.start(
+        record = await executor.start(
             query="CREATE TABLE db.t WITH (format='PARQUET') AS SELECT 1",
             workgroup="primary",
             statement_classification=classification,
@@ -243,7 +257,7 @@ def test_happy_path_submits_with_database_schema(
         executor = QueryExecutor(
             store=store, client=client, writer=RecordingWriter()
         )
-        record = executor.start(
+        record = await executor.start(
             query="SELECT 1", workgroup="primary", database="analytics"
         )
         await executor._tasks[record.query_execution_id]
@@ -264,11 +278,12 @@ def test_submit_transport_error_marks_failed(store: ExecutionStore) -> None:
         executor = QueryExecutor(
             store=store, client=client, writer=RecordingWriter()
         )
-        record = executor.start(query="SELECT 1", workgroup="primary")
-        await executor._tasks[record.query_execution_id]
+        record = await executor.start(query="SELECT 1", workgroup="primary")
 
         assert record.state == FAILED
         assert "connection refused" in record.state_change_reason or ""
+        # No background task exists: the preflight failure is already terminal.
+        assert record.query_execution_id not in executor._tasks
 
     asyncio.run(scenario())
 
@@ -283,16 +298,18 @@ def test_fetch_transport_error_marks_failed(store: ExecutionStore) -> None:
         executor = QueryExecutor(
             store=store, client=client, writer=RecordingWriter()
         )
-        record = executor.start(query="SELECT 1", workgroup="primary")
-        await executor._tasks[record.query_execution_id]
+        record = await executor.start(query="SELECT 1", workgroup="primary")
 
         assert record.state == FAILED
         assert "read timeout" in record.state_change_reason or ""
+        assert record.query_execution_id not in executor._tasks
 
     asyncio.run(scenario())
 
 
-def test_failed_query_page_marks_failed(store: ExecutionStore) -> None:
+def test_preflight_syntax_error_raises_400_before_any_execution(
+    store: ExecutionStore,
+) -> None:
     async def scenario() -> None:
         client = ScriptedStatementClient(
             [
@@ -309,13 +326,58 @@ def test_failed_query_page_marks_failed(store: ExecutionStore) -> None:
         executor = QueryExecutor(
             store=store, client=client, writer=RecordingWriter()
         )
-        record = executor.start(query="SELEC", workgroup="primary")
+
+        with pytest.raises(InvalidRequestException) as error:
+            await executor.start(query="SELEC", workgroup="primary")
+
+        # wrangler sniffs the prefix (and "extraneous input" inside the
+        # Trino text) to map the ClientError to InvalidCtasApproachQuery.
+        assert (
+            str(error.value)
+            == "Exception parsing query: line 1:1: mismatched input 'SELEC'"
+        )
+        assert store.by_id == {}  # rejected before any execution existed
+        assert client.submissions == [("SELEC", TRINO_CATALOG, "", TRINO_USER)]
+        assert client.fetches == []
+
+    asyncio.run(scenario())
+
+
+def test_preflight_forwards_analysis_error_to_failed_reason(
+    store: ExecutionStore,
+) -> None:
+    async def scenario() -> None:
+        client = ScriptedStatementClient(
+            [
+                result_page(next_uri=URI_1),
+                result_page(
+                    next_uri=None,
+                    error=TrinoQueryError(
+                        message="line 1:8: Column 'nope' cannot be resolved",
+                        error_type="USER_ERROR",
+                        error_name="COLUMN_NOT_FOUND",
+                    ),
+                ),
+            ]
+        )
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        record = await executor.start(query="SELECT nope", workgroup="primary")
         await executor._tasks[record.query_execution_id]
 
+        # Analysis errors are real-Athena execution failures: the start
+        # succeeds and the FAILED StateChangeReason carries the Trino text
+        # verbatim (wrangler's QueryFailed sniffs match it, _read.py:820-832).
         assert record.state == FAILED
         assert (
-            record.state_change_reason == "line 1:1: mismatched input 'SELEC'"
+            record.state_change_reason
+            == "line 1:8: Column 'nope' cannot be resolved"
         )
+        assert client.submissions == [
+            ("SELECT nope", TRINO_CATALOG, "", TRINO_USER)
+        ]
+        assert client.fetches == [URI_1]  # the preflight's single fetch
 
     asyncio.run(scenario())
 
@@ -328,7 +390,7 @@ def test_writer_failure_marks_failed_not_succeeded(
         executor = QueryExecutor(
             store=store, client=client, writer=FailingWriter()
         )
-        record = executor.start(query="SELECT 1", workgroup="primary")
+        record = await executor.start(query="SELECT 1", workgroup="primary")
         await executor._tasks[record.query_execution_id]
 
         assert record.state == FAILED
@@ -339,7 +401,7 @@ def test_writer_failure_marks_failed_not_succeeded(
     asyncio.run(scenario())
 
 
-def test_cancel_queued_execution_never_touches_trino(
+def test_cancel_queued_execution_parks_at_the_semaphore(
     store: ExecutionStore,
 ) -> None:
     async def scenario() -> None:
@@ -351,11 +413,15 @@ def test_cancel_queued_execution_never_touches_trino(
             writer=RecordingWriter(),
             max_concurrent_queries=1,
         )
-        first = executor.start(query="SELECT biggest", workgroup="primary")
+        first = await executor.start(
+            query="SELECT biggest", workgroup="primary"
+        )
         await asyncio.sleep(
             0.02
-        )  # first now parks inside submit holding the slot
-        queued = executor.start(query="SELECT cancelled", workgroup="primary")
+        )  # first task now parks inside the poll fetch holding the slot
+        queued = await executor.start(
+            query="SELECT cancelled", workgroup="primary"
+        )
         assert queued.state == QUEUED
 
         cancelled = await executor.cancel(queued.query_execution_id)
@@ -366,9 +432,11 @@ def test_cancel_queued_execution_never_touches_trino(
             executor._tasks[first.query_execution_id],
             executor._tasks[queued.query_execution_id],
         )
-        assert (
-            client.submission_count == 1
-        )  # queued execution was never dispatched
+        # Both statements were preflighted (start-time validation touches
+        # Trino, QE-5), but the queued one was never executed: it stays
+        # QUEUED at the semaphore and no DELETE is issued for it.
+        assert client.submission_count == 2
+        assert client.peak_active == 1
         assert first.state == SUCCEEDED
         assert queued.state == CANCELLED
 
@@ -390,14 +458,16 @@ def test_cancel_running_execution_deletes_statement(
             fetch_delay_seconds=0.05,
         )
         executor = QueryExecutor(store=store, client=client, writer=writer)
-        record = executor.start(query="SELECT 1", workgroup="primary")
-        await asyncio.sleep(0.02)  # first page fetched, now polling URI_1
+        record = await executor.start(query="SELECT 1", workgroup="primary")
+        await asyncio.sleep(0.02)  # preflight done, now polling URI_2
 
         cancelled = await executor.cancel(record.query_execution_id)
         await executor._tasks[record.query_execution_id]
 
         assert cancelled.state == CANCELLED
-        assert client.cancellations == [URI_1]
+        # The DELETE targets the active nextUri, which after the preflight
+        # fetch is URI_2 (the poll cursor handed to the background task).
+        assert client.cancellations == [URI_2]
         assert writer.calls == []
 
     asyncio.run(scenario())
@@ -408,15 +478,16 @@ def test_canceled_then_fetch_error_stays_cancelled(
 ) -> None:
     async def scenario() -> None:
         client = ScriptedStatementClient(
-            [result_page(next_uri=URI_1)],
+            [result_page(next_uri=URI_1), result_page(next_uri=URI_2)],
             fetch_delay_seconds=0.05,
             fetch_error=TrinoTransportError("coordinator gone"),
+            fetch_error_uri=URI_2,
         )
         executor = QueryExecutor(
             store=store, client=client, writer=RecordingWriter()
         )
-        record = executor.start(query="SELECT 1", workgroup="primary")
-        await asyncio.sleep(0.02)  # actively waiting on fetch_next(URI_1)
+        record = await executor.start(query="SELECT 1", workgroup="primary")
+        await asyncio.sleep(0.02)  # actively waiting on fetch_next(URI_2)
 
         await executor.cancel(record.query_execution_id)
         await executor._tasks[record.query_execution_id]
@@ -426,7 +497,7 @@ def test_canceled_then_fetch_error_stays_cancelled(
     asyncio.run(scenario())
 
 
-def test_cancel_while_submit_pending_still_deletes(
+def test_cancel_during_preflight_execution_does_not_exist(
     store: ExecutionStore,
 ) -> None:
     async def scenario() -> None:
@@ -437,14 +508,23 @@ def test_cancel_while_submit_pending_still_deletes(
         executor = QueryExecutor(
             store=store, client=client, writer=RecordingWriter()
         )
-        record = executor.start(query="SELECT 1", workgroup="primary")
-        await asyncio.sleep(0.02)  # still inside submit_statement
+        start_task = asyncio.create_task(
+            executor.start(query="SELECT 1", workgroup="primary")
+        )
+        await asyncio.sleep(
+            0.02
+        )  # still inside the submit_statement preflight
 
-        await executor.cancel(record.query_execution_id)
-        await executor._tasks[record.query_execution_id]
+        # The execution does not exist until the preflight returns, so a
+        # concurrent StopQueryExecution answers the shaped "does not exist"
+        # and never issues a Trino DELETE.
+        with pytest.raises(InvalidRequestException, match="does not exist"):
+            await executor.cancel("not-yet-created")
 
-        assert record.state == CANCELLED
-        assert client.cancellations == [URI_1]
+        start_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await start_task
+        assert client.cancellations == []
 
     asyncio.run(scenario())
 
@@ -465,8 +545,8 @@ def test_cancel_survives_trino_down_on_delete(
         executor = QueryExecutor(
             store=store, client=client, writer=RecordingWriter()
         )
-        record = executor.start(query="SELECT 1", workgroup="primary")
-        await asyncio.sleep(0.02)  # polling URI_1 so cancel issues a DELETE
+        record = await executor.start(query="SELECT 1", workgroup="primary")
+        await asyncio.sleep(0.02)  # polling URI_2 so cancel issues a DELETE
 
         cancelled = await executor.cancel(record.query_execution_id)
         await executor._tasks[record.query_execution_id]
@@ -483,7 +563,7 @@ def test_cancel_after_finish_raises(store: ExecutionStore) -> None:
         executor = QueryExecutor(
             store=store, client=client, writer=RecordingWriter()
         )
-        record = executor.start(query="SELECT 1", workgroup="primary")
+        record = await executor.start(query="SELECT 1", workgroup="primary")
         await executor._tasks[record.query_execution_id]
 
         with pytest.raises(ValueError):
@@ -512,7 +592,7 @@ def test_completion_stashes_final_page_on_record(
         executor = QueryExecutor(
             store=store, client=client, writer=RecordingWriter()
         )
-        record = executor.start(query="SELECT 1", workgroup="primary")
+        record = await executor.start(query="SELECT 1", workgroup="primary")
         await executor._tasks[record.query_execution_id]
 
         assert record.state == SUCCEEDED
@@ -536,7 +616,7 @@ def test_semaphore_bounds_concurrency(store: ExecutionStore) -> None:
             max_concurrent_queries=2,
         )
         records = [
-            executor.start(query=f"SELECT {i}", workgroup="primary")
+            await executor.start(query=f"SELECT {i}", workgroup="primary")
             for i in range(4)
         ]
         await asyncio.sleep(0.02)
@@ -567,7 +647,7 @@ def test_ensure_query_finished_prefinish_400_parity(
         executor = QueryExecutor(
             store=store, client=client, writer=RecordingWriter()
         )
-        running = executor.start(query="SELECT 1", workgroup="primary")
+        running = await executor.start(query="SELECT 1", workgroup="primary")
         await asyncio.sleep(0.02)
         assert running.state == RUNNING
 

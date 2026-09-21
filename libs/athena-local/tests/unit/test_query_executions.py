@@ -129,7 +129,7 @@ def test_start_returns_id_and_stores_request(
     workgroups: WorkGroupStore,
 ) -> None:
     async def scenario() -> None:
-        output = start_query_execution(
+        output = await start_query_execution(
             executor,
             workgroups,
             {
@@ -158,7 +158,7 @@ def test_start_defaults_to_primary_workgroup(
     workgroups: WorkGroupStore,
 ) -> None:
     async def scenario() -> None:
-        output = start_query_execution(
+        output = await start_query_execution(
             executor,
             workgroups,
             {
@@ -180,24 +180,32 @@ def test_get_query_execution_reports_classified_statement_types(
     workgroups: WorkGroupStore,
 ) -> None:
     async def scenario() -> None:
-        select_id = start_query_execution(
-            executor,
-            workgroups,
-            {
-                "QueryString": "-- question\nSELECT 1",
-                "ResultConfiguration": {"OutputLocation": "s3://bucket/q.csv"},
-            },
+        select_id = (
+            await start_query_execution(
+                executor,
+                workgroups,
+                {
+                    "QueryString": "-- question\nSELECT 1",
+                    "ResultConfiguration": {
+                        "OutputLocation": "s3://bucket/q.csv"
+                    },
+                },
+            )
         )["QueryExecutionId"]
-        ctas_id = start_query_execution(
-            executor,
-            workgroups,
-            {
-                "QueryString": (
-                    "CREATE TABLE db.t WITH (external_location = 's3://b/k') "
-                    "AS SELECT 1"
-                ),
-                "ResultConfiguration": {"OutputLocation": "s3://bucket/q.csv"},
-            },
+        ctas_id = (
+            await start_query_execution(
+                executor,
+                workgroups,
+                {
+                    "QueryString": (
+                        "CREATE TABLE db.t WITH (external_location = 's3://b/k') "
+                        "AS SELECT 1"
+                    ),
+                    "ResultConfiguration": {
+                        "OutputLocation": "s3://bucket/q.csv"
+                    },
+                },
+            )
         )["QueryExecutionId"]
         await executor._tasks[select_id]
         await executor._tasks[ctas_id]
@@ -234,7 +242,7 @@ def test_start_falls_back_to_workgroup_output_location(
     )
 
     async def scenario() -> None:
-        output = start_query_execution(
+        output = await start_query_execution(
             executor,
             workgroups,
             {"QueryString": "SELECT 1", "WorkGroup": "analytics"},
@@ -267,7 +275,7 @@ def test_start_enforced_workgroup_wins_over_request_location(
     )
 
     async def scenario() -> None:
-        output = start_query_execution(
+        output = await start_query_execution(
             executor,
             workgroups,
             {
@@ -294,10 +302,12 @@ def test_start_unknown_workgroup_is_shaped_error(
     workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(InvalidRequestException, match="does not exist"):
-        start_query_execution(
-            executor,
-            workgroups,
-            {"QueryString": "SELECT 1", "WorkGroup": "nope"},
+        asyncio.run(
+            start_query_execution(
+                executor,
+                workgroups,
+                {"QueryString": "SELECT 1", "WorkGroup": "nope"},
+            )
         )
 
 
@@ -307,7 +317,7 @@ def test_start_requires_query_string(
     workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(InvalidRequestException, match="QueryString"):
-        start_query_execution(executor, workgroups, {})
+        asyncio.run(start_query_execution(executor, workgroups, {}))
 
 
 def test_start_without_any_output_location_is_shaped_error(
@@ -316,8 +326,10 @@ def test_start_without_any_output_location_is_shaped_error(
     workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(InvalidRequestException, match="OutputLocation"):
-        start_query_execution(
-            executor, workgroups, {"QueryString": "SELECT 1"}
+        asyncio.run(
+            start_query_execution(
+                executor, workgroups, {"QueryString": "SELECT 1"}
+            )
         )
 
 
@@ -327,13 +339,15 @@ def test_start_rejects_non_object_query_execution_context(
     workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(InvalidRequestException, match="QueryExecutionContext"):
-        start_query_execution(
-            executor,
-            workgroups,
-            {
-                "QueryString": "SELECT 1",
-                "QueryExecutionContext": "analytics",
-            },
+        asyncio.run(
+            start_query_execution(
+                executor,
+                workgroups,
+                {
+                    "QueryString": "SELECT 1",
+                    "QueryExecutionContext": "analytics",
+                },
+            )
         )
 
 
@@ -343,13 +357,15 @@ def test_start_rejects_non_string_database_member(
     workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(InvalidRequestException, match="Database"):
-        start_query_execution(
-            executor,
-            workgroups,
-            {
-                "QueryString": "SELECT 1",
-                "QueryExecutionContext": {"Database": 5},
-            },
+        asyncio.run(
+            start_query_execution(
+                executor,
+                workgroups,
+                {
+                    "QueryString": "SELECT 1",
+                    "QueryExecutionContext": {"Database": 5},
+                },
+            )
         )
 
 
@@ -359,14 +375,18 @@ def test_start_rejects_non_list_execution_parameters(
     workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(InvalidRequestException, match="ExecutionParameters"):
-        start_query_execution(
-            executor,
-            workgroups,
-            {
-                "QueryString": "SELECT ?",
-                "ExecutionParameters": "1",
-                "ResultConfiguration": {"OutputLocation": "s3://bucket/q.csv"},
-            },
+        asyncio.run(
+            start_query_execution(
+                executor,
+                workgroups,
+                {
+                    "QueryString": "SELECT ?",
+                    "ExecutionParameters": "1",
+                    "ResultConfiguration": {
+                        "OutputLocation": "s3://bucket/q.csv"
+                    },
+                },
+            )
         )
 
 
@@ -376,14 +396,18 @@ def test_start_rejects_non_string_parameter_member(
     workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(InvalidRequestException, match="ExecutionParameters"):
-        start_query_execution(
-            executor,
-            workgroups,
-            {
-                "QueryString": "SELECT ?",
-                "ExecutionParameters": ["1", 3],
-                "ResultConfiguration": {"OutputLocation": "s3://bucket/q.csv"},
-            },
+        asyncio.run(
+            start_query_execution(
+                executor,
+                workgroups,
+                {
+                    "QueryString": "SELECT ?",
+                    "ExecutionParameters": ["1", 3],
+                    "ResultConfiguration": {
+                        "OutputLocation": "s3://bucket/q.csv"
+                    },
+                },
+            )
         )
 
 
@@ -393,7 +417,7 @@ def test_start_passes_execution_parameters(
     workgroups: WorkGroupStore,
 ) -> None:
     async def scenario() -> None:
-        output = start_query_execution(
+        output = await start_query_execution(
             executor,
             workgroups,
             {

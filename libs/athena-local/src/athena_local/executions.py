@@ -3,7 +3,8 @@
 Every started query is an execution record here, matching moto's
 ``executions`` map plus the wire transition contract Athena's
 ``QueryExecutionState`` enum declares (service-2.json): ``QUEUED → RUNNING →
-SUCCEEDED | FAILED | CANCELLED``, terminal states immutable. SUCCEEDED may
+SUCCEEDED | FAILED | CANCELLED``, terminal states immutable; a submit-time
+rejection (QE-5) may also terminal FAILED straight from QUEUED. SUCCEEDED may
 only fire after the executor persisted the result artifacts (ADR-0007, ADR-0009
 #4), so read consumers never race missing S3 objects. The runtime counters
 Athena surfaces in ``GetQueryExecution`` Statistics are copied verbatim from
@@ -34,7 +35,7 @@ CANCELLED = "CANCELLED"
 TERMINAL_STATES = frozenset({SUCCEEDED, FAILED, CANCELLED})
 
 VALID_TRANSITIONS: dict[str, frozenset[str]] = {
-    QUEUED: frozenset({RUNNING, CANCELLED}),
+    QUEUED: frozenset({RUNNING, CANCELLED, FAILED}),
     RUNNING: frozenset({SUCCEEDED, FAILED, CANCELLED}),
     SUCCEEDED: frozenset(),
     FAILED: frozenset(),

@@ -132,7 +132,7 @@ Steps:
      CANCELLED via DELETE incl. QUEUED/RUNNING windows, exact 400
      `Query has not yet finished. Current state: <state>`). 29 new unit tests;
      import-linter boundary contract added; all §8.4 gates green.
-3. QE-3 ops (`Start/Stop/Get/BatchGet/GetResults/GetRuntimeStatistics`),
+3. [x] QE-3 ops (`Start/Stop/Get/BatchGet/GetResults/GetRuntimeStatistics`),
    QE-4 statement classification, QE-5 error mapping.
    - Verified 2026-09-21 (QE-3/4): the six QE-3 ops bound to the dispatch
      registry on commit `2726ece`; `StatementType`/`SubstatementType`
@@ -140,6 +140,15 @@ Steps:
      (`service-2.json:4689-4696`), free-form `SubstatementType`
      (`:3922-3925`), CTAS→DDL + UNLOAD→DML honoring wrangler
      `_read.py:912-934`; 443 unit tests, 99% cov, all §8.4 gates green.
+   - Verified 2026-09-21 (QE-5): `start` runs a bounded preflight (submit +
+     one nextUri fetch) so syntax errors reject StartQueryExecution before
+     any execution exists with the shaped 400 `Exception parsing query:
+     <trino message>` (`error_mapping.py`); analysis/transport outcomes
+     forward into the poll task (no re-submit) and FAIL the execution with
+     Trino's StateChangeReason verbatim; `Trino unreachable` preserves the
+     QE-2 FAILED contract. Unit + one live-stack integration test (boto3 →
+     uvicorn → real Trino: bad-SELECT 400 + dup-column CTAS FAILED reason);
+     451 tests, 99% cov, all §8.4 gates green.
    - Regression anchor: wrangler's bad-SQL expectations
      (`awswrangler/athena/_utils.py:888-898`).
 4. AR-1..4 artifact writers + OutputLocation semantics + inline pagination.

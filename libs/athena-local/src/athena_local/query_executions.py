@@ -4,8 +4,10 @@ Each handler parses its request payload, delegates lifecycle semantics to
 ``QueryExecutor`` (ADR-0009) and reads to ``ExecutionStore``, and returns the
 operation's output object. Registration is explicit (composition root:
 ``main.py``) so handlers stay injectable and tests bind their own stores.
-``StopQueryExecution`` is a coroutine handler: ``dispatch`` awaits it so it can
-drive the Trino DELETE through the async executor. Inline ``GetQueryResults``
+``StartQueryExecution`` and ``StopQueryExecution`` are coroutine handlers:
+``dispatch`` awaits them so start can run the executor's Trino preflight
+(QE-5) and stop can drive the Trino DELETE through the async executor.
+Inline ``GetQueryResults``
 answers from the page the executor stashed before the terminal transition
 (ADR-0007, ADR-0009 #4); pagination, ``MaxResults``, and cell-type
 serialization are owned by the artifact slices (AR-3/AR-4).
@@ -153,12 +155,18 @@ def _effective_result_configuration(
     )
 
 
-def start_query_execution(
+async def start_query_execution(
     executor: QueryExecutor,
     workgroup_store: WorkGroupStore,
     payload: dict[str, object] | None,
 ) -> dict[str, object]:
-    """Run StartQueryExecution: create a QUEUED execution and return its ID."""
+    """Run StartQueryExecution: validate, create a QUEUED execution, return its ID.
+
+    The executor's preflight (ADR-0009 #2) is awaited here, so a syntactically
+    invalid query answers the exact Athena 400 before any execution exists
+    (error_mapping, QE-5) and the ID is otherwise returned without waiting
+    for the query to complete.
+    """
     workgroup = (
         _optional_string(payload, "WorkGroup")
         if isinstance(payload, dict)
@@ -167,7 +175,7 @@ def start_query_execution(
     workgroup_record = workgroup_store.get(workgroup)
     database, catalog = _query_execution_context(payload)
     query = _required_string(payload, "QueryString")
-    record = executor.start(
+    record = await executor.start(
         query=query,
         workgroup=workgroup,
         database=database,
