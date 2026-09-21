@@ -16,6 +16,7 @@ import pytest
 from athena_local.artifacts import ArtifactWriter
 from athena_local.common_schemas import ResultConfiguration
 from athena_local.executions import ExecutionStore, QueryExecutionRecord
+from athena_local.output_targets import OutputSnapshot
 from athena_local.s3_writer import S3Writer
 from athena_local.trino_client import TrinoPage
 from pytest_bdd import given, parsers, scenarios, then, when
@@ -43,6 +44,7 @@ class ArtifactOutcome:
     columns: list[tuple[str, str]] = field(default_factory=list)
     rows: list[list[object]] = field(default_factory=list)
     record: QueryExecutionRecord | None = None
+    appended_paths: list[str] = field(default_factory=list)
 
     def persist(self) -> None:
         assert self.record is not None
@@ -103,6 +105,57 @@ def _ctas_wrote(outcome: ArtifactOutcome, count: int, location: str) -> None:
     )
 
 
+@given(
+    parsers.parse(
+        'an INSERT appended "{new_file}" to a table at "{location}" '
+        'already holding "{old_file}"'
+    )
+)
+def _insert_appended(
+    outcome: ArtifactOutcome, new_file: str, location: str, old_file: str
+) -> None:
+    outcome.appended_paths = [new_file]
+    outcome.store.objects = {
+        _object_key(path): b"parquet-bytes" for path in (new_file, old_file)
+    }
+    outcome.record = _build_record(
+        outcome,
+        query="INSERT INTO analytics.events SELECT 1",
+        statement_type="DML",
+        substatement_type="INSERT",
+        output_snapshot=OutputSnapshot(
+            location=location, before_paths=frozenset({old_file})
+        ),
+    )
+
+
+@given(
+    parsers.parse(
+        'an UNLOAD wrote "{new_file}" into "{location}" '
+        'already holding "{old_file}"'
+    )
+)
+def _unload_wrote(
+    outcome: ArtifactOutcome, new_file: str, location: str, old_file: str
+) -> None:
+    outcome.appended_paths = [new_file]
+    outcome.store.objects = {
+        _object_key(path): b"parquet-bytes" for path in (new_file, old_file)
+    }
+    outcome.record = _build_record(
+        outcome,
+        query=(
+            "UNLOAD (SELECT * FROM analytics.events) "
+            f"TO '{location}' WITH (format = 'PARQUET')"
+        ),
+        statement_type="DML",
+        substatement_type="UNLOAD",
+        output_snapshot=OutputSnapshot(
+            location=location, before_paths=frozenset({old_file})
+        ),
+    )
+
+
 @when("the artifact writer persists the execution")
 def _persist(outcome: ArtifactOutcome) -> None:
     outcome.persist()
@@ -159,12 +212,30 @@ def _manifest_location(outcome: ArtifactOutcome) -> None:
     )
 
 
+@then("the manifest lists the appended file only")
+def _manifest_appended_only(outcome: ArtifactOutcome) -> None:
+    assert outcome.record is not None
+    body = outcome.store.bytes_of(
+        f"{outcome.result_location}"
+        f"{outcome.record.query_execution_id}-manifest.csv"
+    )
+    paths = [line for line in body.decode("utf-8").split("\n") if line]
+    assert paths == sorted(outcome.appended_paths)
+
+
+def _object_key(s3_uri: str) -> tuple[str, str]:
+    assert s3_uri.startswith("s3://"), f"not an s3 URI: {s3_uri}"
+    bucket, _, key = s3_uri[len("s3://") :].partition("/")
+    return bucket, key
+
+
 def _build_record(
     outcome: ArtifactOutcome,
     *,
     query: str,
     statement_type: str,
     substatement_type: str,
+    output_snapshot: OutputSnapshot | None = None,
 ) -> QueryExecutionRecord:
     record = ExecutionStore().create(
         query=query,
@@ -174,6 +245,7 @@ def _build_record(
         ),
         statement_type=statement_type,
         substatement_type=substatement_type,
+        output_snapshot=output_snapshot,
     )
     record.cache_result_page(outcome.columns, outcome.rows)
     return record

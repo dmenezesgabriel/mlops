@@ -177,6 +177,29 @@ def test_get_table_returns_record() -> None:
     assert table.table_type == "EXTERNAL_TABLE"
 
 
+def test_get_table_maps_storage_descriptor_location() -> None:
+    table = {
+        "Name": "events",
+        "StorageDescriptor": {
+            "Columns": [{"Name": "id", "Type": "int"}],
+            "Location": "s3://data-bucket/events/",
+        },
+    }
+    proxy = GlueProxy(FakeGlueClient(tables={"analytics": [table]}))
+
+    metadata = proxy.get_table("analytics", "events")
+
+    assert metadata.location == "s3://data-bucket/events/"
+
+
+def test_get_table_without_location_reports_none() -> None:
+    proxy = GlueProxy(FakeGlueClient(tables={"geo": [SAMPLE_TABLE]}))
+
+    metadata = proxy.get_table("geo", "counties")
+
+    assert metadata.location is None
+
+
 def test_get_table_missing_raises_metadata_exception() -> None:
     proxy = GlueProxy(FakeGlueClient())
 

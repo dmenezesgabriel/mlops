@@ -98,6 +98,7 @@ consumers pass unmodified:
 | `executor.py` | async query lifecycle; Trino client; cancellation (ADR-0009) |
 | `trino_client.py` | thin wrapper over `POST /v1/statement`, `GET nextUri`, `DELETE` (thin interface owned by the project — per `AGENTS.md` deps rule) |
 | `artifacts.py` | `.csv` / `.txt` / `-manifest.csv` + `.metadata` writers; `DataManifestLocation` (ADR-0007, ADR-0010) |
+| `output_targets.py` | INSERT/UNLOAD write-target resolution (Glue `StorageDescriptor.Location`, SQL `TO`) + pre-submit object snapshot; feeds the manifest diff (ADR-0007) |
 | `s3_writer.py` | project-owned interface over the boto3 S3 client; put/list against moto S3 (ADR-0008) |
 | `glue_proxy.py` | boto3 client proxying catalog reads to moto Glue (ADR-0005) |
 | `config.py` | dataclass: port, moto_endpoint, trino_endpoint, region, credentials, permissive interval |
@@ -129,6 +130,16 @@ Deployment artifacts (docker/): `Dockerfile` (emulator image), `trino/`
 `{QueryID}-manifest.csv` (one `s3://` path/line) and reports
 `Statistics.DataManifestLocation`
 (`_read.py:62-81,135-206`).
+
+**INSERT/UNLOAD flow**: the write target already holds files from earlier
+writes, so listing it at completion would over-state the manifest. Before
+submitting the statement, the emulator resolves the target (Glue
+`StorageDescriptor.Location` for INSERT, the SQL `TO` location for UNLOAD)
+and snapshots its objects; at completion the `{QueryID}-manifest.csv` lists
+only the objects that appeared since, so it names exactly the files the query
+wrote (`_read.py:135-206`). An unresolvable target FAILs the execution at
+artifact write, after Trino's own analysis error has had its chance to
+surface.
 
 **Cancellation**: `StopQueryExecution` → emulator issues `DELETE` on the
 Trino statement and records `CANCELLED` (ADR-0009).

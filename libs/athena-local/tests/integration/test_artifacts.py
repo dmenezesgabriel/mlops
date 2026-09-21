@@ -28,6 +28,8 @@ import pytest
 from athena_local.artifacts import ArtifactWriter
 from athena_local.common_schemas import ResultConfiguration
 from athena_local.executions import ExecutionStore, QueryExecutionRecord
+from athena_local.glue_proxy import GlueProxy
+from athena_local.output_targets import OutputSnapshotter
 from athena_local.s3_writer import S3Writer
 from athena_local.trino_client import TrinoPage
 from botocore.client import BaseClient
@@ -224,3 +226,74 @@ def test_ctas_manifest_lists_the_created_files(
     assert stack.object_bytes(
         stack.results_bucket, f"analytics/{query_id}.metadata"
     )
+
+
+def test_insert_manifest_lists_only_the_appended_files(
+    artifact_stack: ArtifactStack, live_moto_server: LiveMotoServer
+) -> None:
+    """INSERT enumeration resolves the Glue location live and diffs at write."""
+    stack = artifact_stack
+    glue = boto3.client(
+        "glue",
+        endpoint_url=live_moto_server.url,
+        region_name="us-east-1",
+        aws_access_key_id="test",
+        aws_secret_access_key="test",
+    )
+    database_name = f"analytics_{uuid.uuid4().hex}"
+    data_bucket = f"athena-data-{uuid.uuid4().hex}"
+    stack.s3.create_bucket(Bucket=data_bucket)
+    table_location = f"s3://{data_bucket}/events/"
+    glue.create_database(DatabaseInput={"Name": database_name})
+    glue.create_table(
+        DatabaseName=database_name,
+        TableInput={
+            "Name": "events",
+            "TableType": "EXTERNAL_TABLE",
+            "StorageDescriptor": {
+                "Columns": [{"Name": "id", "Type": "int"}],
+                "Location": table_location,
+            },
+        },
+    )
+    for key in ("events/old-0000.parquet", "events/old-0001.parquet"):
+        stack.s3.put_object(Bucket=data_bucket, Key=key, Body=b"old")
+    snapshotter = OutputSnapshotter(
+        GlueProxy.for_endpoint(live_moto_server.url),
+        S3Writer.for_endpoint(live_moto_server.url),
+    )
+    snapshot = asyncio.run(
+        snapshotter.capture(
+            query=f"INSERT INTO {database_name}.events SELECT 1",
+            database=database_name,
+            catalog=None,
+            substatement_type="INSERT",
+        )
+    )
+    assert snapshot is not None
+    assert snapshot.location == f"{table_location.rstrip('/')}/"
+    assert sorted(snapshot.before_paths) == [
+        f"{table_location}old-0000.parquet",
+        f"{table_location}old-0001.parquet",
+    ]
+    # The INSERT's own write lands between capture and completion, exactly the
+    # window the snapshot exists to isolate.
+    stack.s3.put_object(
+        Bucket=data_bucket, Key="events/part-00000-a.parquet", Body=b"new"
+    )
+    record = make_record(
+        query=f"INSERT INTO {database_name}.events SELECT 1",
+        statement_type="DML",
+        substatement_type="INSERT",
+        output_location=f"s3://{stack.results_bucket}/analytics/",
+    )
+    record.output_snapshot = snapshot
+
+    asyncio.run(stack.writer.write(record, PLACEHOLDER_PAGE))
+
+    body = stack.object_bytes(
+        stack.results_bucket,
+        f"analytics/{record.query_execution_id}-manifest.csv",
+    )
+    paths = [line for line in body.decode("utf-8").split("\n") if line]
+    assert paths == [f"{table_location}part-00000-a.parquet"]

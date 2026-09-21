@@ -14,7 +14,10 @@ parameter.
 
 The ``external_location`` of a CTAS is read from the (comment-stripped) SQL
 because the emulator's Trino writes the parquet files there and GetQueryResults
-does not know the output paths; the manifest lists exactly those files.
+does not know the output paths; the manifest lists exactly those files. INSERT
+and UNLOAD carry a pre-submit ``OutputSnapshot`` instead: their targets
+already hold files from earlier writes, so the manifest re-lists the target
+and emits only the keys that appeared since.
 """
 
 from __future__ import annotations
@@ -119,6 +122,35 @@ class ArtifactWriter:
     def _write_manifest(
         self, execution: QueryExecutionRecord, plan: ArtifactPlan
     ) -> None:
+        location = _output_prefix(execution)
+        manifest_path = location + plan.data_name(execution.query_execution_id)
+        self._s3.put_object(
+            manifest_path, _manifest_bytes(self._manifest_paths(execution))
+        )
+        execution.data_manifest_location = manifest_path
+        self._s3.put_object(
+            location + plan.metadata_name(execution.query_execution_id),
+            _metadata_bytes(execution.result_columns, execution.result_rows),
+        )
+
+    def _manifest_paths(self, execution: QueryExecutionRecord) -> list[str]:
+        """The exact files a query wrote, for the manifest.
+
+        INSERT/UNLOAD carry a pre-submit snapshot: re-listing the target and
+        subtracting it yields precisely this query's files. CTAS keeps the
+        external_location listing path, and a record with an unresolvable
+        target fails the write so the execution ends FAILED — consumers never
+        see SUCCEEDED with unusable data files (ADR-0009 #4).
+        """
+        snapshot = execution.output_snapshot
+        if snapshot is not None:
+            current = set(self._s3.list_object_paths(snapshot.location))
+            return sorted(current - snapshot.before_paths)
+        if execution.manifest_target_error is not None:
+            raise ArtifactWriteError(
+                f"Execution {execution.query_execution_id} cannot write a "
+                f"data manifest: {execution.manifest_target_error}"
+            )
         target = _external_location(execution.query)
         if target is None:
             raise ArtifactWriteError(
@@ -126,15 +158,7 @@ class ArtifactWriter:
                 "external_location property to enumerate; cannot write a "
                 "data manifest"
             )
-        location = _output_prefix(execution)
-        paths = sorted(self._s3.list_object_paths(target))
-        manifest_path = location + plan.data_name(execution.query_execution_id)
-        self._s3.put_object(manifest_path, _manifest_bytes(paths))
-        execution.data_manifest_location = manifest_path
-        self._s3.put_object(
-            location + plan.metadata_name(execution.query_execution_id),
-            _metadata_bytes(execution.result_columns, execution.result_rows),
-        )
+        return sorted(self._s3.list_object_paths(target))
 
 
 def _output_prefix(execution: QueryExecutionRecord) -> str:

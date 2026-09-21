@@ -157,10 +157,17 @@ Steps:
      → `.metadata` via `.replace` at `awswrangler/athena/_read.py:153`).
    - Verified 2026-09-21 (AR-1): `artifacts.py` + `s3_writer.py` write the
      three artifact shapes via boto3→moto S3; CTAS manifest enumerates the
-     SQL `external_location` (INSERT/UNLOAD deferred to AR-1a); 473 tests
-     (17 new unit + 3 live-moto integration + 2 BDD), incl. a pandas re-read
-     of the csv with `_fetch_csv_result`'s exact args (dtypes round-trip);
-     all §8.4 gates green.
+     SQL `external_location`; 473 tests (17 new unit + 3 live-moto integration
+     + 2 BDD), incl. a pandas re-read of the csv with `_fetch_csv_result`'s
+     exact args (dtypes round-trip); all §8.4 gates green.
+   - Verified 2026-09-21 (AR-1a): INSERT/UNLOAD manifests list only the files
+     the query wrote. `output_targets.py` resolves the write target (Glue
+     `StorageDescriptor.Location` for INSERT, the `TO` location for UNLOAD)
+     and snapshots its objects before the Trino submit; `artifacts.py` emits
+     the completion-time after-minus-before diff. Unresolvable targets leave
+     a reason that FAILs the write, so Trino's analysis error surfaces first.
+     509 tests (33 new unit + 1 live-moto integration + 2 BDD), all §8.4
+     gates green.
 5. Integration: docker stack, `SELECT` via wrangler end-to-end (M0 config).
 
 Exit: wrangler `read_sql_query` (api + csv + cache), `to_parquet` CTAS,

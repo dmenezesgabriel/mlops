@@ -21,6 +21,7 @@ from athena_local.artifacts import ArtifactWriter, artifact_plan
 from athena_local.common_schemas import ResultConfiguration
 from athena_local.executions import ExecutionStore, QueryExecutionRecord
 from athena_local.executor import ArtifactWriteError
+from athena_local.output_targets import OutputSnapshot
 from athena_local.s3_writer import S3Writer
 from athena_local.trino_client import TrinoPage
 from botocore.exceptions import EndpointConnectionError
@@ -52,6 +53,8 @@ def make_record(
     columns: list[tuple[str, str]] | None = None,
     rows: list[list[object]] | None = None,
     output_location: str = RESULT_LOCATION,
+    output_snapshot: OutputSnapshot | None = None,
+    manifest_target_error: str | None = None,
 ) -> QueryExecutionRecord:
     record = store.create(
         query=query,
@@ -62,6 +65,8 @@ def make_record(
         ),
         statement_type=statement_type,
         substatement_type=substatement_type,
+        output_snapshot=output_snapshot,
+        manifest_target_error=manifest_target_error,
     )
     record.cache_result_page(
         columns if columns is not None else [],
@@ -212,6 +217,90 @@ def test_ctas_without_external_location_fails_with_write_error() -> None:
         run(writer, record)
 
     assert "external_location" in str(exc_info.value)
+
+
+def test_insert_manifest_lists_only_the_appended_files() -> None:
+    store = RecordingObjectStore()
+    store.objects = {
+        ("data-bucket", "events/old-0.parquet"): b"old",
+        ("data-bucket", "events/part-00000-a.parquet"): b"new",
+        ("data-bucket", "events/part-00001-b.parquet"): b"new2",
+    }
+    record = make_record(
+        ExecutionStore(),
+        query="INSERT INTO analytics.events SELECT 1",
+        statement_type="DML",
+        substatement_type="INSERT",
+        output_snapshot=OutputSnapshot(
+            location="s3://data-bucket/events/",
+            before_paths=frozenset({"s3://data-bucket/events/old-0.parquet"}),
+        ),
+    )
+    writer = ArtifactWriter(S3Writer(store))
+
+    run(writer, record)
+
+    manifest_path = (
+        f"{RESULT_LOCATION}{record.query_execution_id}-manifest.csv"
+    )
+    assert store.bytes_of(manifest_path) == (
+        b"s3://data-bucket/events/part-00000-a.parquet\n"
+        b"s3://data-bucket/events/part-00001-b.parquet\n"
+    )
+    assert record.data_manifest_location == manifest_path
+
+
+def test_unload_manifest_lists_only_the_appended_files() -> None:
+    store = RecordingObjectStore()
+    store.objects = {
+        ("unload-bucket", "out/part-00000-a.parquet"): b"new",
+        ("unload-bucket", "out/part-00001-b.parquet"): b"new2",
+        ("unload-bucket", "out/old-0.parquet"): b"old",
+    }
+    record = make_record(
+        ExecutionStore(),
+        query=(
+            "UNLOAD (SELECT * FROM analytics.t) "
+            "TO 's3://unload-bucket/out/' WITH (format = 'PARQUET')"
+        ),
+        statement_type="DML",
+        substatement_type="UNLOAD",
+        output_snapshot=OutputSnapshot(
+            location="s3://unload-bucket/out/",
+            before_paths=frozenset({"s3://unload-bucket/out/old-0.parquet"}),
+        ),
+    )
+    writer = ArtifactWriter(S3Writer(store))
+
+    run(writer, record)
+
+    manifest_path = (
+        f"{RESULT_LOCATION}{record.query_execution_id}-manifest.csv"
+    )
+    assert store.bytes_of(manifest_path) == (
+        b"s3://unload-bucket/out/part-00000-a.parquet\n"
+        b"s3://unload-bucket/out/part-00001-b.parquet\n"
+    )
+
+
+def test_manifest_target_error_fails_the_write() -> None:
+    store = RecordingObjectStore()
+    record = make_record(
+        ExecutionStore(),
+        query="INSERT INTO analytics.missing SELECT 1",
+        statement_type="DML",
+        substatement_type="INSERT",
+        manifest_target_error=(
+            "INSERT target table analytics.missing does not exist in the "
+            "catalogue"
+        ),
+    )
+    writer = ArtifactWriter(S3Writer(store))
+
+    with pytest.raises(ArtifactWriteError) as exc_info:
+        run(writer, record)
+
+    assert "analytics.missing" in str(exc_info.value)
 
 
 def test_missing_output_location_fails_with_write_error() -> None:

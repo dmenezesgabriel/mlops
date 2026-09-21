@@ -33,6 +33,10 @@ from athena_local.executions import (
     ExecutionStore,
     QueryExecutionRecord,
 )
+from athena_local.output_targets import (
+    ManifestTargetError,
+    OutputSnapshot,
+)
 from athena_local.statement_classification import StatementClassification
 from athena_local.trino_client import TrinoPage, TrinoTransportError
 
@@ -72,6 +76,24 @@ class ResultArtifactWriter(Protocol):
     ) -> None: ...
 
 
+class ManifestSnapshotSource(Protocol):
+    """Resolves and snapshots an INSERT/UNLOAD write target before submit.
+
+    Implemented by ``output_targets.OutputSnapshotter`` (GlueProxy + S3Writer
+    boundaries); the executor only records the outcome. Returns None for
+    statements whose artifacts need no manifest enumeration — CTAS keeps its
+    fresh external_location path.
+    """
+
+    async def capture(
+        self,
+        _query: str,
+        _database: str | None,
+        _catalog: str | None,
+        _substatement_type: str | None,
+    ) -> OutputSnapshot | None: ...
+
+
 class ArtifactWriteError(Exception):
     """Result artifacts could not be persisted; the execution stays failed."""
 
@@ -99,12 +121,14 @@ class QueryExecutor:
         writer: ResultArtifactWriter,
         max_concurrent_queries: int = DEFAULT_MAX_CONCURRENT_QUERIES,
         trino_user: str = TRINO_USER,
+        snapshotter: ManifestSnapshotSource | None = None,
     ) -> None:
         self._store = store
         self._client = client
         self._writer = writer
         self._semaphore = asyncio.Semaphore(max_concurrent_queries)
         self._trino_user = trino_user
+        self._snapshotter = snapshotter
         self._tasks: dict[str, asyncio.Task[None]] = {}
 
     async def start(
@@ -127,6 +151,9 @@ class QueryExecutor:
         real Athena reports StatementType/SubstatementType even for failed
         executions. Requires a running asyncio loop (FastAPI serves on one).
         """
+        snapshot, capture_error = await self._capture_manifest(
+            query, database, catalog, statement_classification
+        )
         verdict = await self._preflight(query, database)
         record = self._store.create(
             query=query,
@@ -145,6 +172,8 @@ class QueryExecutor:
                 if statement_classification is not None
                 else None
             ),
+            output_snapshot=snapshot,
+            manifest_target_error=capture_error,
         )
         if verdict.failure_reason is not None:
             record.transition_to(FAILED, verdict.failure_reason)
@@ -158,6 +187,43 @@ class QueryExecutor:
             lambda _: self._tasks.pop(record.query_execution_id, None)
         )
         return record
+
+    async def _capture_manifest(
+        self,
+        query: str,
+        database: str | None,
+        catalog: str | None,
+        classification: StatementClassification | None,
+    ) -> tuple[OutputSnapshot | None, str | None]:
+        """Snapshot INSERT/UNLOAD write targets before the statement is submitted.
+
+        Trino starts writing as soon as the statement is submitted, so the
+        before-list must land here, ahead of ``_preflight``; listing at
+        completion would count this query's own files as pre-existing.
+        An unresolvable target leaves a reason for the artifact writer
+        instead of failing submit, so Trino's own analysis error surfaces
+        first when the target truly does not exist.
+        """
+        substatement_type = (
+            classification.substatement_type
+            if classification is not None
+            else None
+        )
+        if substatement_type not in {"INSERT", "UNLOAD"}:
+            return None, None
+        if self._snapshotter is None:
+            return (
+                None,
+                f"no manifest snapshotter configured for {substatement_type} "
+                "statements",
+            )
+        try:
+            snapshot = await self._snapshotter.capture(
+                query, database, catalog, substatement_type
+            )
+        except ManifestTargetError as error:
+            return None, str(error)
+        return snapshot, None
 
     async def _preflight(
         self, query: str, database: str | None

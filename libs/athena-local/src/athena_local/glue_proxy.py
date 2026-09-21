@@ -94,7 +94,12 @@ class GlueDatabase:
 
 @dataclass(frozen=True)
 class GlueTableMetadata:
-    """A Glue table translated to the Athena ``TableMetadata`` wire shape."""
+    """A Glue table translated to the Athena ``TableMetadata`` wire shape.
+
+    ``location`` is the internal S3 prefix where the table's data lives —
+    it never appears on the Athena wire shape, but INSERT manifest enumeration
+    resolves it from ``StorageDescriptor.Location``.
+    """
 
     name: str
     create_time: float | None = None
@@ -103,6 +108,7 @@ class GlueTableMetadata:
     columns: list[GlueColumn] | None = None
     partition_keys: list[GlueColumn] | None = None
     parameters: dict[str, str] | None = None
+    location: str | None = None
 
     def to_payload(self) -> dict[str, object]:
         payload: dict[str, object] = {"Name": self.name}
@@ -270,7 +276,15 @@ def _table_metadata_from_glue(record: dict[str, object]) -> GlueTableMetadata:
         columns=columns,
         partition_keys=_columns(record, "PartitionKeys"),
         parameters=_string_map(record, "Parameters"),
+        location=_storage_location(record),
     )
+
+
+def _storage_location(record: dict[str, object]) -> str | None:
+    storage = record.get("StorageDescriptor")
+    if not isinstance(storage, dict):
+        return None
+    return _string(storage, "Location")
 
 
 def _string(record: dict[str, object], key: str) -> str | None:

@@ -25,6 +25,7 @@ from athena_local.common_schemas import (
     result_configuration_payload,
 )
 from athena_local.errors import InvalidRequestException
+from athena_local.output_targets import OutputSnapshot
 
 QUEUED = "QUEUED"
 RUNNING = "RUNNING"
@@ -63,6 +64,11 @@ class QueryExecutionRecord:
     data_manifest_location: str | None = None
     statement_type: str | None = None
     substatement_type: str | None = None
+    # INSERT/UNLOAD manifest enumeration: the write target captured
+    # before the statement was submitted, plus any reason it could not be
+    # resolved. Sticky and internal — never serialized to the wire.
+    output_snapshot: OutputSnapshot | None = None
+    manifest_target_error: str | None = None
     # The final Trino page the executor stashed before the terminal transition
     # (ADR-0009 #4): GetQueryResults serves rows from here without re-reading
     # S3, matching Athena's inline results endpoint (ADR-0007).
@@ -180,6 +186,8 @@ class ExecutionStore:
         execution_parameters: list[str] | None = None,
         statement_type: str | None = None,
         substatement_type: str | None = None,
+        output_snapshot: OutputSnapshot | None = None,
+        manifest_target_error: str | None = None,
     ) -> QueryExecutionRecord:
         execution_id = str(uuid.uuid4())
         record = QueryExecutionRecord(
@@ -192,6 +200,8 @@ class ExecutionStore:
             execution_parameters=execution_parameters,
             statement_type=statement_type,
             substatement_type=substatement_type,
+            output_snapshot=output_snapshot,
+            manifest_target_error=manifest_target_error,
         )
         self.by_id[execution_id] = record
         return record

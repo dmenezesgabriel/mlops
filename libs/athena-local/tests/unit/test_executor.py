@@ -29,6 +29,7 @@ from athena_local.executor import (
     ArtifactWriteError,
     QueryExecutor,
 )
+from athena_local.output_targets import ManifestTargetError, OutputSnapshot
 from athena_local.statement_classification import StatementClassification
 from athena_local.trino_client import (
     TrinoColumn,
@@ -179,6 +180,42 @@ class FailingWriter:
         self, execution: QueryExecutionRecord, final_page: TrinoPage
     ) -> None:
         raise ArtifactWriteError("moto S3 refused put_object")
+
+
+class RecordingSnapshotter:
+    """ManifestSnapshotSource fake recording captures.
+
+    Pass its ``capture_client`` the scripted statement client: capture must
+    run before the statement is submitted, so the fake asserts no
+    submission has happened yet and records the call.
+    """
+
+    def __init__(
+        self,
+        snapshot: OutputSnapshot | None = None,
+        outcome: OutputSnapshot | Exception | None = None,
+        capture_client: ScriptedStatementClient | None = None,
+    ) -> None:
+        self._snapshot = snapshot
+        self._outcome = outcome
+        self._capture_client = capture_client
+        self.calls: list[tuple[str, str | None]] = []
+
+    async def capture(
+        self,
+        query: str,
+        database: str | None,
+        catalog: str | None,
+        substatement_type: str | None,
+    ) -> OutputSnapshot | None:
+        self.calls.append((query, substatement_type))
+        if self._capture_client is not None:
+            assert self._capture_client.submissions == [], (
+                "capture ran after the statement was submitted"
+            )
+        if isinstance(self._outcome, Exception):
+            raise self._outcome
+        return self._snapshot if self._outcome is None else self._outcome
 
 
 @pytest.fixture()
@@ -680,3 +717,141 @@ def test_ensure_query_finished_unknown_execution_raises(
         executor.ensure_query_finished("no-such-execution")
 
     assert "no-such-execution" in str(error.value)
+
+
+def test_insert_start_captures_snapshot_before_submit(
+    store: ExecutionStore,
+) -> None:
+    snapshot = OutputSnapshot(
+        location="s3://data-bucket/events/",
+        before_paths=frozenset({"s3://data-bucket/events/old-0.parquet"}),
+    )
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient([result_page(next_uri=None)])
+        snapshotter = RecordingSnapshotter(
+            snapshot=snapshot, capture_client=client
+        )
+        executor = QueryExecutor(
+            store=store,
+            client=client,
+            writer=RecordingWriter(),
+            snapshotter=snapshotter,
+        )
+        classification = StatementClassification("DML", "INSERT")
+        record = await executor.start(
+            query="INSERT INTO analytics.events SELECT 1",
+            workgroup="primary",
+            database="analytics",
+            statement_classification=classification,
+        )
+        await executor._tasks[record.query_execution_id]
+
+        # The recording fake itself asserts capture ran pre-submit; the record
+        # carries the snapshot so the artifact writer can diff at completion.
+        assert snapshotter.calls == [
+            ("INSERT INTO analytics.events SELECT 1", "INSERT")
+        ]
+        assert record.output_snapshot == snapshot
+        assert record.manifest_target_error is None
+        assert record.state == SUCCEEDED
+
+    asyncio.run(scenario())
+
+
+def test_insert_unresolvable_target_marks_the_record(
+    store: ExecutionStore,
+) -> None:
+    error = ManifestTargetError(
+        "INSERT target table analytics.missing does not exist in the catalogue"
+    )
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient([result_page(next_uri=None)])
+        snapshotter = RecordingSnapshotter(outcome=error)
+        executor = QueryExecutor(
+            store=store,
+            client=client,
+            writer=RecordingWriter(),
+            snapshotter=snapshotter,
+        )
+        classification = StatementClassification("DML", "INSERT")
+        record = await executor.start(
+            query="INSERT INTO analytics.missing SELECT 1",
+            workgroup="primary",
+            statement_classification=classification,
+        )
+        await executor._tasks[record.query_execution_id]
+
+        # Capture leaves a reason instead of failing submit, so Trino's own
+        # analysis error surfaces first when the target truly is missing.
+        assert record.output_snapshot is None
+        assert record.manifest_target_error == str(error)
+
+    asyncio.run(scenario())
+
+
+def test_non_insert_statements_skip_the_snapshotter(
+    store: ExecutionStore,
+) -> None:
+    async def scenario() -> None:
+        client = ScriptedStatementClient(
+            [result_page(next_uri=None), result_page(next_uri=None)]
+        )
+        snapshotter = RecordingSnapshotter(
+            snapshot=OutputSnapshot(
+                location="s3://ctas-bucket/t1/",
+                before_paths=frozenset(),
+            )
+        )
+        executor = QueryExecutor(
+            store=store,
+            client=client,
+            writer=RecordingWriter(),
+            snapshotter=snapshotter,
+        )
+        select_record = await executor.start(
+            query="SELECT 1",
+            workgroup="primary",
+            statement_classification=StatementClassification("DML", "SELECT"),
+        )
+        await executor._tasks[select_record.query_execution_id]
+        ctas_record = await executor.start(
+            query="CREATE TABLE t AS SELECT 1 AS a",
+            workgroup="primary",
+            statement_classification=StatementClassification(
+                "DDL", "CREATE_TABLE_AS_SELECT"
+            ),
+        )
+        await executor._tasks[ctas_record.query_execution_id]
+
+        assert snapshotter.calls == []
+        assert select_record.output_snapshot is None
+        assert ctas_record.output_snapshot is None
+        assert select_record.manifest_target_error is None
+
+    asyncio.run(scenario())
+
+
+def test_insert_without_snapshotter_flags_the_record(
+    store: ExecutionStore,
+) -> None:
+    async def scenario() -> None:
+        client = ScriptedStatementClient([result_page(next_uri=None)])
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        classification = StatementClassification("DML", "INSERT")
+        record = await executor.start(
+            query="INSERT INTO analytics.events SELECT 1",
+            workgroup="primary",
+            statement_classification=classification,
+        )
+        await executor._tasks[record.query_execution_id]
+
+        assert record.output_snapshot is None
+        assert record.manifest_target_error == (
+            "no manifest snapshotter configured for INSERT statements"
+        )
+
+    asyncio.run(scenario())
