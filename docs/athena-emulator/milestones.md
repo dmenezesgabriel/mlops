@@ -208,6 +208,22 @@ Steps:
      without `OutputLocation`) → CS-2b (awswrangler consumer suite: api/csv/
      cache/prepared/bad-SQL/to_parquet against the running moto container via
      bridge IP). The step closes when CS-2b is green.
+    - Verified 2026-09-22 (QE-7): `prepared_execution.py` parses
+      `EXECUTE <name> [USING …]`, binds each value **verbatim** as one
+      paren-wrapped SQL expression into the stored `QueryStatement` at its `?`
+      markers (scanning skips `?` inside literals/comments), and resolves the
+      workgroup-scoped store at submit (Trino's protocol has no
+      prepared-statement persistence — measured). Missing statement →
+      `PreparedStatement {name} was not found in workGroup {workgroup}`;
+      `?`-count mismatch → `Incorrect number of parameters: expected N but
+      found M`; both start FAILED (never 400) with the submitted EXECUTE text
+      as the wire `Query`, while success submits the bound statement and
+      classifies from it (EXECUTE-of-SELECT → DML/SELECT → the `.csv` naming
+      wrangler gates on). Live proof: prepared statement created via boto3,
+      `EXECUTE "st" USING 'Washington'` → SUCCEEDED with `Query` preserved,
+      DML/SELECT, inline rows + `.csv`/`.metadata` on moto S3 over
+      boto3→uvicorn→Trino; missing statement and count mismatch → FAILED.
+      584 tests, 99% coverage, all §8.4 gates green.
 
 Exit: wrangler `read_sql_query` (api + csv + cache), `to_parquet` CTAS,
 prepared statements, bad-SQL error path — all green against the docker stack.

@@ -39,7 +39,7 @@ from athena_local.query_executions import (
     start_query_execution,
     stop_query_execution,
 )
-from athena_local.state import WorkGroupStore
+from athena_local.state import PreparedStatementStore, WorkGroupStore
 from athena_local.trino_client import TrinoColumn, TrinoPage
 from athena_local.workgroup_schemas import WorkGroupConfiguration
 
@@ -108,6 +108,11 @@ def executor(store: ExecutionStore) -> QueryExecutor:
 @pytest.fixture()
 def workgroups() -> WorkGroupStore:
     return WorkGroupStore()
+
+
+@pytest.fixture()
+def prepared_statements() -> PreparedStatementStore:
+    return PreparedStatementStore()
 
 
 def test_query_operations_register_against_the_registry(
@@ -953,3 +958,125 @@ def test_runtime_statistics_unknown_execution_is_shaped_error(
 ) -> None:
     with pytest.raises(InvalidRequestException, match="does not exist"):
         get_query_runtime_statistics(store, {"QueryExecutionId": "missing"})
+
+
+def test_start_execute_resolves_and_submits_bound_statement(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+    prepared_statements: PreparedStatementStore,
+) -> None:
+    prepared_statements.create(
+        "st", "SELECT 1 WHERE origin = ?", "primary", None
+    )
+
+    async def scenario() -> None:
+        output = await start_query_execution(
+            executor,
+            workgroups,
+            {
+                "QueryString": "EXECUTE \"st\" USING 'Washington'",
+                "ResultConfiguration": {"OutputLocation": "s3://bucket/q.csv"},
+            },
+            prepared_statement_store=prepared_statements,
+        )
+
+        record = store.get(output["QueryExecutionId"])
+        await executor._tasks[record.query_execution_id]
+        # The bound copy is submitted (record.resolved_statement) while the
+        # wire Query keeps the submitted EXECUTE text (QE-7).
+        assert record.query == "EXECUTE \"st\" USING 'Washington'"
+        assert record.resolved_statement == (
+            "SELECT 1 WHERE origin = ('Washington')"
+        )
+        assert record.statement_type == "DML"
+        assert record.substatement_type == "SELECT"
+        assert record.workgroup == "primary"
+
+    asyncio.run(scenario())
+
+
+def test_start_execute_missing_statement_is_failed_execution(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+    prepared_statements: PreparedStatementStore,
+) -> None:
+    async def scenario() -> None:
+        output = await start_query_execution(
+            executor,
+            workgroups,
+            {
+                "QueryString": "EXECUTE nope",
+                "ResultConfiguration": {"OutputLocation": "s3://bucket/q.csv"},
+            },
+            prepared_statement_store=prepared_statements,
+        )
+
+        record = store.get(output["QueryExecutionId"])
+        # Real Athena fails the execution with its exact StateChangeReason;
+        # the submitted text is the wire Query and the statement classifies
+        # as UTILITY (QE-7).
+        assert record.state == FAILED
+        assert record.state_change_reason == (
+            "PreparedStatement nope was not found in workGroup primary"
+        )
+        assert record.query == "EXECUTE nope"
+        assert record.statement_type == "UTILITY"
+        assert record.resolved_statement is None
+        assert record.query_execution_id not in executor._tasks
+
+    asyncio.run(scenario())
+
+
+def test_start_execute_count_mismatch_is_failed_execution(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+    prepared_statements: PreparedStatementStore,
+) -> None:
+    prepared_statements.create("st", "SELECT ? AND ?", "primary", None)
+
+    async def scenario() -> None:
+        output = await start_query_execution(
+            executor,
+            workgroups,
+            {
+                "QueryString": "EXECUTE st",
+                "ExecutionParameters": ["1"],
+                "ResultConfiguration": {"OutputLocation": "s3://bucket/q.csv"},
+            },
+            prepared_statement_store=prepared_statements,
+        )
+
+        record = store.get(output["QueryExecutionId"])
+        assert record.state == FAILED
+        assert record.state_change_reason == (
+            "Incorrect number of parameters: expected 2 but found 1"
+        )
+
+    asyncio.run(scenario())
+
+
+def test_start_execute_without_store_resolves_as_missing(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    async def scenario() -> None:
+        output = await start_query_execution(
+            executor,
+            workgroups,
+            {
+                "QueryString": "EXECUTE st",
+                "ResultConfiguration": {"OutputLocation": "s3://bucket/q.csv"},
+            },
+        )
+
+        record = store.get(output["QueryExecutionId"])
+        assert record.state == FAILED
+        assert record.state_change_reason == (
+            "PreparedStatement st was not found in workGroup primary"
+        )
+
+    asyncio.run(scenario())

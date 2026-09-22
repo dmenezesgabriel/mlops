@@ -139,9 +139,11 @@ class ArtifactWriter:
 
         INSERT/UNLOAD carry a pre-submit snapshot: re-listing the target and
         subtracting it yields precisely this query's files. CTAS keeps the
-        external_location listing path, and a record with an unresolvable
-        target fails the write so the execution ends FAILED — consumers never
-        see SUCCEEDED with unusable data files (ADR-0009 #4).
+        external_location listing path — read from the resolved statement
+        when the wire ``Query`` is an EXECUTE (the stored SQL carries the
+        property, QE-7) — and a record with an unresolvable target fails the
+        write so the execution ends FAILED — consumers never see SUCCEEDED
+        with unusable data files (ADR-0009 #4).
         """
         snapshot = execution.output_snapshot
         if snapshot is not None:
@@ -152,7 +154,9 @@ class ArtifactWriter:
                 f"Execution {execution.query_execution_id} cannot write a "
                 f"data manifest: {execution.manifest_target_error}"
             )
-        target = _external_location(execution.query)
+        target = _external_location(
+            execution.resolved_statement or execution.query
+        )
         if target is None:
             raise ArtifactWriteError(
                 f"Execution {execution.query_execution_id} has no "

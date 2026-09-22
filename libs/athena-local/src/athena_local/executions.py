@@ -81,6 +81,11 @@ class QueryExecutionRecord:
     # The in-flight nextUri cursor the executor cancels against (ADR-0009);
     # never serialized to the wire.
     active_next_uri: str | None = None
+    # The SQL actually submitted to Trino when the wire ``Query`` is EXECUTE
+    # text (QE-7); never serialized. The artifact writer reads a CTAS
+    # external_location from here because the stored — not the submitted —
+    # statement carries it.
+    resolved_statement: str | None = None
 
     def transition_to(self, new_state: str, reason: str | None = None) -> None:
         """Move to ``new_state``; terminal states are immutable (ADR-0009)."""
@@ -222,6 +227,7 @@ class ExecutionStore:
         substatement_type: str | None = None,
         output_snapshot: OutputSnapshot | None = None,
         manifest_target_error: str | None = None,
+        resolved_statement: str | None = None,
     ) -> QueryExecutionRecord:
         execution_id = str(uuid.uuid4())
         record = QueryExecutionRecord(
@@ -236,6 +242,7 @@ class ExecutionStore:
             substatement_type=substatement_type,
             output_snapshot=output_snapshot,
             manifest_target_error=manifest_target_error,
+            resolved_statement=resolved_statement,
         )
         self.by_id[execution_id] = record
         return record

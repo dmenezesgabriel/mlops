@@ -102,7 +102,12 @@ register_tag_handlers(workgroup_store, data_catalog_store)
 
 execution_store = ExecutionStore()
 executor = build_query_executor(execution_store)
-register_query_execution_handlers(execution_store, executor, workgroup_store)
+register_query_execution_handlers(
+    execution_store,
+    executor,
+    workgroup_store,
+    prepared_statement_store,
+)
 
 
 @app.get("/health")  # noqa (route handler bound by FastAPI)
@@ -136,5 +141,8 @@ def reset_query_plane() -> None:
     """
     execution_store.reset()
     register_query_execution_handlers(
-        execution_store, executor, workgroup_store
+        execution_store,
+        executor,
+        workgroup_store,
+        prepared_statement_store,
     )

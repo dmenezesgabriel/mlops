@@ -27,8 +27,10 @@ from athena_local.executions import (
     QueryExecutionRecord,
 )
 from athena_local.executor import QueryExecutor
+from athena_local.prepared_execution import resolve_execute_statement
 from athena_local.state import (
     PRIMARY_WORKGROUP_NAME,
+    PreparedStatementStore,
     WorkGroupRecord,
     WorkGroupStore,
 )
@@ -164,13 +166,18 @@ async def start_query_execution(
     executor: QueryExecutor,
     workgroup_store: WorkGroupStore,
     payload: dict[str, object] | None,
+    prepared_statement_store: PreparedStatementStore | None = None,
 ) -> dict[str, object]:
     """Run StartQueryExecution: validate, create a QUEUED execution, return its ID.
 
     The executor's preflight (ADR-0009 #2) is awaited here, so a syntactically
     invalid query answers the exact Athena 400 before any execution exists
     (error_mapping, QE-5) and the ID is otherwise returned without waiting
-    for the query to complete.
+    for the query to complete. An ``EXECUTE`` query is resolved against the
+    workgroup's prepared statement store first (QE-7): a missing statement or
+    parameter-count mismatch starts the execution as a FAILED record instead
+    of a 400, exactly like real Athena, while a successful resolution supplies
+    both the SQL the executor submits and its classification.
     """
     workgroup = (
         _optional_string(payload, "WorkGroup")
@@ -180,6 +187,15 @@ async def start_query_execution(
     workgroup_record = workgroup_store.get(workgroup)
     database, catalog = _query_execution_context(payload)
     query = _required_string(payload, "QueryString")
+    execution_parameters = _optional_string_list(
+        payload, "ExecutionParameters"
+    )
+    resolution = resolve_execute_statement(
+        prepared_statement_store or PreparedStatementStore(),
+        workgroup,
+        query,
+        execution_parameters,
+    )
     record = await executor.start(
         query=query,
         workgroup=workgroup,
@@ -191,12 +207,25 @@ async def start_query_execution(
             ),
             workgroup_record,
         ),
-        execution_parameters=_optional_string_list(
-            payload, "ExecutionParameters"
-        ),
+        execution_parameters=execution_parameters,
         # Classified at submit, like real Athena: StatementType and
-        # SubstatementType are reported even when the query later fails.
-        statement_classification=classify_statement(query),
+        # SubstatementType are reported even when the query later fails. A
+        # resolved EXECUTE reports its bound statement's classification — an
+        # EXECUTE-of-SELECT answers DML/SELECT so the ``.csv`` artifact
+        # naming wrangler gates on applies — while a failed resolution keeps
+        # the submitted EXECUTE text's UTILITY classification.
+        statement_classification=(
+            resolution.statement_classification
+            if resolution.failure_reason is None
+            else classify_statement(query)
+        ),
+        resolved_statement=(
+            resolution.statement
+            if resolution.failure_reason is None
+            and resolution.statement != query
+            else None
+        ),
+        resolution_failure_reason=resolution.failure_reason,
     )
     return {"QueryExecutionId": record.query_execution_id}
 
@@ -410,12 +439,21 @@ def register_query_execution_handlers(
     store: ExecutionStore,
     executor: QueryExecutor,
     workgroup_store: WorkGroupStore,
+    prepared_statement_store: PreparedStatementStore | None = None,
 ) -> None:
-    """Bind the six query-plane operations (explicit wiring in ``main.py``)."""
+    """Bind the six query-plane operations (explicit wiring in ``main.py``).
+
+    ``prepared_statement_store`` feeds EXECUTE resolution in
+    ``StartQueryExecution`` (QE-7); a missing store means no statement exists
+    in any workgroup, so every EXECUTE fails resolution as not-found.
+    """
     register_handler(
         "StartQueryExecution",
         lambda payload: start_query_execution(
-            executor, workgroup_store, payload
+            executor,
+            workgroup_store,
+            payload,
+            prepared_statement_store=prepared_statement_store,
         ),
     )
     register_handler(

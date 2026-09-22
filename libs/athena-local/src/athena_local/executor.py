@@ -140,6 +140,8 @@ class QueryExecutor:
         result_configuration: ResultConfiguration | None = None,
         execution_parameters: list[str] | None = None,
         statement_classification: StatementClassification | None = None,
+        resolved_statement: str | None = None,
+        resolution_failure_reason: str | None = None,
     ) -> QueryExecutionRecord:
         """Validate against Trino, create a QUEUED execution, dispatch it.
 
@@ -149,13 +151,74 @@ class QueryExecutor:
         returns the execution ID without waiting for the query to run. The
         statement classification is captured at submit time, matching how
         real Athena reports StatementType/SubstatementType even for failed
-        executions. Requires a running asyncio loop (FastAPI serves on one).
+        executions. ``resolved_statement`` is the SQL actually submitted — a
+        submitted ``EXECUTE`` names a stored statement, but Trino's protocol
+        has no prepared-statement persistence (QE-7), so the resolver's bound
+        copy runs instead. A ``resolution_failure_reason`` (missing statement
+        or parameter-count mismatch) skips manifest capture and preflight and
+        starts the execution FAILED immediately: real Athena fails such
+        EXECUTEs, it never 400s them. Requires a running asyncio loop
+        (FastAPI serves on one).
         """
+        if resolution_failure_reason is not None:
+            record = self._create_record(
+                query=query,
+                workgroup=workgroup,
+                database=database,
+                catalog=catalog,
+                result_configuration=result_configuration,
+                execution_parameters=execution_parameters,
+                statement_classification=statement_classification,
+                resolved_statement=None,
+            )
+            record.transition_to(FAILED, resolution_failure_reason)
+            return record
+        submit_query = resolved_statement or query
         snapshot, capture_error = await self._capture_manifest(
-            query, database, catalog, statement_classification
+            submit_query, database, catalog, statement_classification
         )
-        verdict = await self._preflight(query, database)
-        record = self._store.create(
+        verdict = await self._preflight(submit_query, database)
+        record = self._create_record(
+            query=query,
+            workgroup=workgroup,
+            database=database,
+            catalog=catalog,
+            result_configuration=result_configuration,
+            execution_parameters=execution_parameters,
+            statement_classification=statement_classification,
+            resolved_statement=resolved_statement,
+            output_snapshot=snapshot,
+            manifest_target_error=capture_error,
+        )
+        if verdict.failure_reason is not None:
+            record.transition_to(FAILED, verdict.failure_reason)
+            return record
+        assert (
+            verdict.page is not None
+        )  # page is forwarded exactly when no failure
+        task = asyncio.create_task(self._execute(record, verdict.page))
+        self._tasks[record.query_execution_id] = task
+        task.add_done_callback(
+            lambda _: self._tasks.pop(record.query_execution_id, None)
+        )
+        return record
+
+    def _create_record(
+        self,
+        *,
+        query: str,
+        workgroup: str,
+        database: str | None,
+        catalog: str | None,
+        result_configuration: ResultConfiguration | None,
+        execution_parameters: list[str] | None,
+        statement_classification: StatementClassification | None,
+        resolved_statement: str | None,
+        output_snapshot: OutputSnapshot | None = None,
+        manifest_target_error: str | None = None,
+    ) -> QueryExecutionRecord:
+        """Create the execution record with the four submit-time wire fields."""
+        return self._store.create(
             query=query,
             workgroup=workgroup,
             database=database,
@@ -172,21 +235,10 @@ class QueryExecutor:
                 if statement_classification is not None
                 else None
             ),
-            output_snapshot=snapshot,
-            manifest_target_error=capture_error,
+            output_snapshot=output_snapshot,
+            manifest_target_error=manifest_target_error,
+            resolved_statement=resolved_statement,
         )
-        if verdict.failure_reason is not None:
-            record.transition_to(FAILED, verdict.failure_reason)
-            return record
-        assert (
-            verdict.page is not None
-        )  # page is forwarded exactly when no failure
-        task = asyncio.create_task(self._execute(record, verdict.page))
-        self._tasks[record.query_execution_id] = task
-        task.add_done_callback(
-            lambda _: self._tasks.pop(record.query_execution_id, None)
-        )
-        return record
 
     async def _capture_manifest(
         self,

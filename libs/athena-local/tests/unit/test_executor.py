@@ -930,3 +930,101 @@ def test_insert_without_snapshotter_flags_the_record(
         )
 
     asyncio.run(scenario())
+
+
+def test_start_skips_trino_and_fails_on_resolution_failure(
+    store: ExecutionStore,
+) -> None:
+    async def scenario() -> None:
+        client = ScriptedStatementClient([result_page(next_uri=None)])
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        reason = "PreparedStatement st was not found in workGroup primary"
+        record = await executor.start(
+            query='EXECUTE "st"',
+            workgroup="primary",
+            statement_classification=StatementClassification(
+                "UTILITY", "EXECUTE"
+            ),
+            resolution_failure_reason=reason,
+        )
+
+        # Real Athena fails such EXECUTEs — no Trino contact, no artifact
+        # work, immediate terminal state (QE-7).
+        assert record.state == FAILED
+        assert record.state_change_reason == reason
+        assert record.query == 'EXECUTE "st"'
+        assert record.statement_type == "UTILITY"
+        assert record.resolved_statement is None
+        assert client.submissions == []
+        assert record.query_execution_id not in executor._tasks
+
+    asyncio.run(scenario())
+
+
+def test_start_submits_resolved_statement_instead_of_query(
+    store: ExecutionStore,
+) -> None:
+    async def scenario() -> None:
+        client = ScriptedStatementClient([result_page(next_uri=None)])
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        resolved = "SELECT * FROM flights WHERE origin = ('Washington')"
+        record = await executor.start(
+            query="EXECUTE \"st\" USING 'Washington'",
+            workgroup="primary",
+            statement_classification=StatementClassification("DML", "SELECT"),
+            resolved_statement=resolved,
+        )
+        await executor._tasks[record.query_execution_id]
+
+        # The bound copy of the stored statement — never the EXECUTE text —
+        # goes on the wire, because Trino has no prepared-statement
+        # persistence (QE-7).
+        assert client.submissions == [
+            (resolved, TRINO_CATALOG, "", TRINO_USER)
+        ]
+        assert record.query == "EXECUTE \"st\" USING 'Washington'"
+        assert record.resolved_statement == resolved
+        assert record.state == SUCCEEDED
+
+    asyncio.run(scenario())
+
+
+def test_insert_execute_captures_manifest_from_resolved_statement(
+    store: ExecutionStore,
+) -> None:
+    async def scenario() -> None:
+        client = ScriptedStatementClient([result_page(next_uri=None)])
+        snapshotter = RecordingSnapshotter(
+            snapshot=OutputSnapshot(
+                location="s3://data-bucket/events/",
+                before_paths=frozenset(),
+            ),
+            capture_client=client,
+        )
+        executor = QueryExecutor(
+            store=store,
+            client=client,
+            writer=RecordingWriter(),
+            snapshotter=snapshotter,
+        )
+        resolved = "INSERT INTO analytics.events VALUES (1), (2)"
+        record = await executor.start(
+            query="EXECUTE insert_ev",
+            workgroup="primary",
+            statement_classification=StatementClassification("DML", "INSERT"),
+            resolved_statement=resolved,
+        )
+        await executor._tasks[record.query_execution_id]
+
+        # Manifest capture inspects the resolved statement: the submitted
+        # EXECUTE text carries no target table to snapshot (QE-7).
+        assert snapshotter.calls == [
+            ("INSERT INTO analytics.events VALUES (1), (2)", "INSERT")
+        ]
+        assert record.state == SUCCEEDED
+
+    asyncio.run(scenario())
