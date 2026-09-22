@@ -642,6 +642,81 @@ def test_completion_stashes_final_page_on_record(
     asyncio.run(scenario())
 
 
+def test_rows_landing_on_intermediate_poll_pages_are_carried(
+    store: ExecutionStore,
+) -> None:
+    """Trino streams data on pre-final pages; the final page carries none.
+
+    Measured against the running coordinator: a 6-row VALUES SELECT arrived
+    entirely on a RUNNING page and the FINISHED page carried
+    ``data=None`` (statement protocol), so the last page alone would lose
+    every row.
+    """
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient(
+            [
+                result_page(next_uri=URI_1, stats={"state": "QUEUED"}),
+                result_page(
+                    next_uri=URI_2,
+                    columns=[TrinoColumn(name="x", column_type="integer")],
+                    data=[[1], [2], [3]],
+                    stats={"state": "RUNNING"},
+                ),
+                result_page(next_uri=None, stats={"state": "FINISHED"}),
+            ]
+        )
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        record = await executor.start(query="SELECT 1", workgroup="primary")
+        await executor._tasks[record.query_execution_id]
+
+        assert record.state == SUCCEEDED
+        assert record.result_rows == [[1], [2], [3]]
+
+    asyncio.run(scenario())
+
+
+def test_submit_page_rows_survive_the_preflight_fetch(
+    store: ExecutionStore,
+) -> None:
+    """A fast query can carry rows on the POST response itself.
+
+    The preflight folds the submit page's rows into the page it forwards to
+    the poll task, so rows present on ``POST /v1/statement`` are not dropped
+    at the one-fetch boundary (statement protocol: rows may arrive as early
+    as the first document).
+    """
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient(
+            [
+                result_page(
+                    next_uri=URI_1,
+                    columns=[TrinoColumn(name="x", column_type="integer")],
+                    data=[[1], [2]],
+                    stats={"state": "RUNNING"},
+                ),
+                result_page(
+                    next_uri=None,
+                    data=[[3]],
+                    stats={"state": "FINISHED"},
+                ),
+            ]
+        )
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        record = await executor.start(query="SELECT 1", workgroup="primary")
+        await executor._tasks[record.query_execution_id]
+
+        assert record.state == SUCCEEDED
+        assert record.result_rows == [[1], [2], [3]]
+
+    asyncio.run(scenario())
+
+
 def test_semaphore_bounds_concurrency(store: ExecutionStore) -> None:
     async def scenario() -> None:
         gate = asyncio.Event()

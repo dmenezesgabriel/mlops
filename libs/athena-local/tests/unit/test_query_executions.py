@@ -26,6 +26,7 @@ from athena_local.executions import (
     RUNNING,
     SUCCEEDED,
     ExecutionStore,
+    QueryExecutionRecord,
 )
 from athena_local.executor import QueryExecutor
 from athena_local.query_executions import (
@@ -660,6 +661,201 @@ def test_get_results_unknown_execution_is_shaped_error(
 ) -> None:
     with pytest.raises(InvalidRequestException, match="does not exist"):
         get_query_results(store, executor, {"QueryExecutionId": "missing"})
+
+
+def _succeeded_result(
+    store: ExecutionStore,
+    rows: list[list[object]],
+    columns: list[tuple[str, str]] | None = None,
+) -> QueryExecutionRecord:
+    record = store.create(query="SELECT 1", workgroup="primary")
+    record.transition_to(RUNNING)
+    record.cache_result_page(
+        columns or [("id", "integer")],
+        rows,
+    )
+    record.transition_to(SUCCEEDED)
+    return record
+
+
+def _page_values(row: dict[str, object]) -> list[str]:
+    """Strip a wire Row down to its VarCharValue cell strings."""
+    data = row["Data"]
+    assert isinstance(data, list)
+    return [
+        cell["VarCharValue"]
+        for cell in data
+        if isinstance(cell, dict) and "VarCharValue" in cell
+    ]
+
+
+def test_get_results_paginates_with_header_only_on_first_page(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    record = _succeeded_result(store, [[str(n)] for n in range(1, 6)])
+
+    first = get_query_results(
+        store,
+        executor,
+        {
+            "QueryExecutionId": record.query_execution_id,
+            "MaxResults": 2,
+        },
+    )
+
+    # The header row travels only on page zero (wrangler strips it with
+    # page_rows[1:] on the first page only — _read.py:357).
+    assert [_page_values(row) for row in first["ResultSet"]["Rows"]] == [
+        ["id"],
+        ["1"],
+        ["2"],
+    ]
+    assert first["NextToken"] == "2"
+
+    second = get_query_results(
+        store,
+        executor,
+        {
+            "QueryExecutionId": record.query_execution_id,
+            "MaxResults": 2,
+            "NextToken": first["NextToken"],
+        },
+    )
+    assert [_page_values(row) for row in second["ResultSet"]["Rows"]] == [
+        ["3"],
+        ["4"],
+    ]
+    assert second["NextToken"] == "4"
+
+    third = get_query_results(
+        store,
+        executor,
+        {
+            "QueryExecutionId": record.query_execution_id,
+            "MaxResults": 2,
+            "NextToken": second["NextToken"],
+        },
+    )
+    assert [_page_values(row) for row in third["ResultSet"]["Rows"]] == [["5"]]
+    assert "NextToken" not in third
+
+
+def test_get_results_single_page_when_all_rows_fit(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    record = _succeeded_result(store, [["1"], ["2"]])
+
+    output = get_query_results(
+        store, executor, {"QueryExecutionId": record.query_execution_id}
+    )
+
+    assert output["ResultSet"]["ResultSetMetadata"] == {
+        "ColumnInfo": [{"Name": "id", "Type": "integer"}]
+    }
+    assert [_page_values(row) for row in output["ResultSet"]["Rows"]] == [
+        ["id"],
+        ["1"],
+        ["2"],
+    ]
+    assert "NextToken" not in output
+
+
+def test_get_results_default_max_results_is_1000(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    record = _succeeded_result(store, [[str(n)] for n in range(1, 1002)])
+
+    first = get_query_results(
+        store, executor, {"QueryExecutionId": record.query_execution_id}
+    )
+
+    # 1000 data rows beside the header; the 1001st needs a follow-up page.
+    assert len(first["ResultSet"]["Rows"]) == 1001
+    assert first["NextToken"] == "1000"
+
+    last = get_query_results(
+        store,
+        executor,
+        {
+            "QueryExecutionId": record.query_execution_id,
+            "NextToken": first["NextToken"],
+        },
+    )
+    assert [_page_values(row) for row in last["ResultSet"]["Rows"]] == [
+        ["1001"]
+    ]
+    assert "NextToken" not in last
+
+
+@pytest.mark.parametrize("max_results", [0, -3, 1001])
+def test_get_results_max_results_out_of_range_is_shaped_400(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+    max_results: int,
+) -> None:
+    record = _succeeded_result(store, [["1"]])
+
+    with pytest.raises(InvalidRequestException) as error:
+        get_query_results(
+            store,
+            executor,
+            {
+                "QueryExecutionId": record.query_execution_id,
+                "MaxResults": max_results,
+            },
+        )
+
+    assert "between 1 and 1000" in str(error.value)
+    assert str(max_results) in str(error.value)
+
+
+@pytest.mark.parametrize("next_token", ["", "abc", "12abc", "-1", "1.5"])
+def test_get_results_invalid_next_token_is_shaped_400(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+    next_token: str,
+) -> None:
+    record = _succeeded_result(store, [["1"]])
+
+    with pytest.raises(InvalidRequestException, match="Invalid NextToken"):
+        get_query_results(
+            store,
+            executor,
+            {
+                "QueryExecutionId": record.query_execution_id,
+                "NextToken": next_token,
+            },
+        )
+
+
+def test_get_results_next_token_past_end_returns_no_rows(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    record = _succeeded_result(store, [["1"]])
+
+    output = get_query_results(
+        store,
+        executor,
+        {
+            "QueryExecutionId": record.query_execution_id,
+            "NextToken": "1",
+        },
+    )
+
+    # Offset past the last data row: no header (page zero only), no rows,
+    # and no token because nothing remains.
+    assert output["ResultSet"]["Rows"] == []
+    assert "NextToken" not in output
 
 
 def test_runtime_statistics_return_recorded_counters(

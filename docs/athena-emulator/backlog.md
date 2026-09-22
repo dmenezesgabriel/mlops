@@ -59,6 +59,7 @@
 | QE-3 | [x] `StartQueryExecution` + `StopQueryExecution` + `GetQueryExecution`/`BatchGetQueryExecution` + `GetQueryResults` + `GetQueryRuntimeStatistics` | M | FR-01/02/03/14/15; ADR-0009 | QE-2 |
 | QE-4 | [x] Statement classification → `StatementType`/`SubstatementType` (DML/DDL/UTILITY + CTAS/INSERT/UNLOAD detection) | S | ADR-0007; model enums | QE-2 |
 | QE-5 | [x] SQL error mapping Trino→Athena (`InvalidRequestException` 400 incl. wrangler-recognizable fragments) | M | FR-18; wrangler `_utils.py:888-898` | QE-1 |
+| QE-6 | [x] Poll task carries data rows across Trino statement pages. Measured against the running coordinator: a 6-row `VALUES` SELECT arrives entirely on an intermediate RUNNING page while the FINISHED document carries `data: null`, so caching only the last page lost every row — inline results and result `.csv` were header-only for live queries (unit suites had always seeded rows manually). Fix: `_preflight` folds the POST response's rows into the page it forwards; `_poll_to_end` accumulates rows across fetched pages | S | statement protocol (measured: `the console test values stream`); regression tests in `test_executor.py` | QE-3 |
 
 ## F. Artifacts (AR) — ADR-0007/0010
 
@@ -67,7 +68,7 @@
 | AR-1 | [x] `artifacts.py` + `s3_writer.py`: writers for `.csv` (quoted header row as line 1 — ADR-0010 — + `.csv.metadata`), `.txt` (tab, QUOTE_ALL) + `.txt.metadata`, CTAS `-manifest.csv` + `.metadata` via boto3→moto S3; manifest enumerates the CTAS `external_location` from the SQL; BDD + integration acceptance incl. pandas re-read with wrangler's exact args | M | FR-04/05/06; wrangler `_read.py:209-238`, `_utils.py:190-221`, `_read.py:62-81,135-206`; ADR-0010 | QE-2 |
 | AR-1a | [x] INSERT/UNLOAD `-manifest.csv` enumeration: exact file list for existing-table writers (list the table location, over-stating files is wrong); `output_targets.py` captures the write target's objects before submit (Glue `StorageDescriptor.Location` for INSERT, `TO` for UNLOAD) and diffs at completion so the manifest lists only the files the query wrote | M | `read.py:135-206` (INSERT example); own evidence | AR-1 |
 | AR-2 | [x] `OutputLocation` = full artifact path; write-before-SUCCEEDED ordering; `Statistics.DataManifestLocation` set for manifest ops | M | ADR-0007; AWS docs output-files | AR-1 |
-| AR-3 | Inline `GetQueryResults` page semantics (header row, pagination, MaxResults cap, cell encoding) | M | FR-03; wrangler `_read.py:335-384` | QE-3 |
+| AR-3 | [x] Inline `GetQueryResults` page semantics: header row on page zero only, `MaxResults` 1..1000 (default 1000, out-of-range → shaped 400), opaque `NextToken` data-row offset (bad/negative → shaped 400), token absent when pages exhaust — botocore's `get_query_results` paginator (wrangler's `_fetch_api_result` path) merges pages losslessly; per-type cell encoding stays plain `str()` (AR-4) | M | FR-03; model `GetQueryResults{Input,Output}` + `MaxQueryResults`/`Token`; wrangler `_read.py:335-384`; botocore `paginators-1.json`; live paginator integration | QE-3 |
 | AR-4 | Type→VarCharValue serialization for all Trino column types (numbers/bools/dates/decimals/timestamps; null → absent key) | S | model `VarCharValue` optional; wrangler dtype mapping | AR-3 |
 
 ## G. Consumers (CS)

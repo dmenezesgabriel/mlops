@@ -177,6 +177,20 @@ Steps:
       `statement_classification.artifact_output_kind`; 520 tests (8 new unit
       + 1 BDD + 2 live boto3→uvicorn→Trino→moto-S3 integration), 99%
       coverage, all §8.4 gates green.
+    - Verified 2026-09-22 (AR-3): inline `GetQueryResults` pagination — header
+      row on page zero only, `MaxResults` 1..1000 (out-of-range → shaped 400),
+      opaque `NextToken` data-row offset (bad/negative → shaped 400), token
+      absent when pages exhaust; a live botocore `get_query_results` paginator
+      over boto3→uvicorn→Trino→moto-S3 merges a 6-row `VALUES` SELECT split at
+      `MaxResults` 2 losslessly (wrangler's `_fetch_api_result` path,
+      `_read.py:335-384`). During verification the live path surfaced a
+      pre-existing QE defect: the poll task cached only the last Trino
+      statement page, whose `data` is null for real queries (rows stream on
+      intermediate RUNNING pages — measured), so inline results and result
+      `.csv`s were header-only; fixed as QE-6 (rows folded from the POST
+      response + accumulated across polled pages). 539 tests (11 new unit +
+      3 BDD + 2 live integration + 2 executor regression), all §8.4 gates
+      green.
 5. Integration: docker stack, `SELECT` via wrangler end-to-end (M0 config).
 
 Exit: wrangler `read_sql_query` (api + csv + cache), `to_parquet` CTAS,

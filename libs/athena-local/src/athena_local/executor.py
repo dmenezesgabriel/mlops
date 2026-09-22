@@ -14,7 +14,7 @@ on ``trino_client`` (architecture §8.5).
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Protocol
 
 from athena_local.common_schemas import ResultConfiguration
@@ -248,11 +248,14 @@ class QueryExecutor:
         page = first_page
         if page.next_uri is not None:
             try:
-                page = await self._client.fetch_next(page.next_uri)
+                fetched = await self._client.fetch_next(page.next_uri)
             except TrinoTransportError as error:
                 return PreflightVerdict(
                     page=None, failure_reason=f"Trino unreachable: {error}"
                 )
+            # Rows can arrive as early as the POST response itself; keep them
+            # by folding them into the page forwarded to the poll task.
+            page = replace(fetched, data=[*page.data, *fetched.data])
         if is_syntax_error(page.error):
             raise syntax_error_invalid_request(page.error)
         return PreflightVerdict(page=page, failure_reason=None)
@@ -304,19 +307,25 @@ class QueryExecutor:
     async def _poll_to_end(
         self, record: QueryExecutionRecord, first_page: TrinoPage
     ) -> TrinoPage | None:
+        # Trino streams rows across intermediate statement pages and the final
+        # FINISHED document carries none (measured against the running
+        # coordinator), so accumulate every page's rows and return them on the
+        # final page for ``_complete`` to cache (statement protocol).
+        accumulated_rows = [row for row in first_page.data]
         page = first_page
         while True:
             next_uri = page.next_uri
             if next_uri is None:
-                return page
+                return replace(page, data=accumulated_rows)
             if record.state == CANCELLED:
-                return page
+                return replace(page, data=accumulated_rows)
             try:
                 page = await self._client.fetch_next(next_uri)
             except TrinoTransportError as error:
                 if record.state != CANCELLED:
                     record.transition_to(FAILED, f"Trino unreachable: {error}")
                 return None
+            accumulated_rows.extend(page.data)
             record.active_next_uri = page.next_uri
 
     async def _complete(

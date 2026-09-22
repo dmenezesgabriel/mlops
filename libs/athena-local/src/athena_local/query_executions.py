@@ -7,10 +7,11 @@ operation's output object. Registration is explicit (composition root:
 ``StartQueryExecution`` and ``StopQueryExecution`` are coroutine handlers:
 ``dispatch`` awaits them so start can run the executor's Trino preflight
 (QE-5) and stop can drive the Trino DELETE through the async executor.
-Inline ``GetQueryResults``
-answers from the page the executor stashed before the terminal transition
-(ADR-0007, ADR-0009 #4); pagination, ``MaxResults``, and cell-type
-serialization are owned by the artifact slices (AR-3/AR-4).
+Inline ``GetQueryResults`` answers from
+the page the executor stashed before the terminal transition
+(ADR-0007, ADR-0009 #4) and paginates it with ``MaxResults``/``NextToken``
+per the model's GetQueryResultsInput; per-type cell serialization stays a
+separate concern.
 """
 
 from __future__ import annotations
@@ -32,6 +33,10 @@ from athena_local.state import (
     WorkGroupStore,
 )
 from athena_local.statement_classification import classify_statement
+
+# Athena's default inline page size; GetQueryResults.MaxResults is bounded by
+# the model's MaxQueryResults shape (1..1000).
+DEFAULT_MAX_RESULTS = 1000
 
 
 def _member(payload: dict[str, object] | None, member: str) -> object | None:
@@ -239,16 +244,26 @@ def get_query_results(
     executor: QueryExecutor,
     payload: dict[str, object] | None,
 ) -> dict[str, object]:
-    """Run GetQueryResults: terminal-only rows with the header first (FR-03).
+    """Run GetQueryResults: paginated terminal rows, header on page zero (FR-03).
 
     Non-terminal executions raise the exact 400 Athena sends; terminal ones
     answer from the cached final page regardless of the terminal flavor (moto
     never conditions on state at ``moto/athena/models.py:415``, and wrangler
-    never reads inline results for a FAILED execution).
+    never reads inline results for a FAILED execution). Pages slice the
+    cached rows with ``MaxResults`` (default 1000) and an opaque ``NextToken``
+    naming the next data-row offset, so botocore's get_query_results paginator
+    — the path wrangler's ``_fetch_api_result`` walks (awswrangler/athena/
+    _read.py:335-384) — merges the pages back losslessly.
     """
     query_execution_id = _required_string(payload, "QueryExecutionId")
     record = executor.ensure_query_finished(query_execution_id)
-    return {"ResultSet": _result_set_payload(record)}
+    offset = _next_token_offset(payload)
+    max_results = _max_results(payload)
+    result_set, next_token = _result_page(record, offset, max_results)
+    output: dict[str, object] = {"ResultSet": result_set}
+    if next_token is not None:
+        output["NextToken"] = next_token
+    return output
 
 
 def get_query_runtime_statistics(
@@ -261,14 +276,87 @@ def get_query_runtime_statistics(
     }
 
 
-def _result_set_payload(record: QueryExecutionRecord) -> dict[str, object]:
-    header_row = {
-        "Data": [
-            {"VarCharValue": name} for name, _type in record.result_columns
-        ]
-    }
-    rows = [header_row]
-    for row in record.result_rows:
+def _result_page(
+    record: QueryExecutionRecord,
+    offset: int,
+    max_results: int,
+) -> tuple[dict[str, object], str | None]:
+    """Slice one GetQueryResults page out of the cached rows.
+
+    The header row travels only on page zero (offset 0), matching wrangler's
+    first-page strip (awswrangler/athena/_read.py:357,383), and the outgoing
+    ``NextToken`` names the next data-row offset exactly when rows remain —
+    the condition botocore's paginator keeps polling on. Returns the wire
+    ResultSet and the token (None at the end).
+    """
+    rows = record.result_rows
+    end_offset = min(offset + max_results, len(rows))
+    next_token = str(end_offset) if end_offset < len(rows) else None
+    return _result_set_payload(record, offset, rows[offset:end_offset]), (
+        next_token
+    )
+
+
+def _max_results(payload: dict[str, object] | None) -> int:
+    """MaxResults with the model's 1..1000 bounds (service-2.json MaxQueryResults).
+
+    An absent MaxResults means Athena's default page of 1000 rows; values
+    outside the modeled bounds are rejected with the shaped error so a client
+    can never widen a page beyond what the wire declares.
+    """
+    raw = _member(payload, "MaxResults")
+    if raw is None:
+        return DEFAULT_MAX_RESULTS
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        raise InvalidRequestException(
+            f"MaxResults must be an integer, got {raw!r}"
+        )
+    if raw < 1 or raw > DEFAULT_MAX_RESULTS:
+        raise InvalidRequestException(
+            f"MaxResults must be between 1 and {DEFAULT_MAX_RESULTS}, got {raw}"
+        )
+    return raw
+
+
+def _next_token_offset(payload: dict[str, object] | None) -> int:
+    """Decode an opaque NextToken into the data-row offset it resumes at.
+
+    Tokens are opaque on the wire (model Token); this server issues the next
+    zero-based data-row offset as the token and rejects anything it cannot
+    decode with the shaped error, mirroring the state store's list pagination.
+    """
+    raw = _member(payload, "NextToken")
+    if raw is None:
+        return 0
+    if not isinstance(raw, str):
+        raise InvalidRequestException(
+            f"NextToken must be a string, got {raw!r}"
+        )
+    try:
+        offset = int(raw)
+    except ValueError:
+        raise InvalidRequestException(f"Invalid NextToken: {raw}") from None
+    if offset < 0:
+        raise InvalidRequestException(f"Invalid NextToken: {raw}")
+    return offset
+
+
+def _result_set_payload(
+    record: QueryExecutionRecord,
+    offset: int,
+    page_rows: list[list[object]],
+) -> dict[str, object]:
+    rows = []
+    if offset == 0:
+        rows.append(
+            {
+                "Data": [
+                    {"VarCharValue": name}
+                    for name, _type in record.result_columns
+                ]
+            }
+        )
+    for row in page_rows:
         rows.append(
             {"Data": [{"VarCharValue": _cell_value(value)} for value in row]}
         )
