@@ -167,6 +167,35 @@ def test_max_results_and_next_token_round_trip(
     assert "NextToken" not in second
 
 
+def test_live_trino_cells_serialize_to_athena_wire_forms(
+    inline_results_harness: InlineResultsHarness,
+) -> None:
+    """Live check: each Trino column type becomes the VarCharValue string real
+    Athena emits, with a NULL cell carrying no VarCharValue member at all."""
+    harness = inline_results_harness
+    started = harness.athena.start_query_execution(
+        QueryString=(
+            "SELECT CAST(1 AS INTEGER) n, CAST(true AS BOOLEAN) t, "
+            "CAST(1.5 AS DOUBLE) d, CAST(12.34 AS DECIMAL(6,2)) dec, "
+            "DATE '2023-06-15' dt, TIMESTAMP '2023-06-15 10:20:30.123' ts, "
+            "NULL missing"
+        ),
+        ResultConfiguration={"OutputLocation": harness.prefix},
+    )
+    query_id = started["QueryExecutionId"]
+    _poll_until_terminal(harness.athena, query_id)
+
+    output = harness.athena.get_query_results(QueryExecutionId=query_id)
+    result_set: dict[str, Any] = output["ResultSet"]
+    rows = result_set["Rows"]
+    assert [_page_values(row) for row in rows] == [
+        ["n", "t", "d", "dec", "dt", "ts", "missing"],
+        ["1", "true", "1.5", "12.34", "2023-06-15", "2023-06-15 10:20:30.123"],
+    ]
+    # NULL renders as an empty datum: no VarCharValue member.
+    assert rows[1]["Data"][6] == {}
+
+
 def _start_values_query(harness: InlineResultsHarness) -> str:
     started = harness.athena.start_query_execution(
         QueryString="SELECT x FROM (VALUES 1, 2, 3, 4, 5, 6) AS t(x)",

@@ -358,7 +358,14 @@ def _result_set_payload(
         )
     for row in page_rows:
         rows.append(
-            {"Data": [{"VarCharValue": _cell_value(value)} for value in row]}
+            {
+                "Data": [
+                    {}
+                    if value is None
+                    else {"VarCharValue": _cell_value(value)}
+                    for value in row
+                ]
+            }
         )
     return {
         "Rows": rows,
@@ -372,10 +379,18 @@ def _result_set_payload(
 
 
 def _cell_value(value: object) -> str:
-    # Per-type serialization (decimals, timestamps, booleans) and the
-    # absent-key null contract are owned by the artifact slices (AR-4);
-    # the plain string form is fixed here.
-    return "" if value is None else str(value)
+    """The VarCharValue string a cell becomes on the Athena wire.
+
+    Numbers, decimals, dates and timestamps arrive from Trino already shaped
+    like Athena's output, so ``str()`` passes them through. Trino sends
+    booleans as JSON booleans, which Python renders ``True``/``False`` but
+    Athena emits lowercase; normalize the case. Nulls never reach this
+    function — ``_result_set_payload`` drops the member instead (the service
+    model marks ``Datum.VarCharValue`` optional).
+    """
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
 
 
 def _runtime_statistics_payload(

@@ -637,6 +637,73 @@ def test_get_results_succeeded_returns_header_and_rows(
     ]
 
 
+def test_get_results_serializes_cell_types_to_varchar_value(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    record = _succeeded_result(
+        store,
+        [
+            [
+                3,
+                1.5,
+                True,
+                False,
+                "12.34",
+                "2023-06-15",
+                "2023-06-15 10:20:30.123",
+            ]
+        ],
+        columns=[
+            ("n", "integer"),
+            ("d", "double"),
+            ("t", "boolean"),
+            ("f", "boolean"),
+            ("dec", "decimal(6,2)"),
+            ("dt", "date"),
+            ("ts", "timestamp"),
+        ],
+    )
+
+    output = get_query_results(
+        store, executor, {"QueryExecutionId": record.query_execution_id}
+    )
+
+    # Numbers, decimals, dates and timestamps travel as plain strings while
+    # booleans use Athena's lowercase wire form rather than Python's str().
+    assert output["ResultSet"]["Rows"][1]["Data"] == [
+        {"VarCharValue": "3"},
+        {"VarCharValue": "1.5"},
+        {"VarCharValue": "true"},
+        {"VarCharValue": "false"},
+        {"VarCharValue": "12.34"},
+        {"VarCharValue": "2023-06-15"},
+        {"VarCharValue": "2023-06-15 10:20:30.123"},
+    ]
+
+
+def test_get_results_null_cells_omit_varchar_value_key(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    record = _succeeded_result(
+        store,
+        [[None], ["x"]],
+        columns=[("a", "varchar")],
+    )
+
+    output = get_query_results(
+        store, executor, {"QueryExecutionId": record.query_execution_id}
+    )
+
+    # The service model makes Datum.VarCharValue optional, so a null cell
+    # must be an empty datum rather than {"VarCharValue": ""}.
+    assert output["ResultSet"]["Rows"][1]["Data"] == [{}]
+    assert output["ResultSet"]["Rows"][2]["Data"] == [{"VarCharValue": "x"}]
+
+
 def test_get_results_failed_execution_returns_empty_result_set(
     store: ExecutionStore,
     executor: QueryExecutor,
