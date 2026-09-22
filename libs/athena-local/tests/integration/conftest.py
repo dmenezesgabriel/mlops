@@ -20,6 +20,7 @@ from athena_local.main import (
     data_catalog_store,
     named_query_store,
     prepared_statement_store,
+    reset_query_plane,
     workgroup_store,
 )
 from moto.server import ThreadedMotoServer
@@ -103,11 +104,13 @@ def live_moto_server() -> Iterator[LiveMotoServer]:
 def live_athena_server() -> Iterator[LiveAthenaServer]:
     # The app owns in-memory stores that survive server restarts, so reset them
     # around each test (ADR-0003). Data catalogs re-seed ``AwsDataCatalog`` on
-    # reset.
+    # reset; reset_query_plane also rebinds any handlers a previous test
+    # overrode with bespoke stores/writers.
     workgroup_store.reset()
     named_query_store.reset()
     prepared_statement_store.reset()
     data_catalog_store.reset()
+    reset_query_plane()
     server = LiveAthenaServer()
     server.start()
     yield server
@@ -115,4 +118,5 @@ def live_athena_server() -> Iterator[LiveAthenaServer]:
     named_query_store.reset()
     prepared_statement_store.reset()
     data_catalog_store.reset()
+    reset_query_plane()
     server.stop()

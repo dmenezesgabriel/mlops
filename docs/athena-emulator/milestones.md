@@ -201,7 +201,13 @@ Steps:
      returns `"1"`, `"true"`, `"1.5"`, `"12.34"`, `"2023-06-15"`,
      `"2023-06-15 10:20:30.123"`, and `{}` over boto3→uvicorn→Trino.
      542 tests, 99% coverage, all §8.4 gates green.
-5. Integration: docker stack, `SELECT` via wrangler end-to-end (M0 config).
+5. Integration: Docker stack, `SELECT` via wrangler end-to-end (M0 config).
+   - **Split into tracked backlog items (2026-09-22):** PC-6 (query-plane
+     composition root in `main.py`) → QE-7 (server-side prepared-statement
+     execution) → MD-9 (managed-results workgroup → `StartQueryExecution`
+     without `OutputLocation`) → CS-2b (awswrangler consumer suite: api/csv/
+     cache/prepared/bad-SQL/to_parquet against the running moto container via
+     bridge IP). The step closes when CS-2b is green.
 
 Exit: wrangler `read_sql_query` (api + csv + cache), `to_parquet` CTAS,
 prepared statements, bad-SQL error path — all green against the docker stack.

@@ -17,7 +17,7 @@ import asyncio
 
 import pytest
 from athena_local.common_schemas import ResultConfiguration
-from athena_local.dispatch import OPERATION_HANDLERS, implemented_operations
+from athena_local.dispatch import implemented_operations
 from athena_local.errors import InvalidRequestException
 from athena_local.executions import (
     CANCELLED,
@@ -29,6 +29,7 @@ from athena_local.executions import (
     QueryExecutionRecord,
 )
 from athena_local.executor import QueryExecutor
+from athena_local.main import reset_query_plane
 from athena_local.query_executions import (
     batch_get_query_execution,
     get_query_execution,
@@ -119,8 +120,9 @@ def test_query_operations_register_against_the_registry(
     try:
         assert QUERY_OPERATIONS <= implemented_operations()
     finally:
-        for operation in QUERY_OPERATIONS:
-            OPERATION_HANDLERS.pop(operation, None)
+        # main's composition root owns the six query ops once imported (PC-6);
+        # restore its wiring instead of popping them out of the registry.
+        reset_query_plane()
         assert implemented_operations() == before
 
 

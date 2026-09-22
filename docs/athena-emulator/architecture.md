@@ -206,7 +206,10 @@ root `Makefile` `PACKAGES`.
 ### 8.5 Dependency wrapping
 Trino HTTP client and moto boto3 calls are wrapped behind project-owned thin
 interfaces (`trino_client.py`, `glue_proxy.py`, `s3_writer.py`) so third-party
-libs never leak into handlers (per `AGENTS.md` deps rule).
+libs never leak into handlers (per `AGENTS.md` deps rule). `main.py` is the
+composition root for both planes: it builds the executor over these boundaries
+(PC-6), which is why it is exempt from the "protocol core stays independent of
+the query engine" import-linter contract.
 
 ## 9. Architecture Decisions
 

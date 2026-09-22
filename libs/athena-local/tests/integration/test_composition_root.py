@@ -1,12 +1,12 @@
-"""AR-2 integration: GetQueryExecution reports the full artifact path.
+"""PC-6 live smoke: the composed production executor round-trips end to end.
 
-Real boto3 → uvicorn → Trino round trip where the artifact writer is the real
-``ArtifactWriter`` over a live moto S3, so the ``OutputLocation`` the wire
-reports names the exact object the query produced (ADR-0007 #2): a DML SELECT
-answers ``{prefix}{QueryID}.csv`` and a UTILITY statement ``{prefix}{QueryID}.txt``
-— the suffixes wrangler keys its file reads on
-(awswrangler/athena/_read.py:220, _utils.py:196). Skips when the compose Trino
-service is unreachable.
+Builds the query plane through ``main.build_query_executor`` — the exact
+composition the app root wires at import — and drives one query through the
+running stack with real boto3 → uvicorn → Trino → moto-S3: StartQueryExecution
+returns an id, the execution reaches SUCCEEDED with artifacts on S3, and
+GetQueryResults serves the inline row. Contrasts with the AR/QE suites, which
+rebind bespoke writers; here the full product composition (writer +
+snapshotter) runs. Skips when the compose Trino service is unreachable.
 """
 
 from __future__ import annotations
@@ -16,18 +16,18 @@ import time
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
+from typing import Any
 
 import boto3
 import httpx
 import pytest
-from athena_local.artifacts import ArtifactWriter
-from athena_local.executions import ExecutionStore
-from athena_local.executor import QueryExecutor
-from athena_local.main import reset_query_plane
+from athena_local.main import (
+    build_query_executor,
+    execution_store,
+    reset_query_plane,
+    workgroup_store,
+)
 from athena_local.query_executions import register_query_execution_handlers
-from athena_local.s3_writer import S3Writer
-from athena_local.state import WorkGroupStore
-from athena_local.trino_client import create_trino_client
 from botocore.client import BaseClient
 from moto.backends import get_backend
 from tests.integration.conftest import LiveAthenaServer, LiveMotoServer
@@ -36,8 +36,8 @@ TRINO_URL = os.environ.get("ATHENA_LOCAL_TRINO_URL", "http://localhost:8080")
 
 
 @dataclass
-class OutputLocationHarness:
-    """The live stack plus the result prefix the queries report back."""
+class ComposedPlaneHarness:
+    """The live stack plus a throwaway result bucket for the smoke query."""
 
     athena: BaseClient
     s3: BaseClient
@@ -46,16 +46,17 @@ class OutputLocationHarness:
 
 
 @pytest.fixture()
-def output_location_harness(
+def composed_plane_harness(
     live_athena_server: LiveAthenaServer,
     live_moto_server: LiveMotoServer,
-) -> Iterator[OutputLocationHarness]:
+) -> Iterator[ComposedPlaneHarness]:
     try:
         httpx.get(f"{TRINO_URL}/v1/info", timeout=2.0).raise_for_status()
     except httpx.HTTPError:
         pytest.skip(
             f"Trino unreachable at {TRINO_URL}; compose services are down"
         )
+
     # moto backends are process-global; the unique bucket keeps this fixture
     # isolated from the writer suite's resets.
     get_backend("s3").reset()
@@ -66,22 +67,18 @@ def output_location_harness(
         aws_access_key_id="test",
         aws_secret_access_key="test",
     )
-    bucket = f"athena-ar2-results-{uuid.uuid4().hex}"
+    bucket = f"athena-pc6-results-{uuid.uuid4().hex}"
     s3.create_bucket(Bucket=bucket)
     prefix = f"s3://{bucket}/results/"
 
-    store = ExecutionStore()
+    executor = build_query_executor(
+        execution_store, TRINO_URL, live_moto_server.url
+    )
     register_query_execution_handlers(
-        store,
-        QueryExecutor(
-            store=store,
-            client=create_trino_client(TRINO_URL),
-            writer=ArtifactWriter(S3Writer.for_endpoint(live_moto_server.url)),
-        ),
-        WorkGroupStore(),
+        execution_store, executor, workgroup_store
     )
     try:
-        yield OutputLocationHarness(
+        yield ComposedPlaneHarness(
             athena=boto3.client(
                 "athena",
                 endpoint_url=live_athena_server.endpoint_url,
@@ -97,23 +94,22 @@ def output_location_harness(
         reset_query_plane()
 
 
-def test_select_reports_full_csv_output_location(
-    output_location_harness: OutputLocationHarness,
+def test_composed_executor_runs_query_end_to_end(
+    composed_plane_harness: ComposedPlaneHarness,
 ) -> None:
-    harness = output_location_harness
+    harness = composed_plane_harness
     started = harness.athena.start_query_execution(
-        QueryString="SELECT 1",
+        QueryString="SELECT 1 AS one",
         ResultConfiguration={"OutputLocation": harness.prefix},
     )
     query_id = started["QueryExecutionId"]
+
     execution = _poll_until_terminal(harness.athena, query_id)
 
     assert execution["Status"]["State"] == "SUCCEEDED"
     assert execution["ResultConfiguration"]["OutputLocation"] == (
         f"{harness.prefix}{query_id}.csv"
     )
-    # The reported path is a real object, written before SUCCEEDED (ADR-0009
-    # #4), with the header-quoted CSV byte shape (ADR-0010).
     contents = harness.s3.list_objects_v2(
         Bucket=harness.bucket, Prefix="results/"
     )["Contents"]
@@ -122,34 +118,16 @@ def test_select_reports_full_csv_output_location(
         f"results/{query_id}.csv.metadata",
     ]
 
-
-def test_utility_reports_full_txt_output_location(
-    output_location_harness: OutputLocationHarness,
-) -> None:
-    harness = output_location_harness
-    started = harness.athena.start_query_execution(
-        QueryString="SHOW FUNCTIONS",
-        ResultConfiguration={"OutputLocation": harness.prefix},
-    )
-    query_id = started["QueryExecutionId"]
-    execution = _poll_until_terminal(harness.athena, query_id)
-
-    assert execution["Status"]["State"] == "SUCCEEDED"
-    assert execution["ResultConfiguration"]["OutputLocation"] == (
-        f"{harness.prefix}{query_id}.txt"
-    )
-    contents = harness.s3.list_objects_v2(
-        Bucket=harness.bucket, Prefix="results/"
-    )["Contents"]
-    assert sorted(item["Key"] for item in contents) == [
-        f"results/{query_id}.txt",
-        f"results/{query_id}.txt.metadata",
-    ]
+    inline = harness.athena.get_query_results(
+        QueryExecutionId=query_id, MaxResults=5
+    )["ResultSet"]
+    assert inline["Rows"][0]["Data"] == [{"VarCharValue": "one"}]
+    assert inline["Rows"][1]["Data"] == [{"VarCharValue": "1"}]
 
 
 def _poll_until_terminal(
     client: BaseClient, execution_id: str, deadline_seconds: float = 30.0
-) -> dict[str, object]:
+) -> dict[str, Any]:
     deadline = time.monotonic() + deadline_seconds
     while time.monotonic() < deadline:
         execution = client.get_query_execution(QueryExecutionId=execution_id)[

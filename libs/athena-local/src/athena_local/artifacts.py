@@ -91,10 +91,11 @@ class ArtifactWriter:
         self._s3 = s3
 
     async def write(
-        self, execution: QueryExecutionRecord, _final_page: TrinoPage
+        self, execution: QueryExecutionRecord, final_page: TrinoPage
     ) -> None:
         # The page is ignored on purpose: artifact bytes come from the record's
         # cached columns/rows, which the executor stashed before calling us.
+        del final_page
         plan = artifact_plan(
             execution.statement_type, execution.substatement_type
         )

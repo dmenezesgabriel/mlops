@@ -1,8 +1,9 @@
 """QE-5 integration: Trino's error text becomes Athena's wire shapes.
 
-The query-plane handlers are composed here against a real ``TrinoClient``
-(the wiring into ``main`` lands with the M3 step 4 composition root), so
-boto3 round-trips the JSON-1.1 surface end to end over real HTTP:
+The six query-plane operations are composed by the production root in
+``main`` (PC-6); this fixture rebinds them to a real ``TrinoClient`` and a
+no-op writer so boto3 round-trips the JSON-1.1 surface end to end over real
+HTTP without touching S3:
 StartQueryExecution rejects bad syntax with the shaped 400 before any
 execution exists, and an analysis error FAILs the execution with Trino's
 StateChangeReason verbatim — the two surfaces awswrangler maps to
@@ -25,9 +26,9 @@ from collections.abc import Iterator
 import boto3
 import httpx
 import pytest
-from athena_local.dispatch import OPERATION_HANDLERS
 from athena_local.executions import ExecutionStore, QueryExecutionRecord
 from athena_local.executor import QueryExecutor
+from athena_local.main import reset_query_plane
 from athena_local.query_executions import register_query_execution_handlers
 from athena_local.state import WorkGroupStore
 from athena_local.trino_client import TrinoPage, create_trino_client
@@ -38,14 +39,6 @@ from tests.integration.conftest import LiveAthenaServer
 TRINO_URL = os.environ.get("ATHENA_LOCAL_TRINO_URL", "http://localhost:8080")
 RESULT_LOCATION = "s3://athena-local/results/"
 CTAS_TABLE_PREFIX = "athena_local_qe5_dup"
-QUERY_PLANE_OPERATIONS = {
-    "StartQueryExecution",
-    "StopQueryExecution",
-    "GetQueryExecution",
-    "BatchGetQueryExecution",
-    "GetQueryResults",
-    "GetQueryRuntimeStatistics",
-}
 
 
 class NoOpResultWriter:
@@ -87,8 +80,7 @@ def query_plane_client(
             aws_secret_access_key="test",
         )
     finally:
-        for operation in QUERY_PLANE_OPERATIONS:
-            OPERATION_HANDLERS.pop(operation, None)
+        reset_query_plane()
 
 
 def test_bad_syntax_rejects_start_with_shaped_400(

@@ -49,18 +49,18 @@ class StatementClient(Protocol):
     """The Trino statement-protocol surface the executor drives.
 
     ``TrinoClient`` implements it structurally; tests inject scripted fakes
-    for F.I.R.S.T. lifecycle tests (no docker). Params are underscore-scoped
-    because the interface documents the wire contract, not the parameter
-    vocabulary of the concrete transport.
+    for F.I.R.S.T. lifecycle tests (no docker). Parameter names mirror the
+    concrete transports so pyright can type-check the composition root
+    (``main.build_query_executor``, PC-6).
     """
 
     async def submit_statement(
-        self, _query: str, _catalog: str, _schema: str, _user: str
+        self, query: str, catalog: str, schema: str, user: str
     ) -> TrinoPage: ...
 
-    async def fetch_next(self, _next_uri: str) -> TrinoPage: ...
+    async def fetch_next(self, next_uri: str) -> TrinoPage: ...
 
-    async def cancel(self, _next_uri: str) -> None: ...
+    async def cancel(self, next_uri: str) -> None: ...
 
 
 class ResultArtifactWriter(Protocol):
@@ -72,7 +72,7 @@ class ResultArtifactWriter(Protocol):
     """
 
     async def write(
-        self, _execution: QueryExecutionRecord, _final_page: TrinoPage
+        self, execution: QueryExecutionRecord, final_page: TrinoPage
     ) -> None: ...
 
 
@@ -87,10 +87,10 @@ class ManifestSnapshotSource(Protocol):
 
     async def capture(
         self,
-        _query: str,
-        _database: str | None,
-        _catalog: str | None,
-        _substatement_type: str | None,
+        query: str,
+        database: str | None,
+        catalog: str | None,
+        substatement_type: str | None,
     ) -> OutputSnapshot | None: ...
 
 

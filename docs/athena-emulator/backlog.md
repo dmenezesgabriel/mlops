@@ -36,6 +36,7 @@
 | PC-3 | [x] Error serializer/parity: `{"__type","message"}` + `X-Amzn-Errortype`, statuses 400/404/429/500 (four shapes, §8.2); unknown target handling. Pre-finish `InvalidRequestException` variant (FR-03) is owned by QE-3 — it needs `GetQueryResults` + execution state | M | moto `core/serialize.py:492,538`; `core/exceptions.py:100`; ADR-0008 | PC-1 |
 | PC-4 | Body parsing resilient to content-type variants (`application/x-amz-json-1.1`), charset, empty bodies | S | botocore parsers behavior; moto `core/responses.py:468` | PC-1 |
 | PC-5 | JSON logging middleware per §8.3 | S | AGENTS.md Logging | PC-1 |
+| PC-6 | [x] Query-plane composition root in `main.py`: `build_query_executor` wires the executor to the compose Trino coordinator + moto boundaries (`ATHENA_LOCAL_TRINO_URL`, `ATHENA_MOTO_ENDPOINT_URL`); six query ops registered at import; `reset_query_plane()` restores the root after test overrides. Verified 2026-09-22: `build_query_executor` honors env + compose defaults (unit); reset clears the execution store and rebinds to main's wiring (unit); live live-ATENA smoke `SELECT 1` through the COMPOSED root → SUCCEEDED + moto-S3 `.csv` + inline rows (live moto fixture) | S | ADR-0009; import-linter: `main` composes the query engine (contract comment reworked, §8.5); live smoke test | QE-6, AR-4 |
 
 ## D. Metadata/control-plane (MD) — ADR-0003, ADR-0005
 
@@ -49,6 +50,7 @@
 | MD-6 | [x] Tags CRUD | S | FR-16 | PC-1 |
 | MD-7 | [x] Catalog read proxy → moto Glue: `list_databases`, `get_database`, `list_table_metadata`, `get_table_metadata` | M | FR-08; ADR-0005 | PC-1, SP-3 |
 | MD-8 | [x] `GetWorkGroup` must expose `ResultConfiguration.OutputLocation` handling that wrangler honors (see PC/AD-0007 interplay) — verified: wrangler `_get_workgroup_config` parity tests (`integration/test_workgroups.py:104-156`) + `workgroups.feature` OutputLocation round-trip | S | FR-09; wrangler `_utils.py` config resolution | MD-1 |
+| MD-9 | [ ] Managed-results workgroup: `StartQueryExecution` accepts an execution without `ResultConfiguration.OutputLocation` when the workgroup's `ResultConfiguration` provides one (wrangler's workgroup-config path) — replaces today's unconditional 400 (`query_executions.py`) | S | FR-09; wrangler `_get_workgroup_config` (`_utils.py:158-188`); moto: no managed-Results support → PRD §3 row | MD-1, PC-6 |
 
 ## E. Query engine (QE) — ADR-0001, ADR-0009
 
@@ -60,6 +62,7 @@
 | QE-4 | [x] Statement classification → `StatementType`/`SubstatementType` (DML/DDL/UTILITY + CTAS/INSERT/UNLOAD detection) | S | ADR-0007; model enums | QE-2 |
 | QE-5 | [x] SQL error mapping Trino→Athena (`InvalidRequestException` 400 incl. wrangler-recognizable fragments) | M | FR-18; wrangler `_utils.py:888-898` | QE-1 |
 | QE-6 | [x] Poll task carries data rows across Trino statement pages. Measured against the running coordinator: a 6-row `VALUES` SELECT arrives entirely on an intermediate RUNNING page while the FINISHED document carries `data: null`, so caching only the last page lost every row — inline results and result `.csv` were header-only for live queries (unit suites had always seeded rows manually). Fix: `_preflight` folds the POST response's rows into the page it forwards; `_poll_to_end` accumulates rows across fetched pages | S | statement protocol (measured: `the console test values stream`); regression tests in `test_executor.py` | QE-3 |
+| QE-7 | [ ] Server-side prepared-statement execution: `EXECUTE <name> [USING …]` + bind `ExecutionParameters` into the stored statement before Trino submit (wrangler ships the qmark placeholders + `ExecutionParameters`, `_utils.py:371-401`) | M | FR-11; wrangler `_statements.py` + tutorial CELL 27; moto: no EXECUTE support → PRD §3 row | QE-3, MD-3 |
 
 ## F. Artifacts (AR) — ADR-0007/0010
 
@@ -77,6 +80,7 @@
 |---|---|---|---|---|
 | CS-1 | Assert boto3/botocore parity: loop all 70 ops against service-2.json through stubs against `:5001` | M | README evidence index; ADR-0008 | PC/CMD/QE/AR done |
 | CS-2 | awswrangler suite: `read_sql_query` (api + csv), cache, `to_parquet`/CTAS, prepared statements, workgroup config, bad-SQL error path — in docker pytest against running stack | L | FR matrix; wrangler evidence anchors | E/QE/AR |
+| CS-2b | [ ] awswrangler M3 step-5 subset (the CS-2 core loop): `read_sql_query` (api + csv + cache), prepared `EXECUTE`, bad-SQL error path, `to_parquet` CTAS — against the **running moto container via bridge IP** as the shared data plane | L | FR matrix; wrangler evidence anchors | PC-6, QE-7, MD-9 |
 | CS-3 | AWS CLI `athena` suite: examples from `research_repos/aws-cli/awscli/examples/athena/` via `--endpoint-url` | M | CLI evidence index | PC…AR |
 | CS-4 | terraform-provider-aws: op-shape parity via AWS SDK Go v2 + boto3 (resources `aws_athena_*`); stretch: real `terraform apply` if provider runnable locally | M–L | TF core = CLI only (`research_repos/terraform/main.go`); registry docs | CS-1 |
 | CS-5 | Endpoint-routing test: Athena-only traffic → `:5001`; S3/Glue → moto `:5000` unchanged | S | ADR-0002; PRD FR-19 | CS-2 |

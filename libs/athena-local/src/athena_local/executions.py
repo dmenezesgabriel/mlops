@@ -206,6 +206,10 @@ class ExecutionStore:
         default_factory=dict, init=False
     )
 
+    def reset(self) -> None:
+        """Drop every query execution (test reset point, ADR-0003)."""
+        self.by_id.clear()
+
     def create(
         self,
         query: str,

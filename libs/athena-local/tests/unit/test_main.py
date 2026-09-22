@@ -3,7 +3,8 @@
 Every operation without a registered handler must answer with a shaped
 ``InvalidRequestException`` (400) that botocore parses cleanly (PRD FR-17);
 implemented operations answer with JSON-1.1 success responses (MD-1: the five
-workgroup operations).
+workgroup operations). The composition root (PC-6) also owns the six
+query-plane operations, whose wiring is asserted here.
 """
 
 from __future__ import annotations
@@ -12,8 +13,25 @@ from collections.abc import Iterator
 
 import pytest
 from athena_local.dispatch import implemented_operations, operation_names
-from athena_local.main import app, workgroup_store
+from athena_local.executions import ExecutionStore
+from athena_local.main import (
+    TRINO_URL_ENV,
+    app,
+    build_query_executor,
+    execution_store,
+    reset_query_plane,
+    workgroup_store,
+)
 from fastapi.testclient import TestClient
+
+QUERY_PLANE_OPERATIONS = {
+    "StartQueryExecution",
+    "StopQueryExecution",
+    "GetQueryExecution",
+    "BatchGetQueryExecution",
+    "GetQueryResults",
+    "GetQueryRuntimeStatistics",
+}
 
 
 @pytest.fixture()
@@ -260,3 +278,60 @@ def test_delete_primary_is_shaped_400(client: TestClient) -> None:
     assert response.status_code == 400
     assert response.json()["__type"] == "InvalidRequestException"
     assert "primary" in response.json()["message"]
+
+
+def test_query_plane_operations_are_wired_by_the_composition_root(
+    client: TestClient,
+) -> None:
+    response = client.post(
+        "/",
+        headers={"X-Amz-Target": "AmazonAthena.GetQueryExecution"},
+        json={"QueryExecutionId": "missing-id"},
+    )
+
+    # Routed to the execution store's lookup ("does not exist"), not to the
+    # "operation not yet implemented" answer (PC-6).
+    assert response.status_code == 400
+    assert "does not exist" in response.json()["message"]
+
+
+def test_composition_root_registers_all_query_plane_operations() -> None:
+    assert QUERY_PLANE_OPERATIONS <= implemented_operations()
+
+
+def test_build_query_executor_reads_endpoints_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(TRINO_URL_ENV, "http://trino:9999")
+    monkeypatch.setenv("ATHENA_MOTO_ENDPOINT_URL", "http://moto:9998")
+
+    executor = build_query_executor(ExecutionStore())
+
+    assert executor._client._statement_url == "http://trino:9999/v1/statement"
+    assert executor._writer._s3._client.meta.endpoint_url == "http://moto:9998"
+
+
+def test_build_query_executor_uses_compose_default_endpoints(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(TRINO_URL_ENV, raising=False)
+    monkeypatch.delenv("ATHENA_MOTO_ENDPOINT_URL", raising=False)
+
+    executor = build_query_executor(ExecutionStore())
+
+    assert (
+        executor._client._statement_url == "http://localhost:8080/v1/statement"
+    )
+    assert (
+        executor._writer._s3._client.meta.endpoint_url
+        == "http://127.0.0.1:5000"
+    )
+
+
+def test_reset_query_plane_clears_executions_and_rebinds_handlers() -> None:
+    execution_store.create(query="SELECT 1", workgroup="primary")
+
+    reset_query_plane()
+
+    assert execution_store.by_id == {}
+    assert QUERY_PLANE_OPERATIONS <= implemented_operations()

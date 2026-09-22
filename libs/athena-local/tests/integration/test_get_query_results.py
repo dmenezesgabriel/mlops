@@ -23,9 +23,9 @@ import boto3
 import httpx
 import pytest
 from athena_local.artifacts import ArtifactWriter
-from athena_local.dispatch import OPERATION_HANDLERS
 from athena_local.executions import ExecutionStore
 from athena_local.executor import QueryExecutor
+from athena_local.main import reset_query_plane
 from athena_local.query_executions import register_query_execution_handlers
 from athena_local.s3_writer import S3Writer
 from athena_local.state import WorkGroupStore
@@ -35,14 +35,6 @@ from moto.backends import get_backend
 from tests.integration.conftest import LiveAthenaServer, LiveMotoServer
 
 TRINO_URL = os.environ.get("ATHENA_LOCAL_TRINO_URL", "http://localhost:8080")
-QUERY_PLANE_OPERATIONS = {
-    "StartQueryExecution",
-    "StopQueryExecution",
-    "GetQueryExecution",
-    "BatchGetQueryExecution",
-    "GetQueryResults",
-    "GetQueryRuntimeStatistics",
-}
 
 
 @dataclass
@@ -99,8 +91,7 @@ def inline_results_harness(
             prefix=f"s3://{bucket}/results/",
         )
     finally:
-        for operation in QUERY_PLANE_OPERATIONS:
-            OPERATION_HANDLERS.pop(operation, None)
+        reset_query_plane()
 
 
 def test_botocore_paginator_walks_pages_losslessly(
