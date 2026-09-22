@@ -69,7 +69,7 @@
 | AR-1a | [x] INSERT/UNLOAD `-manifest.csv` enumeration: exact file list for existing-table writers (list the table location, over-stating files is wrong); `output_targets.py` captures the write target's objects before submit (Glue `StorageDescriptor.Location` for INSERT, `TO` for UNLOAD) and diffs at completion so the manifest lists only the files the query wrote | M | `read.py:135-206` (INSERT example); own evidence | AR-1 |
 | AR-2 | [x] `OutputLocation` = full artifact path; write-before-SUCCEEDED ordering; `Statistics.DataManifestLocation` set for manifest ops | M | ADR-0007; AWS docs output-files | AR-1 |
 | AR-3 | [x] Inline `GetQueryResults` page semantics: header row on page zero only, `MaxResults` 1..1000 (default 1000, out-of-range → shaped 400), opaque `NextToken` data-row offset (bad/negative → shaped 400), token absent when pages exhaust — botocore's `get_query_results` paginator (wrangler's `_fetch_api_result` path) merges pages losslessly; per-type cell encoding stays plain `str()` (AR-4) | M | FR-03; model `GetQueryResults{Input,Output}` + `MaxQueryResults`/`Token`; wrangler `_read.py:335-384`; botocore `paginators-1.json`; live paginator integration | QE-3 |
-| AR-4 | Type→VarCharValue serialization for all Trino column types (numbers/bools/dates/decimals/timestamps; null → absent key) | S | model `VarCharValue` optional; wrangler dtype mapping | AR-3 |
+| AR-4 | [x] Type→VarCharValue serialization for all Trino column types (numbers/bools/dates/decimals/timestamps; null → absent key) | S | model `VarCharValue` optional; wrangler dtype mapping | AR-3 |
 
 ## G. Consumers (CS)
 

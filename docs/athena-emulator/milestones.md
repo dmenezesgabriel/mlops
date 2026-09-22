@@ -151,7 +151,7 @@ Steps:
      451 tests, 99% cov, all §8.4 gates green.
    - Regression anchor: wrangler's bad-SQL expectations
      (`awswrangler/athena/_utils.py:888-898`).
-4. AR-1..4 artifact writers + OutputLocation semantics + inline pagination.
+4. [x] AR-1..4 artifact writers + OutputLocation semantics + inline pagination.
    - Contract tests: files byte-compare to wrangler expectations (QUOTE_ALL,
      csv with the quoted header row as line 1 — ADR-0010; tab TXT; manifest
      → `.metadata` via `.replace` at `awswrangler/athena/_read.py:153`).
@@ -191,6 +191,16 @@ Steps:
       response + accumulated across polled pages). 539 tests (11 new unit +
       3 BDD + 2 live integration + 2 executor regression), all §8.4 gates
       green.
+   - Verified 2026-09-22 (AR-4): per-type VarCharValue serialization in
+     `query_executions._cell_value` — numbers/decimals/dates/timestamps
+     arrive from Trino already in Athena's string shape and pass through,
+     booleans normalize to the lowercase wire form, and a null cell renders
+     as an empty datum (no `VarCharValue` member, per the model's optional
+     `Datum.VarCharValue`) instead of `""`. Live proof: a real-engine SELECT
+     of integer/boolean/double/decimal(6,2)/date/timestamp/NULL columns
+     returns `"1"`, `"true"`, `"1.5"`, `"12.34"`, `"2023-06-15"`,
+     `"2023-06-15 10:20:30.123"`, and `{}` over boto3→uvicorn→Trino.
+     542 tests, 99% coverage, all §8.4 gates green.
 5. Integration: docker stack, `SELECT` via wrangler end-to-end (M0 config).
 
 Exit: wrangler `read_sql_query` (api + csv + cache), `to_parquet` CTAS,
