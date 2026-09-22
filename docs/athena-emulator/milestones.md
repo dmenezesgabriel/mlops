@@ -168,6 +168,15 @@ Steps:
      a reason that FAILs the write, so Trino's analysis error surfaces first.
      509 tests (33 new unit + 1 live-moto integration + 2 BDD), all §8.4
      gates green.
+    - Verified 2026-09-22 (AR-2): `GetQueryExecution.ResultConfiguration.
+      OutputLocation` reports the full artifact path — `{prefix}{QueryID}.csv`
+      (DML), `.txt` (DDL/UTILITY), bare `{prefix}{QueryID}` stem for
+      CTAS/INSERT/UNLOAD with `Statistics.DataManifestLocation` naming the
+      `-manifest.csv` (ADR-0007 #2; wrangler `endswith` gates `_read.py:220`,
+      `_utils.py:196`); shared statement→artifact-kind mapping in
+      `statement_classification.artifact_output_kind`; 520 tests (8 new unit
+      + 1 BDD + 2 live boto3→uvicorn→Trino→moto-S3 integration), 99%
+      coverage, all §8.4 gates green.
 5. Integration: docker stack, `SELECT` via wrangler end-to-end (M0 config).
 
 Exit: wrangler `read_sql_query` (api + csv + cache), `to_parquet` CTAS,

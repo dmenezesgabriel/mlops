@@ -32,12 +32,11 @@ from typing import Literal
 from athena_local.executions import QueryExecutionRecord
 from athena_local.executor import ArtifactWriteError
 from athena_local.s3_writer import S3Writer, S3WriterError
-from athena_local.statement_classification import DDL, UTILITY, _strip_comments
-from athena_local.trino_client import TrinoPage
-
-MANIFEST_SUBSTATEMENTS = frozenset(
-    {"CREATE_TABLE_AS_SELECT", "INSERT", "UNLOAD"}
+from athena_local.statement_classification import (
+    _strip_comments,
+    artifact_output_kind,
 )
+from athena_local.trino_client import TrinoPage
 
 # ``''`` is SQL's escaped quote; the kept text still holds the literal the
 # same way _strip_comments preserves string literals.
@@ -73,9 +72,10 @@ def artifact_plan(
     ``.txt`` (wrangler _utils.py:200-213); everything else is the ``.csv``
     whose quoted header row is line 1 (ADR-0010).
     """
-    if substatement_type in MANIFEST_SUBSTATEMENTS:
+    kind = artifact_output_kind(statement_type, substatement_type)
+    if kind == "manifest":
         return ArtifactPlan("manifest", "-manifest.csv", ".metadata")
-    if statement_type in (DDL, UTILITY):
+    if kind == "txt":
         return ArtifactPlan("txt", ".txt", ".txt.metadata")
     return ArtifactPlan("csv", ".csv", ".csv.metadata")
 

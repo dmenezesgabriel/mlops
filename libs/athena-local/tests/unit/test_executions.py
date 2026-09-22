@@ -184,10 +184,83 @@ def test_payload_shape_with_all_optional_members(
         "Database": "default",
         "Catalog": "AwsDataCatalog",
     }
+    # OutputLocation is the full artifact file path (ADR-0007 #2): with no
+    # statement classification the record serializes as a DML-style .csv.
     assert payload["ResultConfiguration"] == {
-        "OutputLocation": "s3://bucket/q.csv"
+        "OutputLocation": (
+            f"s3://bucket/q.csv/{record.query_execution_id}.csv"
+        )
     }
     assert payload["ExecutionParameters"] == ["one", "two"]
+
+
+@pytest.mark.parametrize(
+    ("statement_type", "substatement_type", "expected_suffix"),
+    [
+        ("DML", "SELECT", ".csv"),
+        ("DDL", "CREATE_TABLE", ".txt"),
+        ("UTILITY", "SHOW_CREATE_TABLE", ".txt"),
+        ("DDL", "CREATE_TABLE_AS_SELECT", ""),
+        ("DML", "INSERT", ""),
+        ("DML", "UNLOAD", ""),
+    ],
+)
+def test_payload_reports_full_artifact_output_location(
+    store: ExecutionStore,
+    statement_type: str,
+    substatement_type: str,
+    expected_suffix: str,
+) -> None:
+    record = store.create(
+        query="SELECT 1",
+        workgroup="primary",
+        result_configuration=ResultConfiguration(
+            output_location="s3://results-bucket/analytics/"
+        ),
+        statement_type=statement_type,
+        substatement_type=substatement_type,
+    )
+    record.transition_to(RUNNING)
+
+    payload = record.to_payload()
+
+    # GetQueryExecution.ResultConfiguration.OutputLocation names the artifact
+    # file itself (ADR-0007 #2): .csv for DML, .txt for DDL/UTILITY, and the
+    # bare folder stem for manifest statements whose file is named by
+    # Statistics.DataManifestLocation (aws docs get-query-execution output).
+    assert payload["ResultConfiguration"]["OutputLocation"] == (
+        f"s3://results-bucket/analytics/{record.query_execution_id}"
+        f"{expected_suffix}"
+    )
+
+
+def test_manifest_output_location_pairs_with_data_manifest_location(
+    store: ExecutionStore,
+) -> None:
+    record = store.create(
+        query="INSERT INTO analytics.events SELECT 1",
+        workgroup="primary",
+        result_configuration=ResultConfiguration(
+            output_location="s3://results-bucket/analytics/"
+        ),
+        statement_type="DML",
+        substatement_type="INSERT",
+    )
+    record.data_manifest_location = (
+        f"s3://results-bucket/analytics/"
+        f"{record.query_execution_id}-manifest.csv"
+    )
+    record.transition_to(RUNNING)
+
+    payload = record.to_payload()
+
+    # The manifest's file sits next to the stem the OutputLocation names, the
+    # same pairing read_sql_query relies on after the poll loop.
+    stem = f"s3://results-bucket/analytics/{record.query_execution_id}"
+    assert payload["ResultConfiguration"]["OutputLocation"] == stem
+    assert (
+        payload["Statistics"]["DataManifestLocation"] == f"{stem}-manifest.csv"
+    )
 
 
 def test_terminal_payload_carries_completion_time(

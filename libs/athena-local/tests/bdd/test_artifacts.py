@@ -223,6 +223,16 @@ def _manifest_appended_only(outcome: ArtifactOutcome) -> None:
     assert paths == sorted(outcome.appended_paths)
 
 
+@then("the reported OutputLocation is the full CSV artifact path")
+def _full_output_location(outcome: ArtifactOutcome) -> None:
+    """GetQueryExecution names the artifact file, not the folder (ADR-0007 #2)."""
+    assert outcome.record is not None
+    payload = outcome.record.to_payload()
+    assert payload["ResultConfiguration"]["OutputLocation"] == (
+        f"{outcome.result_location}{outcome.record.query_execution_id}.csv"
+    )
+
+
 def _object_key(s3_uri: str) -> tuple[str, str]:
     assert s3_uri.startswith("s3://"), f"not an s3 URI: {s3_uri}"
     bucket, _, key = s3_uri[len("s3://") :].partition("/")

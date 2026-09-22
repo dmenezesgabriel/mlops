@@ -36,3 +36,8 @@ Feature: Query result artifacts
     When the artifact writer persists the execution
     Then the manifest lists the appended file only
     And DataManifestLocation points at the manifest file
+
+  Scenario: GetQueryExecution reports the full artifact OutputLocation
+    Given a SUCCEEDED SELECT with columns "id" and "name" and 2 rows
+    When the artifact writer persists the execution
+    Then the reported OutputLocation is the full CSV artifact path

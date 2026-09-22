@@ -26,6 +26,10 @@ from athena_local.common_schemas import (
 )
 from athena_local.errors import InvalidRequestException
 from athena_local.output_targets import OutputSnapshot
+from athena_local.statement_classification import (
+    ARTIFACT_OUTPUT_SUFFIX,
+    artifact_output_kind,
+)
 
 QUEUED = "QUEUED"
 RUNNING = "RUNNING"
@@ -112,6 +116,28 @@ class QueryExecutionRecord:
         self.result_columns = list(columns)
         self.result_rows = [list(row) for row in rows]
 
+    def _result_output_location(self) -> str | None:
+        """The full artifact path GetQueryExecution reports (ADR-0007 #2).
+
+        The client-facing OutputLocation names the artifact file itself, not
+        the request's folder: a DML run reports ``{prefix}{QueryID}.csv``
+        because wrangler gates its file reads on ``endswith(".csv")``
+        (awswrangler/athena/_read.py:220), DDL/UTILITY ``.txt``
+        (athena/_utils.py:196), and manifest statements the bare
+        ``{prefix}{QueryID}`` stem with ``Statistics.DataManifestLocation``
+        naming the ``-manifest.csv`` (aws docs get-query-execution output).
+        """
+        if self.result_configuration is None:
+            return None
+        prefix = self.result_configuration.output_location
+        if not prefix:
+            return None
+        stem = f"{prefix.rstrip('/')}/{self.query_execution_id}"
+        kind = artifact_output_kind(
+            self.statement_type, self.substatement_type
+        )
+        return stem + ARTIFACT_OUTPUT_SUFFIX[kind]
+
     def to_payload(self) -> dict[str, object]:
         """Serialize to the GetQueryExecution ``QueryExecution`` wire shape."""
         payload: dict[str, object] = {
@@ -122,9 +148,13 @@ class QueryExecutionRecord:
             "WorkGroup": self.workgroup,
         }
         if self.result_configuration is not None:
-            payload["ResultConfiguration"] = result_configuration_payload(
+            configuration_payload = result_configuration_payload(
                 self.result_configuration
             )
+            output_location = self._result_output_location()
+            if output_location is not None:
+                configuration_payload["OutputLocation"] = output_location
+            payload["ResultConfiguration"] = configuration_payload
         if self.database is not None or self.catalog is not None:
             payload["QueryExecutionContext"] = self._context_payload()
         if self.statement_type is not None:

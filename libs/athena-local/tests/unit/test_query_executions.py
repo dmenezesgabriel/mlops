@@ -452,6 +452,30 @@ def test_get_returns_full_payload(
     assert output["QueryExecution"]["Status"]["State"] == QUEUED
 
 
+def test_get_query_execution_reports_full_artifact_path(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    record = store.create(
+        query="SELECT 1",
+        workgroup="primary",
+        result_configuration=ResultConfiguration(
+            output_location="s3://results-bucket/analytics/"
+        ),
+        statement_type="DML",
+        substatement_type="SELECT",
+    )
+
+    output = get_query_execution(
+        store, {"QueryExecutionId": record.query_execution_id}
+    )
+
+    assert output["QueryExecution"]["ResultConfiguration"][
+        "OutputLocation"
+    ] == (f"s3://results-bucket/analytics/{record.query_execution_id}.csv")
+
+
 def test_get_none_payload_is_shaped_error(
     store: ExecutionStore,
     executor: QueryExecutor,

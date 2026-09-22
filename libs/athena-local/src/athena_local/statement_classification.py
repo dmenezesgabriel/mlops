@@ -58,6 +58,42 @@ UTILITY_STATEMENTS = frozenset(
     }
 )
 
+# CTAS / INSERT / UNLOAD write data files at a target location the query text
+# or the Glue catalog names; their only result artifact next to that data is a
+# ``-manifest.csv`` (ADR-0007 #1), so the wire OutputLocation naming differs
+# from the ``.csv``/``.txt`` result-file statements.
+MANIFEST_SUBSTATEMENTS = frozenset(
+    {"CREATE_TABLE_AS_SELECT", "INSERT", "UNLOAD"}
+)
+
+# One statement family → one artifact family; the suffix a GetQueryExecution
+# OutputLocation carries is the result-file extension (a manifest statement's
+# OutputLocation stays the bare folder stem and Statistics.DataManifestLocation
+# names the ``-manifest.csv``, matching the aws docs get-query-execution
+# example).
+ARTIFACT_OUTPUT_SUFFIX: dict[str, str] = {
+    "csv": ".csv",
+    "txt": ".txt",
+    "manifest": "",
+}
+
+
+def artifact_output_kind(
+    statement_type: str | None, substatement_type: str | None
+) -> Literal["csv", "txt", "manifest"]:
+    """The artifact family a statement's wire classification produces.
+
+    DML SELECTs write the header-quoted ``.csv``, DDL and UTILITY statements
+    the headerless ``.txt``, and CTAS/INSERT/UNLOAD a ``-manifest.csv``
+    listing the data files the query wrote (ADR-0007 #1). A record with no
+    classification serializes as DML, matching the model's untyped default.
+    """
+    if substatement_type in MANIFEST_SUBSTATEMENTS:
+        return "manifest"
+    if statement_type in (DDL, UTILITY):
+        return "txt"
+    return "csv"
+
 
 @dataclass(frozen=True)
 class StatementClassification:
