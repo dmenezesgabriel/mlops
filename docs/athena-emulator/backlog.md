@@ -50,7 +50,7 @@
 | MD-6 | [x] Tags CRUD | S | FR-16 | PC-1 |
 | MD-7 | [x] Catalog read proxy → moto Glue: `list_databases`, `get_database`, `list_table_metadata`, `get_table_metadata` | M | FR-08; ADR-0005 | PC-1, SP-3 |
 | MD-8 | [x] `GetWorkGroup` must expose `ResultConfiguration.OutputLocation` handling that wrangler honors (see PC/AD-0007 interplay) — verified: wrangler `_get_workgroup_config` parity tests (`integration/test_workgroups.py:104-156`) + `workgroups.feature` OutputLocation round-trip | S | FR-09; wrangler `_utils.py` config resolution | MD-1 |
-| MD-9 | [ ] Managed-results workgroup: `StartQueryExecution` accepts an execution without `ResultConfiguration.OutputLocation` when the workgroup's `ResultConfiguration` provides one (wrangler's workgroup-config path) — replaces today's unconditional 400 (`query_executions.py`) | S | FR-09; wrangler `_get_workgroup_config` (`_utils.py:158-188`); moto: no managed-Results support → PRD §3 row | MD-1, PC-6 |
+| MD-9 | [x] Managed-results workgroup (ADR-0011): `StartQueryExecution` without a request `ResultConfiguration` on a managed workgroup (`ManagedQueryResultsConfiguration.Enabled=true`) no longer 400s — the execution stores an empty `ResultConfiguration`, `GetQueryExecution` reports the member without `OutputLocation`, the executor skips S3 artifacts yet SUCCEEDEDs with rows served inline via `GetQueryResults`, and a request-carried `OutputLocation` is ignored. Verified 2026-09-24 | S | FR-20; wrangler managed paths `_utils.py:105-109,175-178`, `_read.py:450,928`; model `ManagedQueryResultsConfiguration`; moto: no managed-Results support | MD-1, PC-6 |
 
 ## E. Query engine (QE) — ADR-0001, ADR-0009
 

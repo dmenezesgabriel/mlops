@@ -224,6 +224,17 @@ Steps:
       DML/SELECT, inline rows + `.csv`/`.metadata` on moto S3 over
       boto3→uvicorn→Trino; missing statement and count mismatch → FAILED.
       584 tests, 99% coverage, all §8.4 gates green.
+     - Verified 2026-09-24 (MD-9): managed-results workgroup — a
+       `StartQueryExecution` with no `ResultConfiguration` no longer 400s; the
+       execution stores an empty `ResultConfiguration`, `GetQueryExecution`
+       reports it without `OutputLocation` (the exact shape wrangler's managed
+       tests assert, `awswrangler/tests/unit/test_athena.py:125`), the writer
+       is skipped yet SUCCEEDED still lands with the cached rows served inline
+       via `GetQueryResults` (wrangler's managed read path, `_read.py:450,928`),
+       and a request-carried `OutputLocation` is ignored (ADR-0011). Live
+       proof: boto3 → uvicorn → Trino → moto, with `wr._get_workgroup_config`
+       over `create_work_group` reading `managed_results is True`; 591 tests,
+       99% coverage, all §8.4 gates green.
 
 Exit: wrangler `read_sql_query` (api + csv + cache), `to_parquet` CTAS,
 prepared statements, bad-SQL error path — all green against the docker stack.
