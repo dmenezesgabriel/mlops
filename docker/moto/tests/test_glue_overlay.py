@@ -115,6 +115,140 @@ def test_update_statistics_unknown_table_raises_entity_not_found() -> None:
     assert raised.value.response["Error"]["Code"] == "EntityNotFoundException"
 
 
+def _seed_partitioned_table(
+    client,
+    database_name: str,
+    table_name: str,
+    partition_keys: list[dict[str, str]],
+    partition_values: list[list[str]],
+) -> None:
+    """Create a partitioned table and seed it with partitions (CS-2b3 fixture)."""
+    client.create_database(DatabaseInput={"Name": database_name})
+    client.create_table(
+        DatabaseName=database_name,
+        TableInput={
+            "Name": table_name,
+            "StorageDescriptor": {
+                "Columns": [{"Name": "amount", "Type": "bigint"}],
+                "Location": f"s3://bucket/{table_name}",
+            },
+            "PartitionKeys": partition_keys,
+        },
+    )
+    for values in partition_values:
+        client.create_partition(
+            DatabaseName=database_name,
+            TableName=table_name,
+            PartitionInput={
+                "Values": values,
+                "StorageDescriptor": {
+                    "Columns": [{"Name": "amount", "Type": "bigint"}],
+                    "Location": f"s3://bucket/{table_name}/"
+                    + "/".join(values),
+                },
+            },
+        )
+
+
+def _partition_values_from(response: dict[str, object]) -> list[list[str]]:
+    """Extract the Values of each returned partition for compact assertions."""
+    partitions = response["Partitions"]
+    assert isinstance(partitions, list)
+    return [partition["Values"] for partition in partitions]
+
+
+@mock_aws
+def test_empty_expression_returns_all_partitions() -> None:
+    # Real AWS Glue treats a blank Expression as "no filter"; the Hive SDK v1
+    # metastore client sends Expression='' when listing every partition. moto
+    # 5.1.16 only special-cases None and fails the empty string (upstream fix
+    # 4db88f3a4 / #10122), which breaks Trino partitioned reads (CS-2b3).
+    client = boto3.client("glue", region_name="us-east-1")
+    database_name = "sales_db"
+    table_name = "sales"
+    _seed_partitioned_table(
+        client,
+        database_name,
+        table_name,
+        partition_keys=[{"Name": "region", "Type": "varchar(2)"}],
+        partition_values=[["US"], ["EU"]],
+    )
+
+    for expression in ("", "   "):
+        response = client.get_partitions(
+            DatabaseName=database_name,
+            TableName=table_name,
+            Expression=expression,
+        )
+        assert _partition_values_from(response) == [["US"], ["EU"]]
+
+
+@mock_aws
+def test_equality_filter_on_varchar_partition_key() -> None:
+    # Trino registers partition keys with their full Hive type spelling
+    # (varchar(2)); moto's _cast only knows bare "varchar" and raised
+    # "Unknown type : 'varchar(2)'" on any filtered GetPartitions (CS-2b3).
+    client = boto3.client("glue", region_name="us-east-1")
+    database_name = "sales_db"
+    table_name = "sales"
+    _seed_partitioned_table(
+        client,
+        database_name,
+        table_name,
+        partition_keys=[{"Name": "region", "Type": "varchar(2)"}],
+        partition_values=[["US"], ["EU"]],
+    )
+
+    response = client.get_partitions(
+        DatabaseName=database_name,
+        TableName=table_name,
+        Expression="region = 'EU'",
+    )
+    assert _partition_values_from(response) == [["EU"]]
+
+
+@mock_aws
+def test_equality_filter_on_decimal_partition_key() -> None:
+    client = boto3.client("glue", region_name="us-east-1")
+    database_name = "sales_db"
+    table_name = "sales"
+    _seed_partitioned_table(
+        client,
+        database_name,
+        table_name,
+        partition_keys=[{"Name": "amount", "Type": "decimal(10,2)"}],
+        partition_values=[["10.50"], ["3.14"]],
+    )
+
+    response = client.get_partitions(
+        DatabaseName=database_name,
+        TableName=table_name,
+        Expression="amount = 10.5",
+    )
+    assert _partition_values_from(response) == [["10.50"]]
+
+
+@mock_aws
+def test_equality_filter_on_double_partition_key() -> None:
+    client = boto3.client("glue", region_name="us-east-1")
+    database_name = "sales_db"
+    table_name = "sales"
+    _seed_partitioned_table(
+        client,
+        database_name,
+        table_name,
+        partition_keys=[{"Name": "amount", "Type": "double"}],
+        partition_values=[["3.14"], ["2.71"]],
+    )
+
+    response = client.get_partitions(
+        DatabaseName=database_name,
+        TableName=table_name,
+        Expression="amount = 3.14",
+    )
+    assert _partition_values_from(response) == [["3.14"]]
+
+
 @mock_aws
 def test_get_user_defined_functions_returns_empty_list() -> None:
     client = boto3.client("glue", region_name="us-east-1")

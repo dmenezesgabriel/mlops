@@ -14,6 +14,14 @@ This module attaches exactly those operations to the running moto server
 classes: thin handlers on ``GlueResponse`` plus storage on a per-backend
 weak map. Wire shapes follow the Glue service model vendored by botocore at
 ``research_repos/aws-cli/awscli/botocore/data/glue/2017-03-31/service-2.json``.
+
+It also bridges two GetPartitions expression gaps that block every Trino
+partitioned read (CS-2b3): moto 5.1.16 raises ``Unsupported expression ''``
+for the blank ``Expression`` the Hive metastore client sends when listing all
+partitions (upstream fix ``4db88f3a4`` / ``#10122``), and its ``_cast`` only
+knows bare type names while Trino registers keys as ``varchar(2)``,
+``decimal(10,2)``, ``timestamp(3)`` and ``char(N)``.
+
 Only the moto service container runs this module (docker/trino entrypoint);
 the athena-local library never imports it (ADR-0008).
 """
@@ -21,13 +29,16 @@ the athena-local library never imports it (ADR-0008).
 from __future__ import annotations
 
 import fnmatch
+from datetime import date, datetime
 from typing import TypeAlias
 from weakref import WeakKeyDictionary
 
 from moto.core.responses import ActionResult, EmptyResult
+from moto.glue import utils as glue_utils
 from moto.glue.exceptions import InvalidInputException
 from moto.glue.models import GlueBackend
 from moto.glue.responses import GlueResponse
+from moto.glue.utils import _PartitionFilterExpressionCache
 
 ColumnStatistics: TypeAlias = dict[str, object]
 UserDefinedFunction: TypeAlias = dict[str, object]
@@ -211,10 +222,59 @@ _RESPONSE_OPERATIONS: dict[str, object] = {
     "get_user_defined_functions": get_user_defined_functions,
 }
 
+# Trino registers partition keys with their full Hive spelling; these scalars
+# fold onto branches moto's _cast already implements (float data, string
+# data, integral data).
+_SCALAR_TYPE_FOLDS: dict[str, str] = {
+    "boolean": "string",
+    "double": "decimal",
+    "float": "decimal",
+    "integer": "bigint",
+    "real": "decimal",
+}
+
+_ORIGINAL_PARTITION_CAST = glue_utils._cast
+_ORIGINAL_FILTER_EXPRESSION_GET = _PartitionFilterExpressionCache.get
+
+
+def _normalize_partition_type(type_: str) -> str:
+    """Reduce a Hive/Trino partition key type to a bare moto _cast type.
+
+    Stops ``varchar(2)``/``decimal(10,2)``/``timestamp(3)``/``char(N)`` at the
+    first ``(`` and folds the remaining real-AWS scalars (double, float, real,
+    boolean, integer) onto the branch moto implements.
+    """
+    base = type_.split("(", 1)[0]
+    return _SCALAR_TYPE_FOLDS.get(base, base)
+
+
+def _cast_partition_value(
+    type_: str, value: object
+) -> date | datetime | float | int | str:
+    """Cast a partition value after normalizing its key's Hive type spelling."""
+    return _ORIGINAL_PARTITION_CAST(_normalize_partition_type(type_), value)
+
+
+def _get_filter_expression(
+    self: _PartitionFilterExpressionCache, expression: str | None
+) -> glue_utils._Expr | None:
+    # Real AWS Glue treats a blank Expression as "no filter", and the Hive
+    # metastore Glue client sends Expression='' when listing all partitions.
+    # Upstream moto #10122 (4db88f3a4) mirrors that; 5.1.16 only special-cases
+    # None, so the empty string fails the grammar parse.
+    if expression is None or not expression.strip():
+        return None
+    return _ORIGINAL_FILTER_EXPRESSION_GET(self, expression)
+
 
 def apply_overlay() -> None:
-    """Attach the four Glue operations to the running moto server classes."""
+    """Attach the Glue bridges to the running moto server classes."""
     if getattr(GlueResponse, "get_user_defined_functions", None) is not None:
         return
     for operation, handler in _RESPONSE_OPERATIONS.items():
         setattr(GlueResponse, operation, handler)
+    # Both replacements are module-global lookups: PartitionFilter resolves
+    # _PARTITION_FILTER_EXPRESSION_CACHE.get on the class, and _Ident/_Like
+    # call _cast by name inside moto.glue.utils.
+    _PartitionFilterExpressionCache.get = _get_filter_expression
+    glue_utils._cast = _cast_partition_value
