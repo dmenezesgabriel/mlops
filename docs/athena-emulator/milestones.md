@@ -236,6 +236,20 @@ Steps:
        proof: boto3 → uvicorn → Trino → moto, with `wr._get_workgroup_config`
        over `create_work_group` reading `managed_results is True`; 591 tests,
        99% coverage, all §8.4 gates green.
+     - Verified 2026-09-24 (CS-2b2): wrangler write-path consumer suite green
+       on the live stack (in-process uvicorn + bridge moto as shared data
+       plane): `params` + `paramstyle="qmark"` prepared `EXECUTE` (bare values
+       like `"Washington"` bind as string literals while `"1"`/`DATE
+       '2020-01-01'` travel as their typed literals — the spellings wrangler's
+       real-AWS suite pins, `awswrangler/tests/unit/test_athena.py:936-937`),
+       direct `?`-marker binding, `to_parquet` CTAS round-trip
+       (`Statistics.DataManifestLocation` manifest → parquet read-back),
+       CTAS + qmark combined, and the parameter-count-mismatch FAILED
+       execution (`QueryFailed` on the wrangler side, never a 400). Live
+       proof: `read_sql_query`/`create_ctas_table` through boto3 → uvicorn →
+       Trino → moto; 6 CS-2b2 + 4 CS-2b1 integration tests against the live
+       stack, 514 unit tests, 99% coverage, all §8.4 gates green. The step
+       closes here (CS-2b2 green).
 
 Exit: wrangler `read_sql_query` (api + csv + cache), `to_parquet` CTAS,
 prepared statements, bad-SQL error path — all green against the docker stack.
