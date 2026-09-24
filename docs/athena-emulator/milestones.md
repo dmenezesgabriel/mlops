@@ -205,9 +205,10 @@ Steps:
    - **Split into tracked backlog items (2026-09-22):** PC-6 (query-plane
      composition root in `main.py`) → QE-7 (server-side prepared-statement
      execution) → MD-9 (managed-results workgroup → `StartQueryExecution`
-     without `OutputLocation`) → CS-2b (awswrangler consumer suite: api/csv/
-     cache/prepared/bad-SQL/to_parquet against the running moto container via
-     bridge IP). The step closes when CS-2b is green.
+     without `OutputLocation`) → CS-2b1/CS-2b2 (awswrangler consumer suites
+     against the running moto container via bridge IP: CS-2b1 = read paths
+     api/csv/cache/bad-SQL, CS-2b2 = prepared EXECUTE + `to_parquet` CTAS).
+     The step closes when CS-2b2 is green.
     - Verified 2026-09-22 (QE-7): `prepared_execution.py` parses
       `EXECUTE <name> [USING …]`, binds each value **verbatim** as one
       paren-wrapped SQL expression into the stored `QueryStatement` at its `?`
