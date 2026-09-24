@@ -279,3 +279,41 @@ class ExecutionStore:
             else:
                 unprocessed.append(query_execution_id)
         return found, unprocessed
+
+    def list_execution_ids(
+        self,
+        workgroup: str,
+        max_results: int | None = None,
+        next_token: str | None = None,
+    ) -> tuple[list[str], str | None]:
+        """Return execution IDs for a workgroup, most recent first.
+
+        Mirrors the named-query store's offset pagination: ``next_token`` is
+        the opaque zero-based start index and the returned token names the
+        next start, so botocore's list_query_executions paginator (the path
+        wrangler's Athena cache probe walks — awswrangler/athena/_cache.py
+        :113-129) merges pages losslessly. AWS documents the newest first.
+        """
+        newest_first = [
+            execution_id
+            for execution_id, record in reversed(self.by_id.items())
+            if record.workgroup == workgroup
+        ]
+        start_index = 0
+        if next_token is not None:
+            try:
+                start_index = int(next_token)
+            except ValueError:
+                raise InvalidRequestException(
+                    f"Invalid NextToken: {next_token}"
+                ) from None
+        if start_index >= len(newest_first):
+            return [], None
+        end_index = len(newest_first)
+        if max_results is not None and max_results > 0:
+            end_index = min(start_index + max_results, len(newest_first))
+        page_ids = newest_first[start_index:end_index]
+        next_token_out = (
+            str(end_index) if end_index < len(newest_first) else None
+        )
+        return page_ids, next_token_out

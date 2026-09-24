@@ -277,6 +277,33 @@ def batch_get_query_execution(
     return output
 
 
+def list_query_executions(
+    store: ExecutionStore, payload: dict[str, object] | None
+) -> dict[str, object]:
+    """Run ListQueryExecutions: IDs per workgroup, most recent first (FR-02).
+
+    wrangler's Athena cache probe paginates this op and batch_gets each ID
+    (awswrangler/athena/_cache.py:113-129); WorkGroup defaults to ``primary``
+    exactly as the model documents. The slice semantics mirror the named
+    query store's list so botocore's paginator merges pages losslessly.
+    Empty bodies answer the defaults rather than crashing, like every other
+    list op (dispatch/parse_body returns None for empty requests).
+    """
+    body = payload or {}
+    workgroup = _optional_string(body, "WorkGroup") or "primary"
+    max_results = _optional_max_results(body)
+    next_token = _optional_string(body, "NextToken")
+    execution_ids, next_token_out = store.list_execution_ids(
+        workgroup=workgroup,
+        max_results=max_results,
+        next_token=next_token,
+    )
+    output: dict[str, object] = {"QueryExecutionIds": execution_ids}
+    if next_token_out is not None:
+        output["NextToken"] = next_token_out
+    return output
+
+
 async def stop_query_execution(
     executor: QueryExecutor, payload: dict[str, object] | None
 ) -> dict[str, object]:
@@ -360,6 +387,25 @@ def _max_results(payload: dict[str, object] | None) -> int:
     if raw < 1 or raw > DEFAULT_MAX_RESULTS:
         raise InvalidRequestException(
             f"MaxResults must be between 1 and {DEFAULT_MAX_RESULTS}, got {raw}"
+        )
+    return raw
+
+
+MAX_LIST_EXECUTIONS = 50  # model MaxQueryExecutionsCount (service-2.json)
+
+
+def _optional_max_results(payload: dict[str, object] | None) -> int | None:
+    """Validate an optional ListQueryExecutions MaxResults (1..50)."""
+    raw = _member(payload, "MaxResults")
+    if raw is None:
+        return None
+    if not isinstance(raw, int):
+        raise InvalidRequestException(
+            f"MaxResults must be an integer, got {raw!r}"
+        )
+    if raw < 1 or raw > MAX_LIST_EXECUTIONS:
+        raise InvalidRequestException(
+            f"MaxResults must be between 1 and {MAX_LIST_EXECUTIONS}, got {raw}"
         )
     return raw
 
@@ -458,7 +504,7 @@ def register_query_execution_handlers(
     workgroup_store: WorkGroupStore,
     prepared_statement_store: PreparedStatementStore | None = None,
 ) -> None:
-    """Bind the six query-plane operations (explicit wiring in ``main.py``).
+    """Bind the seven query-plane operations (explicit wiring in ``main.py``).
 
     ``prepared_statement_store`` feeds EXECUTE resolution in
     ``StartQueryExecution`` (QE-7); a missing store means no statement exists
@@ -480,6 +526,10 @@ def register_query_execution_handlers(
     register_handler(
         "BatchGetQueryExecution",
         lambda payload: batch_get_query_execution(store, payload),
+    )
+    register_handler(
+        "ListQueryExecutions",
+        lambda payload: list_query_executions(store, payload),
     )
     register_handler(
         "StopQueryExecution",

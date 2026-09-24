@@ -1,4 +1,4 @@
-"""Handler tests for the six query-plane operations (QE-3).
+"""Handler tests for the seven query-plane operations (QE-3, CS-2b1).
 
 Handlers translate a parsed JSON payload into the operation's output shape,
 delegating lifecycle semantics to ``QueryExecutor`` (ADR-0009) and reads to
@@ -38,6 +38,7 @@ from athena_local.query_executions import (
     get_query_execution,
     get_query_results,
     get_query_runtime_statistics,
+    list_query_executions,
     register_query_execution_handlers,
     start_query_execution,
     stop_query_execution,
@@ -53,6 +54,7 @@ QUERY_OPERATIONS = {
     "BatchGetQueryExecution",
     "GetQueryResults",
     "GetQueryRuntimeStatistics",
+    "ListQueryExecutions",
 }
 
 
@@ -661,6 +663,130 @@ def test_batch_get_rejects_non_string_ids(
 ) -> None:
     with pytest.raises(InvalidRequestException, match="QueryExecutionIds"):
         batch_get_query_execution(store, {"QueryExecutionIds": [123]})
+
+
+def test_list_returns_ids_newest_first(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    first = store.create(query="SELECT 1", workgroup="primary")
+    second = store.create(query="SELECT 2", workgroup="primary")
+    third = store.create(query="SELECT 3", workgroup="primary")
+
+    output = list_query_executions(store, {})
+
+    assert output["QueryExecutionIds"] == [
+        third.query_execution_id,
+        second.query_execution_id,
+        first.query_execution_id,
+    ]
+    assert "NextToken" not in output
+
+
+def test_list_defaults_to_primary_and_filters_workgroup(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    first = store.create(query="SELECT 1", workgroup="primary")
+    second = store.create(query="SELECT 2", workgroup="primary")
+    other = store.create(query="SELECT 3", workgroup="analytics")
+
+    output = list_query_executions(store, {})
+
+    assert output["QueryExecutionIds"] == [
+        second.query_execution_id,
+        first.query_execution_id,
+    ]
+
+    output = list_query_executions(store, {"WorkGroup": "analytics"})
+
+    assert output["QueryExecutionIds"] == [other.query_execution_id]
+
+
+def test_list_paginates_with_offset_next_token(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    records = [
+        store.create(query=f"SELECT {index}", workgroup="primary")
+        for index in range(5)
+    ]
+
+    first_page = list_query_executions(store, {"MaxResults": 2})
+
+    assert first_page["QueryExecutionIds"] == [
+        records[4].query_execution_id,
+        records[3].query_execution_id,
+    ]
+
+    second_page = list_query_executions(
+        store, {"MaxResults": 2, "NextToken": first_page["NextToken"]}
+    )
+
+    assert second_page["QueryExecutionIds"] == [
+        records[2].query_execution_id,
+        records[1].query_execution_id,
+    ]
+
+    third_page = list_query_executions(
+        store, {"MaxResults": 2, "NextToken": second_page["NextToken"]}
+    )
+
+    assert third_page["QueryExecutionIds"] == [records[0].query_execution_id]
+    assert "NextToken" not in third_page
+
+
+def test_list_empty_store_returns_empty_ids(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    output = list_query_executions(store, {})
+
+    assert output["QueryExecutionIds"] == []
+    assert "NextToken" not in output
+
+
+def test_list_rejects_non_int_max_results(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    with pytest.raises(InvalidRequestException, match="MaxResults"):
+        list_query_executions(store, {"MaxResults": "10"})
+
+
+def test_list_rejects_max_results_above_fifty(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    with pytest.raises(InvalidRequestException, match="between 1 and 50"):
+        list_query_executions(store, {"MaxResults": 51})
+
+
+def test_list_rejects_invalid_next_token(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    with pytest.raises(InvalidRequestException, match="Invalid NextToken"):
+        list_query_executions(store, {"NextToken": "abc"})
+
+
+def test_list_empty_body_defaults_to_primary(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    first = store.create(query="SELECT 1", workgroup="primary")
+
+    output = list_query_executions(store, None)
+
+    assert output["QueryExecutionIds"] == [first.query_execution_id]
 
 
 def test_stop_marks_execution_cancelled(

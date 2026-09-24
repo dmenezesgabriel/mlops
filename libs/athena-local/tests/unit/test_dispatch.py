@@ -67,10 +67,13 @@ def test_resolve_operation_rejects_unknown_operation() -> None:
 
 
 def test_dispatch_known_operation_names_its_own_target() -> None:
-    error = asyncio.run(dispatch("AmazonAthena.ListQueryExecutions"))
+    # GetNotebookMetadata remains unimplemented; pins the shaped answer a
+    # registered-but-missing op would not produce (ListQueryExecutions moved
+    # into the implemented set with CS-2b1, hence this repoint).
+    error = asyncio.run(dispatch("AmazonAthena.GetNotebookMetadata"))
 
     assert isinstance(error, InvalidRequestException)
-    assert "ListQueryExecutions" in error.message
+    assert "GetNotebookMetadata" in error.message
 
 
 def test_dispatch_unknown_target_is_a_shaped_error_naming_the_segment() -> (
