@@ -138,6 +138,7 @@ class QueryExecutor:
         database: str | None = None,
         catalog: str | None = None,
         result_configuration: ResultConfiguration | None = None,
+        managed_results: bool = False,
         execution_parameters: list[str] | None = None,
         statement_classification: StatementClassification | None = None,
         resolved_statement: str | None = None,
@@ -167,6 +168,7 @@ class QueryExecutor:
                 database=database,
                 catalog=catalog,
                 result_configuration=result_configuration,
+                managed_results=managed_results,
                 execution_parameters=execution_parameters,
                 statement_classification=statement_classification,
                 resolved_statement=None,
@@ -184,6 +186,7 @@ class QueryExecutor:
             database=database,
             catalog=catalog,
             result_configuration=result_configuration,
+            managed_results=managed_results,
             execution_parameters=execution_parameters,
             statement_classification=statement_classification,
             resolved_statement=resolved_statement,
@@ -211,6 +214,7 @@ class QueryExecutor:
         database: str | None,
         catalog: str | None,
         result_configuration: ResultConfiguration | None,
+        managed_results: bool,
         execution_parameters: list[str] | None,
         statement_classification: StatementClassification | None,
         resolved_statement: str | None,
@@ -224,6 +228,7 @@ class QueryExecutor:
             database=database,
             catalog=catalog,
             result_configuration=result_configuration,
+            managed_results=managed_results,
             execution_parameters=execution_parameters,
             statement_type=(
                 statement_classification.statement_type
@@ -388,6 +393,13 @@ class QueryExecutor:
             [(column.name, column.column_type) for column in page.columns],
             page.data,
         )
+        if record.managed_results:
+            # Managed-results executions (ADR-0011) never expose S3 artifacts:
+            # the workgroup's Athena-owned storage is invisible to consumers,
+            # who read the rows inline via GetQueryResults. Succeeding still
+            # requires the cached page above to be present.
+            record.transition_to(SUCCEEDED)
+            return
         try:
             await self._writer.write(record, page)
         except ArtifactWriteError as error:

@@ -58,6 +58,12 @@ class QueryExecutionRecord:
     database: str | None = None
     catalog: str | None = None
     result_configuration: ResultConfiguration | None = None
+    # Managed-results executions (a workgroup whose ManagedQueryResults
+    # Configuration.Enabled is true) store an empty ResultConfiguration and
+    # never receive S3 artifacts (ADR-0011): the executor skips its writer
+    # for them, and inline GetQueryResults still serves the rows. Sticky and
+    # internal — never serialized to the wire.
+    managed_results: bool = False
     execution_parameters: list[str] | None = None
     state: str = QUEUED
     state_change_reason: str | None = None
@@ -222,6 +228,7 @@ class ExecutionStore:
         database: str | None = None,
         catalog: str | None = None,
         result_configuration: ResultConfiguration | None = None,
+        managed_results: bool = False,
         execution_parameters: list[str] | None = None,
         statement_type: str | None = None,
         substatement_type: str | None = None,
@@ -237,6 +244,7 @@ class ExecutionStore:
             database=database,
             catalog=catalog,
             result_configuration=result_configuration,
+            managed_results=managed_results,
             execution_parameters=execution_parameters,
             statement_type=statement_type,
             substatement_type=substatement_type,

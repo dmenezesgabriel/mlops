@@ -115,6 +115,14 @@ def _query_execution_context(
     )
 
 
+def _is_managed_workgroup(workgroup_record: WorkGroupRecord) -> bool:
+    """Whether the workgroup owns its query results in Athena-managed storage."""
+    managed = (
+        workgroup_record.configuration.managed_query_results_configuration
+    )
+    return managed is not None and managed.enabled is True
+
+
 def _workgroup_output_location(
     workgroup_record: WorkGroupRecord,
 ) -> str | None:
@@ -133,7 +141,15 @@ def _effective_result_configuration(
     request, and otherwise falls back request → workgroup; wrangler mirrors
     that order in ``_get_s3_output``
     (research_repos/aws-sdk-pandas/awswrangler/athena/_utils.py:49-66).
+    A managed-results workgroup short-circuits both: the service model
+    forbids an OutputLocation on it and wrangler's managed path
+    (``_utils.py:105-109``) sends no ResultConfiguration at all, so the
+    execution stores an empty configuration — the wire then reports a
+    ResultConfiguration member without OutputLocation, and the executor
+    skips S3 artifacts (ADR-0011).
     """
+    if _is_managed_workgroup(workgroup_record):
+        return ResultConfiguration()
     workgroup_location = _workgroup_output_location(workgroup_record)
     enforced = (
         workgroup_record.configuration.enforce_work_group_configuration is True
@@ -207,6 +223,7 @@ async def start_query_execution(
             ),
             workgroup_record,
         ),
+        managed_results=_is_managed_workgroup(workgroup_record),
         execution_parameters=execution_parameters,
         # Classified at submit, like real Athena: StatementType and
         # SubstatementType are reported even when the query later fails. A

@@ -16,7 +16,10 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from athena_local.common_schemas import ResultConfiguration
+from athena_local.common_schemas import (
+    ManagedQueryResultsConfiguration,
+    ResultConfiguration,
+)
 from athena_local.dispatch import implemented_operations
 from athena_local.errors import InvalidRequestException
 from athena_local.executions import (
@@ -326,6 +329,94 @@ def test_start_requires_query_string(
 ) -> None:
     with pytest.raises(InvalidRequestException, match="QueryString"):
         asyncio.run(start_query_execution(executor, workgroups, {}))
+
+
+def _create_managed_workgroup(
+    workgroups: WorkGroupStore, name: str = "managed"
+) -> None:
+    """Seed a workgroup whose ManagedQueryResultsConfiguration.Enabled is true.
+
+    The canonical service model forbids ``ResultConfiguration.OutputLocation``
+    on such a workgroup ("A workgroup cannot have the ResultConfiguration$
+    OutputLocation parameter"), so it carries no ResultConfiguration — exactly
+    the shape awswrangler's ``workgroup_managed`` fixture uses
+    (awswrangler/tests/conftest.py:147-156).
+    """
+    workgroups.create(
+        name,
+        WorkGroupConfiguration(
+            managed_query_results_configuration=ManagedQueryResultsConfiguration(
+                enabled=True
+            )
+        ),
+        None,
+        [],
+    )
+
+
+def test_start_managed_workgroup_accepts_no_output_location(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    _create_managed_workgroup(workgroups)
+
+    async def scenario() -> None:
+        output = await start_query_execution(
+            executor,
+            workgroups,
+            {"QueryString": "SELECT 1", "WorkGroup": "managed"},
+        )
+
+        record = store.get(output["QueryExecutionId"])
+        await executor._tasks[record.query_execution_id]
+        assert record.state == SUCCEEDED
+        # Managed executions store an empty ResultConfiguration so the wire
+        # still reports the member while carrying no OutputLocation (the
+        # shape wrangler's managed read asserts on), and the writer is
+        # skipped (ADR-0011) so this succeeds with nothing on S3.
+        assert record.result_configuration == ResultConfiguration()
+        payload = get_query_execution(
+            store, {"QueryExecutionId": output["QueryExecutionId"]}
+        )["QueryExecution"]
+        assert "ResultConfiguration" in payload
+        assert "OutputLocation" not in payload["ResultConfiguration"]
+        # Inline GetQueryResults still serves the cached terminal rows.
+        result_set = get_query_results(
+            store, executor, {"QueryExecutionId": output["QueryExecutionId"]}
+        )["ResultSet"]
+        assert _page_value_names(result_set) == [["col"], ["ok"]]
+
+    asyncio.run(scenario())
+
+
+def test_start_managed_workgroup_ignores_request_output_location(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    _create_managed_workgroup(workgroups)
+
+    async def scenario() -> None:
+        output = await start_query_execution(
+            executor,
+            workgroups,
+            {
+                "QueryString": "SELECT 1",
+                "WorkGroup": "managed",
+                "ResultConfiguration": {
+                    "OutputLocation": "s3://bucket/request.csv"
+                },
+            },
+        )
+
+        record = store.get(output["QueryExecutionId"])
+        await executor._tasks[record.query_execution_id]
+        # A request-carried ResultConfiguration never overrides Athena-owned
+        # storage: the stored configuration stays empty.
+        assert record.result_configuration == ResultConfiguration()
+
+    asyncio.run(scenario())
 
 
 def test_start_without_any_output_location_is_shaped_error(
@@ -930,6 +1021,24 @@ def test_get_results_next_token_past_end_returns_no_rows(
     # and no token because nothing remains.
     assert output["ResultSet"]["Rows"] == []
     assert "NextToken" not in output
+
+
+def _page_value_names(result_set: object) -> list[list[str]]:
+    """Reduce a wire ResultSet to its cells' VarCharValue strings."""
+    rows = result_set["Rows"]  # type: ignore[index]
+    assert isinstance(rows, list)
+    names: list[list[str]] = []
+    for row in rows:
+        data = row["Data"]  # type: ignore[index,literal-required]
+        assert isinstance(data, list)
+        names.append(
+            [
+                cell["VarCharValue"]  # type: ignore[index,literal-required]
+                for cell in data
+                if isinstance(cell, dict) and "VarCharValue" in cell
+            ]
+        )
+    return names
 
 
 def test_runtime_statistics_return_recorded_counters(

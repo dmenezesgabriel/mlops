@@ -261,6 +261,40 @@ def test_happy_path_polls_and_succeeds(store: ExecutionStore) -> None:
     ]  # writer saw RUNNING, before SUCCEEDED
 
 
+def test_managed_execution_completes_without_writing_artifacts(
+    store: ExecutionStore,
+) -> None:
+    """Managed-results executions succeed without an S3 writer call (ADR-0011)."""
+    writer = RecordingWriter()
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient(
+            [
+                result_page(next_uri=URI_1, stats={"state": "RUNNING"}),
+                result_page(
+                    next_uri=None,
+                    columns=[TrinoColumn(name="_col0", column_type="integer")],
+                    data=[[1]],
+                    stats={"state": "FINISHED"},
+                ),
+            ]
+        )
+        executor = QueryExecutor(store=store, client=client, writer=writer)
+        record = await executor.start(
+            query="SELECT 1", workgroup="managed", managed_results=True
+        )
+        await executor._tasks[record.query_execution_id]
+
+        assert record.state == SUCCEEDED
+        assert record.result_configuration is None
+        # Inline rows are cached exactly like a regular execution (ADR-0011),
+        # so GetQueryResults serves them even though nothing reached S3.
+        assert record.result_rows == [[1]]
+
+    asyncio.run(scenario())
+    assert writer.calls == []
+
+
 def test_start_records_statement_classification(
     store: ExecutionStore,
 ) -> None:
