@@ -365,7 +365,9 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "awswrangler" },
     { name = "boto3" },
+    { name = "moto", extra = ["server"] },
     { name = "pandas" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -381,7 +383,9 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "awswrangler", specifier = "==3.17.1" },
     { name = "boto3", specifier = "==1.42.82" },
+    { name = "moto", extras = ["server"], specifier = "==5.1.16" },
     { name = "pandas", specifier = "==2.3.3" },
     { name = "pytest", specifier = "==9.0.3" },
     { name = "pytest-cov", specifier = "==7.1.0" },
