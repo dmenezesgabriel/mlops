@@ -257,7 +257,31 @@ prepared statements, bad-SQL error path — all green against the docker stack.
 ## M4 — Full consumer validation (CS-*)
 
 Steps:
-1. CS-1 botocore 70-op loop against `:5001` (stubs + real transport).
+1. [x] CS-1 botocore 70-op loop against `:5001` (stubs + real transport).
+   - Verified 2026-09-24 (CS-1): `tests/_parity.py` inflates a model-valid
+     request body for every operation straight from botocore's installed
+     Athena model (`service-2.json`) — required members only, passed through
+     botocore's own `validate_parameters`, so the loop never sends a request
+     the canonical model rejects (inflater gaps fail the stub test with the
+     offender shape, not a server mystery). Two layers consume the same
+     stubs: the dispatch-level loop (210 TestClient cases) drives all 70 ops
+     with real inflated bodies and cross-checks the not-yet-implemented vs
+     implemented marker boundary from `dispatch.OPERATION_HANDLERS`; the
+     real-transport loop (70 cases) serializes each stub through a real boto3
+     client over HTTP against a module-scoped in-process uvicorn server (no
+     Trino/moto required — the goal), or the compose `athena` :5001 service
+     via `ATHENA_LOCAL_TEST_ENDPOINT`, which is how M4 pins the deployed
+     stack. Run budget: the loop surfaced no unmodeled 500s or shape drift —
+     the parity contract already held — and now guards it on every commit.
+     Measured outcome mix across the 70 ops: 16×200 success, 48×400
+     `InvalidRequestException`, 4×500 `InternalServerException` (the four
+     catalog-introspection reads reach the Glue boundary — moto-down answers
+     the shaped error, moto-up serves real data), 2×404
+     `ResourceNotFoundException`; zero unmodeled errors, zero
+     transport/parse failures. Retries disabled on both test clients so the loop asserts the
+     FIRST response (botocore would otherwise retry a modeled 500 as a
+     transient error); 917 tests, 99% coverage (QC-7 gate now enforced,
+     `--cov-fail-under=75`), all §8.4 gates green.
 2. CS-2 awswrangler complete suite (incl. partitioned reads FR-07, cache).
 3. CS-3 AWS CLI examples suite (`awscli/examples/athena/`).
 4. CS-4 terraform op-shape parity (SDK Go v2 + boto3); stretch: real
