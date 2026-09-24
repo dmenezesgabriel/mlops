@@ -10,20 +10,21 @@ PREPARE/DEALLOCATE do not survive across HTTP requests,
 ``/tmp/opencode/trino_probe.py``); a bound copy of the stored SQL is what
 actually runs.
 
-Values are SQL expression text, spliced verbatim into the stored query at
-each ``?`` and paren-wrapped so each stays one atomic expression. Athena
-treats EXECUTE values the same way — the launch blog's
+Values for EXECUTE are SQL expression text, spliced verbatim into the stored
+query at each ``?`` and paren-wrapped so each stays one atomic expression.
+Athena treats EXECUTE values the same way — the launch blog's
 ``EXECUTE get_user USING 1 OR 1=1`` fails with ``SYNTAX_ERROR: Line 1:24:
 Left side of logical expression must evaluate to a boolean`` (SQL-injection
 resistance is the caller's job), strings must arrive single-quoted, and
 ``CAST('2014-07-05' AS DATE)`` is the documented way to type a value
 (aws docs "Use parameterized queries",
 docs.aws.amazon.com/athena/latest/ug/querying-with-prepared-statements.html).
-Wrangler ships the same verbatim texts either as inline ``USING`` values or
-as ``StartQueryExecution.ExecutionParameters``
-(awswrangler/athena/_utils.py:371-401); a bare unquoted value is a runtime
-type mismatch on Athena, never forgiven by the server
-(joshkaramuth.com/blog/boto3-athena).
+Wrangler ships inline ``USING`` values as that same expression text, but its
+``params`` + ``paramstyle="qmark"`` path sends ``StartQueryExecution.
+ExecutionParameters`` as bare values — ``["Washington"]``, ``["1"]`` —
+that Athena binds by the parameter's context type: ``encode_execution_parameter``
+mirrors that (a complete literal/expression travels verbatim, a bare
+identifier becomes a quoted string), so both spellings resolve identically.
 """
 
 from __future__ import annotations
@@ -47,6 +48,26 @@ from athena_local.statement_classification import (
 _EXECUTE_PREFIX_RE = re.compile(r"^\bEXECUTE\b", re.IGNORECASE)
 _USING_RE = re.compile(r"^USING(?:\s|$)", re.IGNORECASE)
 _BARE_NAME_RE = re.compile(r"[^\s(]+")
+
+# An ``ExecutionParameters`` value that already spells a complete SQL literal
+# or typed expression travels verbatim into ``bind_parameters``; anything
+# else is a bare value real Athena coerces by the parameter's context type —
+# most commonly a varchar, so it binds single-quoted. The alternation covers
+# the spellings wrangler's real-AWS qmark suite exercises
+# (awswrangler/tests/unit/test_athena.py:936-937), plus the CAST expression
+# the aws parameterized-query docs recommend.
+_LITERAL_OR_EXPRESSION_RE = re.compile(
+    r"^(?:"
+    r"'(?:[^']|'')*'"  # 'string' literal
+    r'|"(?:[^"]|"")*"'  # "identifier"
+    r"|[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?"  # numeric literal
+    r"|(?:DATE|TIME|TIMESTAMP|INTERVAL)\s+'[^']*'"  # typed literal
+    r"|(?:TRY_)?CAST\s*\(.*\)"  # cast expression
+    r"|(?:NULL|TRUE|FALSE)"  # keyword literal
+    r"|\(.*\)"  # already-parenthesized expression
+    r")$",
+    re.IGNORECASE | re.DOTALL,
+)
 
 # One pass over the stored query emits each ``?`` marker and every
 # string-literal / quoted-identifier / comment span as its own segment, so
@@ -151,6 +172,32 @@ def bind_parameters(stored_query: str, values: list[str]) -> str:
     return "".join(output)
 
 
+def encode_execution_parameter(value: str) -> str:
+    """Encode a ``StartQueryExecution.ExecutionParameters`` value as SQL text.
+
+    Real Athena binds execution parameters by the parameter's context type:
+    a value that already spells a complete literal or typed expression
+    (``'Washington'``, ``2012``, ``DATE '2020-01-01'``, ``CAST(...)``)
+    passes verbatim, while a bare identifier — how wrangler's qmark suite
+    sends ``"Washington"`` (awswrangler/tests/unit/test_athena.py:936-937) —
+    becomes a single-quoted string. Embedded quote characters are doubled so
+    user text cannot break out of the literal. Example::
+
+        encode_execution_parameter("Washington")
+        # -> "'Washington'"
+    """
+    stripped = value.strip()
+    if _LITERAL_OR_EXPRESSION_RE.match(stripped):
+        return stripped
+    return f"'{stripped.replace(chr(39), chr(39) * 2)}'"
+
+
+def _encode_execution_parameters(execution_parameters: list[str]) -> list[str]:
+    return [
+        encode_execution_parameter(value) for value in execution_parameters
+    ]
+
+
 def resolve_execute_statement(
     store: PreparedStatementStore,
     workgroup: str,
@@ -159,22 +206,27 @@ def resolve_execute_statement(
 ) -> ExecuteResolution:
     """Resolve a submitted query for execution (QE-7).
 
-    Non-EXECUTE statements return unchanged. An EXECUTE resolves to the
-    stored ``QueryStatement`` with the inline ``USING`` values — or, when
-    the client supplied none, the ``ExecutionParameters`` — bound into its
-    ``?`` placeholders; the bound text is what the executor submits. A
-    missing statement or count mismatch becomes a ``failure_reason`` so the
-    execution starts terminal FAILED instead of a 400, matching real Athena.
-    Example::
+    A plain parameterized query (``?`` markers plus ``ExecutionParameters``,
+    the wrangler ``paramstyle="qmark"`` shape) binds its markers server-side;
+    an EXECUTE resolves to the stored ``QueryStatement`` with the inline
+    ``USING`` values — or, when the client supplied none, the
+    ``ExecutionParameters`` — bound into its ``?`` placeholders; the bound
+    text is what the executor submits. A missing statement or count mismatch
+    becomes a ``failure_reason`` so the execution starts terminal FAILED
+    instead of a 400, matching real Athena. Example::
 
         resolve_execute_statement(store, "primary", 'EXECUTE "st"', ["'Washington'"])
         # -> ExecuteResolution(statement="... origin = ('Washington')", ...)
     """
     parts = parse_execute_statement(query)
     if parts is None:
-        return ExecuteResolution(
-            statement=query,
-            statement_classification=classify_statement(query),
+        if not execution_parameters:
+            return ExecuteResolution(
+                statement=query,
+                statement_classification=classify_statement(query),
+            )
+        return _bind_or_fail(
+            query, query, _encode_execution_parameters(execution_parameters)
         )
     stored = _stored_statement_or_failure(store, workgroup, query, parts)
     if stored.failure_reason is not None:
@@ -182,10 +234,23 @@ def resolve_execute_statement(
     values = (
         parts.values
         if parts.values is not None
-        else (execution_parameters or [])
+        else _encode_execution_parameters(execution_parameters or [])
     )
+    return _bind_or_fail(query, stored.statement, values)
+
+
+def _bind_or_fail(
+    query: str, statement_to_bind: str, values: list[str]
+) -> ExecuteResolution:
+    """The bound statement, or the count-mismatch failure outcome.
+
+    A mismatch keeps the submitted text as the wire ``Query`` and classifies
+    from it — the same FAILED-not-400 contract the missing-statement path
+    uses (wrangler's cache compares the submitted query, awswrangler/athena/
+    _cache.py:114-129).
+    """
     try:
-        statement = bind_parameters(stored.statement, values)
+        statement = bind_parameters(statement_to_bind, values)
     except ParameterCountError as error:
         return ExecuteResolution(
             statement=query,

@@ -16,6 +16,7 @@ from athena_local.prepared_execution import (
     ExecuteParts,
     ParameterCountError,
     bind_parameters,
+    encode_execution_parameter,
     parse_execute_statement,
     resolve_execute_statement,
 )
@@ -305,3 +306,134 @@ def test_resolve_malformed_execute_is_shaped_400(
         resolve_execute_statement(
             prepared_statements, "primary", "EXECUTE", None
         )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "'Washington'",
+        "''",
+        '"identifier"',
+        "1",
+        "-12.5",
+        "+3",
+        ".5",
+        "1e3",
+        "1.5E-2",
+        "DATE '2020-01-01'",
+        "TIME '10:00:00'",
+        "TIMESTAMP '2020-01-01 10:00:00'",
+        "CAST('2020-01-01' AS DATE)",
+        "TRY_CAST('x' AS INT)",
+        "NULL",
+        "TRUE",
+        "FALSE",
+        "(1, 2)",
+    ],
+)
+def test_encode_complete_literal_or_expression_passes_verbatim(
+    value: str,
+) -> None:
+    assert encode_execution_parameter(value) == value
+
+
+@pytest.mark.parametrize(
+    "value,encoded",
+    [
+        ("Washington", "'Washington'"),
+        ("E", "'E'"),
+        ("O'Brien", "'O''Brien'"),
+        ("", "''"),
+        ("  padded  ", "'padded'"),
+    ],
+)
+def test_encode_bare_value_becomes_string_literal(
+    value: str, encoded: str
+) -> None:
+    assert encode_execution_parameter(value) == encoded
+
+
+def test_resolve_qmark_binds_bare_execution_parameters(
+    prepared_statements: PreparedStatementStore,
+) -> None:
+    resolution = resolve_execute_statement(
+        prepared_statements,
+        "primary",
+        "SELECT 1 WHERE origin = ?",
+        ["Washington"],
+    )
+
+    assert resolution.statement == "SELECT 1 WHERE origin = ('Washington')"
+    assert resolution.failure_reason is None
+    assert resolution.statement_classification == StatementClassification(
+        "DML", "SELECT"
+    )
+
+
+def test_resolve_qmark_keeps_typed_values_verbatim(
+    prepared_statements: PreparedStatementStore,
+) -> None:
+    resolution = resolve_execute_statement(
+        prepared_statements,
+        "primary",
+        "SELECT 1 WHERE year = ? AND day = ?",
+        ["2012", "DATE '2020-01-01'"],
+    )
+
+    assert resolution.statement == (
+        "SELECT 1 WHERE year = (2012) AND day = (DATE '2020-01-01')"
+    )
+
+
+def test_resolve_qmark_without_parameters_passes_through(
+    prepared_statements: PreparedStatementStore,
+) -> None:
+    resolution = resolve_execute_statement(
+        prepared_statements, "primary", "SELECT ?", None
+    )
+
+    assert resolution.statement == "SELECT ?"
+    assert resolution.failure_reason is None
+
+
+def test_resolve_qmark_count_mismatch_is_failed_execution(
+    prepared_statements: PreparedStatementStore,
+) -> None:
+    resolution = resolve_execute_statement(
+        prepared_statements, "primary", "SELECT ? AND ?", ["1"]
+    )
+
+    assert resolution.statement == "SELECT ? AND ?"
+    assert (
+        resolution.failure_reason
+        == "Incorrect number of parameters: expected 2 but found 1"
+    )
+
+
+def test_resolve_qmark_ctas_classifies_the_bound_statement(
+    prepared_statements: PreparedStatementStore,
+) -> None:
+    resolution = resolve_execute_statement(
+        prepared_statements,
+        "primary",
+        "CREATE TABLE db.t WITH (external_location = 's3://b/k') AS SELECT ?",
+        ["1"],
+    )
+
+    assert resolution.statement_classification == StatementClassification(
+        "DDL", "CREATE_TABLE_AS_SELECT"
+    )
+
+
+def test_resolve_execute_encodes_bare_execution_parameters(
+    prepared_statements: PreparedStatementStore,
+) -> None:
+    prepared_statements.create(
+        "st", "SELECT 1 WHERE origin = ?", "primary", None
+    )
+
+    resolution = resolve_execute_statement(
+        prepared_statements, "primary", "EXECUTE st", ["Washington"]
+    )
+
+    assert resolution.statement == "SELECT 1 WHERE origin = ('Washington')"
