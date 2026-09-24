@@ -282,7 +282,25 @@ Steps:
      FIRST response (botocore would otherwise retry a modeled 500 as a
      transient error); 917 tests, 99% coverage (QC-7 gate now enforced,
      `--cov-fail-under=75`), all §8.4 gates green.
-2. CS-2 awswrangler complete suite (incl. partitioned reads FR-07, cache).
+2. [x] CS-2 awswrangler complete suite (incl. partitioned reads FR-07, cache).
+   - Closed 2026-09-24 by CS-2b1 (read), CS-2b2 (write), CS-2b3 (partitioned).
+   - Verified 2026-09-24 (CS-2b3): the partitioned-read suite runs through the
+     emulator against the **running compose moto container** (restarted to
+     load the overlay, `docker compose restart moto`) + Trino 483. The moto
+     Glue overlay now bridges both GetPartitions gaps that blocked FR-07:
+     moto 5.1.16 raised `Unsupported expression ''` on every blank Expression
+     the Hive metastore client sends (list-all reads, `"sales$partitions"`,
+     `SHOW STATS FOR`) and `Unknown type : 'varchar(2)'` on filter-pruned
+     reads — the overlay mirrors upstream `#10122`/`4db88f3a4` and normalizes
+     Hive type spellings (`varchar(2)`, `decimal(10,2)`, `timestamp(3)`,
+     `char(N)` + double/float/real/boolean/integer) before moto's `_cast`.
+     5 live consumer tests green (partitioned CTAS registers `varchar(2)` +
+     `decimal(10,2)` keys, full read 3 rows, `WHERE region='EU'` and
+     `WHERE amount=10.5` pruned reads 1 row each, `"sales$partitions"`
+     virtual table 3 rows) + 4 overlay regression tests (docker/moto,
+     `make -C docker/moto test`). New integration coverage shows moto's
+     `"table$partitions"` is the `SHOW PARTITIONS` gap-workaround Trino 483
+     offers; breakout reflected in backlog CS-2b3.
 3. CS-3 AWS CLI examples suite (`awscli/examples/athena/`).
 4. CS-4 terraform op-shape parity (SDK Go v2 + boto3); stretch: real
    provider apply if feasible — evidence-gated, no invention.
