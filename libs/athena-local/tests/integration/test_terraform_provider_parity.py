@@ -14,9 +14,6 @@ starts DDL, polls the execution, reads Glue metadata, and starts the drop DDL.
 
 from __future__ import annotations
 
-import os
-import shutil
-import subprocess
 import time
 import uuid
 from pathlib import Path
@@ -32,65 +29,31 @@ from tests.integration._consumer_harness import (
     ConsumerHarness,
     consumer_harness_scope,
 )
+from tests.integration._terraform_harness import (
+    require_go_binary,
+    run_go_test,
+)
 from tests.integration.conftest import LiveAthenaServer
 
-GO_MODULE = Path(__file__).parents[1] / "terraform"
-GO_TEST_TIMEOUT_SECONDS = 180.0
 QUERY_TIMEOUT_SECONDS = 30.0
 TERMINAL_QUERY_STATES = frozenset({"SUCCEEDED", "FAILED", "CANCELLED"})
-
-
-def _go_binary() -> Path | None:
-    configured = os.environ.get("ATHENA_GO_BINARY")
-    if configured:
-        path = Path(configured)
-        if path.is_file():
-            return path
-        pytest.fail(f"ATHENA_GO_BINARY does not point to a file: {configured}")
-    found = shutil.which("go")
-    return Path(found) if found is not None else None
 
 
 def _run_go_test(
     binary: Path, harness: ConsumerHarness, endpoint: str
 ) -> None:
-    environment = {
-        **os.environ,
-        "ATHENA_ENDPOINT_URL": endpoint,
-        "ATHENA_PROVIDER_BUCKET": harness.bucket,
-        "ATHENA_PROVIDER_DATABASE": harness.database,
-        "ATHENA_PROVIDER_OUTPUT_LOCATION": f"s3://{harness.bucket}",
-        "ATHENA_PROVIDER_WORKGROUP": "primary",
-        "GOFLAGS": "-mod=readonly",
-        "GOTOOLCHAIN": "local",
-    }
-    command = [
-        str(binary),
-        "test",
-        "-run",
-        "^TestProviderOperationShapes$",
-        "-count=1",
-        "-v",
-    ]
-    try:
-        result = subprocess.run(
-            command,
-            cwd=GO_MODULE,
-            env=environment,
-            capture_output=True,
-            text=True,
-            timeout=GO_TEST_TIMEOUT_SECONDS,
-        )
-    except subprocess.TimeoutExpired as error:
-        pytest.fail(
-            "AWS SDK for Go v2 parity test timed out: "
-            f"stdout={error.stdout!r}, stderr={error.stderr!r}"
-        )
-    if result.returncode != 0:
-        pytest.fail(
-            "AWS SDK for Go v2 parity test failed:\n"
-            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-        )
+    run_go_test(
+        binary,
+        "TestProviderOperationShapes",
+        {
+            "AWS_ENDPOINT_URL": "http://127.0.0.1:9",
+            "AWS_ENDPOINT_URL_ATHENA": endpoint,
+            "ATHENA_PROVIDER_BUCKET": harness.bucket,
+            "ATHENA_PROVIDER_DATABASE": harness.database,
+            "ATHENA_PROVIDER_OUTPUT_LOCATION": f"s3://{harness.bucket}",
+            "ATHENA_PROVIDER_WORKGROUP": "primary",
+        },
+    )
 
 
 def _poll_boto3_query(client: BaseClient, query_id: str) -> None:
@@ -217,12 +180,7 @@ def test_terraform_provider_operation_shapes(
     live_athena_server: LiveAthenaServer,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    binary = _go_binary()
-    if binary is None:
-        if os.environ.get("ATHENA_GO_REQUIRED") == "1":
-            pytest.fail("Go toolchain is required for CS-4 but was not found")
-        pytest.skip("Go toolchain unavailable; set PATH or ATHENA_GO_BINARY")
-
+    binary = require_go_binary()
     suffix = uuid.uuid4().hex
     with consumer_harness_scope(
         live_athena_server, monkeypatch, "cs4"

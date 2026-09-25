@@ -23,7 +23,7 @@ import shutil
 import subprocess
 import sys
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -74,6 +74,38 @@ def aws_binary() -> Path | None:
     return None
 
 
+def run_aws_cli(
+    binary: Path,
+    tokens: Sequence[str],
+    endpoint_url: str | None = None,
+) -> CliResult:
+    """Run one real AWS CLI command and capture its complete outcome."""
+    arguments = list(tokens)
+    if arguments and arguments[0] == "aws":
+        arguments.pop(0)
+    argv = [str(binary), *arguments]
+    if endpoint_url is not None:
+        argv.extend(["--endpoint-url", endpoint_url])
+    environment = {
+        **os.environ,
+        "AWS_PAGER": "",
+        "AWS_DEFAULT_REGION": "us-east-1",
+    }
+    try:
+        process = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            env=environment,
+            timeout=CLI_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        pytest.fail(
+            f"aws command timed out after {CLI_TIMEOUT_SECONDS}s: {error}"
+        )
+    return CliResult(process.returncode, process.stdout, process.stderr)
+
+
 def substitute_tokens(
     tokens: list[str],
     exact: dict[str, str | list[str]] | None = None,
@@ -119,32 +151,7 @@ class CliStack:
         ``tokens`` are the extracted doc argv (which lead with the ``aws``
         word); the harness swaps the console script in for that word.
         """
-        if tokens and tokens[0] == "aws":
-            tokens = tokens[1:]
-        argv = [
-            str(self.binary),
-            *tokens,
-            "--endpoint-url",
-            self.athena_url,
-        ]
-        env = {
-            **os.environ,
-            "AWS_PAGER": "",
-            "AWS_DEFAULT_REGION": "us-east-1",
-        }
-        try:
-            proc = subprocess.run(
-                argv,
-                capture_output=True,
-                text=True,
-                env=env,
-                timeout=CLI_TIMEOUT_SECONDS,
-            )
-        except subprocess.TimeoutExpired as error:
-            pytest.fail(
-                f"aws command timed out after {CLI_TIMEOUT_SECONDS}s: {error}"
-            )
-        return CliResult(proc.returncode, proc.stdout, proc.stderr)
+        return run_aws_cli(self.binary, tokens, endpoint_url=self.athena_url)
 
     def wait_terminal(
         self, execution_id: str, timeout_seconds: float = 60.0

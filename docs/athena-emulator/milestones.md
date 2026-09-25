@@ -331,7 +331,9 @@ Steps:
      coverage).
    - Real `terraform apply` / provider execution was not available locally and
      remains an explicit stretch, not claimed as evidence.
-5. CS-5 endpoint-routing split test.
+5. [x] CS-5 endpoint-routing split test.
+   - Verified 2026-09-25: boto3, awswrangler, AWS CLI, and the pinned AWS SDK Go v2 make live calls through distinct ephemeral Athena/moto endpoints. Global `AWS_ENDPOINT_URL` routes S3/Glue to moto; `AWS_ENDPOINT_URL_ATHENA` routes only Athena to the emulator. The existing provider-shaped Go parity test also runs through the standard SDK environment path; no real `terraform apply` is claimed.
+   - Sequential quality gate: 947 tests passed, 98% coverage (98.34% total), Ruff/Pyright/complexity/dependency/security/maintainability targets green, and root `uv run lint-imports` kept all 20 contracts.
 
 Exit: all consumer suites green on CI with the docker stack; any mismatch logs
 an evidence-gated fix (PRD FR matrix) — no silent deviation.

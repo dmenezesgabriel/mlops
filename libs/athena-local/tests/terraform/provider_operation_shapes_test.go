@@ -15,16 +15,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/athena/types"
 )
 
-func newClient(t *testing.T) *athena.Client {
+func loadAWSConfig(t *testing.T) aws.Config {
 	t.Helper()
-	endpoint := os.Getenv("ATHENA_ENDPOINT_URL")
-	if endpoint == "" {
-		t.Fatal("ATHENA_ENDPOINT_URL is required")
-	}
 	configuration, err := config.LoadDefaultConfig(
 		context.Background(),
 		config.WithRegion("us-east-1"),
-		config.WithBaseEndpoint(endpoint),
 		config.WithCredentialsProvider(
 			credentials.NewStaticCredentialsProvider("test", "test", ""),
 		),
@@ -32,7 +27,15 @@ func newClient(t *testing.T) *athena.Client {
 	if err != nil {
 		t.Fatalf("load AWS configuration: %v", err)
 	}
-	return athena.NewFromConfig(configuration)
+	return configuration
+}
+
+func newClient(t *testing.T) *athena.Client {
+	t.Helper()
+	if os.Getenv("AWS_ENDPOINT_URL_ATHENA") == "" {
+		t.Skip("AWS_ENDPOINT_URL_ATHENA is required for the live parity test")
+	}
+	return athena.NewFromConfig(loadAWSConfig(t))
 }
 
 func uniqueName(prefix string) string {
@@ -276,8 +279,8 @@ func exerciseDatabase(t *testing.T, client *athena.Client, context context.Conte
 }
 
 func TestProviderOperationShapes(t *testing.T) {
-	if os.Getenv("ATHENA_ENDPOINT_URL") == "" {
-		t.Skip("ATHENA_ENDPOINT_URL is required for the live parity test")
+	if os.Getenv("AWS_ENDPOINT_URL_ATHENA") == "" {
+		t.Skip("AWS_ENDPOINT_URL_ATHENA is required for the live parity test")
 	}
 	client := newClient(t)
 	context := context.Background()
