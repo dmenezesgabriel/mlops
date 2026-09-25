@@ -400,7 +400,15 @@ Steps:
      `StartQueryExecution` on a `DISABLED` workgroup reaches SUCCEEDED
      (state never checked at submit) and `ListWorkGroups` ignores
      `MaxResults`/`NextToken`.
-3. [ ] NB-3 boto3 query lifecycle + DDL + error paths notebook.
+3. [x] NB-3 boto3 query lifecycle + DDL + error paths notebook.
+   - Verified 2026-09-25: `03_boto3_query_lifecycle.ipynb` executes clean
+     in-container via the nbclient `integration` hook — 18 probes, 14 PASS /
+     1 FAIL / 3 GAP. Measured FAIL for NB-6 triage: `StopQueryExecution` on
+     a terminal execution answers `InternalServerException` 500 where real
+     AWS no-ops 200. Measured GAPs: `ClientRequestToken` accepted but not
+     deduped, `ResultReuseConfiguration` accepted but never reported or
+     applied (`ResultReuseInformation` absent), an unregistered
+     `QueryExecutionContext.Catalog` is accepted and runs on hive anyway.
 4. [ ] NB-4 awswrangler read-path notebook (incl. unload/MSCK/`SHOW PARTITIONS`
    probes — measured outcome recorded, never worked around).
 5. [ ] NB-5 awswrangler write/catalog notebook + consolidated parity matrix.

@@ -30,6 +30,7 @@ NOTEBOOKS_DIR = PROJECT_DIR / "notebooks"
 NOTEBOOKS = [
     "01_smoke_and_endpoints.ipynb",
     "02_boto3_control_plane.ipynb",
+    "03_boto3_query_lifecycle.ipynb",
 ]
 
 ATHENA_URL = os.environ.get("AWS_ENDPOINT_URL_ATHENA", "http://localhost:5001")
