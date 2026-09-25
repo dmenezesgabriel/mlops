@@ -409,8 +409,22 @@ Steps:
      deduped, `ResultReuseConfiguration` accepted but never reported or
      applied (`ResultReuseInformation` absent), an unregistered
      `QueryExecutionContext.Catalog` is accepted and runs on hive anyway.
-4. [ ] NB-4 awswrangler read-path notebook (incl. unload/MSCK/`SHOW PARTITIONS`
+4. [x] NB-4 awswrangler read-path notebook (incl. unload/MSCK/`SHOW PARTITIONS`
    probes — measured outcome recorded, never worked around).
+   - Verified 2026-09-25: `04_wrangler_read_paths.ipynb` executes clean
+     in-container via the nbclient `integration` hook — 28 probes, 22 PASS /
+     0 FAIL / 6 GAP. PASS: `s3.to_parquet(dataset=True)` Glue-registered
+     tables read back through Trino (csv path), ctas manifest→parquet,
+     managed-workgroup inline api, cache-hit, categories/chunksize/
+     `dtype_backend="pyarrow"`, named+qmark `params` (qmark echoes
+     `ExecutionParameters`), `read_sql_table`, `get_query_results` csv +
+     manifest, list/batch_get/get/`wait_query`, `get_query_columns_types`,
+     `create_athena_bucket`, `get_work_group`, `"table$partitions"`.
+     GAPs recorded for NB-6 triage, not worked around: `describe_table` and
+     `show_create_table` 400 on Trino's backquoted-identifier rejection,
+     `repair_table` 400 on `MSCK`, `unload_approach`/`unload()` 400 on
+     `UNLOAD` (wrangler re-raises as `InvalidArgumentValue`), and
+     `SHOW PARTITIONS` 400 on the Athena spelling (no `FROM` keyword).
 5. [ ] NB-5 awswrangler write/catalog notebook + consolidated parity matrix.
 6. [ ] NB-6 file a backlog item per measured FAIL/GAP for triage.
 
