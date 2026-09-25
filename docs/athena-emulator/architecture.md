@@ -37,8 +37,9 @@ consumers pass unmodified:
   its own port serving S3/Glue/STS.
 - `research_repos/` checkouts are frozen references — never edited by the
   implementation.
-- Trino officially tests only real AWS S3 and MinIO; moto S3 compatibility is
-  an open risk that must be spiked before committing to the S3 link (ADR-0006).
+- Trino officially tests only real AWS S3 and MinIO; the moto S3 link was
+  spike-proven end-to-end before integration (ADR-0006). Remaining moto Glue
+  gaps are bridged by the repo-owned overlay in `docker/moto/` (§7, §11).
 
 ## 3. Context and Scope
 
@@ -90,23 +91,32 @@ consumers pass unmodified:
 
 | Module (under `libs/athena-local/src/athena_local/`) | Responsibility |
 |---|---|
-| `main.py` | FastAPI app; `POST /` catch-all; health endpoint |
-| `dispatch.py` | `X-Amz-Target` → operation handler (ADR-0008) |
-| `schemas.py` (generated or hand-verified) | Typed request/response dataclasses per `service-2.json` |
+| `main.py` | FastAPI app; `POST /` catch-all; `/health` probe; composition root for both planes |
+| `dispatch.py` | `X-Amz-Target` → operation handler; registry loaded from the installed botocore Athena model (ADR-0008) |
+| `schemas.py` / `common_schemas.py` / `workgroup_schemas.py` | Typed request/response shapes per `service-2.json` |
 | `errors.py` | `InvalidRequestException`, `ResourceNotFoundException`, `TooManyRequestsException`, `InternalServerException`; `{"__type", "message"}` + `X-Amzn-Errortype` (ADR-0008) |
-| `state.py` | In-memory registries: workgroups, named queries, prepared statements, data catalogs, executions (ADR-0003) |
-| `executor.py` | async query lifecycle; Trino client; cancellation (ADR-0009) |
-| `trino_client.py` | thin wrapper over `POST /v1/statement`, `GET nextUri`, `DELETE` (thin interface owned by the project — per `AGENTS.md` deps rule) |
+| `error_mapping.py` | Trino statement errors → Athena's wire error vocabulary (ADR-0008) |
+| `statement_classification.py` | `StatementType`/`SubstatementType` + artifact kind, classified at submit |
+| `dialect.py` | Athena→Trino statement spellings (`CREATE/DROP DATABASE` → `SCHEMA`, identifier quoting, trailing `;`) |
+| `state.py` / `data_catalog_state.py` | In-memory registries: workgroups, named queries, prepared statements, data catalogs (ADR-0003) |
+| `workgroups.py` / `workgroup_payloads.py` | Workgroup ops + payload serialization/defaults |
+| `named_queries.py` / `prepared_statements.py` / `data_catalogs.py` / `engine_versions.py` / `tags.py` | Control-plane operation handlers |
+| `catalog_metadata.py` | `ListDatabases`/`GetDatabase`/`ListTableMetadata`/`GetTableMetadata` read proxy to moto Glue (ADR-0005) |
+| `executions.py` | Execution record + `QUEUED→RUNNING→terminal` transition matrix (ADR-0003, ADR-0009) |
+| `executor.py` | Async lifecycle: start preflight, semaphore-bound poll task, writer-before-SUCCEEDED, cancellation (ADR-0009) |
+| `prepared_execution.py` | Resolves `EXECUTE name [USING …]` against the workgroup store at submit |
+| `query_executions.py` | Query-plane op handlers (`Start/Stop/Get/BatchGet/List/GetResults/GetRuntimeStatistics`) |
+| `trino_client.py` | Thin wrapper over `POST /v1/statement`, `GET nextUri`, `DELETE` (ADR-0001; project-owned interface per `AGENTS.md` deps rule) |
 | `artifacts.py` | `.csv` / `.txt` / `-manifest.csv` + `.metadata` writers; `DataManifestLocation` (ADR-0007, ADR-0010) |
 | `output_targets.py` | INSERT/UNLOAD write-target resolution (Glue `StorageDescriptor.Location`, SQL `TO`) + pre-submit object snapshot; feeds the manifest diff (ADR-0007) |
-| `s3_writer.py` | project-owned interface over the boto3 S3 client; put/list against moto S3 (ADR-0008) |
+| `s3_writer.py` | Project-owned interface over the boto3 S3 client; put/list against moto S3 (ADR-0006/0007) |
 | `glue_proxy.py` | boto3 client proxying catalog reads to moto Glue (ADR-0005) |
-| `config.py` | dataclass: port, moto_endpoint, trino_endpoint, region, credentials, permissive interval |
-| `logging.py` | structured JSON logs; plain text on CLI |
 
-Deployment artifacts (docker/): `Dockerfile` (emulator image), `trino/`
-(config.properties, catalog/hive.properties), baked into new compose services
-`athena` (5001) and `trino` (ADR-0002).
+Deployment artifacts (docker/): `athena/Dockerfile` (emulator image),
+`trino/` (config.properties, catalog/hive.properties), `moto/` (Glue overlay
++ entrypoint shim on the official image) — wired into compose services
+`athena` (5001) and `trino` (8080) beside the existing `moto` (5000)
+(ADR-0002).
 
 ## 6. Runtime View
 
@@ -141,22 +151,60 @@ wrote (`_read.py:135-206`). An unresolvable target FAILs the execution at
 artifact write, after Trino's own analysis error has had its chance to
 surface.
 
+**Dialect adaptation**: statements Athena accepts but Trino's grammar rejects
+(a statement-leading `CREATE/DROP DATABASE`, backtick identifiers, a terminal
+semicolon) are rewritten by `dialect.py` at submit; the stored execution text
+and its classification keep the query as written (§11).
+
+**Prepared statements**: `EXECUTE name [USING …]` is resolved at submit
+against the workgroup's prepared-statement store — each `USING` value binds
+verbatim as one parenthesized SQL expression at the `?` markers, because
+Trino's protocol has no prepared-statement persistence (measured). A missing
+statement or parameter-count mismatch starts the execution FAILED — never a
+400 — matching real Athena.
+
+**Managed results**: a workgroup with `ManagedQueryResultsConfiguration.
+Enabled=true` resolves no `OutputLocation`; the executor skips the artifact
+writer, SUCCEEDED still lands, and the terminal rows are served inline via
+`GetQueryResults` — wrangler's managed read path (ADR-0011).
+
 **Cancellation**: `StopQueryExecution` → emulator issues `DELETE` on the
 Trino statement and records `CANCELLED` (ADR-0009).
 
 ## 7. Deployment View
 
-- `docker-compose.yml` additions (ADR-0002):
-  - `moto` (existing, port 5000) — S3, Glue, STS.
-  - `trino` — image `trinodb/trino:<spike-pinned-tag>`; catalogs: `hive`
-    (`hive.metastore=glue`, endpoint `http://moto:5000`, region
-    `us-east-1`, static keys) — Trino `object-storage/metastores.html`; S3
-    native (`fs.s3.enabled=true`, `s3.endpoint=http://moto:5000`,
-    `s3.region=us-east-1`, `s3.path-style-access=true`, static keys) —
-    `object-storage/file-system-s3.html`.
-  - `athena` (port 5001) — uvicorn serving `athena_local.main:app`;
-    `AWS_ATHENA_ENDPOINT=http://athena:5001` for the emulator's own boto3
-    proxy; env for moto/trino endpoints.
+- `docker-compose.yml` services (ADR-0002):
+  - `moto` — `motoserver/moto:5.1.16`, publishes `5000:5000` — S3, Glue, STS.
+    `./docker/moto` mounts read-only at `/docker/moto` and the entrypoint shim
+    applies the Glue overlay (the column-statistics and user-defined-function
+    ops, plus the GetPartitions expression/`_cast` bridges) the Trino Hive
+    connector needs — the official image itself is unchanged (§11).
+  - `trino` — `trinodb/trino:483`; `docker/trino/config.properties` mounts as
+    a file and `docker/trino/catalog/` as a dir (a single dir mount would hide
+    the image's own `/etc/trino` files). The `hive` catalog uses
+    `hive.metastore=glue` at `http://moto:5000`, region `us-east-1`, static
+    keys, `hive.collect-column-statistics-on-write=false` and
+    `hive.non-managed-table-writes-enabled=true` (Trino
+    `object-storage/metastores.html`); native S3 `fs.s3.enabled=true`,
+    `s3.endpoint=http://moto:5000`, `s3.region=us-east-1`,
+    `s3.path-style-access=true`, static keys
+    (`object-storage/file-system-s3.html`). A 4 GiB memory cap keeps the
+    image's 80%-of-visible-RAM heap sizing inside the host budget; `/v1/info`
+    healthcheck; `depends_on: moto`.
+  - `athena` — built from `docker/athena/Dockerfile` (locked `uv export` +
+    `pip --require-hashes` install, non-root `10001:10001`, uvicorn serving
+    `athena_local.main:app` on `:5001`); env `ATHENA_LOCAL_TRINO_URL` (default
+    `http://localhost:8080`, compose `http://trino:8080`),
+    `ATHENA_MOTO_ENDPOINT_URL` (default `http://127.0.0.1:5000`, compose
+    `http://moto:5000`), `ATHENA_LOCAL_MAX_CONCURRENT_QUERIES` (default 4,
+    bounds the executor semaphore); `/health` healthcheck; `depends_on` trino
+    `service_healthy` + moto `service_started`.
+  - Request hardening: `POST /` rejects bodies over 1 MiB — the canonical
+    model's largest member is `QueryString` at 262144 chars — with a shaped
+    `InvalidRequestException` before dispatch.
+  - `jupyterlab` gets `AWS_ENDPOINT_URL=http://moto:5000` and
+    `AWS_ENDPOINT_URL_ATHENA=http://athena:5001`, and `depends_on: athena:
+    service_healthy` so a cold `docker compose up` sequences correctly.
 - Clients point only Athena traffic at `http://localhost:5001`:
   - boto3/awswrangler: `endpoint_url` / `athena_endpoint_url`
     (`awswrangler/_utils.py:255-280`) / `AWS_ENDPOINT_URL_ATHENA`.
@@ -172,8 +220,11 @@ no `any`, no `Dict`.
 
 ### 8.2 Errors
 `{"__type": "<ExceptionShapeName>", "message": "<text>"}` body +
-`X-Amzn-Errortype: <ExceptionShapeName>` header (ADR-0008), statuses 400/404/
-429/500 per `service-2.json` exception `httpStatusCode`.
+`X-Amzn-Errortype: <ExceptionShapeName>` header (ADR-0008). The model carries
+no `httpStatusCode`; statuses 400/404/429/500 follow AWS-documented codes
+(moto `JsonRESTError.code` parity). Any non-`AthenaError` escape inside
+`dispatch` maps to a shaped `InternalServerException` 500 plus one
+structured-JSON log line — internals never reach the client message.
 
 ### 8.3 Logging
 Structured JSON for observability; plain text only for CLI-facing output.
@@ -181,21 +232,20 @@ Structured JSON for observability; plain text only for CLI-facing output.
 ### 8.4 Quality gates at every commit
 Canonical per-lib pattern = `libs/mlops-shared/Makefile` +
 `libs/mlops-shared/pyproject.toml`. Root pre-commit (`/.pre-commit-config.yaml`)
-currently runs ruff-format, ruff `--fix`, deptry (`make dependencies`),
-import-linter (`uv run lint-imports`), radon (`make complexity`). The athena
-effort adds the missing requested tools (bandit, vulture, xenon) to the lib
-gate and to pre-commit; see backlog items QC-*.
+runs ruff-format, ruff `--fix`, deptry (`make dependencies`), import-linter
+(`uv run lint-imports`), radon (`make complexity`), and — scoped to
+`libs/athena-local/` — bandit, vulture, xenon; semgrep stays per-lib/manual.
 
 | Gate | Command (per-lib) | Enforced by |
 |---|---|---|
 | Ruff format+lint | `uv run ruff format .` / `ruff check .` | pre-commit |
 | Pyright | `uv run pyright src` | `make type-check` |
 | Pytest + pytest-bdd | `uv run pytest` | `make test` / pre-commit |
-| Coverage (pytest-cov) | `uv run pytest --cov --cov-report=term-missing:skip-covered` | `make coverage` |
+| Coverage (pytest-cov) | `uv run pytest --cov --cov-report=term-missing:skip-covered --cov-fail-under=75` | `make coverage` |
 | Complexity (radon) | `radon cc . -s -n C` fail on C+ | pre-commit `make complexity` |
-| Maintainability (xenon) | xenon against MI thresholds | QC item |
-| Dead code (vulture) | `vulture src` | QC item |
-| Security (bandit + semgrep) | `bandit -r src -ll`; `semgrep --config auto .` | `make security` |
+| Maintainability (xenon) | `xenon --max-absolute B --max-modules A --max-average A src` | `make maintainability` |
+| Dead code (vulture) | `vulture src` | `make security` |
+| Security (bandit + semgrep) | `bandit -q -r src -ll`; `semgrep --quiet --config auto .` | `make security` |
 | Imports (import-linter) | `uv run lint-imports` (root contracts) | pre-commit |
 | Dependencies (deptry) | `uv run deptry .` | pre-commit |
 
@@ -207,9 +257,9 @@ root `Makefile` `PACKAGES`.
 Trino HTTP client and moto boto3 calls are wrapped behind project-owned thin
 interfaces (`trino_client.py`, `glue_proxy.py`, `s3_writer.py`) so third-party
 libs never leak into handlers (per `AGENTS.md` deps rule). `main.py` is the
-composition root for both planes: it builds the executor over these boundaries
-(PC-6), which is why it is exempt from the "protocol core stays independent of
-the query engine" import-linter contract.
+composition root for both planes: it builds the executor over these
+boundaries, which is why it is exempt from the "protocol core stays
+independent of the query engine" import-linter contract.
 
 ## 9. Architecture Decisions
 
@@ -225,6 +275,7 @@ the query engine" import-linter contract.
 | [0008](adr/0008-json11-dispatch-and-error-parity.md) | JSON 1.1 dispatch + botocore-parity errors; no moto internals |
 | [0009](adr/0009-async-query-execution-state-machine.md) | Async execution state machine + pre-finish read error parity |
 | [0010](adr/0010-csv-header-row-and-bytes.md) | `{QueryID}.csv` carries the quoted header row as line 1 (supersedes ADR-0007's headerless descriptor) |
+| [0011](adr/0011-managed-results-skip-s3-artifacts.md) | Managed-results workgroups write no S3 artifacts; rows served inline (carve-out to ADR-0009 #4) |
 
 ## 10. Quality Requirements
 
@@ -243,14 +294,14 @@ the query engine" import-linter contract.
 
 | Risk | Mitigation |
 |---|---|
-| Trino native S3 client ↔ moto S3 incompatibility (Trino tests only AWS S3/MinIO) | ADR-0006; Phase-0 spike proves read/write before integration; emulator writes artifacts itself via boto3 as a guaranteed path |
-| Trino Glue metastore needs the column-statistics and `GetUserDefinedFunctions` ops, absent in moto Glue | **Handled**: repo-owned minimal overlay (`docker/moto/glue_overlay.py`, entrypoint shim on the official image) serves the four ops Trino calls; validated end-to-end in M0 step 6 |
-| moto Glue partition-expression filtering breaks Trino partition pruning (FR-07): blank GetPartitions `Expression` raises `Unsupported expression ''` (5.1.16 only special-cases `None`) and `_cast` rejects Hive type spellings like `varchar(2)`/`decimal(10,2)` | **Handled**: extension of the same overlay — blank Expression ⇒ no filter (mirror upstream `#10122`/`4db88f3a4`) and `_cast` normalizes type spellings before delegation; partition-key types are NOT normalized at table registration (real AWS stores `varchar(2)`, wrangler `GetTableMetadata` relies on it). CS-2b3 green (4 overlay tests + 5 live consumer tests) |
-| Athena DDL dialect vs Trino grammar: real Athena accepts `CREATE/DROP DATABASE` and backtick identifiers, while Trino 483 requires `CREATE/DROP SCHEMA`, double-quoted identifiers, and no terminal semicolon | **Handled** (CS-3/CS-4 live evidence): `dialect.py` rewrites only a statement-leading database lifecycle statement at submit, preserving classification and the stored execution text; `tests/unit/test_dialect.py` and the Go v2 provider harness pin the regression. New entries to the map are added only with evidence |
-| moto appends `{id}.csv` to `OutputLocation` (models.py:140) — must not leak into our paths | ADR-0007: we own artifact naming; never delegate it to moto |
-| 400 "Query has not yet finished" must not fire for wrangler's 1 s poll | ADR-0009: only fail pre-finish inline reads; always allow `GetQueryExecution` |
-| Terraform-provider-aws can't be driven locally easily | Validate via AWS SDK Go v2 + boto3 op-shape parity tests; provider runs as stretch (backlog TM-*) |
-| Env-var vs config endpoint precedence surprises | Config dataclass with explicit priority; tests per consumer contract |
+| Trino native S3 client ↔ moto S3 incompatibility (Trino tests only AWS S3/MinIO) | **Handled**: spike-proven before integration — CTAS partition files land on moto S3 and read back through the Hive connector (ADR-0006); the emulator additionally owns artifact writes via boto3 (ADR-0007) |
+| Trino Glue metastore needs the column-statistics and `GetUserDefinedFunctions` ops, absent in moto Glue | **Handled**: repo-owned minimal overlay (`docker/moto/glue_overlay.py`, entrypoint shim on the official image) serves the four ops Trino calls; validated end-to-end against the running stack (CTAS → moto S3, `SHOW FUNCTIONS`) |
+| moto Glue partition-expression filtering breaks Trino partition pruning: blank GetPartitions `Expression` raises `Unsupported expression ''` (5.1.16 only special-cases `None`) and `_cast` rejects Hive type spellings like `varchar(2)`/`decimal(10,2)` | **Handled**: extension of the same overlay — blank Expression ⇒ no filter (mirroring upstream `#10122`/`4db88f3a4`) and `_cast` normalizes type spellings before delegation; partition-key types are NOT normalized at table registration (real AWS stores `varchar(2)`, wrangler `GetTableMetadata` relies on it). Pinned by overlay regression tests plus a live partitioned-read consumer suite |
+| Athena DDL dialect vs Trino grammar: real Athena accepts `CREATE/DROP DATABASE` and backtick identifiers, while Trino 483 requires `CREATE/DROP SCHEMA`, double-quoted identifiers, and no terminal semicolon | **Handled**: `dialect.py` rewrites only a statement-leading database lifecycle statement at submit, preserving classification and the stored execution text; `tests/unit/test_dialect.py` and the Go v2 provider parity suite pin the regression. New entries to the map are added only with evidence |
+| moto appends `{id}.csv` to `OutputLocation` (models.py:140) — must not leak into our paths | **Handled**: ADR-0007 — the emulator owns artifact naming; never delegated to moto |
+| 400 "Query has not yet finished" must not fire for wrangler's 1 s poll | **Handled**: ADR-0009 — only pre-finish inline reads fail; `GetQueryExecution`/`BatchGetQueryExecution` always answer |
+| Terraform-provider-aws can't be driven locally easily | **Handled** (within the local limit): a pinned AWS SDK Go v2 module plus boto3 drive the provider's five resource-family op shapes (`tests/terraform/`) over the live stack; a real `terraform apply` remains an unclaimed stretch |
+| Env-var vs config endpoint precedence surprises | **Handled**: explicit-arg → env-var → compose-default resolution in `main.build_query_executor`/`catalog_metadata`; the endpoint-split suite proves per-service `AWS_ENDPOINT_URL_ATHENA` routes only Athena while global `AWS_ENDPOINT_URL` keeps S3/Glue on moto |
 
 ## 12. Glossary
 

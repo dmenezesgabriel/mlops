@@ -359,7 +359,14 @@ Steps:
      `athena` has an explicit healthcheck and jupyterlab `depends_on` it.
      Live-verified on the rebuilt container; `make quality` green (956
      passed, 97.65% cov), lint-imports 20/20.
-4. DP-4 permanent-doc sync (architecture §7 deployment, ADRs as-built).
+4. [x] DP-4 permanent-doc sync (architecture §7 deployment, ADRs as-built).
+   - Verified 2026-09-25: ephemeral IDs removed from all code (~150 sites:
+     `src/` docstrings/comments, `tests/` incl. `.feature` titles and seed
+     literals, `docker/moto/`, `pyproject.toml` contract comment);
+     `architecture.md` synced to as-built (module table, deployment view,
+     gate table, §9 ADR index, §11 risks all handled, §8.2 status-code
+     provenance corrected); errata/as-built notes on ADR-0008/0003/0006.
+     Repo-wide grep outside the ephemeral docs returns zero hits.
 
 Exit: `docker compose up` → jupyterlab + moto + athena + trino; full M4 suite
 green from a cold stack; permanent docs current.

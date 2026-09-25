@@ -2,6 +2,10 @@
 
 - Status: Accepted (user decision)
 - Date: 2026-09-19
+- Note (2026-09-25): as built, the registries are split per responsibility —
+  `state.py` (workgroups, named queries, prepared statements),
+  `data_catalog_state.py` (data catalogs), `executions.py` (query
+  executions). The in-memory decision is unchanged; see architecture §5.
 
 ## Context
 

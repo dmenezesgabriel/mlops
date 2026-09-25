@@ -2,6 +2,9 @@
 
 - Status: Accepted (spike-gated)
 - Date: 2026-09-19
+- Note (2026-09-25): the spike gate passed — CTAS partition writes land on
+  moto S3 and `SELECT` reads back through `trinodb/trino:483`; the decision
+  stands as built.
 
 ## Context
 

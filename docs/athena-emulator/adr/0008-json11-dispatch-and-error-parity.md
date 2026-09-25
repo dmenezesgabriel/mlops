@@ -2,6 +2,10 @@
 
 - Status: Accepted
 - Date: 2026-09-19
+- Errata (2026-09-25): `service-2.json` carries **no** `httpStatusCode`
+  fields — the Context/Decision wording implying statuses come from the model
+  is wrong. The 400/404/429/500 statuses are AWS-documented codes (the same
+  values moto's `JsonRESTError.code` emits); see architecture §8.2.
 
 ## Context
 
