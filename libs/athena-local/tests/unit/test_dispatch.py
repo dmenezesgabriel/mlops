@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 
 import pytest
 from athena_local.dispatch import (
@@ -21,7 +22,10 @@ from athena_local.dispatch import (
     parse_body,
     resolve_operation,
 )
-from athena_local.errors import InvalidRequestException
+from athena_local.errors import (
+    InternalServerException,
+    InvalidRequestException,
+)
 from botocore.session import Session
 
 ATHENA_SERVICE_NAME = "athena"
@@ -141,6 +145,36 @@ def test_dispatch_async_handler_errors_propagate(
 
     assert isinstance(error, InvalidRequestException)
     assert "async failure" in error.message
+
+
+def test_dispatch_unexpected_handler_error_is_a_shaped_500(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # The wire contract is a shaped error for EVERY failure (ADR-0008): a
+    # dependency leak like S3WriterError or a programming bug must surface as
+    # InternalServerException, never Starlette's unshaped 500, and the
+    # internals go to the structured log instead of the client message.
+    def broken_handler(
+        _payload: dict[str, object] | None,
+    ) -> dict[str, object]:
+        raise RuntimeError("simulated boundary failure")
+
+    monkeypatch.setitem(
+        OPERATION_HANDLERS, "GetNotebookMetadata", broken_handler
+    )
+
+    with caplog.at_level(logging.ERROR, logger="athena_local"):
+        error = asyncio.run(dispatch("AmazonAthena.GetNotebookMetadata"))
+
+    assert isinstance(error, InternalServerException)
+    assert error.status_code == 500
+    assert "GetNotebookMetadata" in error.message
+    assert "simulated boundary failure" not in error.message
+
+    logged = json.loads(caplog.records[-1].message)
+    assert logged["operation"] == "GetNotebookMetadata"
+    assert logged["error_type"] == "RuntimeError"
 
 
 def test_parse_body_parses_json_object() -> None:

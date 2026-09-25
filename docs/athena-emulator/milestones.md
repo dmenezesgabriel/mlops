@@ -349,8 +349,16 @@ Steps:
      defaults + compose values, per-consumer endpoint env vars (boto3,
      awswrangler, AWS CLI, terraform-provider-aws) with S3/Glue on moto, and
      ADR-0003 in-memory reset semantics.
-3. DP-5 hardening: limits, semaphore bound, trino-down graceful errors, health
-   endpoint for compose depends_on.
+3. [x] DP-5 hardening: limits, semaphore bound, trino-down graceful errors,
+   health endpoint for compose depends_on.
+   - Verified 2026-09-25: 1 MiB request-body cap + model `QueryString` max
+     (262144) enforced as shaped 400s; `ATHENA_LOCAL_MAX_CONCURRENT_QUERIES`
+     wires the QE-2 semaphore bound (default 4); a `dispatch` catch-all turns
+     any non-`AthenaError` escape into a shaped `InternalServerException` 500
+     with a structured-JSON log (the S3WriterError-on-moto-down leak); compose
+     `athena` has an explicit healthcheck and jupyterlab `depends_on` it.
+     Live-verified on the rebuilt container; `make quality` green (956
+     passed, 97.65% cov), lint-imports 20/20.
 4. DP-4 permanent-doc sync (architecture §7 deployment, ADRs as-built).
 
 Exit: `docker compose up` → jupyterlab + moto + athena + trino; full M4 suite

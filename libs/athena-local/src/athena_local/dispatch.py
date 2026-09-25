@@ -16,6 +16,7 @@ operation answers with a JSON-1.1 success response or raises an
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -27,10 +28,13 @@ from botocore.session import Session
 from athena_local.errors import (
     JSON_11_CONTENT_TYPE,
     AthenaError,
+    InternalServerException,
     InvalidRequestException,
 )
 
 ATHENA_SERVICE_NAME = "athena"
+
+logger = logging.getLogger("athena_local")
 
 # A handler receives the parsed JSON request object (or None for an empty
 # body) and returns the operation's output object for success serialization.
@@ -151,4 +155,22 @@ async def dispatch(
             result = await result
     except AthenaError as error:
         return error
+    except Exception as error:
+        # The wire contract is a botocore-parseable shape for every failure
+        # (ADR-0008): a boundary leak (e.g. S3WriterError with moto down) or a
+        # programming bug must surface as InternalServerException, never
+        # Starlette's unshaped 500. Internals go to the structured log, not
+        # the client message.
+        logger.exception(
+            json.dumps(
+                {
+                    "event": "unhandled_operation_error",
+                    "operation": operation,
+                    "error_type": type(error).__name__,
+                }
+            )
+        )
+        return InternalServerException(
+            f"Internal error processing {operation}"
+        )
     return serialize_success(result)

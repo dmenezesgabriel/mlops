@@ -9,12 +9,15 @@ query-plane operations, whose wiring is asserted here.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 
 import pytest
 from athena_local.dispatch import implemented_operations, operation_names
 from athena_local.executions import ExecutionStore
 from athena_local.main import (
+    MAX_CONCURRENT_QUERIES_ENV,
+    MAX_REQUEST_BODY_BYTES,
     TRINO_URL_ENV,
     app,
     build_query_executor,
@@ -94,6 +97,63 @@ def test_missing_target_is_a_shaped_error(client: TestClient) -> None:
     assert response.status_code == 400
     assert response.json()["__type"] == "InvalidRequestException"
     assert "X-Amz-Target" in response.json()["message"]
+
+
+def test_oversized_request_body_is_a_shaped_400(client: TestClient) -> None:
+    # A Content-Length-declared oversized body is rejected before it is read;
+    # every emulator error stays botocore-parseable (ADR-0008).
+    response = client.post(
+        "/",
+        headers={"X-Amz-Target": "AmazonAthena.ListEngineVersions"},
+        content=b" " * (MAX_REQUEST_BODY_BYTES + 1),
+    )
+
+    assert response.status_code == 400
+    assert response.headers["X-Amzn-Errortype"] == "InvalidRequestException"
+    assert str(MAX_REQUEST_BODY_BYTES) in response.json()["message"]
+
+
+def test_oversized_chunked_body_is_a_shaped_400(client: TestClient) -> None:
+    # A generator body travels chunked with no Content-Length, so the limit is
+    # enforced on the assembled body as well.
+    response = client.post(
+        "/",
+        headers={"X-Amz-Target": "AmazonAthena.ListEngineVersions"},
+        content=iter([b"x" * MAX_REQUEST_BODY_BYTES, b"x"]),
+    )
+
+    assert response.status_code == 400
+    assert response.json()["__type"] == "InvalidRequestException"
+
+
+def test_build_query_executor_reads_max_concurrent_queries_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(MAX_CONCURRENT_QUERIES_ENV, "2")
+
+    executor = build_query_executor(ExecutionStore())
+
+    assert executor._semaphore._value == 2
+
+
+def test_build_query_executor_defaults_max_concurrent_queries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(MAX_CONCURRENT_QUERIES_ENV, raising=False)
+
+    executor = build_query_executor(ExecutionStore())
+
+    assert executor._semaphore._value == 4
+
+
+@pytest.mark.parametrize("bad_value", ["abc", "0", "-1", "2.5"])
+def test_build_query_executor_rejects_invalid_max_concurrent_queries(
+    monkeypatch: pytest.MonkeyPatch, bad_value: str
+) -> None:
+    monkeypatch.setenv(MAX_CONCURRENT_QUERIES_ENV, bad_value)
+
+    with pytest.raises(ValueError, match=re.escape(bad_value)):
+        build_query_executor(ExecutionStore())
 
 
 def test_error_content_type_is_json_11(client: TestClient) -> None:

@@ -38,10 +38,12 @@ uv run uvicorn athena_local.main:app --port 5001
 |---|---|---|
 | `ATHENA_LOCAL_TRINO_URL` | `http://localhost:8080` | `http://trino:8080` |
 | `ATHENA_MOTO_ENDPOINT_URL` | `http://127.0.0.1:5000` | `http://moto:5000` |
+| `ATHENA_LOCAL_MAX_CONCURRENT_QUERIES` | `4` | unset |
 
 `ATHENA_LOCAL_TRINO_URL` is where statements are submitted;
 `ATHENA_MOTO_ENDPOINT_URL` backs Glue catalog reads and S3 result-artifact
-writes.
+writes. `ATHENA_LOCAL_MAX_CONCURRENT_QUERIES` bounds how many executions run
+against Trino at once; extra executions stay QUEUED, like real Athena.
 
 ## Pointing consumers at it
 

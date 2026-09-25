@@ -26,9 +26,12 @@ from athena_local.data_catalog_state import DataCatalogStore
 from athena_local.data_catalogs import register_data_catalog_handlers
 from athena_local.dispatch import WireResponse, dispatch
 from athena_local.engine_versions import register_engine_version_handlers
-from athena_local.errors import serialize_error
+from athena_local.errors import InvalidRequestException, serialize_error
 from athena_local.executions import ExecutionStore
-from athena_local.executor import QueryExecutor
+from athena_local.executor import (
+    DEFAULT_MAX_CONCURRENT_QUERIES,
+    QueryExecutor,
+)
 from athena_local.glue_proxy import GlueProxy
 from athena_local.named_queries import register_named_query_handlers
 from athena_local.output_targets import OutputSnapshotter
@@ -48,6 +51,31 @@ from athena_local.workgroups import register_workgroup_handlers
 
 TRINO_URL_ENV = "ATHENA_LOCAL_TRINO_URL"
 TRINO_URL_DEFAULT = "http://localhost:8080"
+MAX_CONCURRENT_QUERIES_ENV = "ATHENA_LOCAL_MAX_CONCURRENT_QUERIES"
+# The canonical model's largest request member is QueryString (max 262144
+# chars); a 1 MiB cap admits every model-legal request while bounding the
+# memory a single POST can consume.
+MAX_REQUEST_BODY_BYTES = 1_048_576
+
+
+def _max_concurrent_queries() -> int:
+    """Executor concurrency bound from the environment; default stays 4."""
+    raw = os.getenv(MAX_CONCURRENT_QUERIES_ENV)
+    if raw is None:
+        return DEFAULT_MAX_CONCURRENT_QUERIES
+    try:
+        bound = int(raw)
+    except ValueError:
+        raise ValueError(
+            f"{MAX_CONCURRENT_QUERIES_ENV} must be a positive integer, "
+            f"got {raw!r}"
+        ) from None
+    if bound < 1:
+        raise ValueError(
+            f"{MAX_CONCURRENT_QUERIES_ENV} must be a positive integer, "
+            f"got {raw!r}"
+        )
+    return bound
 
 
 def build_query_executor(
@@ -72,6 +100,7 @@ def build_query_executor(
     return QueryExecutor(
         store=store,
         client=create_trino_client(trino_url),
+        max_concurrent_queries=_max_concurrent_queries(),
         writer=ArtifactWriter(S3Writer.for_endpoint(moto_endpoint_url)),
         snapshotter=OutputSnapshotter(
             glue=GlueProxy.for_endpoint(moto_endpoint_url),
@@ -116,20 +145,39 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+def _request_too_large(size: int) -> Response:
+    """Shaped 400 for an over-limit body — every error stays JSON-1.1."""
+    status, headers, body = serialize_error(
+        InvalidRequestException(
+            f"Request body is {size} bytes; the limit is "
+            f"{MAX_REQUEST_BODY_BYTES} bytes"
+        )
+    )
+    return Response(content=body, status_code=status, headers=headers)
+
+
 @app.post("/")  # noqa (route handler bound by FastAPI)
 async def athena_endpoint(request: Request) -> Response:
     """Dispatch a JSON-1.1 request addressed by its X-Amz-Target header."""
-    result = await dispatch(
-        request.headers.get("x-amz-target"), await request.body()
-    )
+    content_length = request.headers.get("content-length")
+    if (
+        content_length is not None
+        and content_length.isdigit()
+        and int(content_length) > MAX_REQUEST_BODY_BYTES
+    ):
+        return _request_too_large(int(content_length))
+    body = await request.body()
+    if len(body) > MAX_REQUEST_BODY_BYTES:
+        return _request_too_large(len(body))
+    result = await dispatch(request.headers.get("x-amz-target"), body)
     if isinstance(result, WireResponse):
         return Response(
             content=result.body,
             status_code=result.status_code,
             headers=result.headers,
         )
-    status, headers, body = serialize_error(result)
-    return Response(content=body, status_code=status, headers=headers)
+    status, headers, response_body = serialize_error(result)
+    return Response(content=response_body, status_code=status, headers=headers)
 
 
 def reset_query_plane() -> None:

@@ -53,6 +53,19 @@ services:
     environment:
       ATHENA_LOCAL_TRINO_URL: "http://trino:8080"
       ATHENA_MOTO_ENDPOINT_URL: "http://moto:5000"
+    # Slim image has no curl; the interpreter check mirrors the image's
+    # HEALTHCHECK so `depends_on: athena: service_healthy` works for compose
+    # consumers (jupyterlab) even if the image check changes.
+    healthcheck:
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5001/health', timeout=3)"
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
     depends_on:
       moto:
         condition: service_started
@@ -98,6 +111,13 @@ services:
       GH_TOKEN: "${GH_TOKEN:-}"
       GITHUB_TOKEN: "${GITHUB_TOKEN:-}"
       OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+    # Consumers inside jupyterlab hit the emulator and moto at boot, so a cold
+    # `docker compose up` sequences behind a healthy athena.
+    depends_on:
+      athena:
+        condition: service_healthy
+      moto:
+        condition: service_started
     networks:
       - mlops_net
 

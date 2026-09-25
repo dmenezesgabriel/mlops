@@ -40,6 +40,10 @@ from athena_local.statement_classification import classify_statement
 # the model's MaxQueryResults shape (1..1000).
 DEFAULT_MAX_RESULTS = 1000
 
+# Canonical-model QueryString bound (service-2.json): real Athena rejects a
+# longer statement at submit.
+MAX_QUERY_STRING_LENGTH = 262144
+
 
 def _member(payload: dict[str, object] | None, member: str) -> object | None:
     if payload is None:
@@ -203,6 +207,11 @@ async def start_query_execution(
     workgroup_record = workgroup_store.get(workgroup)
     database, catalog = _query_execution_context(payload)
     query = _required_string(payload, "QueryString")
+    if len(query) > MAX_QUERY_STRING_LENGTH:
+        raise InvalidRequestException(
+            f"QueryString length {len(query)} exceeds the maximum "
+            f"{MAX_QUERY_STRING_LENGTH} characters"
+        )
     execution_parameters = _optional_string_list(
         payload, "ExecutionParameters"
     )

@@ -187,6 +187,49 @@ def test_start_defaults_to_primary_workgroup(
     asyncio.run(scenario())
 
 
+def test_start_rejects_query_string_over_model_maximum(
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    # Canonical-model QueryString is bounded at 262144 characters
+    # (service-2.json); a longer statement 400s at submit, like real Athena.
+    oversized = "SELECT " + "x" * 262144
+    with pytest.raises(InvalidRequestException, match="262144"):
+        asyncio.run(
+            start_query_execution(
+                executor,
+                workgroups,
+                {
+                    "QueryString": oversized,
+                    "ResultConfiguration": {
+                        "OutputLocation": "s3://bucket/q.csv"
+                    },
+                },
+            )
+        )
+
+
+def test_start_accepts_query_string_at_model_maximum(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    async def scenario() -> None:
+        output = await start_query_execution(
+            executor,
+            workgroups,
+            {
+                "QueryString": "SELECT " + "x" * 262137,  # exactly 262144
+                "ResultConfiguration": {"OutputLocation": "s3://bucket/q.csv"},
+            },
+        )
+
+        await executor._tasks[output["QueryExecutionId"]]
+        assert store.get(output["QueryExecutionId"]).state == SUCCEEDED
+
+    asyncio.run(scenario())
+
+
 def test_get_query_execution_reports_classified_statement_types(
     store: ExecutionStore,
     executor: QueryExecutor,
