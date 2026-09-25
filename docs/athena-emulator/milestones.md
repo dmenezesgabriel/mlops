@@ -343,7 +343,12 @@ an evidence-gated fix (PRD FR matrix) — no silent deviation.
 Steps:
 1. [x] DP-1/2 docker images + compose services (`athena` :5001, `trino`) on
    `mlops_net`; env wiring.
-2. DP-3 lib README (consumer endpoint env vars, compose flow, reset semantics).
+2. [x] DP-3 lib README (consumer endpoint env vars, compose flow, reset semantics).
+   - Verified 2026-09-25: `libs/athena-local/README.md` covers compose up
+     (`mlops_net`, `moto`/`trino`/`athena`, `/health`), server env vars with
+     defaults + compose values, per-consumer endpoint env vars (boto3,
+     awswrangler, AWS CLI, terraform-provider-aws) with S3/Glue on moto, and
+     ADR-0003 in-memory reset semantics.
 3. DP-5 hardening: limits, semaphore bound, trino-down graceful errors, health
    endpoint for compose depends_on.
 4. DP-4 permanent-doc sync (architecture §7 deployment, ADRs as-built).
