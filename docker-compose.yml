@@ -25,6 +25,13 @@ services:
       - ./docker/trino/catalog:/etc/trino/catalog:ro
     ports:
       - "8080:8080"
+    # The image jvm.config sizes heap at 80% of *visible* RAM; without a
+    # container limit that is the host's 30 GiB. A 4 GiB cap keeps the
+    # emulator workload inside this host's budget (heap lands at ~3.2 GiB).
+    deploy:
+      resources:
+        limits:
+          memory: 4g
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/v1/info"]
       interval: 5s
