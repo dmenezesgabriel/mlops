@@ -446,8 +446,15 @@ Steps:
      `CREATE EXTERNAL TABLE` and `ALTER TABLE … ADD PARTITION` 400 on Trino
      grammar, `to_iceberg` 400 on backquoted `TBLPROPERTIES`,
      `delete_from_iceberg_table` blocked client-side (no Iceberg table).
-6. [ ] NB-6 triage `gaps.md` (the measured FAIL/GAP register, updated live by
+6. [x] NB-6 triage `gaps.md` (the measured FAIL/GAP register, updated live by
    the notebooks) — each row becomes a small fix item or a documented waiver.
+   - Verified 2026-09-25: 16 register rows (GP-1…GP-16) triaged — 14 promoted
+     to fix items GF-1…GF-12 in `backlog.md` §J (GP-7+GP-8 share the
+     backtick-dialect fix GF-7; GP-10+GP-11 share the UNLOAD rewrite GF-9),
+     2 waived with documented reasons (GP-15/GP-16 — Iceberg needs a
+     dedicated connector + DDL map, outside the PRD's FR scope). The register
+     keeps each row until its fix ships; the §Triage table records the
+     disposition.
 
 Exit: every notebook executed green inside `jupyterlab` via the
 `integration`-marked nbclient hook (and host fallback over localhost ports);

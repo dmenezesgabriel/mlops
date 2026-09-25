@@ -26,3 +26,29 @@
 | GP-14 | `ALTER TABLE … ADD [IF NOT EXISTS] PARTITION` (nb05) | 400: `line 1:37: mismatched input 'IF'` on `ADD IF NOT EXISTS PARTITION (region='AP') LOCATION …` | registers the partition in the catalog | `dialect.py`: map to `CALL system.register_partition('schema','t',ARRAY[…],'location')` (trino.io hive procedures); `system.sync_partition_metadata` covers the already-on-S3 layout | M |
 | GP-15 | `wr.athena.to_iceberg` (nb05) | 400: `backquoted identifiers are not supported` on `CREATE TABLE `t` (…) TBLPROPERTIES('table_type'='ICEBERG', 'format'='parquet')` | creates an Iceberg table, then `INSERT INTO … SELECT` | two blockers — dialect map (backticks/`TBLPROPERTIES`) AND no Iceberg connector provisioned (`docker/trino/catalog/`); fix = add an `iceberg` catalog on the same moto Glue + map the DDL, or waive as out of emulator scope | L / waiver |
 | GP-16 | `wr.athena.delete_from_iceberg_table` (nb05) | never reached the wire — wrangler raises `InvalidTable` client-side because the target can't be created (GP-15) | deletes matching rows from an Iceberg table | gated by GP-15: with an Iceberg catalog the `DELETE FROM … WHERE EXISTS(…)` lands on Trino's iceberg connector (row delete supported); shares GP-15's fix-or-waive decision | with GP-15 |
+
+## Triage (NB-6, 2026-09-25)
+
+Every register row is promoted to a backlog fix item (`GF-*`, section J of
+`backlog.md`) or waived with a documented reason. Rows stay until their fix
+ships (PARITY.md flips to PASS); waived rows are closed evidence — a scoped
+boundary decision, not a defect.
+
+| Row | Disposition | Item | Reason / note |
+|---|---|---|---|
+| GP-1 | fix | GF-1 | Small correctness fix — check `WorkGroup.State` at submit |
+| GP-2 | fix | GF-2 | Same opaque-offset pagination `ListNamedQueries`/`ListQueryExecutions` already use |
+| GP-3 | fix | GF-3 | Only measured FAIL — return 200 no-op when the execution is terminal |
+| GP-4 | fix | GF-4 | (workgroup, token) → execution-id map in the store; real AWS dedupes retried tokens |
+| GP-5 | fix | GF-5 | Server-side reuse is a documented AWS feature; keyed on query text + workgroup + `MaxAgeInMinutes` |
+| GP-6 | fix | GF-6 | Validate `QueryExecutionContext.Catalog` against registered catalogs at submit |
+| GP-7 | fix | GF-7 | One shared dialect rule covers GP-7+GP-8 |
+| GP-8 | fix | GF-7 | Shares GF-7 |
+| GP-9 | fix | GF-8 | `system.sync_partition_metadata` is the Trino-native MSCK equivalent |
+| GP-10 | fix | GF-9 | Dialect rewrite to CTAS-at-`TO`-path + catalog drop; needs an ADR note (semantic delta: real UNLOAD registers nothing) |
+| GP-11 | fix | GF-9 | Shares GF-9 |
+| GP-12 | fix | GF-10 | Map to `"t$partitions"` or Trino's native spelling — verify against the coordinator at fix time |
+| GP-13 | fix | GF-11 | `CREATE EXTERNAL TABLE … STORED AS … LOCATION` → `CREATE TABLE … WITH(external_location, format, partitioned_by)` |
+| GP-14 | fix | GF-12 | `ALTER TABLE … ADD PARTITION` → `CALL system.register_partition` |
+| GP-15 | waived | — | Iceberg writes need a dedicated `iceberg` Trino catalog on moto Glue **and** an Athena-DDL dialect map (`TBLPROPERTIES`, backticks) — a connector-level capability the PRD never scoped (FR-01…20 list no Iceberg). Revisit if a consumer needs it |
+| GP-16 | waived | — | Gated by GP-15 — shares the Iceberg scope decision |
