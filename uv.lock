@@ -365,6 +365,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "awscli" },
     { name = "awswrangler" },
     { name = "boto3" },
     { name = "moto", extra = ["server"] },
@@ -383,6 +384,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "awscli", specifier = "==1.46.1" },
     { name = "awswrangler", specifier = "==3.17.1" },
     { name = "boto3", specifier = "==1.42.82" },
     { name = "moto", extras = ["server"], specifier = "==5.1.16" },
@@ -526,6 +528,24 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/14/25/0cbd7a440080def5e6f063720c3b190a25f8aa2938c1e34415dc18241596/aws_xray_sdk-2.15.0.tar.gz", hash = "sha256:794381b96e835314345068ae1dd3b9120bd8b4e21295066c37e8814dbb341365", size = 76315, upload-time = "2025-10-29T20:59:45Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ef/c3/f30a7a63e664acc7c2545ca0491b6ce8264536e0e5cad3965f1d1b91e960/aws_xray_sdk-2.15.0-py2.py3-none-any.whl", hash = "sha256:422d62ad7d52e373eebb90b642eb1bb24657afe03b22a8df4a8b2e5108e278a3", size = 103228, upload-time = "2025-10-29T21:00:24.12Z" },
+]
+
+[[package]]
+name = "awscli"
+version = "1.46.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama" },
+    { name = "docutils" },
+    { name = "jmespath" },
+    { name = "python-dateutil" },
+    { name = "pyyaml" },
+    { name = "rsa" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b1/92/907a22013a0177919a98d7b57cf302e86ae162b0c05c0714f3b565cea814/awscli-1.46.1.tar.gz", hash = "sha256:9dab615cc46d16f1f9750e1c9bd37820a24d6964e9381f712b3a304c2b05d248", size = 16782333, upload-time = "2026-08-27T21:30:37.715Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/86/9f/1b37f7e20a2ba4ca3dc99117d7d3ceaee7dfa1f09bc8aeb4eebe0a85bcbd/awscli-1.46.1-py3-none-any.whl", hash = "sha256:68701ad24347c63b5b145b7aa32391ce7e04f328057dd5aa0537a07c0d0b7cc3", size = 20232487, upload-time = "2026-08-27T21:30:32.54Z" },
 ]
 
 [[package]]
@@ -1495,6 +1515,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/91/9b/4a2ea29aeba62471211598dac5d96825bb49348fa07e906ea930394a83ce/docker-7.1.0.tar.gz", hash = "sha256:ad8c70e6e3f8926cb8a92619b832b4ea5299e2831c14284663184e200546fa6c", size = 117834, upload-time = "2024-05-23T11:13:57.216Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e3/26/57c6fb270950d476074c087527a558ccb6f4436657314bfb6cdf484114c4/docker-7.1.0-py3-none-any.whl", hash = "sha256:c96b93b7f0a746f9e77d325bcfb87422a3d8bd4f03136ae8a85b37f1898d5fc0", size = 147774, upload-time = "2024-05-23T11:13:55.01Z" },
+]
+
+[[package]]
+name = "docutils"
+version = "0.19"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6b/5c/330ea8d383eb2ce973df34d1239b3b21e91cd8c865d21ff82902d952f91f/docutils-0.19.tar.gz", hash = "sha256:33995a6753c30b7f577febfc2c50411fec6aac7f7ffeb7c4cfe5991072dcf9e6", size = 2056383, upload-time = "2022-07-05T20:17:31.045Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/93/69/e391bd51bc08ed9141ecd899a0ddb61ab6465309f1eb470905c0c8868081/docutils-0.19-py3-none-any.whl", hash = "sha256:5e1de4d849fee02c63b040a4a3fd567f4ab104defd8a5511fbbc24a8a017efbc", size = 570472, upload-time = "2022-07-05T20:17:26.388Z" },
 ]
 
 [[package]]
@@ -6551,6 +6580,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/1d/6f/93831a3bfe789542ed0c1d0d74b78b440f055d6dc3ea4640eba2d95e6e23/rpds_py-2026.5.1-pp311-pypy311_pp73-musllinux_1_2_aarch64.whl", hash = "sha256:c74005a7bb87752acf351c93897ec63ad77a07a0da7ecad9c050e32e7286ba34", size = 557243, upload-time = "2026-05-28T12:02:08.013Z" },
     { url = "https://files.pythonhosted.org/packages/1f/ff/0b3d604614ffc77522c6b288fdbce68957eb583da1002aa65ba38ac0ee40/rpds_py-2026.5.1-pp311-pypy311_pp73-musllinux_1_2_i686.whl", hash = "sha256:8213afbe8a3a906fb9acb2014423fe3359ee783d0bf90995f70623a3217bfa6c", size = 623541, upload-time = "2026-05-28T12:02:09.661Z" },
     { url = "https://files.pythonhosted.org/packages/ea/ea/e7b0251441da9adfeaebcf29601d10f2a1455fcf0772fae9e7e19032bd96/rpds_py-2026.5.1-pp311-pypy311_pp73-musllinux_1_2_x86_64.whl", hash = "sha256:8c43a8a973270fd173bf48cdf80bbe66312421cba68d40845034f174f2389049", size = 586326, upload-time = "2026-05-28T12:02:11.47Z" },
+]
+
+[[package]]
+name = "rsa"
+version = "4.7.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyasn1" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/db/b5/475c45a58650b0580421746504b680cd2db4e81bc941e94ca53785250269/rsa-4.7.2.tar.gz", hash = "sha256:9d689e6ca1b3038bc82bf8d23e944b6b6037bc02301a574935b2dd946e0353b9", size = 39711, upload-time = "2021-02-24T10:55:05.846Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e9/93/0c0f002031f18b53af7a6166103c02b9c0667be528944137cc954ec921b3/rsa-4.7.2-py3-none-any.whl", hash = "sha256:78f9a9bf4e7be0c5ded4583326e7461e3a3c5aae24073648b4bdfa797d78c9d2", size = 34505, upload-time = "2021-02-24T10:55:03.55Z" },
 ]
 
 [[package]]

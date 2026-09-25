@@ -12,6 +12,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+  "awscli==1.46.1",
   "awswrangler==3.17.1",
   "boto3==1.42.82",
   "moto[server]==5.1.16",
