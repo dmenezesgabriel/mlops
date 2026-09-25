@@ -121,7 +121,7 @@ the register row carries the wire evidence and fix surface.
 
 | ID | Item | Work | Evidence / contract | Depends |
 |---|---|---|---|---|
-| GF-1 | [ ] `StartQueryExecution` on a DISABLED workgroup → `InvalidRequestException` 400 at submit | S | gaps.md GP-1; `workgroups.py`/`query_executions.py` start path checks `WorkGroup.State` | — |
+| GF-1 | [x] `StartQueryExecution` on a DISABLED workgroup → `InvalidRequestException` 400 at submit. Verified 2026-09-25: `ensure_workgroup_enabled` (state.py) gates the start path after `workgroup_store.get` and — extended per AWS UG semantics (a disabled workgroup also blocks new named queries) — `CreateNamedQuery`/`CreatePreparedStatement`, whose handlers now take `WorkGroupStore` (unknown workgroup names still pass through; missing-workgroup 400 stays with `get()`). Live on the rebuilt `athena` container: all three ops answer `InvalidRequestException` "WorkGroup <name> is disabled"; nb02 PARITY row flipped to PASS | S | gaps.md GP-1; `workgroups.py`/`query_executions.py` start path checks `WorkGroup.State` | — |
 | GF-2 | [ ] `ListWorkGroups` honors `MaxResults`/`NextToken` (opaque-offset paging like `ListQueryExecutions`) | S | gaps.md GP-2; `workgroups.py` list handler | — |
 | GF-3 | [ ] `StopQueryExecution` on a terminal execution → 200 no-op (real AWS is idempotent; emulator 500s) | S | gaps.md GP-3 — the only measured FAIL; `query_executions.py` stop handler | — |
 | GF-4 | [ ] `ClientRequestToken` dedupes retried submissions — same (workgroup, token) returns the original `QueryExecutionId` | S–M | gaps.md GP-4; `executions.py` store token map | — |

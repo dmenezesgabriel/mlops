@@ -33,6 +33,7 @@ from athena_local.state import (
     PreparedStatementStore,
     WorkGroupRecord,
     WorkGroupStore,
+    ensure_workgroup_enabled,
 )
 from athena_local.statement_classification import classify_statement
 
@@ -205,6 +206,7 @@ async def start_query_execution(
         else None
     ) or PRIMARY_WORKGROUP_NAME
     workgroup_record = workgroup_store.get(workgroup)
+    ensure_workgroup_enabled(workgroup_store, workgroup)
     database, catalog = _query_execution_context(payload)
     query = _required_string(payload, "QueryString")
     if len(query) > MAX_QUERY_STRING_LENGTH:

@@ -21,7 +21,7 @@ from athena_local.named_queries import (
     get_named_query,
     list_named_queries,
 )
-from athena_local.state import NamedQueryStore
+from athena_local.state import NamedQueryStore, WorkGroupStore
 from pytest_bdd import given, parsers, scenarios, then, when
 
 scenarios("named_queries.feature")
@@ -43,6 +43,11 @@ def named_query_store() -> NamedQueryStore:
 
 
 @pytest.fixture
+def workgroup_store() -> WorkGroupStore:
+    return WorkGroupStore()
+
+
+@pytest.fixture
 def outcome() -> NamedQueryOutcome:
     return NamedQueryOutcome(created_ids=[])
 
@@ -60,10 +65,12 @@ def _fresh_registry(
 def _create_named_query(
     outcome: NamedQueryOutcome,
     named_query_store: NamedQueryStore,
+    workgroup_store: WorkGroupStore,
     name: str,
 ) -> None:
     output = create_named_query(
         named_query_store,
+        workgroup_store,
         {
             "Name": name,
             "Database": "sampledb",
@@ -81,11 +88,13 @@ def _create_named_query(
 def _create_named_query_in_workgroup(
     outcome: NamedQueryOutcome,
     named_query_store: NamedQueryStore,
+    workgroup_store: WorkGroupStore,
     name: str,
     workgroup: str,
 ) -> None:
     output = create_named_query(
         named_query_store,
+        workgroup_store,
         {
             "Name": name,
             "Database": "sampledb",
@@ -115,12 +124,14 @@ def _get_missing_query(
 def _create_multiple_queries(
     outcome: NamedQueryOutcome,
     named_query_store: NamedQueryStore,
+    workgroup_store: WorkGroupStore,
     num: int,
     workgroup: str,
 ) -> None:
     for i in range(num):
         output = create_named_query(
             named_query_store,
+            workgroup_store,
             {
                 "Name": f"query{i}",
                 "Database": "sampledb",
@@ -177,11 +188,13 @@ def _delete_created_query(
 def _create_queries_without_workgroup(
     outcome: NamedQueryOutcome,
     named_query_store: NamedQueryStore,
+    workgroup_store: WorkGroupStore,
     num: int,
 ) -> None:
     for i in range(num):
         output = create_named_query(
             named_query_store,
+            workgroup_store,
             {
                 "Name": f"query{i}",
                 "Database": "sampledb",
@@ -195,9 +208,12 @@ def _create_queries_without_workgroup(
 def _create_query_singular(
     outcome: NamedQueryOutcome,
     named_query_store: NamedQueryStore,
+    workgroup_store: WorkGroupStore,
     num: int,
 ) -> None:
-    _create_queries_without_workgroup(outcome, named_query_store, num)
+    _create_queries_without_workgroup(
+        outcome, named_query_store, workgroup_store, num
+    )
 
 
 @when(parsers.parse("BatchGetNamedQuery requests both query IDs"))

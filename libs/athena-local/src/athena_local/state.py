@@ -43,6 +43,10 @@ def missing_workgroup_error(name: str) -> InvalidRequestException:
     return InvalidRequestException(f"WorkGroup {name} does not exist")
 
 
+def disabled_workgroup_error(name: str) -> InvalidRequestException:
+    return InvalidRequestException(f"WorkGroup {name} is disabled")
+
+
 def validated_state(state: str) -> str:
     if state not in WORKGROUP_STATES:
         raise InvalidRequestException(
@@ -176,6 +180,21 @@ class WorkGroupStore:
         if name not in self.by_name:
             raise missing_workgroup_error(name)
         del self.by_name[name]
+
+
+def ensure_workgroup_enabled(store: WorkGroupStore, name: str) -> None:
+    """Reject a submission when the workgroup exists and is DISABLED.
+
+    A disabled workgroup rejects query submissions and new saved-statement
+    creates (AWS UG ``workgroups-create-update-delete``; wire
+    ``InvalidRequestException`` "WorkGroup <name> is disabled"). Unknown
+    names pass through untouched: the saved-statement stores scope by name
+    without resolving the workgroup, while ``StartQueryExecution`` keeps its
+    missing-workgroup 400 through ``get`` upstream of this gate.
+    """
+    record = store.by_name.get(name)
+    if record is not None and record.state == "DISABLED":
+        raise disabled_workgroup_error(name)
 
 
 @dataclass

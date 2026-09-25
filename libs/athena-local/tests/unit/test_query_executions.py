@@ -367,6 +367,35 @@ def test_start_unknown_workgroup_is_shaped_error(
         )
 
 
+def test_start_disabled_workgroup_is_shaped_error(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    workgroups.create(
+        "blocked", WorkGroupConfiguration(), description=None, tags=[]
+    )
+    workgroups.update(
+        "blocked", description=None, state="DISABLED", updates=None
+    )
+
+    with pytest.raises(
+        InvalidRequestException, match="WorkGroup blocked is disabled"
+    ):
+        asyncio.run(
+            start_query_execution(
+                executor,
+                workgroups,
+                {
+                    "QueryString": "SELECT 1",
+                    "WorkGroup": "blocked",
+                    "ResultConfiguration": {"OutputLocation": "s3://b/"},
+                },
+            )
+        )
+    assert store.by_id == {}  # rejected before any execution was queued
+
+
 def test_start_requires_query_string(
     store: ExecutionStore,
     executor: QueryExecutor,

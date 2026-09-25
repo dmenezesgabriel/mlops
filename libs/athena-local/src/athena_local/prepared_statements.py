@@ -16,7 +16,11 @@ from typing import cast
 
 from athena_local.dispatch import register_handler
 from athena_local.errors import InvalidRequestException
-from athena_local.state import PreparedStatementStore
+from athena_local.state import (
+    PreparedStatementStore,
+    WorkGroupStore,
+    ensure_workgroup_enabled,
+)
 
 
 def _member(payload: dict[str, object] | None, member: str) -> object | None:
@@ -73,10 +77,13 @@ def _required_string_list(
 
 
 def create_prepared_statement(
-    store: PreparedStatementStore, payload: dict[str, object] | None
+    store: PreparedStatementStore,
+    workgroup_store: WorkGroupStore,
+    payload: dict[str, object] | None,
 ) -> dict[str, object]:
     statement_name = _required_string(payload, "StatementName")
     workgroup = _required_string(payload, "WorkGroup")
+    ensure_workgroup_enabled(workgroup_store, workgroup)
     query_statement = _required_string(payload, "QueryStatement")
     description = _optional_string(payload, "Description")
     store.create(
@@ -164,11 +171,14 @@ def batch_get_prepared_statement(
 
 def register_prepared_statement_handlers(
     store: PreparedStatementStore,
+    workgroup_store: WorkGroupStore,
 ) -> None:
     """Bind the six prepared statement operations to ``store`` (explicit wiring)."""
     register_handler(
         "CreatePreparedStatement",
-        lambda payload: create_prepared_statement(store, payload),
+        lambda payload: create_prepared_statement(
+            store, workgroup_store, payload
+        ),
     )
     register_handler(
         "GetPreparedStatement",

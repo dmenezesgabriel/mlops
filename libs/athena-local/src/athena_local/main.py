@@ -115,10 +115,10 @@ workgroup_store = WorkGroupStore()
 register_workgroup_handlers(workgroup_store)
 
 named_query_store = NamedQueryStore()
-register_named_query_handlers(named_query_store)
+register_named_query_handlers(named_query_store, workgroup_store)
 
 prepared_statement_store = PreparedStatementStore()
-register_prepared_statement_handlers(prepared_statement_store)
+register_prepared_statement_handlers(prepared_statement_store, workgroup_store)
 
 data_catalog_store = DataCatalogStore()
 register_data_catalog_handlers(data_catalog_store)

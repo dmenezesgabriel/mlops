@@ -28,7 +28,7 @@ from athena_local.prepared_statements import (
     list_prepared_statements,
     update_prepared_statement,
 )
-from athena_local.state import PreparedStatementStore
+from athena_local.state import PreparedStatementStore, WorkGroupStore
 from pytest_bdd import given, parsers, scenarios, then, when
 
 scenarios("prepared_statements.feature")
@@ -51,6 +51,11 @@ def prepared_statement_store() -> PreparedStatementStore:
 
 
 @pytest.fixture
+def workgroup_store() -> WorkGroupStore:
+    return WorkGroupStore()
+
+
+@pytest.fixture
 def outcome() -> PreparedStatementOutcome:
     return PreparedStatementOutcome(created_names=[])
 
@@ -69,10 +74,12 @@ def _fresh_registry(
 def _create_prepared_statement(
     outcome: PreparedStatementOutcome,
     prepared_statement_store: PreparedStatementStore,
+    workgroup_store: WorkGroupStore,
     name: str,
 ) -> None:
     create_prepared_statement(
         prepared_statement_store,
+        workgroup_store,
         {
             "StatementName": name,
             "WorkGroup": "primary",
@@ -90,11 +97,13 @@ def _create_prepared_statement(
 def _create_prepared_statement_in_workgroup(
     outcome: PreparedStatementOutcome,
     prepared_statement_store: PreparedStatementStore,
+    workgroup_store: WorkGroupStore,
     name: str,
     workgroup: str,
 ) -> None:
     create_prepared_statement(
         prepared_statement_store,
+        workgroup_store,
         {
             "StatementName": name,
             "WorkGroup": workgroup,
@@ -131,12 +140,14 @@ def _get_missing_statement(
 def _create_multiple_statements(
     outcome: PreparedStatementOutcome,
     prepared_statement_store: PreparedStatementStore,
+    workgroup_store: WorkGroupStore,
     num: int,
     workgroup: str,
 ) -> None:
     for i in range(num):
         create_prepared_statement(
             prepared_statement_store,
+            workgroup_store,
             {
                 "StatementName": f"stmt{i}",
                 "WorkGroup": workgroup,
@@ -221,11 +232,13 @@ def _delete_created_statement(
 def _create_statements_without_workgroup(
     outcome: PreparedStatementOutcome,
     prepared_statement_store: PreparedStatementStore,
+    workgroup_store: WorkGroupStore,
     num: int,
 ) -> None:
     for i in range(num):
         create_prepared_statement(
             prepared_statement_store,
+            workgroup_store,
             {
                 "StatementName": f"stmt{i}",
                 "WorkGroup": "primary",
@@ -239,10 +252,11 @@ def _create_statements_without_workgroup(
 def _create_statement_singular(
     outcome: PreparedStatementOutcome,
     prepared_statement_store: PreparedStatementStore,
+    workgroup_store: WorkGroupStore,
     num: int,
 ) -> None:
     _create_statements_without_workgroup(
-        outcome, prepared_statement_store, num
+        outcome, prepared_statement_store, workgroup_store, num
     )
 
 

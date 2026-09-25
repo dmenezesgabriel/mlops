@@ -18,7 +18,8 @@ from athena_local.named_queries import (
     get_named_query,
     list_named_queries,
 )
-from athena_local.state import NamedQueryStore
+from athena_local.state import NamedQueryStore, WorkGroupStore
+from athena_local.workgroup_schemas import WorkGroupConfiguration
 
 NAMED_QUERY_OPERATIONS = {
     "CreateNamedQuery",
@@ -34,6 +35,11 @@ def store() -> NamedQueryStore:
     return NamedQueryStore()
 
 
+@pytest.fixture()
+def workgroups() -> WorkGroupStore:
+    return WorkGroupStore()
+
+
 def test_named_query_operations_are_registered() -> None:
     # main.py is the composition root (ADR-0003); importing it registers the
     # five named query operations against the app's store exactly once.
@@ -42,9 +48,12 @@ def test_named_query_operations_are_registered() -> None:
     assert NAMED_QUERY_OPERATIONS <= implemented_operations()
 
 
-def test_create_named_query_returns_id(store: NamedQueryStore) -> None:
+def test_create_named_query_returns_id(
+    store: NamedQueryStore, workgroups: WorkGroupStore
+) -> None:
     output = create_named_query(
         store,
+        workgroups,
         {
             "Name": "flights_query",
             "Description": "Flights from Seattle",
@@ -66,9 +75,11 @@ def test_create_named_query_returns_id(store: NamedQueryStore) -> None:
 
 def test_create_named_query_defaults_to_primary_workgroup(
     store: NamedQueryStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     output = create_named_query(
         store,
+        workgroups,
         {
             "Name": "test_query",
             "Database": "db",
@@ -80,10 +91,39 @@ def test_create_named_query_defaults_to_primary_workgroup(
     assert record.workgroup == "primary"
 
 
-def test_create_named_query_requires_name(store: NamedQueryStore) -> None:
+def test_create_named_query_disabled_workgroup_is_shaped_error(
+    store: NamedQueryStore,
+    workgroups: WorkGroupStore,
+) -> None:
+    workgroups.create(
+        "blocked", WorkGroupConfiguration(), description=None, tags=[]
+    )
+    workgroups.update(
+        "blocked", description=None, state="DISABLED", updates=None
+    )
+
+    with pytest.raises(
+        InvalidRequestException, match="WorkGroup blocked is disabled"
+    ):
+        create_named_query(
+            store,
+            workgroups,
+            {
+                "Name": "test_query",
+                "Database": "db",
+                "QueryString": "SELECT 1",
+                "WorkGroup": "blocked",
+            },
+        )
+
+
+def test_create_named_query_requires_name(
+    store: NamedQueryStore, workgroups: WorkGroupStore
+) -> None:
     with pytest.raises(InvalidRequestException, match="Name"):
         create_named_query(
             store,
+            workgroups,
             {
                 "Database": "db",
                 "QueryString": "SELECT 1",
@@ -93,10 +133,12 @@ def test_create_named_query_requires_name(store: NamedQueryStore) -> None:
 
 def test_create_named_query_requires_database(
     store: NamedQueryStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(InvalidRequestException, match="Database"):
         create_named_query(
             store,
+            workgroups,
             {
                 "Name": "test",
                 "QueryString": "SELECT 1",
@@ -106,10 +148,12 @@ def test_create_named_query_requires_database(
 
 def test_create_named_query_requires_query_string(
     store: NamedQueryStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(InvalidRequestException, match="QueryString"):
         create_named_query(
             store,
+            workgroups,
             {
                 "Name": "test",
                 "Database": "db",
@@ -119,9 +163,11 @@ def test_create_named_query_requires_query_string(
 
 def test_get_named_query_returns_full_record(
     store: NamedQueryStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     create_output = create_named_query(
         store,
+        workgroups,
         {
             "Name": "complex_query",
             "Description": "Complex join",
@@ -146,6 +192,7 @@ def test_get_named_query_returns_full_record(
 
 def test_get_named_query_missing_raises_invalid_request(
     store: NamedQueryStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(InvalidRequestException, match="does not exist"):
         get_named_query(store, {"NamedQueryId": "missing-id"})
@@ -153,9 +200,11 @@ def test_get_named_query_missing_raises_invalid_request(
 
 def test_list_named_queries_returns_ids_by_workgroup(
     store: NamedQueryStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     create_named_query(
         store,
+        workgroups,
         {
             "Name": "query1",
             "Database": "db",
@@ -165,6 +214,7 @@ def test_list_named_queries_returns_ids_by_workgroup(
     )
     create_named_query(
         store,
+        workgroups,
         {
             "Name": "query2",
             "Database": "db",
@@ -174,6 +224,7 @@ def test_list_named_queries_returns_ids_by_workgroup(
     )
     create_named_query(
         store,
+        workgroups,
         {
             "Name": "query3",
             "Database": "db",
@@ -190,9 +241,11 @@ def test_list_named_queries_returns_ids_by_workgroup(
 
 def test_list_named_queries_defaults_to_primary(
     store: NamedQueryStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     create_named_query(
         store,
+        workgroups,
         {
             "Name": "primary_query",
             "Database": "db",
@@ -207,6 +260,7 @@ def test_list_named_queries_defaults_to_primary(
 
 def test_list_named_queries_empty_workgroup_returns_empty(
     store: NamedQueryStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     output = list_named_queries(store, {"WorkGroup": "nonexistent"})
 
@@ -216,10 +270,12 @@ def test_list_named_queries_empty_workgroup_returns_empty(
 
 def test_list_named_queries_with_max_results(
     store: NamedQueryStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     for i in range(5):
         create_named_query(
             store,
+            workgroups,
             {
                 "Name": f"query{i}",
                 "Database": "db",
@@ -238,10 +294,12 @@ def test_list_named_queries_with_max_results(
 
 def test_list_named_queries_pagination_round_trip(
     store: NamedQueryStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     for i in range(5):
         create_named_query(
             store,
+            workgroups,
             {
                 "Name": f"query{i}",
                 "Database": "db",
@@ -281,6 +339,7 @@ def test_list_named_queries_pagination_round_trip(
 
 def test_list_named_queries_invalid_next_token_raises(
     store: NamedQueryStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(InvalidRequestException, match="Invalid NextToken"):
         list_named_queries(
@@ -290,9 +349,11 @@ def test_list_named_queries_invalid_next_token_raises(
 
 def test_delete_named_query_removes_from_store(
     store: NamedQueryStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     create_output = create_named_query(
         store,
+        workgroups,
         {
             "Name": "to_delete",
             "Database": "db",
@@ -311,6 +372,7 @@ def test_delete_named_query_removes_from_store(
 
 def test_delete_named_query_missing_raises_invalid_request(
     store: NamedQueryStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(InvalidRequestException, match="does not exist"):
         delete_named_query(store, {"NamedQueryId": "missing-id"})
@@ -318,9 +380,11 @@ def test_delete_named_query_missing_raises_invalid_request(
 
 def test_batch_get_named_query_returns_found_records(
     store: NamedQueryStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     id1 = create_named_query(
         store,
+        workgroups,
         {
             "Name": "query1",
             "Database": "db",
@@ -329,6 +393,7 @@ def test_batch_get_named_query_returns_found_records(
     )["NamedQueryId"]
     id2 = create_named_query(
         store,
+        workgroups,
         {
             "Name": "query2",
             "Database": "db",
@@ -346,9 +411,11 @@ def test_batch_get_named_query_returns_found_records(
 
 def test_batch_get_named_query_unprocessed_missing_ids(
     store: NamedQueryStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     id1 = create_named_query(
         store,
+        workgroups,
         {
             "Name": "query1",
             "Database": "db",
@@ -371,6 +438,7 @@ def test_batch_get_named_query_unprocessed_missing_ids(
 
 def test_batch_get_named_query_requires_non_empty_list(
     store: NamedQueryStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(InvalidRequestException, match="must not be empty"):
         batch_get_named_query(store, {"NamedQueryIds": []})
@@ -378,6 +446,7 @@ def test_batch_get_named_query_requires_non_empty_list(
 
 def test_batch_get_named_query_requires_list_of_strings(
     store: NamedQueryStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(
         InvalidRequestException, match="must contain only strings"

@@ -26,7 +26,8 @@ from athena_local.prepared_statements import (
     list_prepared_statements,
     update_prepared_statement,
 )
-from athena_local.state import PreparedStatementStore
+from athena_local.state import PreparedStatementStore, WorkGroupStore
+from athena_local.workgroup_schemas import WorkGroupConfiguration
 
 PREPARED_STATEMENT_OPERATIONS = {
     "CreatePreparedStatement",
@@ -43,6 +44,11 @@ def store() -> PreparedStatementStore:
     return PreparedStatementStore()
 
 
+@pytest.fixture()
+def workgroups() -> WorkGroupStore:
+    return WorkGroupStore()
+
+
 def test_prepared_statement_operations_are_registered() -> None:
     # main.py is the composition root (ADR-0003); importing it registers the
     # six prepared statement operations against the app's store exactly once.
@@ -53,9 +59,11 @@ def test_prepared_statement_operations_are_registered() -> None:
 
 def test_create_prepared_statement_returns_empty(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     output = create_prepared_statement(
         store,
+        workgroups,
         {
             "StatementName": "flights_stmt",
             "WorkGroup": "analytics",
@@ -74,9 +82,11 @@ def test_create_prepared_statement_returns_empty(
 
 def test_create_prepared_statement_without_description(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     output = create_prepared_statement(
         store,
+        workgroups,
         {
             "StatementName": "test_stmt",
             "WorkGroup": "primary",
@@ -91,9 +101,11 @@ def test_create_prepared_statement_without_description(
 
 def test_create_prepared_statement_duplicate_raises_invalid_request(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     create_prepared_statement(
         store,
+        workgroups,
         {
             "StatementName": "test_stmt",
             "WorkGroup": "primary",
@@ -106,6 +118,7 @@ def test_create_prepared_statement_duplicate_raises_invalid_request(
     ):
         create_prepared_statement(
             store,
+            workgroups,
             {
                 "StatementName": "test_stmt",
                 "WorkGroup": "primary",
@@ -116,10 +129,12 @@ def test_create_prepared_statement_duplicate_raises_invalid_request(
 
 def test_create_prepared_statement_requires_statement_name(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(InvalidRequestException, match="StatementName"):
         create_prepared_statement(
             store,
+            workgroups,
             {
                 "WorkGroup": "primary",
                 "QueryStatement": "SELECT 1",
@@ -127,12 +142,39 @@ def test_create_prepared_statement_requires_statement_name(
         )
 
 
+def test_create_prepared_statement_disabled_workgroup_is_shaped_error(
+    store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
+) -> None:
+    workgroups.create(
+        "blocked", WorkGroupConfiguration(), description=None, tags=[]
+    )
+    workgroups.update(
+        "blocked", description=None, state="DISABLED", updates=None
+    )
+
+    with pytest.raises(
+        InvalidRequestException, match="WorkGroup blocked is disabled"
+    ):
+        create_prepared_statement(
+            store,
+            workgroups,
+            {
+                "StatementName": "test_stmt",
+                "WorkGroup": "blocked",
+                "QueryStatement": "SELECT 1",
+            },
+        )
+
+
 def test_create_prepared_statement_requires_workgroup(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(InvalidRequestException, match="WorkGroup"):
         create_prepared_statement(
             store,
+            workgroups,
             {
                 "StatementName": "test",
                 "QueryStatement": "SELECT 1",
@@ -142,10 +184,12 @@ def test_create_prepared_statement_requires_workgroup(
 
 def test_create_prepared_statement_requires_query_statement(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(InvalidRequestException, match="QueryStatement"):
         create_prepared_statement(
             store,
+            workgroups,
             {
                 "StatementName": "test",
                 "WorkGroup": "primary",
@@ -155,9 +199,11 @@ def test_create_prepared_statement_requires_query_statement(
 
 def test_get_prepared_statement_returns_full_record(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     create_prepared_statement(
         store,
+        workgroups,
         {
             "StatementName": "complex_stmt",
             "WorkGroup": "data_science",
@@ -180,6 +226,7 @@ def test_get_prepared_statement_returns_full_record(
 
 def test_get_prepared_statement_missing_raises_resource_not_found(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(
         ResourceNotFoundException, match="does not exist in workgroup"
@@ -191,9 +238,11 @@ def test_get_prepared_statement_missing_raises_resource_not_found(
 
 def test_list_prepared_statements_returns_records_by_workgroup(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     create_prepared_statement(
         store,
+        workgroups,
         {
             "StatementName": "stmt1",
             "WorkGroup": "analytics",
@@ -202,6 +251,7 @@ def test_list_prepared_statements_returns_records_by_workgroup(
     )
     create_prepared_statement(
         store,
+        workgroups,
         {
             "StatementName": "stmt2",
             "WorkGroup": "analytics",
@@ -210,6 +260,7 @@ def test_list_prepared_statements_returns_records_by_workgroup(
     )
     create_prepared_statement(
         store,
+        workgroups,
         {
             "StatementName": "stmt3",
             "WorkGroup": "primary",
@@ -229,6 +280,7 @@ def test_list_prepared_statements_returns_records_by_workgroup(
 
 def test_list_prepared_statements_empty_workgroup_returns_empty(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     output = list_prepared_statements(store, {"WorkGroup": "nonexistent"})
 
@@ -238,10 +290,12 @@ def test_list_prepared_statements_empty_workgroup_returns_empty(
 
 def test_list_prepared_statements_with_max_results(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     for i in range(5):
         create_prepared_statement(
             store,
+            workgroups,
             {
                 "StatementName": f"stmt{i}",
                 "WorkGroup": "analytics",
@@ -259,10 +313,12 @@ def test_list_prepared_statements_with_max_results(
 
 def test_list_prepared_statements_pagination_round_trip(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     for i in range(5):
         create_prepared_statement(
             store,
+            workgroups,
             {
                 "StatementName": f"stmt{i}",
                 "WorkGroup": "analytics",
@@ -301,6 +357,7 @@ def test_list_prepared_statements_pagination_round_trip(
 
 def test_list_prepared_statements_invalid_next_token_raises(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(InvalidRequestException, match="Invalid NextToken"):
         list_prepared_statements(
@@ -310,9 +367,11 @@ def test_list_prepared_statements_invalid_next_token_raises(
 
 def test_update_prepared_statement_modifies_record(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     create_prepared_statement(
         store,
+        workgroups,
         {
             "StatementName": "test_stmt",
             "WorkGroup": "primary",
@@ -343,6 +402,7 @@ def test_update_prepared_statement_modifies_record(
 
 def test_update_prepared_statement_missing_raises_resource_not_found(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(
         ResourceNotFoundException, match="does not exist in workgroup"
@@ -359,9 +419,11 @@ def test_update_prepared_statement_missing_raises_resource_not_found(
 
 def test_delete_prepared_statement_removes_from_store(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     create_prepared_statement(
         store,
+        workgroups,
         {
             "StatementName": "to_delete",
             "WorkGroup": "primary",
@@ -382,6 +444,7 @@ def test_delete_prepared_statement_removes_from_store(
 
 def test_delete_prepared_statement_missing_raises_resource_not_found(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(
         ResourceNotFoundException, match="does not exist in workgroup"
@@ -393,9 +456,11 @@ def test_delete_prepared_statement_missing_raises_resource_not_found(
 
 def test_batch_get_prepared_statement_returns_found_records(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     create_prepared_statement(
         store,
+        workgroups,
         {
             "StatementName": "stmt1",
             "WorkGroup": "primary",
@@ -404,6 +469,7 @@ def test_batch_get_prepared_statement_returns_found_records(
     )
     create_prepared_statement(
         store,
+        workgroups,
         {
             "StatementName": "stmt2",
             "WorkGroup": "primary",
@@ -424,9 +490,11 @@ def test_batch_get_prepared_statement_returns_found_records(
 
 def test_batch_get_prepared_statement_unprocessed_missing_names(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     create_prepared_statement(
         store,
+        workgroups,
         {
             "StatementName": "stmt1",
             "WorkGroup": "primary",
@@ -456,6 +524,7 @@ def test_batch_get_prepared_statement_unprocessed_missing_names(
 
 def test_batch_get_prepared_statement_requires_non_empty_list(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(InvalidRequestException, match="must not be empty"):
         batch_get_prepared_statement(
@@ -465,6 +534,7 @@ def test_batch_get_prepared_statement_requires_non_empty_list(
 
 def test_batch_get_prepared_statement_requires_list_of_strings(
     store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(
         InvalidRequestException, match="must contain only strings"

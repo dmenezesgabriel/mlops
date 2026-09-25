@@ -12,7 +12,11 @@ from typing import cast
 
 from athena_local.dispatch import register_handler
 from athena_local.errors import InvalidRequestException
-from athena_local.state import NamedQueryStore
+from athena_local.state import (
+    NamedQueryStore,
+    WorkGroupStore,
+    ensure_workgroup_enabled,
+)
 
 
 def _member(payload: dict[str, object] | None, member: str) -> object | None:
@@ -69,13 +73,16 @@ def _required_string_list(
 
 
 def create_named_query(
-    store: NamedQueryStore, payload: dict[str, object] | None
+    store: NamedQueryStore,
+    workgroup_store: WorkGroupStore,
+    payload: dict[str, object] | None,
 ) -> dict[str, object]:
     name = _required_string(payload, "Name")
     description = _optional_string(payload, "Description") or ""
     database = _required_string(payload, "Database")
     query_string = _required_string(payload, "QueryString")
     workgroup = _optional_string(payload, "WorkGroup") or "primary"
+    ensure_workgroup_enabled(workgroup_store, workgroup)
     record = store.create(
         name=name,
         description=description,
@@ -136,10 +143,13 @@ def batch_get_named_query(
     return output
 
 
-def register_named_query_handlers(store: NamedQueryStore) -> None:
+def register_named_query_handlers(
+    store: NamedQueryStore, workgroup_store: WorkGroupStore
+) -> None:
     """Bind the five named query operations to ``store`` (explicit wiring)."""
     register_handler(
-        "CreateNamedQuery", lambda payload: create_named_query(store, payload)
+        "CreateNamedQuery",
+        lambda payload: create_named_query(store, workgroup_store, payload),
     )
     register_handler(
         "GetNamedQuery", lambda payload: get_named_query(store, payload)
