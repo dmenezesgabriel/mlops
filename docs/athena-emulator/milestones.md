@@ -301,7 +301,18 @@ Steps:
      `make -C docker/moto test`). New integration coverage shows moto's
      `"table$partitions"` is the `SHOW PARTITIONS` gap-workaround Trino 483
      offers; breakout reflected in backlog CS-2b3.
-3. CS-3 AWS CLI examples suite (`awscli/examples/athena/`).
+3. [x] CS-3 AWS CLI examples suite (`awscli/examples/athena/`).
+   - Closed 2026-09-25: 31/31 doc commands across all 28 example files run
+     green through the installed `awscli==1.46.1` console script with
+     `--endpoint-url` at the live stack (in-process uvicorn + bridge moto as
+     shared data plane, same as CS-2b). The suite restarted nothing: all five
+     chains (workgroups, data catalogs, named queries, catalog metadata/Glue,
+     query executions) passed against the already-running Trino 483 + moto.
+     CREATE DATABASE (start-query-execution example 2, valid Athena DDL) was
+     rejected by Trino's grammar — evidence-gated fix `dialect.py` submits it
+     as CREATE SCHEMA while the execution record keeps the original text;
+     row added in architecture §11. DML example 1 turned SUCCEEDED ≈446 ms
+     after start via CLI get-query-execution polling.
 4. CS-4 terraform op-shape parity (SDK Go v2 + boto3); stretch: real
    provider apply if feasible — evidence-gated, no invention.
 5. CS-5 endpoint-routing split test.
