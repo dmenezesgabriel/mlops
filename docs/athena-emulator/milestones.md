@@ -387,7 +387,19 @@ Steps:
      (`meta.endpoint_url`), `SELECT 1` SUCCEEDED in 517 ms, `.csv` +
      `.csv.metadata` on moto S3, wrangler csv-path read → (1,2) frame.
      Executed notebook + generated `PARITY.md` committed as evidence.
-2. [ ] NB-2 boto3 control-plane notebook.
+2. [x] NB-2 boto3 control-plane notebook.
+   - Verified 2026-09-25: `02_boto3_control_plane.ipynb` executes clean
+     in-container via the nbclient `integration` hook — 14 probes, 12 PASS /
+     2 measured GAPs. Enforced workgroup `OutputLocation` overrides the
+     client-passed prefix (artifact lands under the workgroup prefix only),
+     non-enforced falls back, managed-results reports `ResultConfiguration`
+     with no `OutputLocation` and writes nothing to S3, prepared statements
+     answer `ResourceNotFoundException` 404, `AwsDataCatalog` is seeded, and
+     the ARN tag error taxonomy holds (404 unknown / 400 malformed and
+     non-taggable). Two GAPs recorded for NB-6 triage, not worked around:
+     `StartQueryExecution` on a `DISABLED` workgroup reaches SUCCEEDED
+     (state never checked at submit) and `ListWorkGroups` ignores
+     `MaxResults`/`NextToken`.
 3. [ ] NB-3 boto3 query lifecycle + DDL + error paths notebook.
 4. [ ] NB-4 awswrangler read-path notebook (incl. unload/MSCK/`SHOW PARTITIONS`
    probes — measured outcome recorded, never worked around).
