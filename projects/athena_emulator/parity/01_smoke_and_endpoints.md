@@ -1,0 +1,8 @@
+## 01_smoke_and_endpoints
+
+| feature | status | detail | latency_ms |
+|---|---|---|---|
+| endpoint routing (athena→emulator, s3/glue→moto) | PASS | athena=http://athena:5001 s3=http://moto:5000 glue=http://moto:5000 |  |
+| boto3 start→poll→get_query_results | PASS | fee3a576-c213-4038-aa9b-f90513d89610 SUCCEEDED, 1 data row(s) | 517 |
+| result artifacts on moto S3 (.csv + .csv.metadata) | PASS | results/fee3a576-c213-4038-aa9b-f90513d89610.csv; results/fee3a576-c213-4038-aa9b-f90513d89610.csv.metadata |  |
+| wr.athena.read_sql_query (csv path) | PASS | shape=(1, 2) qid=45a0827a-f375-4645-b382-7f704bf619b3 |  |

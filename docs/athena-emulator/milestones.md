@@ -371,10 +371,38 @@ Steps:
 Exit: `docker compose up` → jupyterlab + moto + athena + trino; full M4 suite
 green from a cold stack; permanent docs current.
 
+## M6 — Jupyter notebook parity validation (NB-*)
+
+Goal: human-facing, evidence-recording notebooks run inside the compose
+`jupyterlab` service driving common boto3 + awswrangler flows against the live
+stack; each feature records a measured PASS/FAIL/GAP. Notebooks complement the
+CS-* pytest suites — they are the readable parity matrix, not a replacement.
+
+Steps:
+1. [x] NB-1 scaffold `projects/athena_emulator/` + jupyterlab up + smoke
+   notebook (endpoint routing, `SELECT 1` round-trip, moto artifact).
+   - Verified 2026-09-25: `docker compose up -d jupyterlab` (depends_on athena
+     healthy) → :8888 serving; kernel env awswrangler 3.17.1 / boto3 1.42.82 /
+     pandas 2.3.3. nbclient run in-container: routing probe PASS
+     (`meta.endpoint_url`), `SELECT 1` SUCCEEDED in 517 ms, `.csv` +
+     `.csv.metadata` on moto S3, wrangler csv-path read → (1,2) frame.
+     Executed notebook + generated `PARITY.md` committed as evidence.
+2. [ ] NB-2 boto3 control-plane notebook.
+3. [ ] NB-3 boto3 query lifecycle + DDL + error paths notebook.
+4. [ ] NB-4 awswrangler read-path notebook (incl. unload/MSCK/`SHOW PARTITIONS`
+   probes — measured outcome recorded, never worked around).
+5. [ ] NB-5 awswrangler write/catalog notebook + consolidated parity matrix.
+6. [ ] NB-6 file a backlog item per measured FAIL/GAP for triage.
+
+Exit: every notebook executed green inside `jupyterlab` via the
+`integration`-marked nbclient hook (and host fallback over localhost ports);
+`PARITY.md` lists each probed feature with its measured status; each measured
+gap has a backlog item or a documented waiver.
+
 ## Sequence & dependencies
 
 ```
-M0 (SP) → M1 (QC/PC core) → M2 (MD) → M3 (QE/AR) → M4 (CS) → M5 (DP)
+M0 (SP) → M1 (QC/PC core) → M2 (MD) → M3 (QE/AR) → M4 (CS) → M5 (DP) → M6 (NB)
 ```
 Blockers gating start: M0 SP-2/SP-3 must pass before QE/AR integration (M3).
 M2 MD-7 needs SP-3. QC gates (M1) precede any src/ code per NFR-01/02.
