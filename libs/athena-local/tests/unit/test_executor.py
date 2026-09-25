@@ -997,6 +997,42 @@ def test_start_skips_trino_and_fails_on_resolution_failure(
     asyncio.run(scenario())
 
 
+def test_start_submits_dialect_mapped_create_database(
+    store: ExecutionStore,
+) -> None:
+    """CREATE DATABASE reaches Trino as CREATE SCHEMA; the record keeps the
+    original Athena text (CS-3, dialect.py)."""
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient([result_page(next_uri=None)])
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        record = await executor.start(
+            query="create database if not exists newdb",
+            workgroup="primary",
+            statement_classification=StatementClassification(
+                "DDL", "CREATE_DATABASE"
+            ),
+        )
+        await executor._tasks[record.query_execution_id]
+
+        assert client.submissions == [
+            (
+                "create schema if not exists newdb",
+                TRINO_CATALOG,
+                "",
+                TRINO_USER,
+            )
+        ]
+        assert record.query == "create database if not exists newdb"
+        assert record.statement_type == "DDL"
+        assert record.substatement_type == "CREATE_DATABASE"
+        assert record.state == SUCCEEDED
+
+    asyncio.run(scenario())
+
+
 def test_start_submits_resolved_statement_instead_of_query(
     store: ExecutionStore,
 ) -> None:

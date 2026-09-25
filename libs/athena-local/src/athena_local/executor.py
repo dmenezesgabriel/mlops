@@ -18,6 +18,7 @@ from dataclasses import dataclass, replace
 from typing import Protocol
 
 from athena_local.common_schemas import ResultConfiguration
+from athena_local.dialect import to_trino_dialect
 from athena_local.error_mapping import (
     is_syntax_error,
     syntax_error_invalid_request,
@@ -176,6 +177,10 @@ class QueryExecutor:
             record.transition_to(FAILED, resolution_failure_reason)
             return record
         submit_query = resolved_statement or query
+        # Athena accepts a few statements Trino's grammar rejects (e.g.
+        # CREATE DATABASE); submit the dialect-mapped form while the record
+        # keeps the query as written (dialect.py, CS-3 evidence).
+        submit_query = to_trino_dialect(submit_query)
         snapshot, capture_error = await self._capture_manifest(
             submit_query, database, catalog, statement_classification
         )
