@@ -1,7 +1,7 @@
 """Consumer-parity integration: real boto3 against the live app.
 
-MD-2 acceptance check. Uses the LiveAthenaServer fixture (threaded uvicorn on
-a random port) — the same pattern the M1 smoke already uses, so no docker
+Acceptance check. Uses the LiveAthenaServer fixture (threaded uvicorn on
+a random port) — the same pattern the botocore smoke already uses, so no docker
 stack is needed for the named query control plane. Tests verify that boto3
 clients can perform CRUD operations, pagination, and batch gets against the
 running emulator.

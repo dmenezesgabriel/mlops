@@ -1,4 +1,4 @@
-"""Resource tagging operations (MD-6): handlers bound into the dispatch registry.
+"""Resource tagging operations: handlers bound into the dispatch registry.
 
 TagResource, UntagResource, and ListTagsForResource address resources by
 Athena ARN (``arn:aws:athena:<region>:<account>:<type>/<name>`` — the shape in

@@ -1,7 +1,7 @@
 """Consumer-parity integration: real boto3 and awswrangler against the live app.
 
-MD-3 acceptance check. Uses the LiveAthenaServer fixture (threaded uvicorn on
-a random port) — the same pattern the MD-1/MD-2 slices use, so no docker stack
+Acceptance check. Uses the LiveAthenaServer fixture (threaded uvicorn on
+a random port) — the same pattern the workgroup/named-query slices use, so no docker stack
 is needed for the prepared statement control plane. Tests verify boto3 can do
 CRUD, pagination, and batch gets, and that awswrangler's prepared statement
 API (which resolves statements via ResourceNotFoundException) runs against the

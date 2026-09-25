@@ -1,4 +1,4 @@
-"""Named query operations (MD-2): handlers bound into the dispatch registry.
+"""Named query operations: handlers bound into the dispatch registry.
 
 Each handler parses its request payload against the typed schemas, delegates
 registry semantics to ``NamedQueryStore``, and returns the operation's output

@@ -1,4 +1,4 @@
-"""CS-4: Terraform-provider operation shapes through Go v2 and boto3.
+"""Terraform-provider operation shapes through Go v2 and boto3.
 
 The provider's five Athena resources use the same JSON-1.1 operations as the
 other consumers.  The Go test module is pinned to the AWS SDK versions used by
@@ -79,7 +79,7 @@ def _exercise_boto3_control_plane(
     workgroup = f"boto3_wg_{suffix}"
     client.create_work_group(
         Name=workgroup,
-        Description="CS-4 boto3 witness",
+        Description="boto3 witness",
         Configuration={"EnforceWorkGroupConfiguration": True},
     )
     try:
@@ -87,7 +87,7 @@ def _exercise_boto3_control_plane(
         assert fetched["Name"] == workgroup
         client.update_work_group(
             WorkGroup=workgroup,
-            Description="CS-4 boto3 witness updated",
+            Description="boto3 witness updated",
             State="DISABLED",
         )
         assert (
@@ -104,7 +104,7 @@ def _exercise_boto3_control_plane(
         Name=f"boto3_named_query_{suffix}",
         Database=database,
         QueryString="SELECT 1",
-        Description="CS-4 boto3 witness",
+        Description="boto3 witness",
     )["NamedQueryId"]
     try:
         fetched = client.get_named_query(NamedQueryId=named_query)[
@@ -121,7 +121,7 @@ def _exercise_boto3_control_plane(
     client.create_data_catalog(
         Name=catalog_name,
         Type="LAMBDA",
-        Description="CS-4 boto3 witness",
+        Description="boto3 witness",
         Parameters={
             "function": "arn:aws:lambda:us-east-1:123456789012:function:one"
         },
@@ -132,7 +132,7 @@ def _exercise_boto3_control_plane(
         client.update_data_catalog(
             Name=catalog_name,
             Type="LAMBDA",
-            Description="CS-4 boto3 witness updated",
+            Description="boto3 witness updated",
             Parameters={
                 "function": "arn:aws:lambda:us-east-1:123456789012:function:two"
             },
@@ -141,7 +141,7 @@ def _exercise_boto3_control_plane(
             client.get_data_catalog(Name=catalog_name)["DataCatalog"][
                 "Description"
             ]
-            == "CS-4 boto3 witness updated"
+            == "boto3 witness updated"
         )
     finally:
         try:
@@ -154,7 +154,7 @@ def _exercise_boto3_control_plane(
         StatementName=statement_name,
         WorkGroup="primary",
         QueryStatement="SELECT ?",
-        Description="CS-4 boto3 witness",
+        Description="boto3 witness",
     )
     try:
         fetched = client.get_prepared_statement(
@@ -165,7 +165,7 @@ def _exercise_boto3_control_plane(
             StatementName=statement_name,
             WorkGroup="primary",
             QueryStatement="SELECT ? + 1",
-            Description="CS-4 boto3 witness updated",
+            Description="boto3 witness updated",
         )
     finally:
         try:

@@ -1,4 +1,4 @@
-"""70-op parity loop helpers (CS-1): model-inflated stubs and wire assertions.
+"""70-op parity loop helpers: model-inflated stubs and wire assertions.
 
 Stub request bodies are inflated from the canonical Athena model (required
 members only, validated with botocore's ``validate_parameters``) so the loop
@@ -65,7 +65,7 @@ def service_model() -> ServiceModel:
 
     Cached: the loop calls it once per operation per assertion, and building a
     fresh Session and re-parsing service-2.json every time dominated the suite
-    (CS-1 timing budget).
+    (the loop's timing budget).
     """
     return Session().get_service_model("athena")
 

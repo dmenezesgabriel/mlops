@@ -1,4 +1,4 @@
-"""Data catalog operations (MD-4): handlers bound into the dispatch registry.
+"""Data catalog operations: handlers bound into the dispatch registry.
 
 Each handler parses its request payload, delegates registry semantics to
 ``DataCatalogStore``, and returns the operation's output object. Registration

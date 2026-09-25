@@ -1,4 +1,4 @@
-"""Typed wire shapes for Athena JSON-1.1 operations (PC-2, MD-1, MD-2).
+"""Typed wire shapes for Athena JSON-1.1 operations.
 
 Re-exports shared Athena types, WorkGroup configuration shapes, and NamedQuery
 shapes.

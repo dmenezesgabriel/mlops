@@ -1,9 +1,9 @@
 """App-level tests: POST / dispatch, health endpoint, shaped-error contract.
 
 Every operation without a registered handler must answer with a shaped
-``InvalidRequestException`` (400) that botocore parses cleanly (PRD FR-17);
-implemented operations answer with JSON-1.1 success responses (MD-1: the five
-workgroup operations). The composition root (PC-6) also owns the six
+``InvalidRequestException`` (400) that botocore parses cleanly;
+implemented operations answer with JSON-1.1 success responses (the five
+workgroup operations). The composition root also owns the six
 query-plane operations, whose wiring is asserted here.
 """
 
@@ -350,7 +350,7 @@ def test_query_plane_operations_are_wired_by_the_composition_root(
     )
 
     # Routed to the execution store's lookup ("does not exist"), not to the
-    # "operation not yet implemented" answer (PC-6).
+    # "operation not yet implemented" answer.
     assert response.status_code == 400
     assert "does not exist" in response.json()["message"]
 

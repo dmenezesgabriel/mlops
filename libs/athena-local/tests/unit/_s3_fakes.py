@@ -1,4 +1,4 @@
-"""Shared named fakes for S3-backed artifact tests (AR-1).
+"""Shared named fakes for S3-backed artifact tests.
 
 ``RecordingObjectStore`` mirrors the moto S3 surface the writer boundary
 touches (put_object / list_objects_v2 with continuation-token pagination).

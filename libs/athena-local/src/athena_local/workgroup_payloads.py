@@ -1,4 +1,4 @@
-"""Serialization and default application for Athena WorkGroup payloads (MD-1).
+"""Serialization and default application for Athena WorkGroup payloads.
 
 Serializes WorkGroupConfiguration to wire dictionary shapes and fills
 creation defaults mirroring moto Athena models.

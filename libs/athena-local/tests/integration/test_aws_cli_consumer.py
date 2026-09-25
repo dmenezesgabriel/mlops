@@ -1,11 +1,11 @@
-"""CS-3: the AWS CLI athena example suite over the live stack.
+"""The AWS CLI athena example suite over the live stack.
 
 Drives the commands awscli ships in ``examples/athena/*.rst`` (read from the
 installed awscli package via ``_cli_examples`` — the frozen
 ``research_repos/aws-cli/awscli/examples/athena/`` checkout is the
 byte-identical reference) through the real ``aws`` binary against an
 in-process emulator and the compose moto container as shared data plane,
-exactly the CS-2b stack. Sample identifiers from the docs (workgroups,
+the same stack the awswrangler suite uses. Sample identifiers from the docs (workgroups,
 catalogs, ``amzn-s3-demo-bucket``) are swapped for the throwaway resources
 each chain seeds; assertions check wire shape, not the docs' illustrative
 output.
@@ -161,7 +161,7 @@ def test_cli_workgroup_examples(
                 "--name",
                 name,
                 "--description",
-                "CS-3 seed",
+                "cli-example seed",
             )
             assert created.returncode == 0, created.stderr
 
@@ -234,7 +234,7 @@ def test_cli_data_catalog_examples(
                 "--type",
                 "LAMBDA",
                 "--description",
-                "CS-3 seed",
+                "cli-example seed",
             )
             assert seeded.returncode == 0, seeded.stderr
 
@@ -436,7 +436,7 @@ def test_cli_query_execution_examples(
             "--configuration",
             f"ResultConfiguration={{OutputLocation={prefix}}}",
             "--description",
-            "CS-3 seed",
+            "cli-example seed",
         )
         assert created.returncode == 0, created.stderr
 

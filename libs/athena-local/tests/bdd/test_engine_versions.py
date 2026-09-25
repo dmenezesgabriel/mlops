@@ -1,4 +1,4 @@
-"""Step definitions for the engine versions BDD feature (MD-5).
+"""Step definitions for the engine versions BDD feature.
 
 ListEngineVersions needs no store; the step asserts the pinned single-entry
 list matches the canonical ``EngineVersions``/``EngineVersion`` shapes.

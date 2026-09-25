@@ -1,4 +1,4 @@
-"""Handler tests for the five workgroup operations (MD-1).
+"""Handler tests for the five workgroup operations.
 
 Handlers translate a parsed JSON payload into the operation's output shape,
 delegating registry semantics to ``WorkGroupStore``. The payload-shape

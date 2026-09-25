@@ -2,7 +2,7 @@
 
 ``QueryExecutor`` owns the QUEUED → RUNNING → terminal machine: ``start``
 validates the statement against Trino (a bounded submit + one nextUri fetch,
-mirroring how real Athena rejects bad syntax at StartQueryExecution, QE-5),
+mirroring how real Athena rejects bad syntax at StartQueryExecution),
 then returns the execution immediately (matching Athena and wrangler's poll
 loop); a background task drives the Trino statement protocol until
 completion, and the terminal SUCCEEDED transition fires only after the
@@ -52,7 +52,7 @@ class StatementClient(Protocol):
     ``TrinoClient`` implements it structurally; tests inject scripted fakes
     for F.I.R.S.T. lifecycle tests (no docker). Parameter names mirror the
     concrete transports so pyright can type-check the composition root
-    (``main.build_query_executor``, PC-6).
+    (``main.build_query_executor``).
     """
 
     async def submit_statement(
@@ -101,7 +101,7 @@ class ArtifactWriteError(Exception):
 
 @dataclass(frozen=True)
 class PreflightVerdict:
-    """Outcome of the start-time Trino check (ADR-0009 #2, QE-5).
+    """Outcome of the start-time Trino check (ADR-0009 #2).
 
     ``page`` is the QueryResults document the poll task resumes from — the
     statement is never re-submitted — or None when ``failure_reason`` is set
@@ -155,7 +155,7 @@ class QueryExecutor:
         real Athena reports StatementType/SubstatementType even for failed
         executions. ``resolved_statement`` is the SQL actually submitted — a
         submitted ``EXECUTE`` names a stored statement, but Trino's protocol
-        has no prepared-statement persistence (QE-7), so the resolver's bound
+        has no prepared-statement persistence, so the resolver's bound
         copy runs instead. A ``resolution_failure_reason`` (missing statement
         or parameter-count mismatch) skips manifest capture and preflight and
         starts the execution FAILED immediately: real Athena fails such
@@ -179,7 +179,7 @@ class QueryExecutor:
         submit_query = resolved_statement or query
         # Athena accepts a few statements Trino's grammar rejects (e.g.
         # CREATE DATABASE); submit the dialect-mapped form while the record
-        # keeps the query as written (dialect.py, CS-3 evidence).
+        # keeps the query as written (dialect.py).
         submit_query = to_trino_dialect(submit_query)
         snapshot, capture_error = await self._capture_manifest(
             submit_query, database, catalog, statement_classification
@@ -290,14 +290,14 @@ class QueryExecutor:
     async def _preflight(
         self, query: str, database: str | None
     ) -> PreflightVerdict:
-        """POST the statement and follow one nextUri (ADR-0009 #2, QE-5).
+        """POST the statement and follow one nextUri (ADR-0009 #2).
 
         Trino's first page is always clean; syntax failures surface on the
         first following page (measured), which bounds syntax detection to a
         single fetch. A SYNTAX_ERROR page becomes the submit-time 400
         (error_mapping); any other page is forwarded for the poll task to
         continue from, and a transport failure becomes an immediate FAILED
-        reason so a dead coordinator degrades gracefully (DP-5).
+        reason so a dead coordinator degrades gracefully.
         """
         try:
             first_page = await self._client.submit_statement(

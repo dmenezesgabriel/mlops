@@ -1,4 +1,4 @@
-"""PC-6 live smoke: the composed production executor round-trips end to end.
+"""Composition-root live smoke: the composed production executor round-trips end to end.
 
 Builds the query plane through ``main.build_query_executor`` — the exact
 composition the app root wires at import — and drives one query through the

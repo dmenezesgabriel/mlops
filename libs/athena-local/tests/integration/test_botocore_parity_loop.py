@@ -1,4 +1,4 @@
-"""70-op parity loop over real HTTP (CS-1, real transport).
+"""70-op parity loop over real HTTP (real transport).
 
 A real boto3 client serializes each model-valid stub request and parses our
 JSON-1.1 response for every operation, exactly as the five consumers do. The
@@ -9,7 +9,7 @@ declared error shapes with the ADR-0008 headers and statuses.
 
 Runs against the in-process uvicorn server (no docker); point the client at
 the compose ``athena`` :5001 service via ``ATHENA_LOCAL_TEST_ENDPOINT`` when
-the stack is up, which is how M4 pins the deployed service.
+the stack is up, which pins the deployed service.
 """
 
 from __future__ import annotations

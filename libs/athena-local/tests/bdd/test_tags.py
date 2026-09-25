@@ -1,4 +1,4 @@
-"""Step definitions for the resource tagging BDD feature (MD-6).
+"""Step definitions for the resource tagging BDD feature.
 
 Steps exercise the handler layer directly against fresh in-memory workgroup and
 data catalog stores per scenario — the same boundary pytest-bdd asserts for the

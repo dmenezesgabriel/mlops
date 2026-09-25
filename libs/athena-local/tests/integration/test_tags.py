@@ -1,6 +1,6 @@
 """Consumer-parity integration: real boto3 tagging against the live app.
 
-MD-6 acceptance check. TagResource, UntagResource, and ListTagsForResource
+Acceptance check. TagResource, UntagResource, and ListTagsForResource
 round-trip through the JSON-1.1 wire protocol against the ``LiveAthenaServer``
 fixture, addressing workgroup and data catalog ARNs (the shape in
 ``tag-resource``/``list-tags-for-resource.rst``). Unknown resources answer a

@@ -1,4 +1,4 @@
-"""QE-7 unit tests: EXECUTE parse, bind, and resolve against the store.
+"""Unit tests: EXECUTE parse, bind, and resolve against the store.
 
 Pure-logic coverage of ``prepared_execution``: parsing the ``EXECUTE``
 statement shape, splicing values into the stored query, and resolving a

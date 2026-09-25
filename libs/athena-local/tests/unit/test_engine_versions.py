@@ -1,4 +1,4 @@
-"""Handler tests for ListEngineVersions (MD-5).
+"""Handler tests for ListEngineVersions.
 
 The operation returns the pinned engine version list: the emulator's sole
 engine is the Trino-backed Athena engine 3, mirroring the workgroup default

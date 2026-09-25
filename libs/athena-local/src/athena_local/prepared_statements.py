@@ -1,4 +1,4 @@
-"""Prepared statement operations (MD-3): handlers bound into the dispatch registry.
+"""Prepared statement operations: handlers bound into the dispatch registry.
 
 Each handler parses its request payload against the typed schemas, delegates
 registry semantics to ``PreparedStatementStore``, and returns the operation's

@@ -1,4 +1,4 @@
-"""AR-2 integration: GetQueryExecution reports the full artifact path.
+"""Integration: GetQueryExecution reports the full artifact path.
 
 Real boto3 → uvicorn → Trino round trip where the artifact writer is the real
 ``ArtifactWriter`` over a live moto S3, so the ``OutputLocation`` the wire

@@ -1,4 +1,4 @@
-"""Server-side prepared-statement execution (QE-7): resolve EXECUTE at submit.
+"""Server-side prepared-statement execution: resolve EXECUTE at submit.
 
 Real Athena keeps prepared statements in the workgroup and re-runs their
 stored ``QueryStatement`` when a client submits ``EXECUTE <name> [USING
@@ -204,7 +204,7 @@ def resolve_execute_statement(
     query: str,
     execution_parameters: list[str] | None,
 ) -> ExecuteResolution:
-    """Resolve a submitted query for execution (QE-7).
+    """Resolve a submitted query for execution.
 
     A plain parameterized query (``?`` markers plus ``ExecutionParameters``,
     the wrangler ``paramstyle="qmark"`` shape) binds its markers server-side;

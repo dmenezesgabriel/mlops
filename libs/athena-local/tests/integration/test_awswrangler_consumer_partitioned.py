@@ -1,10 +1,10 @@
-"""CS-2b3: awswrangler partitioned-read consumer suite (FR-07).
+"""awswrangler partitioned-read consumer suite.
 
 Drives real awswrangler 3.17.1 against a **partitioned** table through the
 emulator (in-process uvicorn) and the compose moto container as the shared
-data plane, exactly like CS-2b1/CS-2b2.
+data plane, exactly like the read/write-path suites.
 
-FR-07's failure mode (measured 2026-09-24) lives in moto, not here: Trino's
+The partitioned-read failure mode (measured 2026-09-24) lives in moto, not here: Trino's
 hive connector lists partitions with a blank GetPartitions ``Expression''
 (5.1.16 raised ``Unsupported expression ''``) and prunes with the full Hive
 type spelling of the partition key (``varchar(2)``/``decimal(10,2)`` →
@@ -56,7 +56,7 @@ def consumer_harness(
 def test_partitioned_ctas_registers_partition_keys_live(
     consumer_harness: ConsumerHarness,
 ) -> None:
-    """FR-07: Trino CTAS registers typed partition keys + values in Glue.
+    """Trino CTAS registers typed partition keys + values in Glue.
 
     The partition keys keep their full Hive spelling (``varchar(2)`` and
     ``decimal(10,2)``) so wrangler's ``GetTableMetadata`` dtype table stays
@@ -100,7 +100,7 @@ def test_partitioned_ctas_registers_partition_keys_live(
 def test_read_sql_query_partitioned_full_read_live(
     consumer_harness: ConsumerHarness,
 ) -> None:
-    """FR-07: a partition-less read lists every partition (blank Expression).
+    """A partition-less read lists every partition (blank Expression).
 
     The list-all GetPartitions path (previous ``Unsupported expression ''``
     hard-fail) returns all three rows through wrangler's csv read-back.
@@ -124,7 +124,7 @@ def test_read_sql_query_partitioned_full_read_live(
 def test_read_sql_query_partitioned_pruned_read_live(
     consumer_harness: ConsumerHarness,
 ) -> None:
-    """FR-07: ``WHERE region = 'EU'`` prunes via the ``varchar(2)`` cast.
+    """``WHERE region = 'EU'`` prunes via the ``varchar(2)`` cast.
 
     Trino translates the predicate into a Glue filter expression and moto
     casts the ``EU`` literal with the key's full type — the exact
@@ -153,7 +153,7 @@ def test_read_sql_query_partitioned_pruned_read_live(
 def test_read_sql_query_partitioned_decimal_pruned_read_live(
     consumer_harness: ConsumerHarness,
 ) -> None:
-    """FR-07: ``WHERE amount = 10.5`` prunes via the ``decimal(10,2)`` cast."""
+    """``WHERE amount = 10.5`` prunes via the ``decimal(10,2)`` cast."""
     table_name = _create_partitioned_sales(consumer_harness)
 
     frame = wr.athena.read_sql_query(
@@ -172,7 +172,7 @@ def test_read_sql_query_partitioned_decimal_pruned_read_live(
 def test_sales_partitions_virtual_table_live(
     consumer_harness: ConsumerHarness,
 ) -> None:
-    """FR-07: ``"table$partitions"`` lists the metastore partitions.
+    """``"table$partitions"`` lists the metastore partitions.
 
     The Hive connector's ``$partitions`` virtual table lists partitions with a
     blank GetPartitions Expression (Trino 483 has no ``SHOW PARTITIONS``), so

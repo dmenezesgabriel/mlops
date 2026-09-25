@@ -4,7 +4,7 @@ Every started query is an execution record here, matching moto's
 ``executions`` map plus the wire transition contract Athena's
 ``QueryExecutionState`` enum declares (service-2.json): ``QUEUED → RUNNING →
 SUCCEEDED | FAILED | CANCELLED``, terminal states immutable; a submit-time
-rejection (QE-5) may also terminal FAILED straight from QUEUED. SUCCEEDED may
+rejection may also terminal FAILED straight from QUEUED. SUCCEEDED may
 only fire after the executor persisted the result artifacts (ADR-0007, ADR-0009
 #4), so read consumers never race missing S3 objects. The runtime counters
 Athena surfaces in ``GetQueryExecution`` Statistics are copied verbatim from
@@ -88,7 +88,7 @@ class QueryExecutionRecord:
     # never serialized to the wire.
     active_next_uri: str | None = None
     # The SQL actually submitted to Trino when the wire ``Query`` is EXECUTE
-    # text (QE-7); never serialized. The artifact writer reads a CTAS
+    # text; never serialized. The artifact writer reads a CTAS
     # external_location from here because the stored — not the submitted —
     # statement carries it.
     resolved_statement: str | None = None

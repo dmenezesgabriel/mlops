@@ -122,7 +122,7 @@ def _seed_partitioned_table(
     partition_keys: list[dict[str, str]],
     partition_values: list[list[str]],
 ) -> None:
-    """Create a partitioned table and seed it with partitions (CS-2b3 fixture)."""
+    """Create a partitioned table and seed it with partitions."""
     client.create_database(DatabaseInput={"Name": database_name})
     client.create_table(
         DatabaseName=database_name,
@@ -162,7 +162,7 @@ def test_empty_expression_returns_all_partitions() -> None:
     # Real AWS Glue treats a blank Expression as "no filter"; the Hive SDK v1
     # metastore client sends Expression='' when listing every partition. moto
     # 5.1.16 only special-cases None and fails the empty string (upstream fix
-    # 4db88f3a4 / #10122), which breaks Trino partitioned reads (CS-2b3).
+    # 4db88f3a4 / #10122), which breaks Trino partitioned reads.
     client = boto3.client("glue", region_name="us-east-1")
     database_name = "sales_db"
     table_name = "sales"
@@ -187,7 +187,7 @@ def test_empty_expression_returns_all_partitions() -> None:
 def test_equality_filter_on_varchar_partition_key() -> None:
     # Trino registers partition keys with their full Hive type spelling
     # (varchar(2)); moto's _cast only knows bare "varchar" and raised
-    # "Unknown type : 'varchar(2)'" on any filtered GetPartitions (CS-2b3).
+    # "Unknown type : 'varchar(2)'" on any filtered GetPartitions.
     client = boto3.client("glue", region_name="us-east-1")
     database_name = "sales_db"
     table_name = "sales"

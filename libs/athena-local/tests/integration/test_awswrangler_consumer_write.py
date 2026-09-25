@@ -1,6 +1,6 @@
-"""CS-2b2: awswrangler write-path consumer suite against the live data plane.
+"""awswrangler write-path consumer suite against the live data plane.
 
-The M3 step-5 write-path subset: a prepared statement created over the wire
+The write-path acceptance slice: a prepared statement created over the wire
 then run as a bare ``EXECUTE "name"`` whose values arrive as
 ``StartQueryExecution.ExecutionParameters`` (wrangler ``params`` +
 ``paramstyle="qmark"``, awswrangler/tests/unit/test_athena_prepared.py:
@@ -49,7 +49,7 @@ def consumer_harness(
 def test_prepared_statement_execute_with_qmark_params_live(
     consumer_harness: ConsumerHarness,
 ) -> None:
-    """CS-2b2: bare ``EXECUTE "name"`` + ExecutionParameters binds values.
+    """Bare ``EXECUTE "name"`` + ExecutionParameters binds values.
 
     ``create_prepared_statement`` probes ``get_prepared_statement`` first and
     must see the RNFE for a fresh name (wrangler _statements.py:26-29
@@ -94,7 +94,7 @@ def test_prepared_statement_execute_with_qmark_params_live(
 def test_read_sql_query_qmark_params_live(
     consumer_harness: ConsumerHarness,
 ) -> None:
-    """CS-2b2: a ``?``-marker query binds ExecutionParameters server-side."""
+    """A ``?``-marker query binds ExecutionParameters server-side."""
     frame = wr.athena.read_sql_query(
         sql=(
             "SELECT * FROM (VALUES ('Washington', 'Seattle'), "
@@ -121,7 +121,7 @@ def test_read_sql_query_qmark_params_live(
 def test_read_sql_query_ctas_parquet_round_trip_live(
     consumer_harness: ConsumerHarness,
 ) -> None:
-    """CS-2b2: ``to_parquet`` CTAS reads back through the data manifest.
+    """``to_parquet`` CTAS reads back through the data manifest.
 
     ``Statistics.DataManifestLocation`` names a same-bucket manifest
     (wrangler refuses cross-bucket manifests, _read.py:74-79) whose entries
@@ -146,8 +146,8 @@ def test_read_sql_query_ctas_parquet_round_trip_live(
     assert manifest.endswith("-manifest.csv")
     assert manifest.startswith(f"s3://{consumer_harness.bucket}/")
 
-    # The wire Query pins the CTAS template wrangler generated (backlog
-    # evidence _utils.py:842-863): the temp table name and its
+    # The wire Query pins the CTAS template wrangler generated
+    # (awswrangler/athena/_utils.py:842-863): the temp table name and its
     # external_location must be exactly where the manifest lists files.
     wire_query = consumer_harness.athena.get_query_execution(
         QueryExecutionId=frame.query_metadata["QueryExecutionId"]
@@ -190,7 +190,7 @@ def test_read_sql_query_ctas_parquet_round_trip_live(
 def test_create_ctas_table_registers_glue_table_live(
     consumer_harness: ConsumerHarness,
 ) -> None:
-    """CS-2b2: the CTAS template registers a Glue table in the harness DB.
+    """The CTAS template registers a Glue table in the harness DB.
 
     ``wr.athena.create_ctas_table`` (the template ``read_sql_query`` runs
     internally, but without the read-back drop, _read.py) leaves the table,
@@ -237,7 +237,7 @@ def test_create_ctas_table_registers_glue_table_live(
 def test_read_sql_query_ctas_with_qmark_params_live(
     consumer_harness: ConsumerHarness,
 ) -> None:
-    """CS-2b2: qmark values bind inside the CTAS body, then read back.
+    """Qmark values bind inside the CTAS body, then read back.
 
     wrangler wraps the ``?``-bearing SQL in the CTAS template and ships the
     values as ``ExecutionParameters``; the emulator binds the marker inside
@@ -263,7 +263,7 @@ def test_read_sql_query_ctas_with_qmark_params_live(
 def test_read_sql_query_qmark_count_mismatch_is_failed_live(
     consumer_harness: ConsumerHarness,
 ) -> None:
-    """CS-2b2: a parameter-count mismatch is a FAILED execution, never a 400.
+    """A parameter-count mismatch is a FAILED execution, never a 400.
 
     wrangler waits on the execution and surfaces the emulator's
     StateChangeReason through its QueryFailed exception; the request itself

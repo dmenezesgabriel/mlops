@@ -16,7 +16,7 @@ weak map. Wire shapes follow the Glue service model vendored by botocore at
 ``research_repos/aws-cli/awscli/botocore/data/glue/2017-03-31/service-2.json``.
 
 It also bridges two GetPartitions expression gaps that block every Trino
-partitioned read (CS-2b3): moto 5.1.16 raises ``Unsupported expression ''``
+partitioned read: moto 5.1.16 raises ``Unsupported expression ''``
 for the blank ``Expression`` the Hive metastore client sends when listing all
 partitions (upstream fix ``4db88f3a4`` / ``#10122``), and its ``_cast`` only
 knows bare type names while Trino registers keys as ``varchar(2)``,

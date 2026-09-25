@@ -1,4 +1,4 @@
-"""MD-9 integration: managed-results workgroups over the live stack.
+"""Managed-results integration: workgroups over the live stack.
 
 A real boto3 → uvicorn → Trino round trip on a workgroup whose
 ManagedQueryResultsConfiguration.Enabled is true: StartQueryExecution carries

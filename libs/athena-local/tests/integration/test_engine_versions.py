@@ -1,6 +1,6 @@
 """Consumer-parity integration: real boto3 ListEngineVersions round-trip.
 
-MD-5 acceptance check: botocore's ``list_engine_versions`` against the live
+Acceptance check: botocore's ``list_engine_versions`` against the live
 app returns the pinned ``EngineVersion`` list (AUTO / Athena engine version 3),
 the probe wrangler and the CLI use to resolve engine capabilities.
 """

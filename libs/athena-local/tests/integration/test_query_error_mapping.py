@@ -1,7 +1,7 @@
-"""QE-5 integration: Trino's error text becomes Athena's wire shapes.
+"""Error-mapping integration: Trino's error text becomes Athena's wire shapes.
 
 The six query-plane operations are composed by the production root in
-``main`` (PC-6); this fixture rebinds them to a real ``TrinoClient`` and a
+``main``; this fixture rebinds them to a real ``TrinoClient`` and a
 no-op writer so boto3 round-trips the JSON-1.1 surface end to end over real
 HTTP without touching S3:
 StartQueryExecution rejects bad syntax with the shaped 400 before any
@@ -42,7 +42,7 @@ CTAS_TABLE_PREFIX = "athena_local_qe5_dup"
 
 
 class NoOpResultWriter:
-    """Artifact writer that never runs: QE-5 only exercises failed executions."""
+    """Artifact writer that never runs: the suite only exercises failed executions."""
 
     async def write(
         self, execution: QueryExecutionRecord, final_page: TrinoPage

@@ -1,4 +1,4 @@
-"""Handler tests for the three resource tagging operations (MD-6).
+"""Handler tests for the three resource tagging operations.
 
 TagResource, UntagResource, and ListTagsForResource operate on workgroup and
 data catalog ARNs (``arn:aws:athena:<region>:<account>:<type>/<name>`` —

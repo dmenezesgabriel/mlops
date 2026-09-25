@@ -1,4 +1,4 @@
-"""70-op parity loop at the dispatch level (CS-1, model-valid stubs).
+"""70-op parity loop at the dispatch level (model-valid stubs).
 
 Every operation declared by the canonical model answers a model-valid body
 with a JSON-1.1-shaped outcome: either a success whose keys are declared by

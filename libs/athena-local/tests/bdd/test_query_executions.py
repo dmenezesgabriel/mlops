@@ -1,4 +1,4 @@
-"""Step definitions for the inline-results BDD feature (AR-3).
+"""Step definitions for the inline-results BDD feature.
 
 Steps drive the shipped handler — ``get_query_results`` over a real
 ``QueryExecutor`` — against a fresh in-memory store per scenario, so the

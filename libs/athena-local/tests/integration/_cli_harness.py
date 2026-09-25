@@ -1,9 +1,9 @@
-"""CS-3 live-stack machinery: drive the real ``aws`` CLI at the emulator.
+"""Live-stack machinery: drive the real ``aws`` CLI at the emulator.
 
 The suite runs the example commands awscli ships in
 ``examples/athena/*.rst`` (read from the installed awscli package) against an
 in-process uvicorn emulator with the **compose moto container** as shared
-data plane — exactly the CS-2b stack: Trino writes query results to moto
+data plane — the same stack the awswrangler suite uses: Trino writes query results to moto
 internally (``moto:5000``), the emulator's artifact writer and Glue reads
 point at the same moto over its bridge IP, and each test seeds throwaway
 buckets/databases there.
@@ -11,8 +11,8 @@ buckets/databases there.
 The CLI under test is the awscli release pinned in the lib dev group (the
 frozen ``research_repos/aws-cli`` checkout is its byte-identical reference);
 the suite skips when the binary, Trino, or the bridge moto is missing, so a
-cold stack never fails CI (the M5 compose stack is what later milestones
-pin instead).
+cold stack never fails CI (the compose stack pins the deployed service
+separately).
 """
 
 from __future__ import annotations
@@ -117,7 +117,7 @@ def substitute_tokens(
     in — the doc's single ``--function=…`` token becomes
     ``--parameters function=…``); ``fragments`` replaces substrings inside a
     token (the doc's ``--configuration`` and ``--query-string`` values embed
-    their sample identifiers). CS-3 runs each example with seeded resources
+    their sample identifiers). The suite runs each example with seeded resources
     (workgroup/catalog/database names, bucket, captured IDs) in place of the
     doc's ``amzn-s3-demo-bucket``-style samples.
     """

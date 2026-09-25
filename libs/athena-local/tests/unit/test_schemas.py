@@ -1,4 +1,4 @@
-"""Schema parsing/two-way tests for the workgroup wire shapes (PC-2).
+"""Schema parsing/two-way tests for the workgroup wire shapes.
 
 The dataclasses mirror the member names and optionality of the canonical
 service-2.json WorkGroup* shapes. Every assertion here is a proxy for a model

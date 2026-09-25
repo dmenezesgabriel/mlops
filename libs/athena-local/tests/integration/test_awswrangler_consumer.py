@@ -1,4 +1,4 @@
-"""CS-2b1: awswrangler read-path consumer suite against the live data plane.
+"""awswrangler read-path consumer suite against the live data plane.
 
 Drives real awswrangler 3.17.1 through the emulator (in-process uvicorn,
 random port) and the **compose moto container** as the shared data plane: the
@@ -7,13 +7,13 @@ emulator's artifact writer points at moto via its bridge IP
 moto internally (``moto:5000``), and wrangler reads the artifacts back through
 an S3 client on that same moto — so the CSV/cache/inline views observe one
 object store (this is why the in-process ``LiveMotoServer`` is deliberately
-NOT used here; FR-06-style round-trips would disagree on object identity).
+NOT used here; a CTAS round-trip would disagree on object identity).
 
 Skip semantics mirror ``test_composition_root``: the suite skips when the
 compose Trino coordinator or the bridge moto is unreachable, so a cold stack
-never fails CI (the M5 compose stack is what CS-2b2/CS-3 will pin instead).
+never fails CI (the compose stack pins the deployed service separately).
 
-Wrangler endpoint wiring is the FR-19 mechanism itself: per-service
+Wrangler endpoint routing rides on per-service
 ``AWS_ENDPOINT_URL_ATHENA`` / ``AWS_ENDPOINT_URL_S3`` / ``AWS_ENDPOINT_URL_GLUE``
 env vars on a boto3 session, so every client wrangler creates (athena, s3, glue)
 lands on the right host without explicit endpoint kwargs.
@@ -53,7 +53,7 @@ def consumer_harness(
 def test_read_sql_query_csv_path_round_trips_live(
     consumer_harness: ConsumerHarness,
 ) -> None:
-    """FR-04: default non-managed ``primary`` reads the csv artifact back."""
+    """Default non-managed ``primary`` reads the csv artifact back."""
     primary = consumer_harness.athena.get_work_group(WorkGroup="primary")[
         "WorkGroup"
     ]["Configuration"]
@@ -92,7 +92,7 @@ def test_read_sql_query_csv_path_round_trips_live(
 def test_read_sql_query_api_path_managed_workgroup_live(
     consumer_harness: ConsumerHarness,
 ) -> None:
-    """FR-03/FR-20: managed workgroup serves rows inline via GetQueryResults."""
+    """A managed workgroup serves rows inline via GetQueryResults."""
     workgroup = f"cs2b1-managed-{uuid.uuid4().hex}"
     consumer_harness.athena.create_work_group(
         Name=workgroup,
@@ -120,7 +120,7 @@ def test_read_sql_query_api_path_managed_workgroup_live(
 def test_read_sql_query_cache_reuses_execution_live(
     consumer_harness: ConsumerHarness,
 ) -> None:
-    """FR-02: a second identical call reuses the first execution's artifacts.
+    """A second identical call reuses the first execution's artifacts.
 
     wrangler's cache probe walks ``list_query_executions`` +
     ``batch_get_query_execution`` (awswrangler/athena/_cache.py:113-129), so a
@@ -155,7 +155,7 @@ def test_read_sql_query_cache_reuses_execution_live(
 def test_read_sql_query_bad_sql_raises_shaped_error_live(
     consumer_harness: ConsumerHarness,
 ) -> None:
-    """FR-18: a parse error surfaces as the wrangler-recognizable 400."""
+    """A parse error surfaces as the wrangler-recognizable 400."""
     with pytest.raises(botocore.exceptions.ClientError) as raised:
         wr.athena.read_sql_query(
             sql="SELECT FROM WHERE",

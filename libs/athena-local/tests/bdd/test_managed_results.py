@@ -1,4 +1,4 @@
-"""Step definitions for the managed-results BDD feature (MD-9).
+"""Step definitions for the managed-results BDD feature.
 
 Steps drive the shipped handlers — ``start_query_execution`` / ``get_query_
 execution`` / ``get_query_results`` over a real ``QueryExecutor`` with a

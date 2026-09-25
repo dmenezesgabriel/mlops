@@ -1,4 +1,4 @@
-"""S3 write boundary (s3_writer.py) per architecture §8.5 (AR-1).
+"""S3 write boundary (s3_writer.py) per architecture §8.5.
 
 ``S3Writer`` is the project-owned interface over the boto3 S3 client the
 artifact writers use to place ``{QueryID}.csv`` / ``.txt`` / manifest files on

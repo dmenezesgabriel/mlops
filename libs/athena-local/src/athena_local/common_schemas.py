@@ -1,4 +1,4 @@
-"""Common typed wire shapes and primitive parsers for Athena JSON-1.1 (PC-2).
+"""Common typed wire shapes and primitive parsers for Athena JSON-1.1.
 
 Member names, optionality, and nesting mirror the canonical service-2.json
 shapes. Helpers enforce non-empty strings, booleans, and nested objects.

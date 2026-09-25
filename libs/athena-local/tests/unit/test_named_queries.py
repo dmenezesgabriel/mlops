@@ -1,4 +1,4 @@
-"""Handler tests for the five named query operations (MD-2).
+"""Handler tests for the five named query operations.
 
 Handlers translate a parsed JSON payload into the operation's output shape,
 delegating registry semantics to ``NamedQueryStore``. The payload-shape

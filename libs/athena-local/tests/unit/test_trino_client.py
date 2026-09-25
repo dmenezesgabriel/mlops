@@ -1,4 +1,4 @@
-"""Unit tests for the Trino statement client (QE-1, ADR-0001).
+"""Unit tests for the Trino statement client (ADR-0001).
 
 The client is the only module that touches the Trino statement protocol, so
 these tests pin the wire contract against ``httpx.MockTransport`` with a

@@ -1,4 +1,4 @@
-"""Handler tests for the catalog-introspection operations (MD-7).
+"""Handler tests for the catalog-introspection operations (ADR-0005).
 
 ListDatabases / GetDatabase / ListTableMetadata / GetTableMetadata parse the
 request, validate the named catalog against the emulator-owned registry, paginate,

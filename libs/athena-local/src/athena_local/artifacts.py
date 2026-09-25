@@ -1,4 +1,4 @@
-"""Query result artifact writers per ADR-0007/0010 (AR-1).
+"""Query result artifact writers per ADR-0007/0010.
 
 The emulator owns artifact bytes — nothing is left to Trino's writer
 (ADR-0006). ``ArtifactWriter`` implements the executor's
@@ -141,7 +141,7 @@ class ArtifactWriter:
         subtracting it yields precisely this query's files. CTAS keeps the
         external_location listing path — read from the resolved statement
         when the wire ``Query`` is an EXECUTE (the stored SQL carries the
-        property, QE-7) — and a record with an unresolvable target fails the
+        property) — and a record with an unresolvable target fails the
         write so the execution ends FAILED — consumers never see SUCCEEDED
         with unusable data files (ADR-0009 #4).
         """

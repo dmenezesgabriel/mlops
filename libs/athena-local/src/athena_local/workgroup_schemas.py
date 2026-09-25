@@ -1,4 +1,4 @@
-"""Typed wire shapes for Athena WorkGroup operations (MD-1).
+"""Typed wire shapes for Athena WorkGroup operations.
 
 Member names, optionality, and nesting mirror the canonical service-2.json
 WorkGroup* shapes. Unknown members are preserved verbatim in ``preserved``

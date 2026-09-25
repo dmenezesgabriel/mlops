@@ -1,4 +1,4 @@
-Feature: Managed-results workgroups (MD-9)
+Feature: Managed-results workgroups
 
   A workgroup with ManagedQueryResultsConfiguration.Enabled=true owns its
   query results in Athena-managed storage: the canonical model forbids an

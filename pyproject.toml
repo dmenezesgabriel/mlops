@@ -238,7 +238,7 @@ forbidden_modules = ["mlops_shared", "data_science_scaffold", "nyc_taxi_demand_f
 [[tool.importlinter.contracts]]
 name = "Athena protocol core stays independent of the query engine"
 type = "forbidden"
-# main is the composition root for both planes (PC-6): it wires the query
+# main is the composition root for both planes: it wires the query
 # executor and its Trino/moto boundaries, so it is exempt here. dispatch/errors
 # reach the query engine only indirectly — direct imports of the forbidden
 # modules by dispatch/errors still break the contract (allow_indirect_imports).

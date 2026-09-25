@@ -1,6 +1,6 @@
 """Consumer-parity integration: catalog reads against a live moto Glue.
 
-MD-7 acceptance. A live moto server backs the Glue store; the app's catalog
+Acceptance. A live moto server backs the Glue store; the app's catalog
 metadata handlers are re-bound to a ``GlueProxy`` pointed at it, and a real
 botocore athena client round-trips ListDatabases / GetDatabase /
 ListTableMetadata / GetTableMetadata over the JSON-1.1 wire protocol. The same

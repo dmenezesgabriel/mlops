@@ -1,4 +1,4 @@
-"""QE-7 integration: boto3 → uvicorn → Trino → moto S3 EXECUTE round trip.
+"""Integration: boto3 → uvicorn → Trino → moto S3 EXECUTE round trip.
 
 A prepared statement is created through the live app's control plane, then
 ``start_query_execution`` runs ``EXECUTE "st" USING 'Washington'`` against the

@@ -1,7 +1,7 @@
 """Consumer-parity integration: real boto3 + awswrangler against the live app.
 
-MD-1 acceptance check. Uses the LiveAthenaServer fixture (threaded uvicorn on
-a random port) — the same pattern the M1 smoke already uses, so no docker
+Acceptance check. Uses the LiveAthenaServer fixture (threaded uvicorn on
+a random port) — the same pattern the botocore smoke already uses, so no docker
 stack is needed for the workgroup control plane. The awswrangler config path
 is the exact function wrangler runs before every query
 (``awswrangler/athena/_utils.py:158-187``); its endpoint override is the

@@ -1,4 +1,4 @@
-"""Step definitions for the named query BDD feature (MD-2).
+"""Step definitions for the named query BDD feature.
 
 Steps exercise the handler layer directly against a fresh in-memory registry
 per scenario — the same boundary pytest-bdd asserts for the canonical model —

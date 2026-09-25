@@ -1,4 +1,4 @@
-"""Unit tests for the CS-3 example-command extractor (``_cli_examples``).
+"""Unit tests for the example-command extractor (``_cli_examples``).
 
 The extractor turns the ``aws athena …`` literal blocks awscli ships in
 ``examples/athena/*.rst`` into argv token lists. It is pure (text in, tokens

@@ -1,4 +1,4 @@
-"""AR-3 integration: GetQueryResults pagination over the real botocore paginator.
+"""Integration: GetQueryResults pagination over the real botocore paginator.
 
 A live boto3 → uvicorn → Trino → moto-S3 round trip: StartQueryExecution runs
 a bounded VALUES SELECT, then the results are walked with botocore's actual

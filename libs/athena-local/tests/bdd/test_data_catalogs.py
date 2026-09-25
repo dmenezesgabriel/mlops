@@ -1,4 +1,4 @@
-"""Step definitions for the data catalog BDD feature (MD-4).
+"""Step definitions for the data catalog BDD feature.
 
 Steps exercise the handler layer directly against a fresh in-memory registry
 per scenario — the same boundary pytest-bdd asserts for the canonical model —

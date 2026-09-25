@@ -1,4 +1,4 @@
-"""Unit tests for the Glue read proxy (MD-7, ADR-0005).
+"""Unit tests for the Glue read proxy (ADR-0005).
 
 The proxy is the only code that touches the Glue client, so these tests pin the
 Glue→Athena translation (against the moto ``glue/models.py`` FakeDatabase /

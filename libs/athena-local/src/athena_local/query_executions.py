@@ -1,4 +1,4 @@
-"""Query-plane operations (QE-3): handlers bound into the dispatch registry.
+"""Query-plane operations: handlers bound into the dispatch registry.
 
 Each handler parses its request payload, delegates lifecycle semantics to
 ``QueryExecutor`` (ADR-0009) and reads to ``ExecutionStore``, and returns the
@@ -6,7 +6,7 @@ operation's output object. Registration is explicit (composition root:
 ``main.py``) so handlers stay injectable and tests bind their own stores.
 ``StartQueryExecution`` and ``StopQueryExecution`` are coroutine handlers:
 ``dispatch`` awaits them so start can run the executor's Trino preflight
-(QE-5) and stop can drive the Trino DELETE through the async executor.
+and stop can drive the Trino DELETE through the async executor.
 Inline ``GetQueryResults`` answers from
 the page the executor stashed before the terminal transition
 (ADR-0007, ADR-0009 #4) and paginates it with ``MaxResults``/``NextToken``
@@ -192,9 +192,9 @@ async def start_query_execution(
 
     The executor's preflight (ADR-0009 #2) is awaited here, so a syntactically
     invalid query answers the exact Athena 400 before any execution exists
-    (error_mapping, QE-5) and the ID is otherwise returned without waiting
+    (error_mapping) and the ID is otherwise returned without waiting
     for the query to complete. An ``EXECUTE`` query is resolved against the
-    workgroup's prepared statement store first (QE-7): a missing statement or
+    workgroup's prepared statement store first: a missing statement or
     parameter-count mismatch starts the execution as a FAILED record instead
     of a 400, exactly like real Athena, while a successful resolution supplies
     both the SQL the executor submits and its classification.
@@ -289,7 +289,7 @@ def batch_get_query_execution(
 def list_query_executions(
     store: ExecutionStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    """Run ListQueryExecutions: IDs per workgroup, most recent first (FR-02).
+    """Run ListQueryExecutions: IDs per workgroup, most recent first.
 
     wrangler's Athena cache probe paginates this op and batch_gets each ID
     (awswrangler/athena/_cache.py:113-129); WorkGroup defaults to ``primary``
@@ -326,7 +326,7 @@ def get_query_results(
     executor: QueryExecutor,
     payload: dict[str, object] | None,
 ) -> dict[str, object]:
-    """Run GetQueryResults: paginated terminal rows, header on page zero (FR-03).
+    """Run GetQueryResults: paginated terminal rows, header on page zero.
 
     Non-terminal executions raise the exact 400 Athena sends; terminal ones
     answer from the cached final page regardless of the terminal flavor (moto
@@ -516,7 +516,7 @@ def register_query_execution_handlers(
     """Bind the seven query-plane operations (explicit wiring in ``main.py``).
 
     ``prepared_statement_store`` feeds EXECUTE resolution in
-    ``StartQueryExecution`` (QE-7); a missing store means no statement exists
+    ``StartQueryExecution``; a missing store means no statement exists
     in any workgroup, so every EXECUTE fails resolution as not-found.
     """
     register_handler(

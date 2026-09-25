@@ -97,7 +97,7 @@ def test_illegal_transition_is_rejected(store: ExecutionStore) -> None:
 
 
 def test_failed_from_queued_is_valid(store: ExecutionStore) -> None:
-    # Submit-time rejection (QE-5): a start preflight transport failure
+    # Submit-time rejection: a start preflight transport failure
     # terminals the execution straight from QUEUED, like Athena rejecting a
     # query before it ever runs.
     record = store.create(query="SELECT 1", workgroup="primary")

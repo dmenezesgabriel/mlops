@@ -1,4 +1,4 @@
-Feature: Inline GetQueryResults pagination (AR-3)
+Feature: Inline GetQueryResults pagination
 
   Inline result reads page the cached terminal page with MaxResults and an
   opaque NextToken. The header row appears only on the first page, and the

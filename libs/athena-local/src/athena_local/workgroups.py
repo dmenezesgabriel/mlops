@@ -1,4 +1,4 @@
-"""Workgroup operations (MD-1): handlers bound into the dispatch registry.
+"""Workgroup operations: handlers bound into the dispatch registry.
 
 Each handler parses its request payload against the typed schemas, delegates
 registry semantics to ``WorkGroupStore``, and returns the operation's output

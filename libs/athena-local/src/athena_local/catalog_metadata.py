@@ -1,4 +1,4 @@
-"""Catalog-introspection operations reading live Glue state (MD-7).
+"""Catalog-introspection operations reading live Glue state (ADR-0005).
 
 ListDatabases / GetDatabase / ListTableMetadata / GetTableMetadata proxy reads
 to the same moto Glue store Trino uses as its metastore (ADR-0005), so API

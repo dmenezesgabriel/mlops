@@ -101,7 +101,7 @@ class ScriptedStatementClient:
         await self._pause(self._fetch_delay)
         # fetch_error_uri scopes a transport failure to one statement URI so
         # tests can keep the preflight fetch (URI_1) healthy and break a
-        # later poll (QE-5 preflight consumes the first fetch).
+        # later poll (the start preflight consumes the first fetch).
         if self._fetch_error is not None and (
             self._fetch_error_uri is None or next_uri == self._fetch_error_uri
         ):
@@ -504,7 +504,7 @@ def test_cancel_queued_execution_parks_at_the_semaphore(
             executor._tasks[queued.query_execution_id],
         )
         # Both statements were preflighted (start-time validation touches
-        # Trino, QE-5), but the queued one was never executed: it stays
+        # Trino), but the queued one was never executed: it stays
         # QUEUED at the semaphore and no DELETE is issued for it.
         assert client.submission_count == 2
         assert client.peak_active == 1
@@ -985,7 +985,7 @@ def test_start_skips_trino_and_fails_on_resolution_failure(
         )
 
         # Real Athena fails such EXECUTEs — no Trino contact, no artifact
-        # work, immediate terminal state (QE-7).
+        # work, immediate terminal state.
         assert record.state == FAILED
         assert record.state_change_reason == reason
         assert record.query == 'EXECUTE "st"'
@@ -1001,7 +1001,7 @@ def test_start_submits_dialect_mapped_create_database(
     store: ExecutionStore,
 ) -> None:
     """CREATE DATABASE reaches Trino as CREATE SCHEMA; the record keeps the
-    original Athena text (CS-3, dialect.py)."""
+    original Athena text (dialect.py)."""
 
     async def scenario() -> None:
         client = ScriptedStatementClient([result_page(next_uri=None)])
@@ -1052,7 +1052,7 @@ def test_start_submits_resolved_statement_instead_of_query(
 
         # The bound copy of the stored statement — never the EXECUTE text —
         # goes on the wire, because Trino has no prepared-statement
-        # persistence (QE-7).
+        # persistence.
         assert client.submissions == [
             (resolved, TRINO_CATALOG, "", TRINO_USER)
         ]
@@ -1091,7 +1091,7 @@ def test_insert_execute_captures_manifest_from_resolved_statement(
         await executor._tasks[record.query_execution_id]
 
         # Manifest capture inspects the resolved statement: the submitted
-        # EXECUTE text carries no target table to snapshot (QE-7).
+        # EXECUTE text carries no target table to snapshot.
         assert snapshotter.calls == [
             ("INSERT INTO analytics.events VALUES (1), (2)", "INSERT")
         ]

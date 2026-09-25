@@ -1,18 +1,18 @@
 """Shared live-stack machinery for the awswrangler consumer suites.
 
-CS-2b1 (read path) and CS-2b2 (write path) both drive real awswrangler
+The read-path and write-path suites both drive real awswrangler
 3.17.1 through the emulator (in-process uvicorn, random port) against the
 **compose moto container** as the shared data plane: the emulator's artifact
 writer points at moto via its bridge IP (``ATHENA_LOCAL_MOTO_ENDPOINT_URL``),
 Trino writes query results to the same moto internally (``moto:5000``), and
 wrangler reads the artifacts back through an S3 client on that same moto — so
 the csv/manifest/inline views observe one object store (the in-process
-``LiveMotoServer`` is deliberately NOT used here; FR-06-style round-trips
+``LiveMotoServer`` is deliberately NOT used here; a CTAS round-trip
 would disagree on object identity).
 
 Skip semantics mirror ``test_composition_root``: the suites skip when the
 compose Trino coordinator or the bridge moto is unreachable, so a cold stack
-never fails CI (the M5 compose stack is what the suite will pin instead).
+never fails CI (the compose stack pins the deployed service separately).
 """
 
 from __future__ import annotations
@@ -80,7 +80,7 @@ def consumer_harness_scope(
 ) -> Iterator[ConsumerHarness]:
     """Bind wrangler's boto3 session and the emulator to the live stack.
 
-    Wrangler endpoint wiring is the FR-19 mechanism itself: per-service
+    Wrangler endpoint routing rides on per-service
     ``AWS_ENDPOINT_URL_ATHENA`` / ``AWS_ENDPOINT_URL_S3`` /
     ``AWS_ENDPOINT_URL_GLUE`` env vars on a boto3 session, so every client
     wrangler creates (athena, s3, glue) lands on the right host without

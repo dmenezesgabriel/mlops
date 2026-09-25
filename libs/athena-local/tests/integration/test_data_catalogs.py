@@ -1,6 +1,6 @@
 """Consumer-parity integration: real boto3 against the live app.
 
-MD-4 acceptance check: the five data catalog operations round-trip through the
+Acceptance check: the five data catalog operations round-trip through the
 JSON-1.1 wire protocol using the ``LiveAthenaServer`` fixture, and the AWS CLI
 data catalog examples (``create/get/list/delete-data-catalog.rst``) replay
 against the emulator — including the LAMBDA parameter normalization the

@@ -1,4 +1,4 @@
-"""Result artifact writers (artifacts.py) per ADR-0007/0010 (AR-1).
+"""Result artifact writers (artifacts.py) per ADR-0007/0010.
 
 The emulator owns artifact bytes; nothing is left to Trino's writer
 (ADR-0006). These tests pin the exact files consumers read: ``{QueryID}.csv``

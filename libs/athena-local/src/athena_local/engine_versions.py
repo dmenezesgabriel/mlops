@@ -1,4 +1,4 @@
-"""ListEngineVersions operation (MD-5): handler bound into the dispatch registry.
+"""ListEngineVersions operation: handler bound into the dispatch registry.
 
 The emulator exposes exactly one engine — the Trino-backed Athena engine 3 —
 so the pinned list is a single entry matching the workgroup default engine

@@ -1,4 +1,4 @@
-"""Handler tests for the seven query-plane operations (QE-3, CS-2b1).
+"""Handler tests for the seven query-plane operations.
 
 Handlers translate a parsed JSON payload into the operation's output shape,
 delegating lifecycle semantics to ``QueryExecutor`` (ADR-0009) and reads to
@@ -130,7 +130,7 @@ def test_query_operations_register_against_the_registry(
     try:
         assert QUERY_OPERATIONS <= implemented_operations()
     finally:
-        # main's composition root owns the six query ops once imported (PC-6);
+        # main's composition root owns the six query ops once imported;
         # restore its wiring instead of popping them out of the registry.
         reset_query_plane()
         assert implemented_operations() == before
@@ -1262,7 +1262,7 @@ def test_start_execute_resolves_and_submits_bound_statement(
         record = store.get(output["QueryExecutionId"])
         await executor._tasks[record.query_execution_id]
         # The bound copy is submitted (record.resolved_statement) while the
-        # wire Query keeps the submitted EXECUTE text (QE-7).
+        # wire Query keeps the submitted EXECUTE text.
         assert record.query == "EXECUTE \"st\" USING 'Washington'"
         assert record.resolved_statement == (
             "SELECT 1 WHERE origin = ('Washington')"
@@ -1294,7 +1294,7 @@ def test_start_execute_missing_statement_is_failed_execution(
         record = store.get(output["QueryExecutionId"])
         # Real Athena fails the execution with its exact StateChangeReason;
         # the submitted text is the wire Query and the statement classifies
-        # as UTILITY (QE-7).
+        # as UTILITY.
         assert record.state == FAILED
         assert record.state_change_reason == (
             "PreparedStatement nope was not found in workGroup primary"

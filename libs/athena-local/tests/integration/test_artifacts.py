@@ -1,4 +1,4 @@
-"""AR-1 integration: artifact writers against a live moto S3.
+"""Integration: artifact writers against a live moto S3.
 
 Wrangler-compatible artifact bytes are written through the real project
 boundary — ``S3Writer.for_endpoint`` over the ThreadedMotoServer — and read
@@ -7,7 +7,7 @@ sidecar metadata, CTAS manifest) is pinned at the HTTP boundary with no Trino
 needed. The CSV acceptance re-reads the object with pandas using the verbatim
 ``s3.read_csv`` arguments from ``_fetch_csv_result``
 (awswrangler/athena/_read.py:225-238) and asserts the nullable dtypes
-round-trip; CS-2 runs the real ``wr.athena.read_sql_query`` path end to end.
+round-trip; the consumer suite runs the real ``wr.athena.read_sql_query`` path end to end.
 Same moto instance serves the seeding writes and the writer's reads, pinning
 ADR-0005's single-store guarantee for S3.
 """

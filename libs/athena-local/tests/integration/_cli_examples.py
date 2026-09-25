@@ -1,4 +1,4 @@
-"""CS-3 input: the AWS CLI athena example commands from the installed awscli.
+"""CLI-example input: the AWS CLI athena example commands from the installed awscli.
 
 The CLI ships its own examples as package data (``recursive-include
 awscli/examples *.rst`` in the awscli MANIFEST.in); reading them from the

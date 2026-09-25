@@ -1,4 +1,4 @@
-"""Step definitions for the catalog metadata BDD feature (MD-7).
+"""Step definitions for the catalog metadata BDD feature.
 
 Steps drive the handler layer over a real ``GlueProxy`` built on the named
 ``FakeGlueClient`` (``tests/unit/_glue_fakes.py``), so the feature pins the

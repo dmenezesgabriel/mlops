@@ -1,4 +1,4 @@
-"""Shared named fakes for Glue-backed catalog tests (MD-7).
+"""Shared named fakes for Glue-backed catalog tests (ADR-0005).
 
 ``FakeGlueClient`` mirrors the moto Glue backend surface the read proxy touches
 (moto ``research_repos/moto/moto/glue/models.py:346-417``): get_database /

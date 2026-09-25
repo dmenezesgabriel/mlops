@@ -1,4 +1,4 @@
-"""Step definitions for the result-artifacts BDD feature (AR-1).
+"""Step definitions for the result-artifacts BDD feature.
 
 Steps drive the shipped boundary — a real ``ArtifactWriter`` over a real
 ``S3Writer`` on the named ``RecordingObjectStore`` fake — so the feature pins

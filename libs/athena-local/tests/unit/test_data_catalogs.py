@@ -1,4 +1,4 @@
-"""Handler tests for the five data catalog operations (MD-4).
+"""Handler tests for the five data catalog operations.
 
 Handlers translate a parsed JSON payload into the operation's output shape,
 delegating registry semantics to ``DataCatalogStore``. The wire contract

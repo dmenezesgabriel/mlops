@@ -1,4 +1,4 @@
-"""Handler tests for the six prepared statement operations (MD-3).
+"""Handler tests for the six prepared statement operations.
 
 Handlers translate a parsed JSON payload into the operation's output shape,
 delegating registry semantics to ``PreparedStatementStore``. The payload-shape
