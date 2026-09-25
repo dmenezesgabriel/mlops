@@ -205,6 +205,31 @@ def test_stop_on_terminal_execution_answers_200_noop(
     assert stopped["Status"]["State"] == "SUCCEEDED"
 
 
+def test_client_request_token_replays_the_original_id(
+    inline_results_harness: InlineResultsHarness,
+) -> None:
+    """StartQueryExecution is idempotent (service-2.json): a retried
+    ClientRequestToken answers the original QueryExecutionId and the store
+    holds one execution, not two."""
+    harness = inline_results_harness
+    token = str(uuid.uuid4())
+
+    first = harness.athena.start_query_execution(
+        QueryString="SELECT 1",
+        ResultConfiguration={"OutputLocation": harness.prefix},
+        ClientRequestToken=token,
+    )
+    second = harness.athena.start_query_execution(
+        QueryString="SELECT 1",
+        ResultConfiguration={"OutputLocation": harness.prefix},
+        ClientRequestToken=token,
+    )
+
+    assert second["QueryExecutionId"] == first["QueryExecutionId"]
+    listed = harness.athena.list_query_executions()["QueryExecutionIds"]
+    assert listed.count(first["QueryExecutionId"]) == 1
+
+
 def _start_values_query(harness: InlineResultsHarness) -> str:
     started = harness.athena.start_query_execution(
         QueryString="SELECT x FROM (VALUES 1, 2, 3, 4, 5, 6) AS t(x)",

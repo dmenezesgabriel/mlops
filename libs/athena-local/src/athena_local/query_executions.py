@@ -45,6 +45,10 @@ DEFAULT_MAX_RESULTS = 1000
 # longer statement at submit.
 MAX_QUERY_STRING_LENGTH = 262144
 
+# Model IdempotencyToken bound (service-2.json); an out-of-bounds token —
+# including the empty string — 400s so it can never dedupe submissions.
+MAX_CLIENT_REQUEST_TOKEN_LENGTH = 36
+
 
 def _member(payload: dict[str, object] | None, member: str) -> object | None:
     if payload is None:
@@ -70,6 +74,24 @@ def _optional_string(payload: dict[str, object], member: str) -> str | None:
             f"{member} must be a string, got {raw!r}"
         )
     return raw
+
+
+def _optional_client_request_token(
+    payload: dict[str, object] | None,
+) -> str | None:
+    """ClientRequestToken under the model's IdempotencyToken 1..36 bound."""
+    if payload is None:
+        return None
+    token = _optional_string(payload, "ClientRequestToken")
+    if token is None:
+        return None
+    if not 1 <= len(token) <= MAX_CLIENT_REQUEST_TOKEN_LENGTH:
+        raise InvalidRequestException(
+            f"ClientRequestToken must be between 1 and "
+            f"{MAX_CLIENT_REQUEST_TOKEN_LENGTH} characters, "
+            f"got {len(token)}"
+        )
+    return token
 
 
 def _required_string_list(
@@ -217,6 +239,7 @@ async def start_query_execution(
     execution_parameters = _optional_string_list(
         payload, "ExecutionParameters"
     )
+    client_request_token = _optional_client_request_token(payload)
     resolution = resolve_execute_statement(
         prepared_statement_store or PreparedStatementStore(),
         workgroup,
@@ -236,6 +259,10 @@ async def start_query_execution(
         ),
         managed_results=_is_managed_workgroup(workgroup_record),
         execution_parameters=execution_parameters,
+        # A retried token replays the original execution instead of
+        # re-running — the model marks the op idempotent (service-2.json);
+        # the executor owns the lookup.
+        client_request_token=client_request_token,
         # Classified at submit, like real Athena: StatementType and
         # SubstatementType are reported even when the query later fails. A
         # resolved EXECUTE reports its bound statement's classification — an

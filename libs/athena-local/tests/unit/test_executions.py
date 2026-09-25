@@ -359,3 +359,125 @@ def test_batch_get_returns_found_records_and_unprocessed_ids(
 
     assert found == [first, second]
     assert unprocessed == ["missing-1", "missing-2"]
+
+
+def test_find_by_request_token_returns_the_tokened_execution(
+    store: ExecutionStore,
+) -> None:
+    record = store.create(
+        query="SELECT 1",
+        workgroup="primary",
+        client_request_token="token-1",
+    )
+
+    assert store.find_by_request_token("primary", "token-1") is record
+
+
+def test_find_by_request_token_is_scoped_per_workgroup_and_token(
+    store: ExecutionStore,
+) -> None:
+    store.create(
+        query="SELECT 1", workgroup="primary", client_request_token="token-1"
+    )
+
+    assert store.find_by_request_token("analytics", "token-1") is None
+    assert store.find_by_request_token("primary", "token-2") is None
+
+
+def test_find_by_request_token_misses_tokenless_executions(
+    store: ExecutionStore,
+) -> None:
+    store.create(query="SELECT 1", workgroup="primary")
+
+    assert store.find_by_request_token("primary", "token-1") is None
+
+
+def test_request_token_mapping_keeps_the_first_execution(
+    store: ExecutionStore,
+) -> None:
+    # The executor's dedup check normally prevents a second create; the map
+    # still keeps the first id so a raced duplicate replays the original
+    # response (StartQueryExecution is idempotent — service-2.json).
+    first = store.create(
+        query="SELECT 1", workgroup="primary", client_request_token="token-1"
+    )
+    second = store.create(
+        query="SELECT 1", workgroup="primary", client_request_token="token-1"
+    )
+
+    assert second is not first
+    assert store.find_by_request_token("primary", "token-1") is first
+
+
+def test_reset_drops_request_token_mappings(store: ExecutionStore) -> None:
+    store.create(
+        query="SELECT 1", workgroup="primary", client_request_token="token-1"
+    )
+
+    store.reset()
+
+    assert store.by_id == {}
+    assert store.find_by_request_token("primary", "token-1") is None
+
+
+def test_same_request_matches_an_identical_submission(
+    store: ExecutionStore,
+) -> None:
+    record = store.create(
+        query="SELECT 1",
+        workgroup="primary",
+        database="analytics",
+        catalog="AwsDataCatalog",
+        result_configuration=ResultConfiguration(output_location="s3://b/"),
+        execution_parameters=["1"],
+    )
+
+    assert record.same_request(
+        query="SELECT 1",
+        database="analytics",
+        catalog="AwsDataCatalog",
+        execution_parameters=["1"],
+        result_configuration=ResultConfiguration(output_location="s3://b/"),
+    )
+
+
+def test_same_request_detects_each_changed_parameter(
+    store: ExecutionStore,
+) -> None:
+    record = store.create(query="SELECT 1", workgroup="primary")
+
+    assert not record.same_request(
+        query="SELECT 2",
+        database=None,
+        catalog=None,
+        execution_parameters=None,
+        result_configuration=None,
+    )
+    assert not record.same_request(
+        query="SELECT 1",
+        database="analytics",
+        catalog=None,
+        execution_parameters=None,
+        result_configuration=None,
+    )
+    assert not record.same_request(
+        query="SELECT 1",
+        database=None,
+        catalog="AwsDataCatalog",
+        execution_parameters=None,
+        result_configuration=None,
+    )
+    assert not record.same_request(
+        query="SELECT 1",
+        database=None,
+        catalog=None,
+        execution_parameters=["1"],
+        result_configuration=None,
+    )
+    assert not record.same_request(
+        query="SELECT 1",
+        database=None,
+        catalog=None,
+        execution_parameters=None,
+        result_configuration=ResultConfiguration(output_location="s3://b/"),
+    )

@@ -127,6 +127,31 @@ class QueryExecutionRecord:
         self.result_columns = list(columns)
         self.result_rows = [list(row) for row in rows]
 
+    def same_request(
+        self,
+        *,
+        query: str,
+        database: str | None,
+        catalog: str | None,
+        execution_parameters: list[str] | None,
+        result_configuration: ResultConfiguration | None,
+    ) -> bool:
+        """Whether these are the fields of the original submission.
+
+        A ClientRequestToken retry is idempotent only for identical
+        parameters — the model documents "an error is returned if a
+        parameter, such as QueryString, has changed" (service-2.json
+        StartQueryExecution input). The workgroup is implicit: the
+        store's token map already keys on it.
+        """
+        return (
+            self.query == query
+            and self.database == database
+            and self.catalog == catalog
+            and self.execution_parameters == execution_parameters
+            and self.result_configuration == result_configuration
+        )
+
     def _result_output_location(self) -> str | None:
         """The full artifact path GetQueryExecution reports (ADR-0007 #2).
 
@@ -216,10 +241,17 @@ class ExecutionStore:
     by_id: dict[str, QueryExecutionRecord] = field(
         default_factory=dict, init=False
     )
+    # (workgroup, ClientRequestToken) → execution id backing the model's
+    # idempotent-submit contract (service-2.json StartQueryExecution): a
+    # retried token replays the original response instead of re-executing.
+    by_request_token: dict[tuple[str, str], str] = field(
+        default_factory=dict, init=False
+    )
 
     def reset(self) -> None:
         """Drop every query execution (test reset point, ADR-0003)."""
         self.by_id.clear()
+        self.by_request_token.clear()
 
     def create(
         self,
@@ -230,6 +262,7 @@ class ExecutionStore:
         result_configuration: ResultConfiguration | None = None,
         managed_results: bool = False,
         execution_parameters: list[str] | None = None,
+        client_request_token: str | None = None,
         statement_type: str | None = None,
         substatement_type: str | None = None,
         output_snapshot: OutputSnapshot | None = None,
@@ -253,7 +286,25 @@ class ExecutionStore:
             resolved_statement=resolved_statement,
         )
         self.by_id[execution_id] = record
+        if client_request_token is not None:
+            # First-wins: the executor's dedup check normally prevents a
+            # second create, but a raced duplicate still replays the
+            # original id.
+            self.by_request_token.setdefault(
+                (workgroup, client_request_token), execution_id
+            )
         return record
+
+    def find_by_request_token(
+        self, workgroup: str, client_request_token: str
+    ) -> QueryExecutionRecord | None:
+        """The execution a (workgroup, ClientRequestToken) retry replays."""
+        execution_id = self.by_request_token.get(
+            (workgroup, client_request_token)
+        )
+        if execution_id is None:
+            return None
+        return self.by_id.get(execution_id)
 
     def get(self, query_execution_id: str) -> QueryExecutionRecord:
         if query_execution_id not in self.by_id:

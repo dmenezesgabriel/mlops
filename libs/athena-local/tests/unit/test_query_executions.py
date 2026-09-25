@@ -1406,3 +1406,114 @@ def test_start_execute_without_store_resolves_as_missing(
         )
 
     asyncio.run(scenario())
+
+
+CLIENT_TOKEN = "9f4b6c1a-2d3e-4f5a-8b7c-0d1e2f3a4b5c"  # IdempotencyToken max
+
+
+def test_start_client_request_token_replays_the_original_id(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    """Idempotent retry (service-2.json): the same ClientRequestToken
+    answers the original QueryExecutionId instead of a second execution."""
+
+    async def scenario() -> None:
+        payload = {
+            "QueryString": "SELECT 1",
+            "ClientRequestToken": CLIENT_TOKEN,
+            "ResultConfiguration": {"OutputLocation": "s3://bucket/q.csv"},
+        }
+
+        first = await start_query_execution(executor, workgroups, payload)
+        second = await start_query_execution(executor, workgroups, payload)
+        await executor._tasks[first["QueryExecutionId"]]
+
+        assert second["QueryExecutionId"] == first["QueryExecutionId"]
+        assert len(store.by_id) == 1
+
+    asyncio.run(scenario())
+
+
+def test_start_client_request_token_rejects_changed_parameters(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    """The model documents "an error is returned if a parameter, such as
+    QueryString, has changed" for a previously seen ClientRequestToken."""
+
+    async def scenario() -> None:
+        await start_query_execution(
+            executor,
+            workgroups,
+            {
+                "QueryString": "SELECT 1",
+                "ClientRequestToken": CLIENT_TOKEN,
+                "ResultConfiguration": {"OutputLocation": "s3://bucket/q.csv"},
+            },
+        )
+
+        with pytest.raises(
+            InvalidRequestException, match="ClientRequestToken"
+        ):
+            await start_query_execution(
+                executor,
+                workgroups,
+                {
+                    "QueryString": "SELECT 2",
+                    "ClientRequestToken": CLIENT_TOKEN,
+                    "ResultConfiguration": {
+                        "OutputLocation": "s3://bucket/q.csv"
+                    },
+                },
+            )
+
+    asyncio.run(scenario())
+
+
+def test_start_rejects_non_string_client_request_token(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    with pytest.raises(InvalidRequestException, match="ClientRequestToken"):
+        asyncio.run(
+            start_query_execution(
+                executor,
+                workgroups,
+                {
+                    "QueryString": "SELECT 1",
+                    "ClientRequestToken": 5,
+                    "ResultConfiguration": {
+                        "OutputLocation": "s3://bucket/q.csv"
+                    },
+                },
+            )
+        )
+
+
+@pytest.mark.parametrize("token", ["", "x" * 37])
+def test_start_rejects_client_request_token_out_of_model_bounds(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+    token: str,
+) -> None:
+    # IdempotencyToken is bounded 1..36 (service-2.json); an empty token
+    # must never dedupe distinct submissions against each other.
+    with pytest.raises(InvalidRequestException, match="ClientRequestToken"):
+        asyncio.run(
+            start_query_execution(
+                executor,
+                workgroups,
+                {
+                    "QueryString": "SELECT 1",
+                    "ClientRequestToken": token,
+                    "ResultConfiguration": {
+                        "OutputLocation": "s3://bucket/q.csv"
+                    },
+                },
+            )
+        )

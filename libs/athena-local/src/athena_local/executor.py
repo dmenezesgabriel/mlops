@@ -141,6 +141,7 @@ class QueryExecutor:
         result_configuration: ResultConfiguration | None = None,
         managed_results: bool = False,
         execution_parameters: list[str] | None = None,
+        client_request_token: str | None = None,
         statement_classification: StatementClassification | None = None,
         resolved_statement: str | None = None,
         resolution_failure_reason: str | None = None,
@@ -159,9 +160,22 @@ class QueryExecutor:
         copy runs instead. A ``resolution_failure_reason`` (missing statement
         or parameter-count mismatch) skips manifest capture and preflight and
         starts the execution FAILED immediately: real Athena fails such
-        EXECUTEs, it never 400s them. Requires a running asyncio loop
+        EXECUTEs, it never 400s them. A ``client_request_token`` replays an
+        earlier identical submission under the model's idempotency contract
+        instead of starting anything. Requires a running asyncio loop
         (FastAPI serves on one).
         """
+        replayed = self._request_token_replay(
+            client_request_token,
+            workgroup,
+            query=query,
+            database=database,
+            catalog=catalog,
+            execution_parameters=execution_parameters,
+            result_configuration=result_configuration,
+        )
+        if replayed is not None:
+            return replayed
         if resolution_failure_reason is not None:
             record = self._create_record(
                 query=query,
@@ -171,6 +185,7 @@ class QueryExecutor:
                 result_configuration=result_configuration,
                 managed_results=managed_results,
                 execution_parameters=execution_parameters,
+                client_request_token=client_request_token,
                 statement_classification=statement_classification,
                 resolved_statement=None,
             )
@@ -193,6 +208,7 @@ class QueryExecutor:
             result_configuration=result_configuration,
             managed_results=managed_results,
             execution_parameters=execution_parameters,
+            client_request_token=client_request_token,
             statement_classification=statement_classification,
             resolved_statement=resolved_statement,
             output_snapshot=snapshot,
@@ -211,6 +227,44 @@ class QueryExecutor:
         )
         return record
 
+    def _request_token_replay(
+        self,
+        client_request_token: str | None,
+        workgroup: str,
+        *,
+        query: str,
+        database: str | None,
+        catalog: str | None,
+        execution_parameters: list[str] | None,
+        result_configuration: ResultConfiguration | None,
+    ) -> QueryExecutionRecord | None:
+        """The earlier identical submission a ClientRequestToken replays.
+
+        The canonical model marks StartQueryExecution idempotent
+        (service-2.json): a retried token answers the original
+        QueryExecutionId without re-executing, while the same token
+        submitted with changed parameters errors instead.
+        """
+        if client_request_token is None:
+            return None
+        existing = self._store.find_by_request_token(
+            workgroup, client_request_token
+        )
+        if existing is None:
+            return None
+        if not existing.same_request(
+            query=query,
+            database=database,
+            catalog=catalog,
+            execution_parameters=execution_parameters,
+            result_configuration=result_configuration,
+        ):
+            raise InvalidRequestException(
+                f"ClientRequestToken {client_request_token!r} was already "
+                "used with different request parameters"
+            )
+        return existing
+
     def _create_record(
         self,
         *,
@@ -221,6 +275,7 @@ class QueryExecutor:
         result_configuration: ResultConfiguration | None,
         managed_results: bool,
         execution_parameters: list[str] | None,
+        client_request_token: str | None,
         statement_classification: StatementClassification | None,
         resolved_statement: str | None,
         output_snapshot: OutputSnapshot | None = None,
@@ -235,6 +290,7 @@ class QueryExecutor:
             result_configuration=result_configuration,
             managed_results=managed_results,
             execution_parameters=execution_parameters,
+            client_request_token=client_request_token,
             statement_type=(
                 statement_classification.statement_type
                 if statement_classification is not None

@@ -1112,3 +1112,144 @@ def test_insert_execute_captures_manifest_from_resolved_statement(
         assert record.state == SUCCEEDED
 
     asyncio.run(scenario())
+
+
+def test_client_request_token_replays_the_original_execution(
+    store: ExecutionStore,
+) -> None:
+    """StartQueryExecution is idempotent (service-2.json): a retried
+    ClientRequestToken answers the original record and never reaches Trino."""
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient([result_page(next_uri=None)])
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        first = await executor.start(
+            query="SELECT 1",
+            workgroup="primary",
+            client_request_token="token-1",
+        )
+        await executor._tasks[first.query_execution_id]
+
+        replayed = await executor.start(
+            query="SELECT 1",
+            workgroup="primary",
+            client_request_token="token-1",
+        )
+
+        assert replayed is first
+        # No second submit/preflight — the retry never touched Trino.
+        assert len(client.submissions) == 1
+
+    asyncio.run(scenario())
+
+
+def test_client_request_token_rejects_a_changed_request(
+    store: ExecutionStore,
+) -> None:
+    """The model errors when a previous token arrives with changed
+    parameters ("a parameter, such as QueryString, has changed")."""
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient([result_page(next_uri=None)])
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        await executor.start(
+            query="SELECT 1",
+            workgroup="primary",
+            client_request_token="token-1",
+        )
+
+        with pytest.raises(InvalidRequestException, match="token-1"):
+            await executor.start(
+                query="SELECT 2",
+                workgroup="primary",
+                client_request_token="token-1",
+            )
+
+    asyncio.run(scenario())
+
+
+def test_client_request_token_scopes_to_the_workgroup(
+    store: ExecutionStore,
+) -> None:
+    async def scenario() -> None:
+        client = ScriptedStatementClient(
+            [result_page(next_uri=None), result_page(next_uri=None)]
+        )
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        first = await executor.start(
+            query="SELECT 1",
+            workgroup="primary",
+            client_request_token="token-1",
+        )
+        second = await executor.start(
+            query="SELECT 1",
+            workgroup="analytics",
+            client_request_token="token-1",
+        )
+        await executor._tasks[first.query_execution_id]
+        await executor._tasks[second.query_execution_id]
+
+        assert second is not first
+        assert len(client.submissions) == 2
+
+    asyncio.run(scenario())
+
+
+def test_client_request_token_replays_a_failed_resolution(
+    store: ExecutionStore,
+) -> None:
+    """A retried EXECUTE that failed statement resolution replays the same
+    FAILED record — the request was already accepted, so idempotent replay
+    answers the original id."""
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient([])
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        reason = "PreparedStatement st does not exist in workgroup primary"
+        first = await executor.start(
+            query='EXECUTE "st"',
+            workgroup="primary",
+            client_request_token="token-1",
+            resolution_failure_reason=reason,
+        )
+
+        replayed = await executor.start(
+            query='EXECUTE "st"',
+            workgroup="primary",
+            client_request_token="token-1",
+            resolution_failure_reason=reason,
+        )
+
+        assert replayed is first
+        assert replayed.state == FAILED
+        assert client.submissions == []
+
+    asyncio.run(scenario())
+
+
+def test_requests_without_token_get_distinct_executions(
+    store: ExecutionStore,
+) -> None:
+    async def scenario() -> None:
+        client = ScriptedStatementClient(
+            [result_page(next_uri=None), result_page(next_uri=None)]
+        )
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        first = await executor.start(query="SELECT 1", workgroup="primary")
+        second = await executor.start(query="SELECT 1", workgroup="primary")
+        await executor._tasks[first.query_execution_id]
+        await executor._tasks[second.query_execution_id]
+
+        assert second.query_execution_id != first.query_execution_id
+
+    asyncio.run(scenario())
