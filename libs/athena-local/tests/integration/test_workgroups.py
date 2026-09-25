@@ -60,6 +60,27 @@ def test_workgroup_crud_round_trip_with_botocore(
     ] == ["primary"]
 
 
+def test_list_work_groups_paginates_over_the_wire(
+    live_athena_server: LiveAthenaServer,
+) -> None:
+    """botocore ships no list_work_groups paginator; consumers walk NextToken."""
+    client = _client(live_athena_server.endpoint_url)
+    for index in range(3):
+        client.create_work_group(Name=f"paged-{index}")
+
+    names: list[str] = []
+    request: dict[str, object] = {"MaxResults": 2}
+    while True:
+        response = client.list_work_groups(**request)
+        names.extend(item["Name"] for item in response["WorkGroups"])
+        next_token = response.get("NextToken")
+        if next_token is None:
+            break
+        request["NextToken"] = next_token
+
+    assert names == ["primary", "paged-0", "paged-1", "paged-2"]
+
+
 def test_duplicate_create_work_group_is_shaped_400(
     live_athena_server: LiveAthenaServer,
 ) -> None:

@@ -19,6 +19,7 @@ from athena_local.workgroups import (
     create_work_group,
     delete_work_group,
     get_work_group,
+    list_work_groups,
     update_work_group,
 )
 from pytest_bdd import given, parsers, scenarios, then, when
@@ -34,6 +35,7 @@ class WorkgroupOutcome:
 
     error: AthenaError | None = None
     last_success: dict[str, object] | None = None
+    next_token: str | None = None
 
 
 @pytest.fixture
@@ -48,7 +50,7 @@ def outcome() -> WorkgroupOutcome:
 
 @given("a fresh workgroup registry")
 def _fresh_registry(workgroup_store: WorkGroupStore) -> None:
-    assert workgroup_store.list()
+    assert workgroup_store.list()[0]
 
 
 @given('the emulator boots with a "primary" workgroup')
@@ -88,6 +90,35 @@ def _create_duplicate(
         create_work_group(workgroup_store, {"Name": name})
     except AthenaError as error:
         outcome.error = error
+
+
+@when(parsers.parse("{count:d} workgroups are created"))
+def _create_workgroups(workgroup_store: WorkGroupStore, count: int) -> None:
+    for index in range(count):
+        create_work_group(workgroup_store, {"Name": f"workgroup-{index}"})
+
+
+@when(parsers.parse("ListWorkGroups requests MaxResults {num:d}"))
+def _list_workgroups_first_page(
+    outcome: WorkgroupOutcome, workgroup_store: WorkGroupStore, num: int
+) -> None:
+    outcome.last_success = list_work_groups(
+        workgroup_store, {"MaxResults": num}
+    )
+
+
+@when(
+    parsers.parse(
+        "ListWorkGroups requests MaxResults {num:d} with the NextToken"
+    )
+)
+def _list_workgroups_next_page(
+    outcome: WorkgroupOutcome, workgroup_store: WorkGroupStore, num: int
+) -> None:
+    outcome.last_success = list_work_groups(
+        workgroup_store,
+        {"MaxResults": num, "NextToken": outcome.next_token},
+    )
 
 
 @when(
@@ -163,3 +194,26 @@ def _duplicate_error_shape(outcome: WorkgroupOutcome) -> None:
 def _delete_primary_error_shape(outcome: WorkgroupOutcome, name: str) -> None:
     assert isinstance(outcome.error, InvalidRequestException)
     assert name in outcome.error.message
+
+
+@then(parsers.parse("the response contains {num:d} workgroup summaries"))
+def _response_workgroup_count(outcome: WorkgroupOutcome, num: int) -> None:
+    assert len(outcome.last_success["WorkGroups"]) == num
+
+
+@then(parsers.parse("the response contains {num:d} more workgroup summaries"))
+def _response_more_workgroup_count(
+    outcome: WorkgroupOutcome, num: int
+) -> None:
+    assert len(outcome.last_success["WorkGroups"]) == num
+
+
+@then("a NextToken is returned")
+def _next_token_returned(outcome: WorkgroupOutcome) -> None:
+    assert "NextToken" in outcome.last_success
+    outcome.next_token = outcome.last_success["NextToken"]
+
+
+@then("no NextToken is returned")
+def _no_next_token_returned(outcome: WorkgroupOutcome) -> None:
+    assert "NextToken" not in outcome.last_success

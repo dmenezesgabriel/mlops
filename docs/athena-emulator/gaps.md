@@ -10,7 +10,6 @@
 
 | ID | Feature (PARITY.md row) | Measured on the wire | Expected AWS behavior | Candidate fix surface | Size |
 |---|---|---|---|---|---|
-| GP-2 | `list_work_groups` honors `MaxResults`/`NextToken` (nb02) | `MaxResults=1` returned all 6 workgroups, no `NextToken` | page the list like `ListNamedQueries`/`ListQueryExecutions` do | `workgroups.py` list handler: opaque-offset pagination (same pattern as query executions) | S |
 | GP-3 | `StopQueryExecution` on a terminal execution (nb03, FAIL) | `InternalServerException` 500 on a SUCCEEDED execution | 200 no-op — stopping a finished execution is idempotent | `query_executions.py` stop handler: return 200 when state is terminal | S |
 | GP-4 | `ClientRequestToken` dedupes retried submissions (nb03) | same token submitted twice → two distinct execution ids | a retried token returns the original `QueryExecutionId` | `executions.py` store: (workgroup, token) → execution-id map checked at submit | S–M |
 | GP-5 | `ResultReuseConfiguration` reuses recent results (nb03) | accepted but never applied; no `Statistics.ResultReuseInformation`; second run re-executed | reuse a recent identical execution within `ResultReuseByAgeConfiguration.MaxAgeInMinutes`; report `ResultReuseInformation.ReusedPreviousResult` | `executions.py`/`query_executions.py`: reuse lookup keyed on query text + workgroup + age | M |
@@ -36,7 +35,7 @@ boundary decision, not a defect.
 | Row | Disposition | Item | Reason / note |
 |---|---|---|---|
 | GP-1 | shipped | GF-1 | `WorkGroup.State` gate at submit; extended to `CreateNamedQuery`/`CreatePreparedStatement` (AWS UG: disabled workgroups also block new named queries) |
-| GP-2 | fix | GF-2 | Same opaque-offset pagination `ListNamedQueries`/`ListQueryExecutions` already use |
+| GP-2 | shipped | GF-2 | `WorkGroupStore.list` gained the sibling stores' opaque-offset paging; `MaxResults` bounded to the model's `MaxWorkGroupsCount` 1..50 |
 | GP-3 | fix | GF-3 | Only measured FAIL — return 200 no-op when the execution is terminal |
 | GP-4 | fix | GF-4 | (workgroup, token) → execution-id map in the store; real AWS dedupes retried tokens |
 | GP-5 | fix | GF-5 | Server-side reuse is a documented AWS feature; keyed on query text + workgroup + `MaxAgeInMinutes` |

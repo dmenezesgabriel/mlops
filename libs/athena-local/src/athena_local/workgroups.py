@@ -46,6 +46,26 @@ def _optional_string(
     return raw
 
 
+MAX_LIST_WORKGROUPS = 50  # model MaxWorkGroupsCount (service-2.json)
+
+
+def _optional_max_results(payload: dict[str, object] | None) -> int | None:
+    """Validate an optional ListWorkGroups MaxResults (1..50)."""
+    raw = _member(payload, "MaxResults")
+    if raw is None:
+        return None
+    if not isinstance(raw, int):
+        raise InvalidRequestException(
+            f"MaxResults must be an integer, got {raw!r}"
+        )
+    if raw < 1 or raw > MAX_LIST_WORKGROUPS:
+        raise InvalidRequestException(
+            f"MaxResults must be between 1 and {MAX_LIST_WORKGROUPS}, "
+            f"got {raw}"
+        )
+    return raw
+
+
 def create_work_group(
     store: WorkGroupStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
@@ -69,10 +89,19 @@ def get_work_group(
     return {"WorkGroup": store.get(name).to_payload()}
 
 
-def list_work_groups(store: WorkGroupStore) -> dict[str, object]:
-    return {
-        "WorkGroups": [record.to_summary_payload() for record in store.list()]
+def list_work_groups(
+    store: WorkGroupStore, payload: dict[str, object] | None
+) -> dict[str, object]:
+    records, next_token_out = store.list(
+        max_results=_optional_max_results(payload),
+        next_token=_optional_string(payload, "NextToken"),
+    )
+    output: dict[str, object] = {
+        "WorkGroups": [record.to_summary_payload() for record in records]
     }
+    if next_token_out is not None:
+        output["NextToken"] = next_token_out
+    return output
 
 
 def update_work_group(
@@ -106,7 +135,9 @@ def register_workgroup_handlers(store: WorkGroupStore) -> None:
     register_handler(
         "GetWorkGroup", lambda payload: get_work_group(store, payload)
     )
-    register_handler("ListWorkGroups", lambda payload: list_work_groups(store))
+    register_handler(
+        "ListWorkGroups", lambda payload: list_work_groups(store, payload)
+    )
     register_handler(
         "UpdateWorkGroup", lambda payload: update_work_group(store, payload)
     )

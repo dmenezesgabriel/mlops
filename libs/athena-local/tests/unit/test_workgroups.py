@@ -105,7 +105,7 @@ def test_get_work_group_missing_raises_invalid_request(
 def test_list_work_groups_returns_summaries(store: WorkGroupStore) -> None:
     create_work_group(store, {"Name": "analytics"})
 
-    output = list_work_groups(store)
+    output = list_work_groups(store, None)
 
     names = [summary["Name"] for summary in output["WorkGroups"]]
     assert names == ["primary", "analytics"]
@@ -116,6 +116,74 @@ def test_list_work_groups_returns_summaries(store: WorkGroupStore) -> None:
         "Athena engine version 3"
     )
     assert "NextToken" not in output
+
+
+def test_list_work_groups_paginates_with_max_results(
+    store: WorkGroupStore,
+) -> None:
+    for index in range(4):
+        create_work_group(store, {"Name": f"wg-{index}"})
+
+    first = list_work_groups(store, {"MaxResults": 2})
+    assert [item["Name"] for item in first["WorkGroups"]] == [
+        "primary",
+        "wg-0",
+    ]
+    assert "NextToken" in first
+
+    second = list_work_groups(
+        store, {"MaxResults": 2, "NextToken": first["NextToken"]}
+    )
+    assert [item["Name"] for item in second["WorkGroups"]] == [
+        "wg-1",
+        "wg-2",
+    ]
+    assert "NextToken" in second
+
+    third = list_work_groups(
+        store, {"MaxResults": 2, "NextToken": second["NextToken"]}
+    )
+    assert [item["Name"] for item in third["WorkGroups"]] == ["wg-3"]
+    assert "NextToken" not in third
+
+
+def test_list_work_groups_next_token_past_end_returns_empty_page(
+    store: WorkGroupStore,
+) -> None:
+    create_work_group(store, {"Name": "analytics"})
+
+    output = list_work_groups(store, {"NextToken": "2"})
+
+    assert output == {"WorkGroups": []}
+
+
+def test_list_work_groups_rejects_non_integer_max_results(
+    store: WorkGroupStore,
+) -> None:
+    with pytest.raises(InvalidRequestException, match="MaxResults"):
+        list_work_groups(store, {"MaxResults": "2"})
+
+
+@pytest.mark.parametrize("max_results", [0, -1, 51])
+def test_list_work_groups_rejects_out_of_bounds_max_results(
+    store: WorkGroupStore, max_results: int
+) -> None:
+    with pytest.raises(InvalidRequestException, match="MaxResults"):
+        list_work_groups(store, {"MaxResults": max_results})
+
+
+def test_list_work_groups_rejects_invalid_next_token(
+    store: WorkGroupStore,
+) -> None:
+    with pytest.raises(InvalidRequestException, match="Invalid NextToken"):
+        list_work_groups(store, {"NextToken": "not-a-token"})
+
+
+def test_list_work_groups_rejects_non_string_next_token(
+    store: WorkGroupStore,
+) -> None:
+    with pytest.raises(InvalidRequestException, match="NextToken"):
+        list_work_groups(store, {"NextToken": 5})
 
 
 def test_update_work_group_changes_state_only(store: WorkGroupStore) -> None:

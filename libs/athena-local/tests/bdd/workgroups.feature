@@ -29,3 +29,12 @@ Feature: Workgroup control plane
     When a workgroup named "analytics" is created with an output location
     And UpdateWorkGroup disables "analytics" without touching the configuration
     Then GetWorkGroup returns the output location and state "DISABLED"
+
+  Scenario: ListWorkGroups with pagination
+    When 3 workgroups are created
+    And ListWorkGroups requests MaxResults 2
+    Then the response contains 2 workgroup summaries
+    And a NextToken is returned
+    When ListWorkGroups requests MaxResults 2 with the NextToken
+    Then the response contains 2 more workgroup summaries
+    And no NextToken is returned

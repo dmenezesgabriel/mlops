@@ -106,9 +106,44 @@ def test_list_returns_records_in_insertion_order(
     store.create("analytics", WorkGroupConfiguration(), None, [])
     store.create("data-eng", WorkGroupConfiguration(), None, [])
 
-    names = [record.name for record in store.list()]
+    records, next_token = store.list()
 
-    assert names == ["primary", "analytics", "data-eng"]
+    assert [record.name for record in records] == [
+        "primary",
+        "analytics",
+        "data-eng",
+    ]
+    assert next_token is None
+
+
+def test_list_pages_records_with_opaque_offset_token(
+    store: WorkGroupStore,
+) -> None:
+    store.create("analytics", WorkGroupConfiguration(), None, [])
+    store.create("data-eng", WorkGroupConfiguration(), None, [])
+
+    first, token = store.list(max_results=1)
+    second, next_token = store.list(max_results=1, next_token=token)
+    third, last_token = store.list(max_results=1, next_token=next_token)
+
+    assert [record.name for record in first] == ["primary"]
+    assert [record.name for record in second] == ["analytics"]
+    assert [record.name for record in third] == ["data-eng"]
+    assert last_token is None
+
+
+def test_list_rejects_undecodable_next_token(store: WorkGroupStore) -> None:
+    with pytest.raises(InvalidRequestException, match="Invalid NextToken"):
+        store.list(next_token="bogus")
+
+
+def test_list_next_token_past_end_returns_empty_page(
+    store: WorkGroupStore,
+) -> None:
+    records, next_token = store.list(next_token="99")
+
+    assert records == []
+    assert next_token is None
 
 
 def test_update_merges_description_state_and_configuration(
@@ -177,7 +212,9 @@ def test_reset_restores_only_primary(store: WorkGroupStore) -> None:
 
     store.reset()
 
-    assert [record.name for record in store.list()] == ["primary"]
+    records, next_token = store.list()
+    assert [record.name for record in records] == ["primary"]
+    assert next_token is None
 
 
 def test_tags_are_stored_on_record(store: WorkGroupStore) -> None:

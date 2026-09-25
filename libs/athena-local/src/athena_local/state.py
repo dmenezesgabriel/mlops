@@ -151,8 +151,35 @@ class WorkGroupStore:
             raise missing_workgroup_error(name)
         return self.by_name[name]
 
-    def list(self) -> list[WorkGroupRecord]:
-        return list(self.by_name.values())
+    def list(
+        self,
+        max_results: int | None = None,
+        next_token: str | None = None,
+    ) -> tuple[list[WorkGroupRecord], str | None]:
+        """Return workgroups with pagination.
+
+        Returns a tuple of (records, next_token). ``next_token`` is None
+        when there are no more results.
+        """
+        all_records = list(self.by_name.values())
+        start_index = 0
+        if next_token is not None:
+            try:
+                start_index = int(next_token)
+            except ValueError:
+                raise InvalidRequestException(
+                    f"Invalid NextToken: {next_token}"
+                ) from None
+        if start_index >= len(all_records):
+            return [], None
+        end_index = len(all_records)
+        if max_results is not None and max_results > 0:
+            end_index = min(start_index + max_results, len(all_records))
+        page_records = all_records[start_index:end_index]
+        next_token_out = (
+            str(end_index) if end_index < len(all_records) else None
+        )
+        return page_records, next_token_out
 
     def update(
         self,
