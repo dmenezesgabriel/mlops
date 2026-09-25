@@ -14,6 +14,11 @@ ManagedQueryResultsConfiguration).
 from __future__ import annotations
 
 import pytest
+from athena_local.common_schemas import (
+    ResultReuseByAgeConfiguration,
+    parse_result_reuse_configuration,
+    result_reuse_configuration_payload,
+)
 from athena_local.errors import InvalidRequestException
 from athena_local.schemas import (
     DEFAULT_ENGINE_VERSION,
@@ -92,6 +97,74 @@ def test_parse_configuration_rejects_non_object() -> None:
 def test_parse_result_configuration_requires_object() -> None:
     with pytest.raises(InvalidRequestException, match="ResultConfiguration"):
         parse_result_configuration("s3://nope")
+
+
+def test_parse_result_reuse_configuration_round_trip() -> None:
+    raw = {
+        "ResultReuseByAgeConfiguration": {
+            "Enabled": True,
+            "MaxAgeInMinutes": 30,
+        }
+    }
+
+    parsed = parse_result_reuse_configuration(raw)
+
+    assert parsed == ResultReuseByAgeConfiguration(
+        enabled=True, max_age_in_minutes=30
+    )
+    assert result_reuse_configuration_payload(parsed) == raw
+
+
+def test_parse_result_reuse_configuration_defaults_max_age() -> None:
+    # The model documents MaxAgeInMinutes defaulting to 60 minutes when the
+    # member is absent (service-2.json ResultReuseByAgeConfiguration).
+    parsed = parse_result_reuse_configuration(
+        {"ResultReuseByAgeConfiguration": {"Enabled": False}}
+    )
+
+    assert parsed == ResultReuseByAgeConfiguration(
+        enabled=False, max_age_in_minutes=60
+    )
+
+
+def test_parse_result_reuse_configuration_absent_members() -> None:
+    assert parse_result_reuse_configuration(None) is None
+    assert parse_result_reuse_configuration({}) is None
+
+
+def test_parse_result_reuse_configuration_requires_object() -> None:
+    with pytest.raises(
+        InvalidRequestException, match="ResultReuseConfiguration"
+    ):
+        parse_result_reuse_configuration("Enabled=true")
+    with pytest.raises(
+        InvalidRequestException, match="ResultReuseByAgeConfiguration"
+    ):
+        parse_result_reuse_configuration({"ResultReuseByAgeConfiguration": 1})
+
+
+def test_parse_result_reuse_configuration_requires_enabled() -> None:
+    with pytest.raises(InvalidRequestException, match="Enabled"):
+        parse_result_reuse_configuration({"ResultReuseByAgeConfiguration": {}})
+    with pytest.raises(InvalidRequestException, match="Enabled"):
+        parse_result_reuse_configuration(
+            {"ResultReuseByAgeConfiguration": {"Enabled": "yes"}}
+        )
+
+
+def test_parse_result_reuse_configuration_bounds_max_age() -> None:
+    # MaxAgeInMinutes is the model's Age shape, bounded 0..10080
+    # (service-2.json); out-of-range values 400 like other bounded members.
+    for bad_age in ("60", True, -1, 10081):
+        with pytest.raises(InvalidRequestException, match="MaxAgeInMinutes"):
+            parse_result_reuse_configuration(
+                {
+                    "ResultReuseByAgeConfiguration": {
+                        "Enabled": True,
+                        "MaxAgeInMinutes": bad_age,
+                    }
+                }
+            )
 
 
 def test_parse_engine_version_requires_object() -> None:

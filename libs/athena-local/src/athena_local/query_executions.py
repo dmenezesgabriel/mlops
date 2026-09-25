@@ -19,6 +19,7 @@ from __future__ import annotations
 from athena_local.common_schemas import (
     ResultConfiguration,
     parse_result_configuration,
+    parse_result_reuse_configuration,
 )
 from athena_local.dispatch import register_handler
 from athena_local.errors import InvalidRequestException
@@ -281,6 +282,9 @@ async def start_query_execution(
             else None
         ),
         resolution_failure_reason=resolution.failure_reason,
+        result_reuse_configuration=parse_result_reuse_configuration(
+            _member(payload, "ResultReuseConfiguration")
+        ),
     )
     return {"QueryExecutionId": record.query_execution_id}
 

@@ -1517,3 +1517,142 @@ def test_start_rejects_client_request_token_out_of_model_bounds(
                 },
             )
         )
+
+
+REUSE_PAYLOAD = {
+    "ResultReuseByAgeConfiguration": {"Enabled": True, "MaxAgeInMinutes": 30}
+}
+
+
+def test_start_parses_and_echoes_result_reuse_configuration(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    """GetQueryExecution reports the reuse behavior that was used
+    (service-2.json QueryExecution.ResultReuseConfiguration)."""
+
+    async def scenario() -> None:
+        output = await start_query_execution(
+            executor,
+            workgroups,
+            {
+                "QueryString": "SELECT 1",
+                "ResultConfiguration": {"OutputLocation": "s3://bucket/q/"},
+                "ResultReuseConfiguration": REUSE_PAYLOAD,
+            },
+        )
+        record = store.get(output["QueryExecutionId"])
+        await executor._tasks[record.query_execution_id]
+
+        execution = get_query_execution(
+            store, {"QueryExecutionId": output["QueryExecutionId"]}
+        )["QueryExecution"]
+        assert execution["ResultReuseConfiguration"] == REUSE_PAYLOAD
+        assert execution["Statistics"]["ResultReuseInformation"] == {
+            "ReusedPreviousResult": False
+        }
+
+    asyncio.run(scenario())
+
+
+def test_start_rejects_invalid_result_reuse_configuration(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    # Enabled is the required member of ResultReuseByAgeConfiguration
+    # (service-2.json).
+    with pytest.raises(InvalidRequestException, match="Enabled"):
+        asyncio.run(
+            start_query_execution(
+                executor,
+                workgroups,
+                {
+                    "QueryString": "SELECT 1",
+                    "ResultConfiguration": {
+                        "OutputLocation": "s3://bucket/q/"
+                    },
+                    "ResultReuseConfiguration": {
+                        "ResultReuseByAgeConfiguration": {}
+                    },
+                },
+            )
+        )
+
+
+def test_start_result_reuse_reanswers_the_previous_execution(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    """A second identical enabled submission reports ReusedPreviousResult
+    and the source's OutputLocation without a new Trino round-trip."""
+
+    async def scenario() -> None:
+        request = {
+            "QueryString": "SELECT 1",
+            "ResultConfiguration": {"OutputLocation": "s3://bucket/q/"},
+            "ResultReuseConfiguration": REUSE_PAYLOAD,
+        }
+        first_id = (
+            await start_query_execution(executor, workgroups, request)
+        )["QueryExecutionId"]
+        await executor._tasks[first_id]
+
+        second_id = (
+            await start_query_execution(executor, workgroups, request)
+        )["QueryExecutionId"]
+
+        assert second_id != first_id
+        first_execution = get_query_execution(
+            store, {"QueryExecutionId": first_id}
+        )["QueryExecution"]
+        second_execution = get_query_execution(
+            store, {"QueryExecutionId": second_id}
+        )["QueryExecution"]
+        assert second_execution["Status"]["State"] == SUCCEEDED
+        assert second_execution["Statistics"]["ResultReuseInformation"] == {
+            "ReusedPreviousResult": True
+        }
+        assert (
+            second_execution["ResultConfiguration"]["OutputLocation"]
+            == first_execution["ResultConfiguration"]["OutputLocation"]
+        )
+
+    asyncio.run(scenario())
+
+
+def test_start_client_request_token_rejects_changed_reuse_configuration(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    """ResultReuseConfiguration is a request parameter like any other: a
+    retried token carrying a different one errors (model idempotent rule)."""
+
+    async def scenario() -> None:
+        await start_query_execution(
+            executor,
+            workgroups,
+            {
+                "QueryString": "SELECT 1",
+                "ClientRequestToken": CLIENT_TOKEN,
+                "ResultConfiguration": {"OutputLocation": "s3://bucket/q.csv"},
+            },
+        )
+        with pytest.raises(InvalidRequestException, match=CLIENT_TOKEN):
+            await start_query_execution(
+                executor,
+                workgroups,
+                {
+                    "QueryString": "SELECT 1",
+                    "ClientRequestToken": CLIENT_TOKEN,
+                    "ResultConfiguration": {
+                        "OutputLocation": "s3://bucket/q.csv"
+                    },
+                    "ResultReuseConfiguration": REUSE_PAYLOAD,
+                },
+            )
+
+    asyncio.run(scenario())

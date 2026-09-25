@@ -252,6 +252,62 @@ def result_configuration_payload(
 
 
 @dataclass(frozen=True)
+class ResultReuseByAgeConfiguration:
+    """Effective ResultReuseByAgeConfiguration member (service-2.json).
+
+    ``max_age_in_minutes`` carries the model's documented default (60)
+    when the request leaves it out; the model's ``Age`` shape bounds it
+    to 0..10080.
+    """
+
+    enabled: bool
+    max_age_in_minutes: int = 60
+
+
+MAX_RESULT_REUSE_AGE_MINUTES = 10080
+
+
+def parse_result_reuse_configuration(
+    raw: object,
+) -> ResultReuseByAgeConfiguration | None:
+    """Parse ``ResultReuseConfiguration``; the outer object carries only the
+    by-age member, so an absent/empty member parses to None."""
+    body = _as_object(raw, "ResultReuseConfiguration")
+    if body is None:
+        return None
+    by_age = _as_object(
+        body.get("ResultReuseByAgeConfiguration"),
+        "ResultReuseByAgeConfiguration",
+    )
+    if by_age is None:
+        return None
+    max_age = _optional_int(by_age, "MaxAgeInMinutes")
+    if (
+        max_age is not None
+        and not 0 <= max_age <= MAX_RESULT_REUSE_AGE_MINUTES
+    ):
+        raise InvalidRequestException(
+            f"MaxAgeInMinutes must be between 0 and "
+            f"{MAX_RESULT_REUSE_AGE_MINUTES}, got {max_age}"
+        )
+    return ResultReuseByAgeConfiguration(
+        enabled=_required_bool(by_age, "Enabled"),
+        max_age_in_minutes=_defaulted(max_age, 60),
+    )
+
+
+def result_reuse_configuration_payload(
+    reuse: ResultReuseByAgeConfiguration,
+) -> dict[str, object]:
+    return {
+        "ResultReuseByAgeConfiguration": {
+            "Enabled": reuse.enabled,
+            "MaxAgeInMinutes": reuse.max_age_in_minutes,
+        }
+    }
+
+
+@dataclass(frozen=True)
 class ResultConfigurationUpdates:
     output_location: str | None = None
     remove_output_location: bool | None = None

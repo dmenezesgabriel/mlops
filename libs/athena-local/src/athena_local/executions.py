@@ -22,13 +22,16 @@ from time import time
 
 from athena_local.common_schemas import (
     ResultConfiguration,
+    ResultReuseByAgeConfiguration,
     result_configuration_payload,
+    result_reuse_configuration_payload,
 )
 from athena_local.errors import InvalidRequestException
 from athena_local.output_targets import OutputSnapshot
 from athena_local.statement_classification import (
     ARTIFACT_OUTPUT_SUFFIX,
     artifact_output_kind,
+    normalize_statement_text,
 )
 
 QUEUED = "QUEUED"
@@ -92,6 +95,16 @@ class QueryExecutionRecord:
     # external_location from here because the stored — not the submitted —
     # statement carries it.
     resolved_statement: str | None = None
+    # The effective ResultReuseByAgeConfiguration the request carried
+    # (service-2.json). Echoed on GetQueryExecution as "the reuse behavior
+    # that was used", and ``reused_previous_result`` reports whether a
+    # previous result was actually re-answered.
+    result_reuse_configuration: ResultReuseByAgeConfiguration | None = None
+    reused_previous_result: bool = False
+    # A reused execution writes no artifacts: its OutputLocation reports the
+    # source execution's result file (AWS UG "Reusing query results").
+    # Sticky and internal — never serialized.
+    reused_output_location: str | None = None
 
     def transition_to(self, new_state: str, reason: str | None = None) -> None:
         """Move to ``new_state``; terminal states are immutable (ADR-0009)."""
@@ -135,6 +148,8 @@ class QueryExecutionRecord:
         catalog: str | None,
         execution_parameters: list[str] | None,
         result_configuration: ResultConfiguration | None,
+        result_reuse_configuration: ResultReuseByAgeConfiguration
+        | None = None,
     ) -> bool:
         """Whether these are the fields of the original submission.
 
@@ -150,6 +165,42 @@ class QueryExecutionRecord:
             and self.catalog == catalog
             and self.execution_parameters == execution_parameters
             and self.result_configuration == result_configuration
+            and self.result_reuse_configuration == result_reuse_configuration
+        )
+
+    def reuse_results_from(self, source: QueryExecutionRecord) -> None:
+        """Adopt a previous execution's result surface as this one's.
+
+        Athena's reuse bypasses the engine and writes nothing: the new
+        execution reports the source's OutputLocation so consumers read the
+        original result file, and the cached page serves inline
+        GetQueryResults exactly like a fresh run (UG "Reusing query
+        results").
+        """
+        self.reused_previous_result = True
+        self.reused_output_location = source._result_output_location()
+        self.data_manifest_location = source.data_manifest_location
+        self.result_columns = list(source.result_columns)
+        self.result_rows = [list(row) for row in source.result_rows]
+
+    def matches_reuse_identity(
+        self,
+        *,
+        workgroup: str,
+        query_key: str,
+        database: str | None,
+        catalog: str | None,
+        execution_parameters: list[str] | None,
+        result_configuration: ResultConfiguration | None,
+    ) -> bool:
+        """Whether this record's identity fields match a reuse request's."""
+        return (
+            self.workgroup == workgroup
+            and self.database == database
+            and self.catalog == catalog
+            and self.execution_parameters == execution_parameters
+            and self.result_configuration == result_configuration
+            and normalize_statement_text(self.query) == query_key
         )
 
     def _result_output_location(self) -> str | None:
@@ -163,6 +214,8 @@ class QueryExecutionRecord:
         ``{prefix}{QueryID}`` stem with ``Statistics.DataManifestLocation``
         naming the ``-manifest.csv`` (aws docs get-query-execution output).
         """
+        if self.reused_output_location is not None:
+            return self.reused_output_location
         if self.result_configuration is None:
             return None
         prefix = self.result_configuration.output_location
@@ -191,6 +244,12 @@ class QueryExecutionRecord:
             if output_location is not None:
                 configuration_payload["OutputLocation"] = output_location
             payload["ResultConfiguration"] = configuration_payload
+        if self.result_reuse_configuration is not None:
+            payload["ResultReuseConfiguration"] = (
+                result_reuse_configuration_payload(
+                    self.result_reuse_configuration
+                )
+            )
         if self.database is not None or self.catalog is not None:
             payload["QueryExecutionContext"] = self._context_payload()
         if self.statement_type is not None:
@@ -231,6 +290,10 @@ class QueryExecutionRecord:
         }
         if self.data_manifest_location is not None:
             payload["DataManifestLocation"] = self.data_manifest_location
+        if self.result_reuse_configuration is not None:
+            payload["ResultReuseInformation"] = {
+                "ReusedPreviousResult": self.reused_previous_result
+            }
         return payload
 
 
@@ -268,6 +331,8 @@ class ExecutionStore:
         output_snapshot: OutputSnapshot | None = None,
         manifest_target_error: str | None = None,
         resolved_statement: str | None = None,
+        result_reuse_configuration: ResultReuseByAgeConfiguration
+        | None = None,
     ) -> QueryExecutionRecord:
         execution_id = str(uuid.uuid4())
         record = QueryExecutionRecord(
@@ -284,6 +349,7 @@ class ExecutionStore:
             output_snapshot=output_snapshot,
             manifest_target_error=manifest_target_error,
             resolved_statement=resolved_statement,
+            result_reuse_configuration=result_reuse_configuration,
         )
         self.by_id[execution_id] = record
         if client_request_token is not None:
@@ -312,6 +378,43 @@ class ExecutionStore:
                 f"QueryExecution {query_execution_id} does not exist"
             )
         return self.by_id[query_execution_id]
+
+    def find_reusable(
+        self,
+        *,
+        workgroup: str,
+        query: str,
+        database: str | None,
+        catalog: str | None,
+        execution_parameters: list[str] | None,
+        result_configuration: ResultConfiguration | None,
+        max_age_minutes: int,
+    ) -> QueryExecutionRecord | None:
+        """Newest SUCCEEDED execution matching Athena's reuse conditions.
+
+        Result reuse re-answers a query when a previous execution in the
+        same workgroup ran a statement identical modulo comments and
+        whitespace, in the same database/catalog, with the same execution
+        parameters and the same result configuration, completed within the
+        request's ``MaxAgeInMinutes`` (AWS UG "Reusing query results").
+        """
+        query_key = normalize_statement_text(query)
+        oldest_allowed = time() - max_age_minutes * 60
+        for record in reversed(list(self.by_id.values())):
+            if record.state != SUCCEEDED:
+                continue
+            if (record.completion_time or 0) < oldest_allowed:
+                continue
+            if record.matches_reuse_identity(
+                workgroup=workgroup,
+                query_key=query_key,
+                database=database,
+                catalog=catalog,
+                execution_parameters=execution_parameters,
+                result_configuration=result_configuration,
+            ):
+                return record
+        return None
 
     def batch_get(
         self, query_execution_ids: list[str]

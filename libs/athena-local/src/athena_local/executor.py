@@ -17,7 +17,10 @@ import asyncio
 from dataclasses import dataclass, replace
 from typing import Protocol
 
-from athena_local.common_schemas import ResultConfiguration
+from athena_local.common_schemas import (
+    ResultConfiguration,
+    ResultReuseByAgeConfiguration,
+)
 from athena_local.dialect import to_trino_dialect
 from athena_local.error_mapping import (
     is_syntax_error,
@@ -145,6 +148,8 @@ class QueryExecutor:
         statement_classification: StatementClassification | None = None,
         resolved_statement: str | None = None,
         resolution_failure_reason: str | None = None,
+        result_reuse_configuration: ResultReuseByAgeConfiguration
+        | None = None,
     ) -> QueryExecutionRecord:
         """Validate against Trino, create a QUEUED execution, dispatch it.
 
@@ -173,6 +178,7 @@ class QueryExecutor:
             catalog=catalog,
             execution_parameters=execution_parameters,
             result_configuration=result_configuration,
+            result_reuse_configuration=result_reuse_configuration,
         )
         if replayed is not None:
             return replayed
@@ -188,8 +194,38 @@ class QueryExecutor:
                 client_request_token=client_request_token,
                 statement_classification=statement_classification,
                 resolved_statement=None,
+                result_reuse_configuration=result_reuse_configuration,
             )
             record.transition_to(FAILED, resolution_failure_reason)
+            return record
+        reusable = self._reusable_source(
+            query=query,
+            workgroup=workgroup,
+            database=database,
+            catalog=catalog,
+            execution_parameters=execution_parameters,
+            result_configuration=result_configuration,
+            result_reuse_configuration=result_reuse_configuration,
+            managed_results=managed_results,
+            statement_classification=statement_classification,
+        )
+        if reusable is not None:
+            record = self._create_record(
+                query=query,
+                workgroup=workgroup,
+                database=database,
+                catalog=catalog,
+                result_configuration=result_configuration,
+                managed_results=managed_results,
+                execution_parameters=execution_parameters,
+                client_request_token=client_request_token,
+                statement_classification=statement_classification,
+                resolved_statement=resolved_statement,
+                result_reuse_configuration=result_reuse_configuration,
+            )
+            record.reuse_results_from(reusable)
+            record.transition_to(RUNNING)
+            record.transition_to(SUCCEEDED)
             return record
         submit_query = resolved_statement or query
         # Athena accepts a few statements Trino's grammar rejects (e.g.
@@ -213,6 +249,7 @@ class QueryExecutor:
             resolved_statement=resolved_statement,
             output_snapshot=snapshot,
             manifest_target_error=capture_error,
+            result_reuse_configuration=result_reuse_configuration,
         )
         if verdict.failure_reason is not None:
             record.transition_to(FAILED, verdict.failure_reason)
@@ -237,6 +274,7 @@ class QueryExecutor:
         catalog: str | None,
         execution_parameters: list[str] | None,
         result_configuration: ResultConfiguration | None,
+        result_reuse_configuration: ResultReuseByAgeConfiguration | None,
     ) -> QueryExecutionRecord | None:
         """The earlier identical submission a ClientRequestToken replays.
 
@@ -258,12 +296,56 @@ class QueryExecutor:
             catalog=catalog,
             execution_parameters=execution_parameters,
             result_configuration=result_configuration,
+            result_reuse_configuration=result_reuse_configuration,
         ):
             raise InvalidRequestException(
                 f"ClientRequestToken {client_request_token!r} was already "
                 "used with different request parameters"
             )
         return existing
+
+    def _reusable_source(
+        self,
+        *,
+        query: str,
+        workgroup: str,
+        database: str | None,
+        catalog: str | None,
+        execution_parameters: list[str] | None,
+        result_configuration: ResultConfiguration | None,
+        result_reuse_configuration: ResultReuseByAgeConfiguration | None,
+        managed_results: bool,
+        statement_classification: StatementClassification | None,
+    ) -> QueryExecutionRecord | None:
+        """The previous execution Athena would re-answer for this request.
+
+        Reuse applies only when the request enabled it, the statement
+        produces a result set (SELECT, including a resolved
+        EXECUTE-of-SELECT), and the workgroup doesn't own managed results;
+        every other submission runs fresh (AWS UG "Reusing query results"
+        considerations).
+        """
+        if (
+            result_reuse_configuration is None
+            or not result_reuse_configuration.enabled
+        ):
+            return None
+        if managed_results:
+            return None
+        if (
+            statement_classification is None
+            or statement_classification.substatement_type != "SELECT"
+        ):
+            return None
+        return self._store.find_reusable(
+            workgroup=workgroup,
+            query=query,
+            database=database,
+            catalog=catalog,
+            execution_parameters=execution_parameters,
+            result_configuration=result_configuration,
+            max_age_minutes=result_reuse_configuration.max_age_in_minutes,
+        )
 
     def _create_record(
         self,
@@ -280,6 +362,8 @@ class QueryExecutor:
         resolved_statement: str | None,
         output_snapshot: OutputSnapshot | None = None,
         manifest_target_error: str | None = None,
+        result_reuse_configuration: ResultReuseByAgeConfiguration
+        | None = None,
     ) -> QueryExecutionRecord:
         """Create the execution record with the four submit-time wire fields."""
         return self._store.create(
@@ -304,6 +388,7 @@ class QueryExecutor:
             output_snapshot=output_snapshot,
             manifest_target_error=manifest_target_error,
             resolved_statement=resolved_statement,
+            result_reuse_configuration=result_reuse_configuration,
         )
 
     async def _capture_manifest(

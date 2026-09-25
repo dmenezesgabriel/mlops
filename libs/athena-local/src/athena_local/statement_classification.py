@@ -124,6 +124,16 @@ def classify_statement(query: str) -> StatementClassification:
     return StatementClassification(UTILITY, None)
 
 
+def normalize_statement_text(query: str) -> str:
+    """Comment-stripped, whitespace-collapsed statement text.
+
+    Athena's result-reuse lookup treats queries under 100 KB that differ
+    only in comments and whitespace as identical (AWS UG "Reusing query
+    results"); its ``INNER JOIN``/``JOIN`` equivalence is not emulated.
+    """
+    return " ".join(_strip_comments(query).split())
+
+
 def _leading_tokens(query: str) -> list[str]:
     return _strip_comments(query).upper().split()
 
