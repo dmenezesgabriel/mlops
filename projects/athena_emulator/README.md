@@ -1,7 +1,12 @@
 # athena_emulator — parity validation notebooks
 
-Notebooks that drive common boto3 / awswrangler flows against the compose
-Athena emulator stack and record a measured `PASS`/`FAIL`/`GAP` per feature.
+Tutorial-style runnable examples that drive common boto3 / awswrangler flows
+against the compose Athena emulator stack — each feature gets explanatory
+markdown plus a canonical usage cell displaying real output — and record a
+measured `PASS`/`FAIL`/`GAP` per feature for gap discovery. They are not an
+integration test suite: integrated consumer tests live in
+`libs/athena-local/tests/`; the nbclient hook here only re-executes the
+notebooks to regenerate evidence.
 
 Stack (`docker-compose.yml`, network `mlops_net`): `athena` :5001 (emulator),
 `trino` :8080 (query engine), `moto` :5000 (S3/Glue), `jupyterlab` :8888.

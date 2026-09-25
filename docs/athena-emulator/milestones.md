@@ -375,8 +375,16 @@ green from a cold stack; permanent docs current.
 
 Goal: human-facing, evidence-recording notebooks run inside the compose
 `jupyterlab` service driving common boto3 + awswrangler flows against the live
-stack; each feature records a measured PASS/FAIL/GAP. Notebooks complement the
-CS-* pytest suites — they are the readable parity matrix, not a replacement.
+stack; each feature records a measured PASS/FAIL/GAP. **Style decision
+(2026-09-25):** notebooks are tutorial-style runnable examples — explanatory
+markdown plus canonical per-feature usage cells that display real output,
+mirroring awswrangler's `tutorials/` notebooks — with the parity record woven
+in as the gap-discovery half. They are NOT a second integration suite:
+integrated consumer tests live in `libs/athena-local/tests/` (pytest scripts;
+testcontainers is an option if isolation is ever needed). The nbclient hook
+only re-executes notebooks to regenerate evidence — no assertive coverage.
+Earlier notebooks may be restyled toward the tutorial pattern when NB-5 sets
+it.
 
 Steps:
 1. [x] NB-1 scaffold `projects/athena_emulator/` + jupyterlab up + smoke
