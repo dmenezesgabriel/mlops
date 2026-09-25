@@ -2,23 +2,23 @@
 
 | feature | status | detail | latency_ms |
 |---|---|---|---|
-| wr.s3.to_parquet(dataset=True) registers Glue tables incl. partitions | PASS | nb04_people_cfaca8f8: 3 columns registered; nb04_sales_cfaca8f8: 2 partitions ['EU', 'US'] |  |
-| read_sql_query csv path reads a wrangler-registered table | PASS | f057e0ba-587b-4792-8718-e1314c8059a2 shape=(3, 3) — Trino resolved the Glue-registered parquet table | 1155 |
-| read_sql_query ctas_approach (temp CTAS → manifest → parquet read) | PASS | 8f2825ad-cd66-4483-96c2-da00777da6ad rows=1; manifest=8f2825ad-cd66-4483-96c2-da00777da6ad-manifest.csv | 1305 |
-| read_sql_query api path (managed workgroup → inline GetQueryResults) | PASS | 2ad0db7b-18a4-42e6-9dd0-235fabf0a198 ResultConfiguration={}; 1 row(s) served inline | 122 |
-| athena_cache_settings cache hit reuses the first execution | PASS | both reads → 2952caa5-cf08-4e57-be70-f37581b06d91; list+batch_get supplied the hit |  |
+| wr.s3.to_parquet(dataset=True) registers Glue tables incl. partitions | PASS | nb04_people_25ad67a7: 3 columns registered; nb04_sales_25ad67a7: 2 partitions ['EU', 'US'] |  |
+| read_sql_query csv path reads a wrangler-registered table | PASS | c697c374-343e-4e2d-aed5-4b9294123758 shape=(3, 3) — Trino resolved the Glue-registered parquet table | 1068 |
+| read_sql_query ctas_approach (temp CTAS → manifest → parquet read) | PASS | c60716af-2c33-4ce1-9e54-fd46e3a68dde rows=1; manifest=c60716af-2c33-4ce1-9e54-fd46e3a68dde-manifest.csv | 1155 |
+| read_sql_query api path (managed workgroup → inline GetQueryResults) | PASS | 2886889f-0fae-41d7-8a03-5271bb52294c ResultConfiguration={}; 1 row(s) served inline | 1060 |
+| athena_cache_settings cache hit reuses the first execution | PASS | both reads → 202c06df-2121-43a2-ae24-7b9b94c24afc; list+batch_get supplied the hit |  |
 | read_sql_query categories → pandas Categorical | PASS | region dtype=category |  |
 | read_sql_query chunksize=2 → iterator of row-bounded frames | PASS | chunk row counts=[2, 1] |  |
 | read_sql_query dtype_backend="pyarrow" | PASS | dtypes=['int32[pyarrow]', 'double[pyarrow]'] |  |
 | read_sql_query params (named → client-side format) | PASS | WHERE region = 'EU' pruned read → 1 row |  |
-| read_sql_query params (qmark → server-side ExecutionParameters) | PASS | bc7ccdd0-cacd-422a-9843-62ef201dfc5a bound server-side → 1 row; ExecutionParameters echoed=['EU'] |  |
+| read_sql_query params (qmark → server-side ExecutionParameters) | PASS | 8dc1bbdb-e616-4603-b24a-6f5179770b07 bound server-side → 1 row; ExecutionParameters echoed=['EU'] |  |
 | read_sql_table reads the full registered table | PASS | shape=(3, 3) |  |
-| get_query_results fetches the csv artifact of a DML SELECT | PASS | 2952caa5… → shape=(1, 2) |  |
-| get_query_results fetches manifest parquet of a CTAS execution | PASS | 8f2825ad… → shape=(1, 2) |  |
-| list_query_executions returns the workgroup's execution ids | PASS | 50 id(s) incl. 2952caa5… |  |
+| get_query_results fetches the csv artifact of a DML SELECT | PASS | 202c06df… → shape=(1, 2) |  |
+| get_query_results fetches manifest parquet of a CTAS execution | PASS | c60716af… → shape=(1, 2) |  |
+| list_query_executions returns the workgroup's execution ids | PASS | 70 id(s) incl. 202c06df… |  |
 | get_query_executions batch_gets into frames (+ unprocessed ids) | PASS | 2 execution rows + 1 unprocessed |  |
-| get_query_execution returns the execution member | PASS | 2952caa5… Status.State=SUCCEEDED |  |
-| wait_query returns on a terminal execution | PASS | 2952caa5… returned SUCCEEDED |  |
+| get_query_execution returns the execution member | PASS | 202c06df… Status.State=SUCCEEDED |  |
+| wait_query returns on a terminal execution | PASS | 202c06df… returned SUCCEEDED |  |
 | describe_table returns the table's column listing | GAP | InvalidRequestException (400): Exception parsing query: line 1:10: backquoted identifiers are not supported; us |  |
 | show_create_table returns the CREATE TABLE statement | GAP | InvalidRequestException (400): Exception parsing query: line 1:19: backquoted identifiers are not supported; us |  |
 | get_query_columns_types maps ColumnInfo Name/Type | PASS | {'seven': 'integer', 'label': 'varchar(6)'} |  |

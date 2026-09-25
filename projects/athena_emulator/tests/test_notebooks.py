@@ -32,6 +32,7 @@ NOTEBOOKS = [
     "02_boto3_control_plane.ipynb",
     "03_boto3_query_lifecycle.ipynb",
     "04_wrangler_read_paths.ipynb",
+    "05_wrangler_write_catalog_and_gaps.ipynb",
 ]
 
 ATHENA_URL = os.environ.get("AWS_ENDPOINT_URL_ATHENA", "http://localhost:5001")

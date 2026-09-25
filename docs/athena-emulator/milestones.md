@@ -433,7 +433,19 @@ Steps:
      `repair_table` 400 on `MSCK`, `unload_approach`/`unload()` 400 on
      `UNLOAD` (wrangler re-raises as `InvalidArgumentValue`), and
      `SHOW PARTITIONS` 400 on the Athena spelling (no `FROM` keyword).
-5. [ ] NB-5 awswrangler write/catalog notebook + consolidated parity matrix.
+5. [x] NB-5 awswrangler write/catalog notebook + consolidated parity matrix.
+   - Verified 2026-09-25: `05_wrangler_write_catalog_and_gaps.ipynb` executes
+     clean in-container via the nbclient `integration` hook — 20 probes,
+     16 PASS / 0 FAIL / 4 GAP. PASS: `to_parquet(dataset=True)` registration,
+     `create_ctas_table` named CTAS (read-back, parquet at
+     `external_location`, `-manifest.csv`), `generate_create_query` DDL,
+     `wr.catalog` partition add/list/delete, `store_parquet_metadata`
+     inferred registration, delete flows, SSE_KMS echo + write headers, and
+     the out-of-scope ops' shaped `InvalidRequestException` 400s (FR-17).
+     GAPs recorded for NB-6 triage as GP-13..GP-16, not worked around:
+     `CREATE EXTERNAL TABLE` and `ALTER TABLE … ADD PARTITION` 400 on Trino
+     grammar, `to_iceberg` 400 on backquoted `TBLPROPERTIES`,
+     `delete_from_iceberg_table` blocked client-side (no Iceberg table).
 6. [ ] NB-6 triage `gaps.md` (the measured FAIL/GAP register, updated live by
    the notebooks) — each row becomes a small fix item or a documented waiver.
 
