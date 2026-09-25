@@ -1,0 +1,24 @@
+# Gap register — Athena Local Emulator (EPHEMERAL)
+
+> **EPHEMERAL WORK REGISTER — iterates freely; never cited from code.**
+> Consolidates the measured `FAIL`/`GAP` rows the parity notebooks record in
+> `projects/athena_emulator/PARITY.md`. One row per measured gap: the wire
+> evidence, the expected AWS behavior, and a candidate fix surface so each
+> fix lands as a small step. NB-6 triage promotes rows to backlog items;
+> NB-5 may append more rows. A row leaves the register when its fix ships
+> (PARITY.md flips to PASS) or is waived with a documented reason.
+
+| ID | Feature (PARITY.md row) | Measured on the wire | Expected AWS behavior | Candidate fix surface | Size |
+|---|---|---|---|---|---|
+| GP-1 | disabled workgroup rejects `StartQueryExecution` (nb02) | `DISABLED` workgroup reaches SUCCEEDED (state never checked at submit) | reject at submit with `InvalidRequestException` | `query_executions.py` start path / `workgroups.py`: check `WorkGroup.State` before queueing | S |
+| GP-2 | `list_work_groups` honors `MaxResults`/`NextToken` (nb02) | `MaxResults=1` returned all 6 workgroups, no `NextToken` | page the list like `ListNamedQueries`/`ListQueryExecutions` do | `workgroups.py` list handler: opaque-offset pagination (same pattern as query executions) | S |
+| GP-3 | `StopQueryExecution` on a terminal execution (nb03, FAIL) | `InternalServerException` 500 on a SUCCEEDED execution | 200 no-op — stopping a finished execution is idempotent | `query_executions.py` stop handler: return 200 when state is terminal | S |
+| GP-4 | `ClientRequestToken` dedupes retried submissions (nb03) | same token submitted twice → two distinct execution ids | a retried token returns the original `QueryExecutionId` | `executions.py` store: (workgroup, token) → execution-id map checked at submit | S–M |
+| GP-5 | `ResultReuseConfiguration` reuses recent results (nb03) | accepted but never applied; no `Statistics.ResultReuseInformation`; second run re-executed | reuse a recent identical execution within `ResultReuseByAgeConfiguration.MaxAgeInMinutes`; report `ResultReuseInformation.ReusedPreviousResult` | `executions.py`/`query_executions.py`: reuse lookup keyed on query text + workgroup + age | M |
+| GP-6 | unknown `Catalog` rejected at submit (nb03) | unregistered catalog accepted; executes on `hive` regardless | reject unregistered catalogs at submit | `data_catalog_state.py` + start path: validate `QueryExecutionContext.Catalog` against registered catalogs | S |
+| GP-7 | `describe_table` column listing (nb04) | 400 `InvalidRequestException`: `backquoted identifiers are not supported` (wrangler sends `DESCRIBE \`t\`;`) | DESCRIBE returns the column listing | `dialect.py`: normalize backtick identifiers → double-quoted and strip the statement terminator for `DESCRIBE`/`SHOW CREATE TABLE` (shares fix with GP-8) | S |
+| GP-8 | `show_create_table` statement (nb04) | 400 `InvalidRequestException`: `backquoted identifiers are not supported` | `SHOW CREATE TABLE` text returned | same dialect rule as GP-7 | S (with GP-7) |
+| GP-9 | `repair_table` — `MSCK REPAIR TABLE` (nb04) | 400: `mismatched input 'MSCK'` | MSCK discovers unregistered partitions | `dialect.py`: map `MSCK REPAIR TABLE t` → Trino Hive `CALL system.sync_partition_metadata('schema','t','ADD','CASCADE')` (trino.io hive connector procedures) | M |
+| GP-10 | `read_sql_query(unload_approach=True)` (nb04) | 400 `InvalidRequestException` on `UNLOAD`, surfaced as wrangler `InvalidArgumentValue` | UNLOAD writes query results to `TO` path in the requested format | no Trino `UNLOAD`; candidate dialect rewrite → CTAS with `external_location` + format props, or a documented waiver — needs an ADR note if rewritten | M–L |
+| GP-11 | `wr.athena.unload()` (nb04) | 400 `InvalidRequestException` on `UNLOAD`, surfaced as wrangler `InvalidArgumentValue` | same as GP-10 | same decision as GP-10 | with GP-10 |
+| GP-12 | `SHOW PARTITIONS <t>` Athena spelling (nb04) | 400: `mismatched input 'PARTITIONS'` — workaround `"t$partitions"` reads fine (PASS) | `SHOW PARTITIONS t` lists partition values | `dialect.py`: map `SHOW PARTITIONS t` → `SELECT * FROM "t$partitions"` (or `SHOW PARTITIONS FROM t` if Trino 483 accepts — verify against the coordinator at fix time) | S–M |

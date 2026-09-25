@@ -16,6 +16,7 @@ existing `docker-compose.yml`.
 | [prompt-execution.md](../../prompt-execution.md) | **Operational** — session execution protocol, mapped to this repo's files | Keep in sync with doc map |
 | [backlog.md](backlog.md) | **Ephemeral** — evidence-anchored work items, TDD-shaped | Must NOT be cited from code |
 | [milestones.md](milestones.md) | **Ephemeral** — ordered phases and steps with dense evidence refs | Must NOT be cited from code |
+| [gaps.md](gaps.md) | **Ephemeral** — measured FAIL/GAP register from the parity notebooks, one small-step fix sketch per row | Must NOT be cited from code |
 
 Rule enforced repo-wide: **PRD, backlog, and milestones are ephemeral working
 documents; never quote their IDs or content in code, docstrings, or comments.**

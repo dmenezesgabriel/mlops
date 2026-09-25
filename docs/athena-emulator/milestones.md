@@ -434,7 +434,8 @@ Steps:
      `UNLOAD` (wrangler re-raises as `InvalidArgumentValue`), and
      `SHOW PARTITIONS` 400 on the Athena spelling (no `FROM` keyword).
 5. [ ] NB-5 awswrangler write/catalog notebook + consolidated parity matrix.
-6. [ ] NB-6 file a backlog item per measured FAIL/GAP for triage.
+6. [ ] NB-6 triage `gaps.md` (the measured FAIL/GAP register, updated live by
+   the notebooks) — each row becomes a small fix item or a documented waiver.
 
 Exit: every notebook executed green inside `jupyterlab` via the
 `integration`-marked nbclient hook (and host fallback over localhost ports);
