@@ -341,7 +341,7 @@ an evidence-gated fix (PRD FR matrix) — no silent deviation.
 ## M5 — Deployment, docs, hardening (DP-*)
 
 Steps:
-1. DP-1/2 docker images + compose services (`athena` :5001, `trino`) on
+1. [x] DP-1/2 docker images + compose services (`athena` :5001, `trino`) on
    `mlops_net`; env wiring.
 2. DP-3 lib README (consumer endpoint env vars, compose flow, reset semantics).
 3. DP-5 hardening: limits, semaphore bound, trino-down graceful errors, health

@@ -9,6 +9,48 @@ services:
       - ./docker/moto:/docker/moto:ro
     entrypoint: ["/bin/sh", "/docker/moto/entrypoint.sh"]
     command: -H 0.0.0.0
+    ports:
+      - "5000:5000"
+    networks:
+      - mlops_net
+
+  trino:
+    image: trinodb/trino:483
+    # File mounts only: the image's /etc/trino also carries node.properties,
+    # jvm.config and log.properties, which a directory mount would hide. The
+    # catalog mount intentionally replaces the sample catalogs (tpch et al.)
+    # with the repo's hive catalog (docker/trino/).
+    volumes:
+      - ./docker/trino/config.properties:/etc/trino/config.properties:ro
+      - ./docker/trino/catalog:/etc/trino/catalog:ro
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/v1/info"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    depends_on:
+      - moto
+    networks:
+      - mlops_net
+
+  athena:
+    build:
+      context: .
+      dockerfile: docker/athena/Dockerfile
+    image: athena-local
+    ports:
+      - "5001:5001"
+    environment:
+      ATHENA_LOCAL_TRINO_URL: "http://trino:8080"
+      ATHENA_MOTO_ENDPOINT_URL: "http://moto:5000"
+    depends_on:
+      moto:
+        condition: service_started
+      trino:
+        condition: service_healthy
     networks:
       - mlops_net
 
@@ -36,6 +78,9 @@ services:
       AWS_SECRET_ACCESS_KEY: "test"
       AWS_DEFAULT_REGION: "us-east-1"
       AWS_ENDPOINT_URL: "http://moto:5000"
+      # Per-service endpoint wins over the global one for Athena only, so
+      # S3/Glue stay on moto while Athena traffic hits the emulator (ADR-0002).
+      AWS_ENDPOINT_URL_ATHENA: "http://athena:5001"
       SAGEMAKER_LOCAL_REPO_PATH: "${PWD}"
       SAGEMAKER_LOCAL_S3_ENDPOINT_URL: "http://moto:5000"
       SAGEMAKER_LOCAL_BUCKET: "sagemaker-local"

@@ -44,10 +44,9 @@ from tests.integration.conftest import LiveAthenaServer
 
 TRINO_URL = os.environ.get("ATHENA_LOCAL_TRINO_URL", "http://localhost:8080")
 BRIDGE_URL_ENV = "ATHENA_LOCAL_MOTO_ENDPOINT_URL"
-# The compose moto service publishes no host port; reach it on the mlops_net
-# bridge. Override the env var when docker re-creates the network with a
-# different subnet.
-BRIDGE_URL_DEFAULT = "http://172.19.0.2:5000"
+# The compose moto service publishes :5000 on the host; the env var overrides
+# the default when moto is reached another way (e.g. inside mlops_net).
+BRIDGE_URL_DEFAULT = "http://127.0.0.1:5000"
 
 MIXED_SQL = """
 SELECT
