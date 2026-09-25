@@ -18,6 +18,23 @@ diagrams/output/
 .git/
 projects/
 libs/
+docker/moto/
+# Re-include only uv workspace metadata and the Athena source package.
+!libs/
+!libs/*/
+libs/**/*
+!libs/*/pyproject.toml
+!libs/athena-local/src/
+!libs/athena-local/src/athena_local/
+!libs/athena-local/src/athena_local/**
+!projects/
+!projects/*/
+projects/**/*
+!projects/*/pyproject.toml
+!docker/moto/
+docker/moto/**/*
+!docker/moto/pyproject.toml
+**/__pycache__/
 site/
 videos/
 diagrams/

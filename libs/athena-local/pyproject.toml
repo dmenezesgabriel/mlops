@@ -8,6 +8,7 @@ dependencies = [
   "botocore==1.42.97",
   "fastapi==0.136.3",
   "httpx==0.28.1",
+  "uvicorn==0.34.0",
 ]
 
 [dependency-groups]
@@ -19,11 +20,12 @@ dev = [
   "pandas==2.3.3",
   "pytest==9.0.3",
   "pytest-cov==7.1.0",
-  "uvicorn==0.34.0",
 ]
 
 [tool.deptry]
 known_first_party = ["athena_local"]
+# uvicorn is invoked as the image entrypoint, not imported by Python source.
+per_rule_ignores = {DEP002 = ["uvicorn"]}
 
 [tool.deptry.package_module_name_map]
 athena-local = "athena_local"

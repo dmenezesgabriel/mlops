@@ -91,7 +91,7 @@
 
 | ID | Item | Work | Evidence | Depends |
 |---|---|---|---|---|
-| DP-1 | `docker/` for `athena` image (uvicorn entrypoint) + `trino` configs from SP-4 | M | architecture §7; ADR-0002 | SP-4 |
+| DP-1 | [x] `docker/athena/Dockerfile` packages the locked Athena runtime (uvicorn entrypoint) while preserving the SP-4 Trino configs | M | Verified 2026-09-25: root-context `docker build -f docker/athena/Dockerfile .` succeeds; locked, hash-verified runtime; non-root `10001:10001`; port `5001`; `/health`; live boto3 `SELECT 1` + Moto S3 artifacts, awswrangler, AWS CLI, and pinned AWS SDK Go v2 Terraform-provider parity checks pass. `make -C libs/athena-local quality` is green (910 passed, 37 skipped, 90.35% coverage), with `uv lock --check`, `uv run lint-imports`, and the Dockerfile check green. DP-2/DP-5 remain deferred; this is not complete host protection. | SP-4 |
 | DP-2 | Extend `docker-compose.yml`: `trino` + `athena` services on `mlops_net`, port 5001; env wiring | M | ADR-0002; existing compose | DP-1 |
 | DP-3 | README (lib usage: endpoint env vars per consumer; compose up flow; reset semantics ADR-0003) | S | PRD NFR-09 | DP-2 |
 | DP-4 | Docs sync check: permanent docs (architecture.md, adr/) updated as design moves; ephemeral docs never enter code | S | README doc map | DP-2 |
