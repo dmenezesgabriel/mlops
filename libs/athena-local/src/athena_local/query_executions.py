@@ -318,7 +318,11 @@ def list_query_executions(
 async def stop_query_execution(
     executor: QueryExecutor, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    """Run StopQueryExecution: cancel the execution, answer with {}(model)."""
+    """Run StopQueryExecution: cancel the execution, answer with {}(model).
+
+    The model marks the op idempotent: stopping a terminal execution is a
+    200 no-op — the executor returns it unchanged rather than transitioning.
+    """
     await executor.cancel(_required_string(payload, "QueryExecutionId"))
     return {}
 

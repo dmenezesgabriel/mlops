@@ -323,8 +323,15 @@ class QueryExecutor:
         return PreflightVerdict(page=page, failure_reason=None)
 
     async def cancel(self, query_execution_id: str) -> QueryExecutionRecord:
-        """Stop a QUEUED or RUNNING execution and mark it CANCELLED."""
+        """Stop a QUEUED or RUNNING execution and mark it CANCELLED.
+
+        The canonical model marks StopQueryExecution idempotent
+        (service-2.json): a terminal execution is a 200 no-op — no state
+        change, and no Trino DELETE for a statement that already finished.
+        """
         record = self._store.get(query_execution_id)
+        if record.state in TERMINAL_STATES:
+            return record
         record.transition_to(CANCELLED)
         await self._stop_statement(record)
         return record

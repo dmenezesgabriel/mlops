@@ -628,17 +628,31 @@ def test_cancel_survives_trino_down_on_delete(
     asyncio.run(scenario())
 
 
-def test_cancel_after_finish_raises(store: ExecutionStore) -> None:
+@pytest.mark.parametrize("terminal_state", [SUCCEEDED, FAILED, CANCELLED])
+def test_cancel_on_terminal_execution_is_a_no_op(
+    store: ExecutionStore, terminal_state: str
+) -> None:
+    """A terminal stop is the modeled idempotent no-op, not a transition.
+
+    The canonical model marks StopQueryExecution idempotent
+    (service-2.json): stopping a finished execution changes no state and
+    issues no Trino DELETE.
+    """
+
     async def scenario() -> None:
-        client = ScriptedStatementClient([result_page(next_uri=None)])
+        client = ScriptedStatementClient([])
         executor = QueryExecutor(
             store=store, client=client, writer=RecordingWriter()
         )
-        record = await executor.start(query="SELECT 1", workgroup="primary")
-        await executor._tasks[record.query_execution_id]
+        record = store.create(query="SELECT 1", workgroup="primary")
+        record.transition_to(RUNNING)
+        record.transition_to(terminal_state)
 
-        with pytest.raises(ValueError):
-            await executor.cancel(record.query_execution_id)
+        stopped = await executor.cancel(record.query_execution_id)
+
+        assert stopped is record
+        assert record.state == terminal_state
+        assert client.cancellations == []
 
     asyncio.run(scenario())
 

@@ -187,6 +187,24 @@ def test_live_trino_cells_serialize_to_athena_wire_forms(
     assert rows[1]["Data"][6] == {}
 
 
+def test_stop_on_terminal_execution_answers_200_noop(
+    inline_results_harness: InlineResultsHarness,
+) -> None:
+    """Stop is idempotent (service-2.json): a finished execution answers 200
+    and keeps its terminal state rather than erroring."""
+    harness = inline_results_harness
+    query_id = _start_values_query(harness)
+    execution = _poll_until_terminal(harness.athena, query_id)
+    assert execution["Status"]["State"] == "SUCCEEDED"
+
+    harness.athena.stop_query_execution(QueryExecutionId=query_id)
+
+    stopped = harness.athena.get_query_execution(QueryExecutionId=query_id)[
+        "QueryExecution"
+    ]
+    assert stopped["Status"]["State"] == "SUCCEEDED"
+
+
 def _start_values_query(harness: InlineResultsHarness) -> str:
     started = harness.athena.start_query_execution(
         QueryString="SELECT x FROM (VALUES 1, 2, 3, 4, 5, 6) AS t(x)",

@@ -878,6 +878,25 @@ def test_stop_marks_execution_cancelled(
     assert record.state == CANCELLED
 
 
+def test_stop_on_terminal_execution_is_a_no_op(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    record = _succeeded_result(store, [["1"]])
+
+    output = asyncio.run(
+        stop_query_execution(
+            executor, {"QueryExecutionId": record.query_execution_id}
+        )
+    )
+
+    # The model marks the op idempotent: a terminal execution answers 200
+    # unchanged — the fake client's AssertionError proves no Trino DELETE ran.
+    assert output == {}
+    assert record.state == SUCCEEDED
+
+
 def test_get_results_pre_finish_is_shaped_400(
     store: ExecutionStore,
     executor: QueryExecutor,

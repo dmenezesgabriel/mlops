@@ -10,7 +10,6 @@
 
 | ID | Feature (PARITY.md row) | Measured on the wire | Expected AWS behavior | Candidate fix surface | Size |
 |---|---|---|---|---|---|
-| GP-3 | `StopQueryExecution` on a terminal execution (nb03, FAIL) | `InternalServerException` 500 on a SUCCEEDED execution | 200 no-op — stopping a finished execution is idempotent | `query_executions.py` stop handler: return 200 when state is terminal | S |
 | GP-4 | `ClientRequestToken` dedupes retried submissions (nb03) | same token submitted twice → two distinct execution ids | a retried token returns the original `QueryExecutionId` | `executions.py` store: (workgroup, token) → execution-id map checked at submit | S–M |
 | GP-5 | `ResultReuseConfiguration` reuses recent results (nb03) | accepted but never applied; no `Statistics.ResultReuseInformation`; second run re-executed | reuse a recent identical execution within `ResultReuseByAgeConfiguration.MaxAgeInMinutes`; report `ResultReuseInformation.ReusedPreviousResult` | `executions.py`/`query_executions.py`: reuse lookup keyed on query text + workgroup + age | M |
 | GP-6 | unknown `Catalog` rejected at submit (nb03) | unregistered catalog accepted; executes on `hive` regardless | reject unregistered catalogs at submit | `data_catalog_state.py` + start path: validate `QueryExecutionContext.Catalog` against registered catalogs | S |
@@ -36,7 +35,7 @@ boundary decision, not a defect.
 |---|---|---|---|
 | GP-1 | shipped | GF-1 | `WorkGroup.State` gate at submit; extended to `CreateNamedQuery`/`CreatePreparedStatement` (AWS UG: disabled workgroups also block new named queries) |
 | GP-2 | shipped | GF-2 | `WorkGroupStore.list` gained the sibling stores' opaque-offset paging; `MaxResults` bounded to the model's `MaxWorkGroupsCount` 1..50 |
-| GP-3 | fix | GF-3 | Only measured FAIL — return 200 no-op when the execution is terminal |
+| GP-3 | shipped | GF-3 | Terminal early-return in `QueryExecutor.cancel` before the transition and the Trino DELETE — the canonical model marks the op idempotent |
 | GP-4 | fix | GF-4 | (workgroup, token) → execution-id map in the store; real AWS dedupes retried tokens |
 | GP-5 | fix | GF-5 | Server-side reuse is a documented AWS feature; keyed on query text + workgroup + `MaxAgeInMinutes` |
 | GP-6 | fix | GF-6 | Validate `QueryExecutionContext.Catalog` against registered catalogs at submit |
