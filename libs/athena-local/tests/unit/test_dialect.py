@@ -1,12 +1,12 @@
 """Unit tests for the Athena→Trino dialect map (``dialect.py``).
 
-CS-3 surfaced the map's first entry: the CLI's ``start-query-execution``
-example 2 runs ``create database if not exists newdb`` (valid Athena DDL —
-Athena's SQL reference supports CREATE DATABASE), but Trino 483 rejects it
-(``mismatched input 'database'``; Trino's hive connector vocabulary is
-``CREATE SCHEMA``, which maps to the Glue metastore database). The rewrite
-applies only to the submitted statement; classification and the stored
-query text keep the original Athena SQL.
+The CLI ``start-query-execution`` example runs
+``create database if not exists newdb`` (valid Athena DDL — Athena's SQL
+reference supports CREATE DATABASE), but Trino 483 rejects it (its Hive
+connector vocabulary is ``CREATE SCHEMA``). The provider's exact lifecycle
+spelling adds backtick identifiers and a terminal semicolon, which Trino also
+rejects. Rewrites apply only to submitted statements; classification and
+stored query text keep the original Athena SQL.
 """
 
 from __future__ import annotations
@@ -22,6 +22,15 @@ def test_create_database_becomes_create_schema() -> None:
     )
 
 
+def test_provider_database_statements_use_trino_identifiers() -> None:
+    assert to_trino_dialect("create database `analytics`;") == (
+        'create schema "analytics"'
+    )
+    assert to_trino_dialect("drop database `analytics`;") == (
+        'drop schema "analytics"'
+    )
+
+
 def test_uppercase_and_leading_whitespace_are_preserved() -> None:
     assert (
         to_trino_dialect("  CREATE DATABASE analytics")
@@ -34,7 +43,6 @@ def test_uppercase_and_leading_whitespace_are_preserved() -> None:
     [
         "select 1",
         "create table t (a integer)",
-        "drop database analytics",
         "INSERT INTO x SELECT 'create database' FROM y",
     ],
 )

@@ -313,8 +313,24 @@ Steps:
      as CREATE SCHEMA while the execution record keeps the original text;
      row added in architecture §11. DML example 1 turned SUCCEEDED ≈446 ms
      after start via CLI get-query-execution polling.
-4. CS-4 terraform op-shape parity (SDK Go v2 + boto3); stretch: real
-   provider apply if feasible — evidence-gated, no invention.
+4. [x] CS-4 terraform-provider-aws op-shape parity (AWS SDK Go v2 + boto3).
+   - Verified 2026-09-25: the committed `tests/terraform/` module pins the
+     provider's SDK versions (`athena v1.66.0`, base `v1.47.0`, config
+     `v1.33.5`, credentials `v1.20.5`) and drives the five resource families
+     (`aws_athena_database`, `workgroup`, `named_query`, `data_catalog`,
+     `prepared_statement`) through their create/read/update/delete operation
+     shapes over the live Trino 483 + bridge-moto stack. The Python wrapper
+     runs the real Go subprocess first, then repeats the family witnesses with
+     boto3; the Go and boto3 runs are green.
+   - The provider's database DDL (`CREATE DATABASE` and `DROP DATABASE` with
+     backtick identifiers and semicolons) exposed a live Trino mismatch:
+     Trino requires `SCHEMA`, double-quoted identifiers, and no statement
+     terminator. The evidence-gated `dialect.py` fix and regression test
+     preserve the original query text in `QueryExecution.Query` while adapting
+     only the submitted statement. `make quality` is green (942 passed, 98%
+     coverage).
+   - Real `terraform apply` / provider execution was not available locally and
+     remains an explicit stretch, not claimed as evidence.
 5. CS-5 endpoint-routing split test.
 
 Exit: all consumer suites green on CI with the docker stack; any mismatch logs
