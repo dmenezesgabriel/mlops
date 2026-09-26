@@ -37,7 +37,7 @@ boundary decision, not a defect.
 | GP-10 | shipped | GF-9 | `unload_trino_submission` rewrites to a CTAS at the `TO` path (compression → `hive.compression_codec` session property); the generated Glue table is dropped at completion — strict before SUCCEEDED, best-effort otherwise (ADR-0012) |
 | GP-11 | shipped | GF-9 | Shares GF-9 |
 | GP-12 | shipped | GF-10 | Probed the coordinator at fix time: Trino 483's SHOW grammar has no PARTITIONS form at all (every FROM/IN spelling fails `mismatched input 'PARTITIONS'` at 1:6) — mapped to `SELECT * FROM "<schema>"."<t>$partitions"`; wire rows are columnar where real Athena renders `key=value` (accepted shape-vs-content delta; AWS's own docs name `$partitions` the listing equivalent) |
-| GP-13 | fix | GF-11 | `CREATE EXTERNAL TABLE … STORED AS … LOCATION` → `CREATE TABLE … WITH(external_location, format, partitioned_by)` |
+| GP-13 | shipped | GF-11 | `CREATE EXTERNAL TABLE … STORED AS … LOCATION` → `CREATE TABLE … WITH(external_location, format, partitioned_by)` |
 | GP-14 | fix | GF-12 | `ALTER TABLE … ADD PARTITION` → `CALL system.register_partition` |
 | GP-15 | waived | — | Iceberg writes need a dedicated `iceberg` Trino catalog on moto Glue **and** an Athena-DDL dialect map (`TBLPROPERTIES`, backticks) — a connector-level capability the PRD never scoped (FR-01…20 list no Iceberg). Revisit if a consumer needs it |
 | GP-16 | waived | — | Gated by GP-15 — shares the Iceberg scope decision |

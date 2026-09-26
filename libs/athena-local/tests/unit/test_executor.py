@@ -1200,6 +1200,45 @@ def test_start_submits_show_partitions_as_partitions_read(
     asyncio.run(scenario())
 
 
+def test_start_submits_external_table_as_create_table_with(
+    store: ExecutionStore,
+) -> None:
+    """CREATE EXTERNAL TABLE reaches Trino as CREATE TABLE … WITH(…) with
+    the request's Database context as the schema and Hive types translated;
+    the record keeps the original Athena text (external_table.py)."""
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient([result_page(next_uri=None)])
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        record = await executor.start(
+            query="CREATE EXTERNAL TABLE `sales` (id bigint, item string) "
+            "STORED AS PARQUET LOCATION 's3://b/x/'",
+            workgroup="primary",
+            database="analytics",
+        )
+        await executor._tasks[record.query_execution_id]
+
+        assert client.submissions == [
+            (
+                'CREATE TABLE "analytics"."sales" ("id" bigint, "item" '
+                "varchar) WITH (format='PARQUET', "
+                "external_location='s3://b/x/')",
+                TRINO_CATALOG,
+                "analytics",
+                TRINO_USER,
+            )
+        ]
+        assert record.query == (
+            "CREATE EXTERNAL TABLE `sales` (id bigint, item string) "
+            "STORED AS PARQUET LOCATION 's3://b/x/'"
+        )
+        assert record.state == SUCCEEDED
+
+    asyncio.run(scenario())
+
+
 def test_start_submits_resolved_statement_instead_of_query(
     store: ExecutionStore,
 ) -> None:

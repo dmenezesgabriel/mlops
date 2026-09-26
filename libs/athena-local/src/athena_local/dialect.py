@@ -29,6 +29,11 @@ the statement is rewritten to read the Hive connector's
 tables), the surface AWS's SHOW PARTITIONS docs themselves name as the
 partition-listing equivalent.
 
+Athena's ``CREATE EXTERNAL TABLE`` has no Trino grammar either; the full
+clause-by-clause mapping to ``CREATE TABLE … WITH(…)`` — including Hive
+type spellings, ``ROW FORMAT``/``STORED AS`` resolution, and the clauses
+that raise ``InvalidRequestException`` — lives in ``external_table.py``.
+
 Only statement-leading rewrites apply; occurrences inside SELECTs, strings,
 and comments remain untouched. The mapping is intentionally small and
 evidence-gated.
@@ -41,6 +46,18 @@ import uuid
 from dataclasses import dataclass
 
 from athena_local.errors import InvalidRequestException
+from athena_local.external_table import external_table_trino_ddl
+from athena_local.sql_lexing import (
+    IDENTIFIER_PART,
+    balanced_span,
+    identifier_name,
+    literal_value,
+    quoted_identifier,
+    split_target,
+    split_top_level,
+    sql_literal,
+    string_end,
+)
 
 # The optional IF NOT EXISTS clause is part of the Athena CREATE DATABASE
 # grammar and appears in the awscli consumer evidence.  The identifier forms
@@ -51,16 +68,12 @@ _DATABASE_STATEMENT = re.compile(
     r"(?P<identifier>`[^`]+`|[A-Za-z_][A-Za-z0-9_$]*|\"[^\"]+\")"
 )
 
-# A double-quoted part may carry a ``""``-escaped quote
-# (``"we""ird"``), SQL's standard identifier escape.
-_IDENTIFIER_PART = r"`[^`]+`|\"(?:[^\"]|\"\")+\"|[A-Za-z_][A-Za-z0-9_$]*"
-
 # A bare identifier chain (``db.t``, `` `db`.`t` ``) after a utility keyword;
 # anything else — DESCRIBE FORMATTED, a column argument, a second statement —
 # fails the anchored match and is left for Trino to reject.
 _UTILITY_STATEMENT = re.compile(
     r"(?i)^(?P<prefix>\s*(?:describe|desc|show\s+create\s+(?:table|view))\s+)"
-    rf"(?P<target>(?:{_IDENTIFIER_PART})(?:\s*\.\s*(?:{_IDENTIFIER_PART}))*)"
+    rf"(?P<target>(?:{IDENTIFIER_PART})(?:\s*\.\s*(?:{IDENTIFIER_PART}))*)"
     r"\s*;?\s*$"
 )
 
@@ -69,7 +82,7 @@ _UTILITY_STATEMENT = re.compile(
 # level, a partition spec — fails the anchored match for Trino to reject.
 _MSCK_STATEMENT = re.compile(
     r"(?i)^(?P<prefix>\s*)msck\s+repair\s+table\s+"
-    rf"(?P<target>(?:{_IDENTIFIER_PART})(?:\s*\.\s*(?:{_IDENTIFIER_PART}))*)"
+    rf"(?P<target>(?:{IDENTIFIER_PART})(?:\s*\.\s*(?:{IDENTIFIER_PART}))*)"
     r"\s*;?\s*$"
 )
 
@@ -80,7 +93,7 @@ _MSCK_STATEMENT = re.compile(
 # own SHOW PARTITIONS docs name as the partition-listing equivalent.
 _SHOW_PARTITIONS_STATEMENT = re.compile(
     r"(?i)^(?P<prefix>\s*)show\s+partitions\s+"
-    rf"(?P<target>(?:{_IDENTIFIER_PART})(?:\s*\.\s*(?:{_IDENTIFIER_PART}))*)"
+    rf"(?P<target>(?:{IDENTIFIER_PART})(?:\s*\.\s*(?:{IDENTIFIER_PART}))*)"
     r"\s*;?\s*$"
 )
 
@@ -102,41 +115,6 @@ def _utility_replacement(match: re.Match[str]) -> str:
     return f"{match.group('prefix')}{target}"
 
 
-def _split_target(target: str) -> list[str]:
-    """Split an identifier chain on dots outside backtick/double-quote spans.
-
-    A quoted part may carry a literal dot (`` `my.db`.`t` ``), so a naive
-    ``split(".")`` would shatter it.
-    """
-    parts: list[str] = []
-    current: list[str] = []
-    quote: str | None = None
-    for char in target:
-        if char == "." and quote is None:
-            parts.append("".join(current))
-            current = []
-            continue
-        if char in '`"' and (quote is None or quote == char):
-            quote = None if quote == char else char
-        current.append(char)
-    parts.append("".join(current))
-    return parts
-
-
-def _identifier_name(part: str) -> str:
-    """Unquote a chain segment; bare identifiers fold per Athena's rule."""
-    part = part.strip()
-    if len(part) >= 2 and part[0] == part[-1] and part[0] in '`"':
-        unquoted = part[1:-1]
-        # ``""`` is the standard quote escape inside a quoted identifier.
-        return unquoted.replace('""', '"') if part[0] == '"' else unquoted
-    return part.lower()
-
-
-def _sql_literal(value: str) -> str:
-    return value.replace("'", "''")
-
-
 def _msck_replacement(match: re.Match[str], database: str | None) -> str:
     """The ``CALL system.sync_partition_metadata`` a statement resolves to.
 
@@ -144,7 +122,7 @@ def _msck_replacement(match: re.Match[str], database: str | None) -> str:
     no schema at all the statement passes through for Trino to reject, since
     procedure arguments are varchar literals with no session-schema lookup.
     """
-    parts = [_identifier_name(p) for p in _split_target(match.group("target"))]
+    parts = [identifier_name(p) for p in split_target(match.group("target"))]
     schema, table = (None, None)
     if len(parts) == 1:
         schema, table = database, parts[0]
@@ -154,7 +132,7 @@ def _msck_replacement(match: re.Match[str], database: str | None) -> str:
         return match.group(0)
     return (
         f"{match.group('prefix')}CALL system.sync_partition_metadata("
-        f"'{_sql_literal(schema)}','{_sql_literal(table)}','ADD')"
+        f"'{sql_literal(schema)}','{sql_literal(table)}','ADD')"
     )
 
 
@@ -169,7 +147,7 @@ def _show_partitions_replacement(
     Athena renders ``key=value`` rows — the shape-vs-content delta AWS's
     own docs accept by naming ``$partitions`` the listing equivalent.
     """
-    parts = [_identifier_name(p) for p in _split_target(match.group("target"))]
+    parts = [identifier_name(p) for p in split_target(match.group("target"))]
     schema, table = (None, None)
     if len(parts) == 1:
         schema, table = database, parts[0]
@@ -182,8 +160,8 @@ def _show_partitions_replacement(
     # above, not raw user input.
     return (
         f"{match.group('prefix')}SELECT * FROM "  # nosec B608
-        f'"{_quoted_identifier(schema)}".'
-        f'"{_quoted_identifier(table)}$partitions"'
+        f'"{quoted_identifier(schema)}".'
+        f'"{quoted_identifier(table)}$partitions"'
     )
 
 
@@ -198,8 +176,10 @@ def to_trino_dialect(query: str, database: str | None = None) -> str:
     ``CALL system.sync_partition_metadata(…, 'ADD')`` whose schema comes
     from the statement's qualified name or ``database`` — the request's
     ``QueryExecutionContext.Database`` — and ``SHOW PARTITIONS`` reads the
-    ``<table>$partitions`` system table under the same schema rule. All
-    other statements pass through unchanged.
+    ``<table>$partitions`` system table under the same schema rule, and
+    ``CREATE EXTERNAL TABLE … LOCATION`` becomes a ``CREATE TABLE … WITH
+    (format, external_location[, partitioned_by])`` (see
+    ``external_table.py``). All other statements pass through unchanged.
     """
     if _DATABASE_STATEMENT.match(query) is not None:
         mapped = _DATABASE_STATEMENT.sub(_schema_replacement, query, count=1)
@@ -207,6 +187,9 @@ def to_trino_dialect(query: str, database: str | None = None) -> str:
     utility = _UTILITY_STATEMENT.match(query)
     if utility is not None:
         return _utility_replacement(utility)
+    external = external_table_trino_ddl(query, database)
+    if external is not None:
+        return external
     show_partitions = _SHOW_PARTITIONS_STATEMENT.match(query)
     if show_partitions is not None:
         return _show_partitions_replacement(show_partitions, database)
@@ -288,7 +271,7 @@ def unload_trino_submission(
             f"UNLOAD property {unsupported[0]!r} is not supported; "
             f"expected one of {sorted(_UNLOAD_SUPPORTED_PROPS)}"
         )
-    file_format = _literal_value(parts.properties.get("format"))
+    file_format = literal_value(parts.properties.get("format"))
     if file_format is None:
         raise InvalidRequestException(
             "UNLOAD requires a 'format' property in its WITH clause; "
@@ -297,7 +280,7 @@ def unload_trino_submission(
     session_properties = _unload_session_properties(parts.properties)
     temp_table = f"athena_unload_{uuid.uuid4().hex[:16]}"
     sql = (
-        f'CREATE TABLE "{_quoted_identifier(database)}"."{temp_table}" '
+        f'CREATE TABLE "{quoted_identifier(database)}"."{temp_table}" '
         f"WITH ({', '.join(_unload_table_properties(parts, file_format))}) "
         f"AS {parts.inner}"
     )
@@ -313,8 +296,8 @@ def _unload_table_properties(
 ) -> list[str]:
     """The CTAS ``WITH`` clause entries, in deterministic order."""
     properties = [
-        f"format='{_sql_literal(file_format.upper())}'",
-        f"external_location='{_sql_literal(parts.location)}'",
+        f"format='{sql_literal(file_format.upper())}'",
+        f"external_location='{sql_literal(parts.location)}'",
     ]
     # partitioned_by is the same ARRAY[...] expression in both dialects;
     # field_delimiter maps to the TEXTFILE separator property (probed
@@ -332,7 +315,7 @@ def _unload_session_properties(
     properties: dict[str, str],
 ) -> dict[str, str]:
     """WITH-clause values that travel as session properties, not DDL."""
-    compression = _literal_value(properties.get("compression"))
+    compression = literal_value(properties.get("compression"))
     if compression is None:
         return {}
     codec = _UNLOAD_COMPRESSION_CODECS.get(compression.lower())
@@ -350,14 +333,14 @@ def _parse_unload(query: str) -> _UnloadParts | None:
     if head is None:
         return None
     inner_start = head.end() - 1
-    inner_end = _balanced_span(query, inner_start)
+    inner_end = balanced_span(query, inner_start)
     if inner_end is None:
         return None
     inner = query[inner_start + 1 : inner_end - 1].strip()
     to_match = _UNLOAD_TO_RE.match(query, inner_end)
     if to_match is None:
         return None
-    location_end = _string_end(query, to_match.end() - 1)
+    location_end = string_end(query, to_match.end() - 1)
     if location_end is None:
         return None
     location = query[to_match.end() : location_end - 1].replace("''", "'")
@@ -375,7 +358,7 @@ def _parse_unload_with(
     if with_match is None:
         return {}, query[start:]
     props_start = with_match.end() - 1
-    props_end = _balanced_span(query, props_start)
+    props_end = balanced_span(query, props_start)
     if props_end is None:
         return None, ""
     return (
@@ -387,7 +370,7 @@ def _parse_unload_with(
 def _with_properties(text: str) -> dict[str, str] | None:
     """``k = v`` pairs split on top-level commas; keys fold to lowercase."""
     properties: dict[str, str] = {}
-    for pair in _split_top_level(text):
+    for pair in split_top_level(text):
         key, separator, value = pair.partition("=")
         key = key.strip().lower()
         value = value.strip()
@@ -397,85 +380,3 @@ def _with_properties(text: str) -> dict[str, str] | None:
             return None
         properties[key] = value
     return properties
-
-
-def _split_top_level(text: str) -> list[str]:
-    """Split on commas outside strings and brackets (``ARRAY['a','b']``)."""
-    parts: list[str] = []
-    current: list[str] = []
-    depth = 0
-    index = 0
-    while index < len(text):
-        char = text[index]
-        if char == "'":
-            string_end = _string_end(text, index)
-            if string_end is None:
-                break
-            current.append(text[index:string_end])
-            index = string_end
-            continue
-        if char in "([":
-            depth += 1
-        elif char in ")]":
-            depth = max(0, depth - 1)
-        elif char == "," and depth == 0:
-            parts.append("".join(current))
-            current = []
-            index += 1
-            continue
-        current.append(char)
-        index += 1
-    parts.append("".join(current))
-    return parts
-
-
-def _balanced_span(text: str, start: int) -> int | None:
-    """Index just past the ``)`` closing ``text[start]``; None if unbalanced.
-
-    String literals (with ``''`` escapes) are skipped verbatim so parens
-    inside them cannot skew the depth.
-    """
-    depth = 0
-    index = start
-    while index < len(text):
-        char = text[index]
-        if char == "'":
-            string_end = _string_end(text, index)
-            if string_end is None:
-                return None
-            index = string_end
-            continue
-        if char == "(":
-            depth += 1
-        elif char == ")":
-            depth -= 1
-            if depth == 0:
-                return index + 1
-        index += 1
-    return None
-
-
-def _string_end(text: str, start: int) -> int | None:
-    """Index just past the quoted literal at ``start``; None if unterminated."""
-    cursor = start + 1
-    while cursor < len(text):
-        if text[cursor] != "'":
-            cursor += 1
-            continue
-        if cursor + 1 < len(text) and text[cursor + 1] == "'":
-            cursor += 2
-            continue
-        return cursor + 1
-    return None
-
-
-def _literal_value(raw: str | None) -> str | None:
-    """The unescaped text inside a ``'…'`` literal; None if not a literal."""
-    if raw is None or len(raw) < 2 or raw[0] != "'" or raw[-1] != "'":
-        return None
-    return raw[1:-1].replace("''", "'")
-
-
-def _quoted_identifier(name: str) -> str:
-    """``"``-escape a name for use inside a quoted Trino identifier."""
-    return name.replace('"', '""')
