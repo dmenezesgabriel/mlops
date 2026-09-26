@@ -1167,6 +1167,39 @@ def test_start_submits_msck_as_sync_partition_metadata(
     asyncio.run(scenario())
 
 
+def test_start_submits_show_partitions_as_partitions_read(
+    store: ExecutionStore,
+) -> None:
+    """SHOW PARTITIONS reaches Trino as a ``"t$partitions"`` SELECT with the
+    request's Database context as the schema; the record keeps the original
+    Athena text (dialect.py)."""
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient([result_page(next_uri=None)])
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        record = await executor.start(
+            query="SHOW PARTITIONS `sales`;",
+            workgroup="primary",
+            database="analytics",
+        )
+        await executor._tasks[record.query_execution_id]
+
+        assert client.submissions == [
+            (
+                'SELECT * FROM "analytics"."sales$partitions"',
+                TRINO_CATALOG,
+                "analytics",
+                TRINO_USER,
+            )
+        ]
+        assert record.query == "SHOW PARTITIONS `sales`;"
+        assert record.state == SUCCEEDED
+
+    asyncio.run(scenario())
+
+
 def test_start_submits_resolved_statement_instead_of_query(
     store: ExecutionStore,
 ) -> None:

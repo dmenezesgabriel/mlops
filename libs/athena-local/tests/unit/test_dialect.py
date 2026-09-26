@@ -166,6 +166,82 @@ def test_msck_statements_that_cannot_resolve_a_schema_pass_through(
     assert to_trino_dialect(query) == query
 
 
+@pytest.mark.parametrize(
+    "query,database,expected",
+    [
+        (
+            "SHOW PARTITIONS `sales`;",
+            "analytics",
+            'SELECT * FROM "analytics"."sales$partitions"',
+        ),
+        (
+            "SHOW PARTITIONS sales",
+            "analytics",
+            'SELECT * FROM "analytics"."sales$partitions"',
+        ),
+        # A qualified name wins over the request's database context.
+        (
+            "SHOW PARTITIONS `db`.`sales`",
+            "other",
+            'SELECT * FROM "db"."sales$partitions"',
+        ),
+        (
+            "show partitions db.sales;",
+            None,
+            'SELECT * FROM "db"."sales$partitions"',
+        ),
+        # Athena folds unquoted identifiers; quoted names keep their case.
+        (
+            "SHOW PARTITIONS DB.SALES",
+            None,
+            'SELECT * FROM "db"."sales$partitions"',
+        ),
+        (
+            'SHOW PARTITIONS "Db"."Sales"',
+            None,
+            'SELECT * FROM "Db"."Sales$partitions"',
+        ),
+        (
+            "  SHOW PARTITIONS `sales`",
+            "analytics",
+            '  SELECT * FROM "analytics"."sales$partitions"',
+        ),
+        # Inner double quotes escape for the quoted Trino identifier.
+        (
+            'SHOW PARTITIONS "we""ird"',
+            "db",
+            'SELECT * FROM "db"."we""ird$partitions"',
+        ),
+    ],
+)
+def test_show_partitions_maps_to_partitions_virtual_table(
+    query: str, database: str | None, expected: str
+) -> None:
+    assert to_trino_dialect(query, database) == expected
+
+
+@pytest.mark.parametrize(
+    "query,database",
+    [
+        # No qualified schema and no request context — left for Trino to
+        # reject, same posture as an unresolvable MSCK schema.
+        ("SHOW PARTITIONS `sales`", None),
+        ("SHOW PARTITIONS catalog.db.sales", "db"),
+        ("SHOW PARTITIONS", "db"),
+        # Hive's PARTITION() filter and Trino's FROM spelling are not the
+        # Athena grammar — AWS rejects them the same way Trino does.
+        ("SHOW PARTITIONS sales PARTITION (region='US')", "db"),
+        ("SHOW PARTITIONS FROM sales", "db"),
+        ("SHOW PARTITIONS sales; SELECT 1", "db"),
+        ("SELECT 'SHOW PARTITIONS x' FROM t", "db"),
+    ],
+)
+def test_show_partitions_unmapped_statements_pass_through(
+    query: str, database: str | None
+) -> None:
+    assert to_trino_dialect(query, database) == query
+
+
 def _emitted_table(submission: UnloadSubmission) -> tuple[str, str]:
     """The ``(schema, table)`` an emitted UNLOAD-CTAS registers then drops."""
     match = _EMITTED_CTAS_RE.match(submission.sql)

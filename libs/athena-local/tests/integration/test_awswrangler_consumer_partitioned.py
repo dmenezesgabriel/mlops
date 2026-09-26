@@ -192,6 +192,43 @@ def test_sales_partitions_virtual_table_live(
     assert _sales_rows(frame) == sorted(EXPECTED_SALES)
 
 
+def test_show_partitions_athena_spelling_live(
+    consumer_harness: ConsumerHarness,
+) -> None:
+    """``SHOW PARTITIONS <t>`` (Athena spelling) lists the partition rows.
+
+    Trino 483 has no ``SHOW PARTITIONS`` grammar — the coordinator rejects
+    ``PARTITIONS`` after ``SHOW`` outright — so the emulator's dialect map
+    reads the Hive connector's ``<t>$partitions`` system table. The wire
+    rows are columnar (one column per partition key) where real Athena
+    renders ``key=value`` strings — the shape-vs-content delta AWS's own
+    SHOW PARTITIONS docs accept by naming ``$partitions`` the equivalent.
+    """
+    table_name = _create_partitioned_sales(consumer_harness)
+
+    query_id = consumer_harness.athena.start_query_execution(
+        QueryString=f"SHOW PARTITIONS {table_name}",
+        QueryExecutionContext={"Database": consumer_harness.database},
+        ResultConfiguration={"OutputLocation": consumer_harness.prefix},
+        WorkGroup="primary",
+    )["QueryExecutionId"]
+    _wait_for_succeeded(consumer_harness.athena, query_id)
+
+    rows = consumer_harness.athena.get_query_results(
+        QueryExecutionId=query_id
+    )["ResultSet"]["Rows"]
+    cells = [
+        [
+            cell["VarCharValue"]
+            for cell in row["Data"]
+            if "VarCharValue" in cell
+        ]
+        for row in rows[1:]
+    ]
+    values = sorted((region, Decimal(amount)) for region, amount in cells)
+    assert values == sorted(EXPECTED_SALES)
+
+
 def test_repair_table_discovers_stray_partition_live(
     consumer_harness: ConsumerHarness,
 ) -> None:
