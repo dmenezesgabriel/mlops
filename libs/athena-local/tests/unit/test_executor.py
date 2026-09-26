@@ -694,6 +694,65 @@ def test_completion_stashes_final_page_on_record(
     asyncio.run(scenario())
 
 
+def test_describe_result_is_cached_in_athena_shape(
+    store: ExecutionStore,
+) -> None:
+    """The cached page carries Athena's col_name/data_type/comment shape.
+
+    ``GetQueryResults`` ColumnInfo and the ``.txt`` artifact both read the
+    cached page, so the reshape lands once here (result_shapes.py) and
+    wrangler's ``_parse_describe_table`` names resolve
+    (awswrangler/athena/_utils.py:224-239).
+    """
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient(
+            [
+                result_page(
+                    next_uri=None,
+                    columns=[
+                        TrinoColumn(name="Column", column_type="varchar"),
+                        TrinoColumn(name="Type", column_type="varchar"),
+                        TrinoColumn(name="Extra", column_type="varchar"),
+                        TrinoColumn(name="Comment", column_type="varchar"),
+                    ],
+                    data=[
+                        ["quantity", "bigint", "", ""],
+                        ["region", "varchar", "partition key", ""],
+                    ],
+                    stats={"state": "FINISHED"},
+                )
+            ]
+        )
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        record = await executor.start(
+            query='DESCRIBE "sales"',
+            workgroup="primary",
+            statement_classification=StatementClassification(
+                "UTILITY", "DESCRIBE"
+            ),
+        )
+        await executor._tasks[record.query_execution_id]
+
+        assert record.state == SUCCEEDED
+        assert record.result_columns == [
+            ("col_name", "varchar"),
+            ("data_type", "varchar"),
+            ("comment", "varchar"),
+        ]
+        assert record.result_rows == [
+            ["quantity", "bigint", ""],
+            ["region", "varchar", ""],
+            ["# Partition Information", "", ""],
+            ["# col_name", "data_type", "comment"],
+            ["region", "varchar", ""],
+        ]
+
+    asyncio.run(scenario())
+
+
 def test_rows_landing_on_intermediate_poll_pages_are_carried(
     store: ExecutionStore,
 ) -> None:

@@ -41,6 +41,7 @@ from athena_local.output_targets import (
     ManifestTargetError,
     OutputSnapshot,
 )
+from athena_local.result_shapes import to_athena_result_shape
 from athena_local.statement_classification import StatementClassification
 from athena_local.trino_client import TrinoPage, TrinoTransportError
 
@@ -542,10 +543,12 @@ class QueryExecutor:
         self, record: QueryExecutionRecord, page: TrinoPage
     ) -> None:
         record.apply_engine_statistics(page.stats)
-        record.cache_result_page(
+        columns, rows = to_athena_result_shape(
+            record.substatement_type,
             [(column.name, column.column_type) for column in page.columns],
             page.data,
         )
+        record.cache_result_page(columns, rows)
         if record.managed_results:
             # Managed-results executions (ADR-0011) never expose S3 artifacts:
             # the workgroup's Athena-owned storage is invisible to consumers,

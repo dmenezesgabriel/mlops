@@ -166,6 +166,31 @@ def test_start_returns_id_and_stores_request(
     asyncio.run(scenario())
 
 
+def test_start_unquotes_quoted_database_context(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    """awswrangler backticks the context Database (athena/_utils.py:660-661)."""
+
+    async def scenario() -> None:
+        output = await start_query_execution(
+            executor,
+            workgroups,
+            {
+                "QueryString": "SELECT 1",
+                "QueryExecutionContext": {"Database": "`analytics`"},
+                "ResultConfiguration": {"OutputLocation": "s3://bucket/q.csv"},
+            },
+        )
+
+        record = store.get(output["QueryExecutionId"])
+        await executor._tasks[record.query_execution_id]
+        assert record.database == "analytics"
+
+    asyncio.run(scenario())
+
+
 def test_start_defaults_to_primary_workgroup(
     store: ExecutionStore,
     executor: QueryExecutor,

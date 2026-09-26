@@ -192,6 +192,41 @@ def test_sales_partitions_virtual_table_live(
     assert _sales_rows(frame) == sorted(EXPECTED_SALES)
 
 
+def test_describe_and_show_create_table_live(
+    consumer_harness: ConsumerHarness,
+) -> None:
+    """``describe_table``/``show_create_table`` read Athena-shaped results.
+
+    wrangler submits ``DESCRIBE `t`;`` / ``SHOW CREATE TABLE `t`;`` with a
+    backticked Database context (awswrangler/athena/_utils.py:659-661,
+    :988-990); the emulator maps the statement to Trino quoting and reshapes
+    Trino's DESCRIBE result into Athena's col_name/data_type/comment with
+    the '# Partition Information' block the parser's Partition flags need
+    (_utils.py:224-239, :1011).
+    """
+    table_name = _create_partitioned_sales(consumer_harness)
+
+    described = wr.athena.describe_table(
+        table=table_name,
+        database=consumer_harness.database,
+        s3_output=consumer_harness.prefix,
+    )
+    assert described["Column Name"].tolist() == [
+        "quantity",
+        "region",
+        "amount",
+    ]
+    assert described["Partition"].tolist() == [False, True, True]
+
+    ddl = wr.athena.show_create_table(
+        table=table_name,
+        database=consumer_harness.database,
+        s3_output=consumer_harness.prefix,
+    )
+    assert ddl.startswith("CREATE TABLE")
+    assert table_name in ddl
+
+
 def _create_partitioned_sales(consumer_harness: ConsumerHarness) -> str:
     """CTAS a region/amount-partitioned ``sales`` table on Trino (setup)."""
     table_name = f"sales_{uuid.uuid4().hex[:6]}"

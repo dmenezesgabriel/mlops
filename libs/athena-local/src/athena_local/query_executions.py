@@ -142,9 +142,24 @@ def _query_execution_context(
             f"QueryExecutionContext must be a JSON object, got {raw!r}"
         )
     return (
-        _optional_string(raw, "Database"),
+        _unquoted_identifier(_optional_string(raw, "Database")),
         _optional_string(raw, "Catalog"),
     )
+
+
+def _unquoted_identifier(value: str | None) -> str | None:
+    """Strip Athena's identifier quoting from a wire name.
+
+    awswrangler sends the Database context backticked
+    (``awswrangler/athena/_utils.py:660-661``); the name is stored on the
+    record and drives both Trino's session schema and Glue lookups, which
+    expect the bare name.
+    """
+    if value is None or len(value) < 2:
+        return value
+    if (value[0], value[-1]) in {("`", "`"), ('"', '"')}:
+        return value[1:-1]
+    return value
 
 
 def _is_managed_workgroup(workgroup_record: WorkGroupRecord) -> bool:
