@@ -1110,6 +1110,40 @@ def test_start_submits_dialect_mapped_create_database(
     asyncio.run(scenario())
 
 
+def test_start_submits_msck_as_sync_partition_metadata(
+    store: ExecutionStore,
+) -> None:
+    """MSCK REPAIR TABLE reaches Trino as CALL system.sync_partition_metadata
+    with the request's Database context as the schema; the record keeps the
+    original Athena text (dialect.py)."""
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient([result_page(next_uri=None)])
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        record = await executor.start(
+            query="MSCK REPAIR TABLE `sales`;",
+            workgroup="primary",
+            database="analytics",
+        )
+        await executor._tasks[record.query_execution_id]
+
+        assert client.submissions == [
+            (
+                "CALL system.sync_partition_metadata("
+                "'analytics','sales','ADD')",
+                TRINO_CATALOG,
+                "analytics",
+                TRINO_USER,
+            )
+        ]
+        assert record.query == "MSCK REPAIR TABLE `sales`;"
+        assert record.state == SUCCEEDED
+
+    asyncio.run(scenario())
+
+
 def test_start_submits_resolved_statement_instead_of_query(
     store: ExecutionStore,
 ) -> None:

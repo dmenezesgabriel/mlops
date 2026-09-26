@@ -82,3 +82,71 @@ def test_utility_statements_with_extra_syntax_pass_through(
     query: str,
 ) -> None:
     assert to_trino_dialect(query) == query
+
+
+@pytest.mark.parametrize(
+    "query,database,expected",
+    [
+        (
+            "MSCK REPAIR TABLE `sales`;",
+            "analytics",
+            "CALL system.sync_partition_metadata('analytics','sales','ADD')",
+        ),
+        (
+            "MSCK REPAIR TABLE `db`.`sales`",
+            None,
+            "CALL system.sync_partition_metadata('db','sales','ADD')",
+        ),
+        # A qualified name wins over the request's database context.
+        (
+            "msck repair table db.sales;",
+            "other",
+            "CALL system.sync_partition_metadata('db','sales','ADD')",
+        ),
+        # Athena folds unquoted identifiers; quoted names keep their case.
+        (
+            "MSCK REPAIR TABLE DB.SALES",
+            None,
+            "CALL system.sync_partition_metadata('db','sales','ADD')",
+        ),
+        (
+            'MSCK REPAIR TABLE "Db"."Sales"',
+            None,
+            "CALL system.sync_partition_metadata('Db','Sales','ADD')",
+        ),
+        # SQL literals escape single quotes.
+        (
+            "MSCK REPAIR TABLE `we'ird`;",
+            "db",
+            "CALL system.sync_partition_metadata('db','we''ird','ADD')",
+        ),
+        (
+            "  MSCK REPAIR TABLE `sales`",
+            "analytics",
+            "  CALL system.sync_partition_metadata('analytics','sales','ADD')",
+        ),
+    ],
+)
+def test_msck_repair_table_maps_to_sync_partition_metadata(
+    query: str, database: str | None, expected: str
+) -> None:
+    assert to_trino_dialect(query, database) == expected
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        # No qualified schema and no request context — left for Trino to
+        # reject (procedure arguments are literals, no session schema).
+        "MSCK REPAIR TABLE `sales`",
+        "MSCK REPAIR TABLE catalog.db.sales",
+        "MSCK REPAIR TABLE",
+        "MSCK REPAIR `sales`",
+        "MSCK REPAIR TABLE `sales` PARTITION ('x')",
+        "SELECT 'MSCK REPAIR TABLE x' FROM t",
+    ],
+)
+def test_msck_statements_that_cannot_resolve_a_schema_pass_through(
+    query: str,
+) -> None:
+    assert to_trino_dialect(query) == query

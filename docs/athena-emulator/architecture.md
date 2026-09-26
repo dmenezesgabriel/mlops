@@ -97,7 +97,7 @@ consumers pass unmodified:
 | `errors.py` | `InvalidRequestException`, `ResourceNotFoundException`, `TooManyRequestsException`, `InternalServerException`; `{"__type", "message"}` + `X-Amzn-Errortype` (ADR-0008) |
 | `error_mapping.py` | Trino statement errors → Athena's wire error vocabulary (ADR-0008) |
 | `statement_classification.py` | `StatementType`/`SubstatementType` + artifact kind, classified at submit |
-| `dialect.py` | Athena→Trino statement spellings (`CREATE/DROP DATABASE` → `SCHEMA`, identifier quoting, trailing `;`) |
+| `dialect.py` | Athena→Trino statement spellings (`CREATE/DROP DATABASE` → `SCHEMA`, identifier quoting, trailing `;`, `MSCK REPAIR TABLE` → `CALL system.sync_partition_metadata(…, 'ADD')`) |
 | `state.py` / `data_catalog_state.py` | In-memory registries: workgroups, named queries, prepared statements, data catalogs (ADR-0003) |
 | `workgroups.py` / `workgroup_payloads.py` | Workgroup ops + payload serialization/defaults |
 | `named_queries.py` / `prepared_statements.py` / `data_catalogs.py` / `engine_versions.py` / `tags.py` | Control-plane operation handlers |

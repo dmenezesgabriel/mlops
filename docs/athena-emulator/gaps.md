@@ -10,7 +10,6 @@
 
 | ID | Feature (PARITY.md row) | Measured on the wire | Expected AWS behavior | Candidate fix surface | Size |
 |---|---|---|---|---|---|
-| GP-9 | `repair_table` — `MSCK REPAIR TABLE` (nb04) | 400: `mismatched input 'MSCK'` | MSCK discovers unregistered partitions | `dialect.py`: map `MSCK REPAIR TABLE t` → Trino Hive `CALL system.sync_partition_metadata('schema','t','ADD','CASCADE')` (trino.io hive connector procedures) | M |
 | GP-10 | `read_sql_query(unload_approach=True)` (nb04) | 400 `InvalidRequestException` on `UNLOAD`, surfaced as wrangler `InvalidArgumentValue` | UNLOAD writes query results to `TO` path in the requested format | no Trino `UNLOAD`; candidate dialect rewrite → CTAS with `external_location` + format props, or a documented waiver — needs an ADR note if rewritten | M–L |
 | GP-11 | `wr.athena.unload()` (nb04) | 400 `InvalidRequestException` on `UNLOAD`, surfaced as wrangler `InvalidArgumentValue` | same as GP-10 | same decision as GP-10 | with GP-10 |
 | GP-12 | `SHOW PARTITIONS <t>` Athena spelling (nb04) | 400: `mismatched input 'PARTITIONS'` — workaround `"t$partitions"` reads fine (PASS) | `SHOW PARTITIONS t` lists partition values | `dialect.py`: map `SHOW PARTITIONS t` → `SELECT * FROM "t$partitions"` (or `SHOW PARTITIONS FROM t` if Trino 483 accepts — verify against the coordinator at fix time) | S–M |
@@ -36,7 +35,7 @@ boundary decision, not a defect.
 | GP-6 | shipped | GF-6 | `ensure_executable_catalog` (data_catalog_state.py) gates the start path after context parse — unregistered names answer the store's "does not exist" 400, and registered non-GLUE catalogs reject too ("only GLUE catalogs execute queries") since the single query plane is the Glue-backed Trino catalog |
 | GP-7 | shipped | GF-7 | One shared dialect rule covers GP-7+GP-8 |
 | GP-8 | shipped | GF-7 | Shares GF-7 |
-| GP-9 | fix | GF-8 | `system.sync_partition_metadata` is the Trino-native MSCK equivalent |
+| GP-9 | shipped | GF-8 | `system.sync_partition_metadata` is the Trino-native MSCK equivalent — probed signature: `case_sensitive` is BOOLEAN default `true` (Hive-compatible), so the 3-arg `ADD` form is emitted |
 | GP-10 | fix | GF-9 | Dialect rewrite to CTAS-at-`TO`-path + catalog drop; needs an ADR note (semantic delta: real UNLOAD registers nothing) |
 | GP-11 | fix | GF-9 | Shares GF-9 |
 | GP-12 | fix | GF-10 | Map to `"t$partitions"` or Trino's native spelling — verify against the coordinator at fix time |

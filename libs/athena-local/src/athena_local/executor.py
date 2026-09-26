@@ -230,9 +230,10 @@ class QueryExecutor:
             return record
         submit_query = resolved_statement or query
         # Athena accepts a few statements Trino's grammar rejects (e.g.
-        # CREATE DATABASE); submit the dialect-mapped form while the record
-        # keeps the query as written (dialect.py).
-        submit_query = to_trino_dialect(submit_query)
+        # CREATE DATABASE, MSCK REPAIR TABLE); submit the dialect-mapped
+        # form while the record keeps the query as written (dialect.py).
+        # The database context feeds the rewrite's schema fallback.
+        submit_query = to_trino_dialect(submit_query, database)
         snapshot, capture_error = await self._capture_manifest(
             submit_query, database, catalog, statement_classification
         )

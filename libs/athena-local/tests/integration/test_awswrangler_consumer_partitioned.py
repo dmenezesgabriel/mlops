@@ -192,6 +192,47 @@ def test_sales_partitions_virtual_table_live(
     assert _sales_rows(frame) == sorted(EXPECTED_SALES)
 
 
+def test_repair_table_discovers_stray_partition_live(
+    consumer_harness: ConsumerHarness,
+) -> None:
+    """``repair_table`` registers a partition Glue never saw.
+
+    wrangler submits ``MSCK REPAIR TABLE `t`;`` with a backticked Database
+    context (awswrangler/athena/_utils.py:581) — Hive vocabulary Trino's
+    grammar rejects; the emulator's dialect map submits
+    ``CALL system.sync_partition_metadata(schema, table, 'ADD')`` instead
+    (trino.io hive connector procedures). A stray parquet under a new
+    ``region=XX/amount=9.99/`` prefix is unregistered until the repair runs;
+    the Glue catalog afterwards proves discovery, not just SUCCEEDED.
+    """
+    table_name = _create_partitioned_sales(consumer_harness)
+
+    source_key = consumer_harness.s3.list_objects_v2(
+        Bucket=consumer_harness.bucket, Prefix=f"results/{table_name}/"
+    )["Contents"][0]["Key"]
+    consumer_harness.s3.copy_object(
+        Bucket=consumer_harness.bucket,
+        Key=f"results/{table_name}/region=XX/amount=9.99/stray.parquet",
+        CopySource=f"{consumer_harness.bucket}/{source_key}",
+    )
+
+    state = wr.athena.repair_table(
+        table=table_name,
+        database=consumer_harness.database,
+        s3_output=consumer_harness.prefix,
+    )
+    assert state == "SUCCEEDED"
+
+    partitions = consumer_harness.glue.get_partitions(
+        DatabaseName=consumer_harness.database, TableName=table_name
+    )["Partitions"]
+    values = sorted(
+        (partition["Values"][0], Decimal(partition["Values"][1]))
+        for partition in partitions
+    )
+    assert values == sorted([*EXPECTED_SALES, ("XX", Decimal("9.99"))])
+
+
 def test_describe_and_show_create_table_live(
     consumer_harness: ConsumerHarness,
 ) -> None:
