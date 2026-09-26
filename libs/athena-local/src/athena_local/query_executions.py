@@ -21,6 +21,10 @@ from athena_local.common_schemas import (
     parse_result_configuration,
     parse_result_reuse_configuration,
 )
+from athena_local.data_catalog_state import (
+    DataCatalogStore,
+    ensure_executable_catalog,
+)
 from athena_local.dispatch import register_handler
 from athena_local.errors import InvalidRequestException
 from athena_local.executions import (
@@ -211,6 +215,7 @@ async def start_query_execution(
     workgroup_store: WorkGroupStore,
     payload: dict[str, object] | None,
     prepared_statement_store: PreparedStatementStore | None = None,
+    data_catalog_store: DataCatalogStore | None = None,
 ) -> dict[str, object]:
     """Run StartQueryExecution: validate, create a QUEUED execution, return its ID.
 
@@ -231,6 +236,14 @@ async def start_query_execution(
     workgroup_record = workgroup_store.get(workgroup)
     ensure_workgroup_enabled(workgroup_store, workgroup)
     database, catalog = _query_execution_context(payload)
+    if catalog is not None:
+        # The model's context member names "the data catalog used in the
+        # query execution" (service-2.json): an unregistered or non-GLUE
+        # catalog is rejected at submit rather than silently executed on
+        # the emulator's Glue-backed catalog.
+        ensure_executable_catalog(
+            data_catalog_store or DataCatalogStore(), catalog
+        )
     query = _required_string(payload, "QueryString")
     if len(query) > MAX_QUERY_STRING_LENGTH:
         raise InvalidRequestException(
@@ -549,12 +562,15 @@ def register_query_execution_handlers(
     executor: QueryExecutor,
     workgroup_store: WorkGroupStore,
     prepared_statement_store: PreparedStatementStore | None = None,
+    data_catalog_store: DataCatalogStore | None = None,
 ) -> None:
     """Bind the seven query-plane operations (explicit wiring in ``main.py``).
 
     ``prepared_statement_store`` feeds EXECUTE resolution in
     ``StartQueryExecution``; a missing store means no statement exists
     in any workgroup, so every EXECUTE fails resolution as not-found.
+    ``data_catalog_store`` validates ``QueryExecutionContext.Catalog`` at
+    submit; a missing store still admits the seeded ``AwsDataCatalog``.
     """
     register_handler(
         "StartQueryExecution",
@@ -563,6 +579,7 @@ def register_query_execution_handlers(
             workgroup_store,
             payload,
             prepared_statement_store=prepared_statement_store,
+            data_catalog_store=data_catalog_store,
         ),
     )
     register_handler(

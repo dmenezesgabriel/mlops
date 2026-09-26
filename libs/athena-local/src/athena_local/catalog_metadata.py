@@ -13,12 +13,14 @@ from __future__ import annotations
 
 import os
 
-from athena_local.data_catalog_state import DataCatalogStore
+from athena_local.data_catalog_state import (
+    GLUE_CATALOG_TYPE,
+    DataCatalogStore,
+)
 from athena_local.dispatch import register_handler
 from athena_local.errors import InvalidRequestException
 from athena_local.glue_proxy import GlueProxy
 
-GLUE_CATALOG_TYPE = "GLUE"
 MAX_LIST_DATABASES = 50
 MAX_LIST_TABLE_METADATA = 50
 

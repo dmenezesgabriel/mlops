@@ -10,7 +10,6 @@
 
 | ID | Feature (PARITY.md row) | Measured on the wire | Expected AWS behavior | Candidate fix surface | Size |
 |---|---|---|---|---|---|
-| GP-6 | unknown `Catalog` rejected at submit (nb03) | unregistered catalog accepted; executes on `hive` regardless | reject unregistered catalogs at submit | `data_catalog_state.py` + start path: validate `QueryExecutionContext.Catalog` against registered catalogs | S |
 | GP-7 | `describe_table` column listing (nb04) | 400 `InvalidRequestException`: `backquoted identifiers are not supported` (wrangler sends `DESCRIBE \`t\`;`) | DESCRIBE returns the column listing | `dialect.py`: normalize backtick identifiers → double-quoted and strip the statement terminator for `DESCRIBE`/`SHOW CREATE TABLE` (shares fix with GP-8) | S |
 | GP-8 | `show_create_table` statement (nb04) | 400 `InvalidRequestException`: `backquoted identifiers are not supported` | `SHOW CREATE TABLE` text returned | same dialect rule as GP-7 | S (with GP-7) |
 | GP-9 | `repair_table` — `MSCK REPAIR TABLE` (nb04) | 400: `mismatched input 'MSCK'` | MSCK discovers unregistered partitions | `dialect.py`: map `MSCK REPAIR TABLE t` → Trino Hive `CALL system.sync_partition_metadata('schema','t','ADD','CASCADE')` (trino.io hive connector procedures) | M |
@@ -36,7 +35,7 @@ boundary decision, not a defect.
 | GP-3 | shipped | GF-3 | Terminal early-return in `QueryExecutor.cancel` before the transition and the Trino DELETE — the canonical model marks the op idempotent |
 | GP-4 | shipped | GF-4 | `ExecutionStore.by_request_token` (workgroup, token) → execution-id map; `QueryExecutor.start` replays identical submissions, drifted params → `InvalidRequestException` 400 |
 | GP-5 | shipped | GF-5 | `find_reusable` matches the AWS UG conditions newest-first; `reuse_results_from` re-answers the source's OutputLocation + cached rows with no Trino round-trip |
-| GP-6 | fix | GF-6 | Validate `QueryExecutionContext.Catalog` against registered catalogs at submit |
+| GP-6 | shipped | GF-6 | `ensure_executable_catalog` (data_catalog_state.py) gates the start path after context parse — unregistered names answer the store's "does not exist" 400, and registered non-GLUE catalogs reject too ("only GLUE catalogs execute queries") since the single query plane is the Glue-backed Trino catalog |
 | GP-7 | fix | GF-7 | One shared dialect rule covers GP-7+GP-8 |
 | GP-8 | fix | GF-7 | Shares GF-7 |
 | GP-9 | fix | GF-8 | `system.sync_partition_metadata` is the Trino-native MSCK equivalent |

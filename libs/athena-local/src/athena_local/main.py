@@ -136,6 +136,7 @@ register_query_execution_handlers(
     executor,
     workgroup_store,
     prepared_statement_store,
+    data_catalog_store,
 )
 
 
@@ -193,4 +194,5 @@ def reset_query_plane() -> None:
         executor,
         workgroup_store,
         prepared_statement_store,
+        data_catalog_store,
     )

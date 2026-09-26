@@ -19,6 +19,7 @@ from athena_local.errors import InvalidRequestException
 from athena_local.schemas import Tag
 
 AWS_DATA_CATALOG_NAME = "AwsDataCatalog"
+GLUE_CATALOG_TYPE = "GLUE"
 
 
 def missing_catalog_error(name: str) -> InvalidRequestException:
@@ -67,7 +68,7 @@ class DataCatalogStore:
         """Drop every catalog and re-seed ``AwsDataCatalog`` (test reset)."""
         self.by_name = {
             AWS_DATA_CATALOG_NAME: DataCatalogRecord(
-                name=AWS_DATA_CATALOG_NAME, catalog_type="GLUE"
+                name=AWS_DATA_CATALOG_NAME, catalog_type=GLUE_CATALOG_TYPE
             )
         }
 
@@ -143,3 +144,21 @@ class DataCatalogStore:
         record = self.get(name)
         del self.by_name[name]
         return record
+
+
+def ensure_executable_catalog(store: DataCatalogStore, name: str) -> None:
+    """Reject a query submission naming a catalog this emulator cannot run.
+
+    ``QueryExecutionContext.Catalog`` names "the data catalog used in the
+    query execution" (service-2.json), and AWS rejects an unregistered name
+    at submit. A registered catalog of any other ``DataCatalogType`` names a
+    federated/lambda/external-Hive source — outside the emulator's single
+    Glue-backed query plane — so it rejects too rather than silently
+    executing on Glue.
+    """
+    record = store.get(name)
+    if record.catalog_type != GLUE_CATALOG_TYPE:
+        raise InvalidRequestException(
+            f"DataCatalog {name} is of type {record.catalog_type}; "
+            "only GLUE catalogs execute queries"
+        )
