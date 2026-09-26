@@ -76,7 +76,12 @@ class TerminalStatementClient:
     """StatementClient fake serving one terminal page and recording nothing."""
 
     async def submit_statement(
-        self, query: str, catalog: str, schema: str, user: str
+        self,
+        query: str,
+        catalog: str,
+        schema: str,
+        user: str,
+        session_properties: dict[str, str] | None = None,
     ) -> TrinoPage:
         return _terminal_page()
 

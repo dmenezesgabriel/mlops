@@ -39,6 +39,7 @@ class FakeGlueClient:
         self.databases = databases if databases is not None else []
         self.tables = tables if tables is not None else {}
         self.list_tables_calls: list[dict[str, object]] = []
+        self.delete_table_calls: list[tuple[str, str]] = []
 
     def get_databases(self) -> dict[str, object]:
         return {"DatabaseList": list(self.databases)}
@@ -78,3 +79,14 @@ class FakeGlueClient:
         raise client_error(
             ENTITY_NOT_FOUND_CODE, f"Table {DatabaseName}.{Name} not found"
         )
+
+    def delete_table(self, DatabaseName: str, Name: str) -> None:  # noqa: N803
+        self.delete_table_calls.append((DatabaseName, Name))
+        tables = self.tables.get(DatabaseName, [])
+        kept = [table for table in tables if table.get("Name") != Name]
+        if len(kept) == len(tables):
+            raise client_error(
+                ENTITY_NOT_FOUND_CODE,
+                f"Table {DatabaseName}.{Name} not found",
+            )
+        self.tables[DatabaseName] = kept

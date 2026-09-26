@@ -188,8 +188,13 @@ def test_batch_get_prepared_statement_unprocessed_is_structured(
 
 def test_awswrangler_prepared_statements_against_live_server(
     live_athena_server: LiveAthenaServer,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    wr.config.athena_endpoint_url = live_athena_server.endpoint_url
+    # wr.config is process-global: a plain assignment would leak this port
+    # into every later wrangler call after the server stops.
+    monkeypatch.setattr(
+        wr.config, "athena_endpoint_url", live_athena_server.endpoint_url
+    )
     session = boto3.Session(
         region_name="us-east-1",
         aws_access_key_id="test",

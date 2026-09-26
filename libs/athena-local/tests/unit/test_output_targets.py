@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+from athena_local.errors import InternalServerException
 from athena_local.glue_proxy import GlueProxy
 from athena_local.output_targets import (
     ManifestTargetError,
@@ -23,6 +24,7 @@ from athena_local.output_targets import (
     unload_location,
 )
 from athena_local.s3_writer import S3Writer
+from botocore.exceptions import EndpointConnectionError
 from tests.unit._glue_fakes import FakeGlueClient
 from tests.unit._s3_fakes import RecordingObjectStore
 
@@ -326,3 +328,46 @@ def test_capture_skips_statements_without_a_manifest() -> None:
         )
         assert snapshot is None
         assert store.list_calls == []
+
+
+def test_drop_table_deletes_the_catalog_entry() -> None:
+    """The temp CTAS table an UNLOAD registered is removed via Glue.
+
+    The rewrite registers a Glue table where real UNLOAD registers none, so
+    the completion path deletes it through the Glue boundary (Glue's
+    DeleteTable never touches S3 — the written files stay).
+    """
+    client = FakeGlueClient(tables={"analytics": [INSERT_TABLE]})
+    snapshotter = OutputSnapshotter(
+        GlueProxy(client), S3Writer(RecordingObjectStore())
+    )
+
+    snapshotter.drop_table("analytics", "events")
+
+    assert client.delete_table_calls == [("analytics", "events")]
+    assert client.tables["analytics"] == []
+
+
+def test_drop_table_missing_entry_is_already_clean() -> None:
+    snapshotter = OutputSnapshotter(
+        GlueProxy(FakeGlueClient(tables={"analytics": []})),
+        S3Writer(RecordingObjectStore()),
+    )
+
+    snapshotter.drop_table("analytics", "gone")  # idempotent — no raise
+
+
+class _BrokenDeleteGlueClient(FakeGlueClient):
+    """Fake whose DeleteTable fails at the transport layer."""
+
+    def delete_table(self, DatabaseName: str, Name: str) -> None:  # noqa: N803
+        raise EndpointConnectionError(endpoint_url="http://moto:5000")
+
+
+def test_drop_table_propagates_transport_failures() -> None:
+    snapshotter = OutputSnapshotter(
+        GlueProxy(_BrokenDeleteGlueClient()), S3Writer(RecordingObjectStore())
+    )
+
+    with pytest.raises(InternalServerException):
+        snapshotter.drop_table("analytics", "events")

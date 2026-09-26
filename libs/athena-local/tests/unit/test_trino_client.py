@@ -112,6 +112,59 @@ def test_submit_statement_posts_query_with_session_headers() -> None:
     assert page.error is None
 
 
+def test_submit_statement_sends_session_properties_header() -> None:
+    """``hive.compression_codec`` travels via ``X-Trino-Session`` (protocol).
+
+    The hive connector takes the write codec as a session property, not a
+    CTAS table property (probed ``system.metadata.table_properties`` on
+    Trino 483), so a mapped UNLOAD ``compression`` reaches the coordinator
+    on the submit POST headers.
+    """
+    handler = ScriptedTrinoHandler(
+        [(200, json.dumps(query_results_document()), None)]
+    )
+    client = TrinoClient(
+        BASE_URL, httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    )
+
+    asyncio.run(
+        client.submit_statement(
+            "CREATE TABLE t (a int)",
+            catalog="hive",
+            schema="analytics",
+            user="alice",
+            session_properties={
+                "hive.compression_codec": "SNAPPY",
+                "hive.query_max_run_time": "10s",
+            },
+        )
+    )
+
+    request = handler.requests[0]
+    # Client protocol separates pairs with commas — probed against the
+    # coordinator, where a ';' joiner fails header parsing outright.
+    assert request.headers["X-Trino-Session"] == (
+        "hive.compression_codec=SNAPPY,hive.query_max_run_time=10s"
+    )
+
+
+def test_submit_statement_without_session_properties_omits_header() -> None:
+    handler = ScriptedTrinoHandler(
+        [(200, json.dumps(query_results_document()), None)]
+    )
+    client = TrinoClient(
+        BASE_URL, httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    )
+
+    asyncio.run(
+        client.submit_statement(
+            "SELECT 1", catalog="hive", schema="analytics", user="alice"
+        )
+    )
+
+    assert "X-Trino-Session" not in handler.requests[0].headers
+
+
 def test_page_carries_columns_data_and_update_type() -> None:
     handler = ScriptedTrinoHandler(
         [

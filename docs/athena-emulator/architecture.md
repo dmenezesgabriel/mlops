@@ -97,7 +97,7 @@ consumers pass unmodified:
 | `errors.py` | `InvalidRequestException`, `ResourceNotFoundException`, `TooManyRequestsException`, `InternalServerException`; `{"__type", "message"}` + `X-Amzn-Errortype` (ADR-0008) |
 | `error_mapping.py` | Trino statement errors → Athena's wire error vocabulary (ADR-0008) |
 | `statement_classification.py` | `StatementType`/`SubstatementType` + artifact kind, classified at submit |
-| `dialect.py` | Athena→Trino statement spellings (`CREATE/DROP DATABASE` → `SCHEMA`, identifier quoting, trailing `;`, `MSCK REPAIR TABLE` → `CALL system.sync_partition_metadata(…, 'ADD')`) |
+| `dialect.py` | Athena→Trino statement spellings (`CREATE/DROP DATABASE` → `SCHEMA`, identifier quoting, trailing `;`, `MSCK REPAIR TABLE` → `CALL system.sync_partition_metadata(…, 'ADD')`, `UNLOAD` → CTAS + session codec, ADR-0012) |
 | `state.py` / `data_catalog_state.py` | In-memory registries: workgroups, named queries, prepared statements, data catalogs (ADR-0003) |
 | `workgroups.py` / `workgroup_payloads.py` | Workgroup ops + payload serialization/defaults |
 | `named_queries.py` / `prepared_statements.py` / `data_catalogs.py` / `engine_versions.py` / `tags.py` | Control-plane operation handlers |
@@ -108,7 +108,7 @@ consumers pass unmodified:
 | `query_executions.py` | Query-plane op handlers (`Start/Stop/Get/BatchGet/List/GetResults/GetRuntimeStatistics`) |
 | `trino_client.py` | Thin wrapper over `POST /v1/statement`, `GET nextUri`, `DELETE` (ADR-0001; project-owned interface per `AGENTS.md` deps rule) |
 | `artifacts.py` | `.csv` / `.txt` / `-manifest.csv` + `.metadata` writers; `DataManifestLocation` (ADR-0007, ADR-0010) |
-| `output_targets.py` | INSERT/UNLOAD write-target resolution (Glue `StorageDescriptor.Location`, SQL `TO`) + pre-submit object snapshot; feeds the manifest diff (ADR-0007) |
+| `output_targets.py` | INSERT/UNLOAD write-target resolution (Glue `StorageDescriptor.Location`, SQL `TO`) + pre-submit object snapshot; feeds the manifest diff (ADR-0007); drops the UNLOAD temp table through Glue (ADR-0012) |
 | `s3_writer.py` | Project-owned interface over the boto3 S3 client; put/list against moto S3 (ADR-0006/0007) |
 | `glue_proxy.py` | boto3 client proxying catalog reads to moto Glue (ADR-0005) |
 
@@ -144,12 +144,17 @@ Deployment artifacts (docker/): `athena/Dockerfile` (emulator image),
 **INSERT/UNLOAD flow**: the write target already holds files from earlier
 writes, so listing it at completion would over-state the manifest. Before
 submitting the statement, the emulator resolves the target (Glue
-`StorageDescriptor.Location` for INSERT, the SQL `TO` location for UNLOAD)
-and snapshots its objects; at completion the `{QueryID}-manifest.csv` lists
-only the objects that appeared since, so it names exactly the files the query
-wrote (`_read.py:135-206`). An unresolvable target FAILs the execution at
-artifact write, after Trino's own analysis error has had its chance to
-surface.
+`StorageDescriptor.Location` for INSERT, the SQL `TO` location for UNLOAD —
+parsed from the original text, since the UNLOAD dialect rewrite consumes
+the clause) and snapshots its objects; at completion the
+`{QueryID}-manifest.csv` lists only the objects that appeared since, so it
+names exactly the files the query wrote (`_read.py:135-206`). An
+unresolvable target FAILs the execution at artifact write, after Trino's
+own analysis error has had its chance to surface. An UNLOAD rides the
+engine's writer as a CTAS into a generated `athena_unload_*` table at the
+`TO` path; the Glue entry is deleted when the statement ends — strictly
+before SUCCEEDED, best-effort on FAILED/CANCELLED — because real UNLOAD
+registers no catalog table (ADR-0012).
 
 **Dialect adaptation**: statements Athena accepts but Trino's grammar rejects
 (a statement-leading `CREATE/DROP DATABASE`, backtick identifiers, a terminal
@@ -297,7 +302,7 @@ independent of the query engine" import-linter contract.
 | Trino native S3 client ↔ moto S3 incompatibility (Trino tests only AWS S3/MinIO) | **Handled**: spike-proven before integration — CTAS partition files land on moto S3 and read back through the Hive connector (ADR-0006); the emulator additionally owns artifact writes via boto3 (ADR-0007) |
 | Trino Glue metastore needs the column-statistics and `GetUserDefinedFunctions` ops, absent in moto Glue | **Handled**: repo-owned minimal overlay (`docker/moto/glue_overlay.py`, entrypoint shim on the official image) serves the four ops Trino calls; validated end-to-end against the running stack (CTAS → moto S3, `SHOW FUNCTIONS`) |
 | moto Glue partition-expression filtering breaks Trino partition pruning: blank GetPartitions `Expression` raises `Unsupported expression ''` (5.1.16 only special-cases `None`) and `_cast` rejects Hive type spellings like `varchar(2)`/`decimal(10,2)` | **Handled**: extension of the same overlay — blank Expression ⇒ no filter (mirroring upstream `#10122`/`4db88f3a4`) and `_cast` normalizes type spellings before delegation; partition-key types are NOT normalized at table registration (real AWS stores `varchar(2)`, wrangler `GetTableMetadata` relies on it). Pinned by overlay regression tests plus a live partitioned-read consumer suite |
-| Athena DDL dialect vs Trino grammar: real Athena accepts `CREATE/DROP DATABASE` and backtick identifiers, while Trino 483 requires `CREATE/DROP SCHEMA`, double-quoted identifiers, and no terminal semicolon | **Handled**: `dialect.py` rewrites only a statement-leading database lifecycle statement at submit, preserving classification and the stored execution text; `tests/unit/test_dialect.py` and the Go v2 provider parity suite pin the regression. New entries to the map are added only with evidence |
+| Athena DDL dialect vs Trino grammar: real Athena accepts `CREATE/DROP DATABASE`, backtick identifiers, `MSCK REPAIR TABLE`, and `UNLOAD`, while Trino 483 requires `CREATE/DROP SCHEMA`, double-quoted identifiers, `CALL system.*` procedures, and has no `UNLOAD` at all | **Handled**: `dialect.py` rewrites only statement-leading spellings at submit, preserving classification and the stored execution text; `tests/unit/test_dialect.py` and the consumer suites pin each entry. UNLOAD resolves to a CTAS at its `TO` path plus a `hive.compression_codec` session property, and the generated Glue table is deleted when the statement ends — a bounded catalog-residue delta documented in ADR-0012. New entries to the map are added only with evidence |
 | moto appends `{id}.csv` to `OutputLocation` (models.py:140) — must not leak into our paths | **Handled**: ADR-0007 — the emulator owns artifact naming; never delegated to moto |
 | 400 "Query has not yet finished" must not fire for wrangler's 1 s poll | **Handled**: ADR-0009 — only pre-finish inline reads fail; `GetQueryExecution`/`BatchGetQueryExecution` always answer |
 | Terraform-provider-aws can't be driven locally easily | **Handled** (within the local limit): a pinned AWS SDK Go v2 module plus boto3 drive the provider's five resource-family op shapes (`tests/terraform/`) over the live stack; a real `terraform apply` remains an unclaimed stretch |

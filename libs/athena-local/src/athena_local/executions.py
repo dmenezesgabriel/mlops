@@ -82,6 +82,10 @@ class QueryExecutionRecord:
     # resolved. Sticky and internal — never serialized to the wire.
     output_snapshot: OutputSnapshot | None = None
     manifest_target_error: str | None = None
+    # The (schema, table) Glue entry an UNLOAD's CTAS rewrite registered;
+    # the executor drops it before SUCCEEDED because real UNLOAD leaves no
+    # catalog residue. Sticky and internal — never serialized.
+    unload_cleanup_table: tuple[str, str] | None = None
     # The final Trino page the executor stashed before the terminal transition
     # (ADR-0009 #4): GetQueryResults serves rows from here without re-reading
     # S3, matching Athena's inline results endpoint (ADR-0007).
@@ -333,6 +337,7 @@ class ExecutionStore:
         resolved_statement: str | None = None,
         result_reuse_configuration: ResultReuseByAgeConfiguration
         | None = None,
+        unload_cleanup_table: tuple[str, str] | None = None,
     ) -> QueryExecutionRecord:
         execution_id = str(uuid.uuid4())
         record = QueryExecutionRecord(
@@ -350,6 +355,7 @@ class ExecutionStore:
             manifest_target_error=manifest_target_error,
             resolved_statement=resolved_statement,
             result_reuse_configuration=result_reuse_configuration,
+            unload_cleanup_table=unload_cleanup_table,
         )
         self.by_id[execution_id] = record
         if client_request_token is not None:

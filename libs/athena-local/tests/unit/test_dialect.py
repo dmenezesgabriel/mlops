@@ -11,8 +11,22 @@ stored query text keep the original Athena SQL.
 
 from __future__ import annotations
 
+import re
+
 import pytest
-from athena_local.dialect import to_trino_dialect
+from athena_local.dialect import (
+    UnloadSubmission,
+    to_trino_dialect,
+    unload_trino_submission,
+)
+from athena_local.errors import InvalidRequestException
+
+# The emitted CTAS always targets a generated temp table name; the regex
+# pulls the (schema, table) pair for assertions without pinning the uuid.
+_EMITTED_CTAS_RE = re.compile(
+    r'^CREATE TABLE "(?P<schema>[^"]+)"\.'
+    r'"(?P<table>athena_unload_[0-9a-f]+)"'
+)
 
 
 def test_create_database_becomes_create_schema() -> None:
@@ -150,3 +164,135 @@ def test_msck_statements_that_cannot_resolve_a_schema_pass_through(
     query: str,
 ) -> None:
     assert to_trino_dialect(query) == query
+
+
+def _emitted_table(submission: UnloadSubmission) -> tuple[str, str]:
+    """The ``(schema, table)`` an emitted UNLOAD-CTAS registers then drops."""
+    match = _EMITTED_CTAS_RE.match(submission.sql)
+    assert match is not None, f"not an emitted CTAS: {submission.sql}"
+    return match.group("schema"), match.group("table")
+
+
+def test_unload_rewrites_to_ctas_at_the_to_path() -> None:
+    # awswrangler's exact wire spelling (athena/_read.py _unload): lowercase
+    # keyword inside WITH, the format property first.
+    submission = unload_trino_submission(
+        "UNLOAD (SELECT * FROM sales) TO 's3://bucket/unload/' "
+        "WITH (  format='PARQUET')",
+        "analytics",
+    )
+
+    assert submission is not None
+    assert submission.sql == (
+        'CREATE TABLE "analytics"."'
+        f"{_emitted_table(submission)[1]}\" WITH (format='PARQUET', "
+        "external_location='s3://bucket/unload/') AS SELECT * FROM sales"
+    )
+    assert submission.cleanup_table == _emitted_table(submission)
+    assert submission.session_properties == {}
+
+
+def test_unload_maps_every_with_property() -> None:
+    submission = unload_trino_submission(
+        "UNLOAD (SELECT * FROM sales) TO 's3://bucket/u/' "
+        "WITH (format='TEXTFILE', field_delimiter='\\t', "
+        "partitioned_by=ARRAY['region', 'amount'], compression='snappy')",
+        "db",
+    )
+
+    assert submission is not None
+    assert (
+        "WITH (format='TEXTFILE', external_location='s3://bucket/u/', "
+        "partitioned_by=ARRAY['region', 'amount'], "
+        "textfile_field_separator='\\t') AS SELECT * FROM sales"
+    ) in submission.sql
+    # Trino's hive connector takes the write codec as a session property,
+    # not a table property (probed: system.metadata.table_properties).
+    assert submission.session_properties == {
+        "hive.compression_codec": "SNAPPY"
+    }
+
+
+def test_unload_to_literal_keeps_escaped_quotes() -> None:
+    submission = unload_trino_submission(
+        "UNLOAD (SELECT 1) TO 's3://b/we''ird/' WITH (format='JSON')", "d"
+    )
+
+    assert submission is not None
+    assert "external_location='s3://b/we''ird/'" in submission.sql
+
+
+def test_unload_inner_query_keeps_nested_parens_and_strings() -> None:
+    inner = "SELECT concat(')', '(') FROM t WHERE a IN (1, 2)"
+    submission = unload_trino_submission(
+        f"unload ({inner}) to 's3://b/o/' with (format='orc');", "d"
+    )
+
+    assert submission is not None
+    assert submission.sql.endswith(f"AS {inner}")
+
+
+def test_unload_generates_distinct_temp_table_names() -> None:
+    query = "UNLOAD (SELECT 1) TO 's3://b/o/' WITH (format='PARQUET')"
+    first = unload_trino_submission(query, "d")
+    second = unload_trino_submission(query, "d")
+
+    assert first is not None and second is not None
+    assert _emitted_table(first)[1] != _emitted_table(second)[1]
+
+
+@pytest.mark.parametrize(
+    "query,database",
+    [
+        # No schema for the temp table — the statement passes through for
+        # Trino to reject, same as an unresolvable MSCK schema.
+        ("UNLOAD (SELECT 1) TO 's3://b/o/' WITH (format='PARQUET')", None),
+        ("UNLOAD SELECT * FROM t", "d"),  # missing the parenthesized query
+        ("UNLOAD (SELECT * FROM t", "d"),  # unbalanced
+        ("UNLOAD (SELECT * FROM t) WHERE x = 1", "d"),  # no TO clause
+        (
+            "UNLOAD (SELECT * FROM t) TO 's3://b/o/' WITH (format='PARQUET') ;"
+            " SELECT 1",
+            "d",
+        ),  # a second statement
+        ("SELECT 'unload (x) to ''y'''", "d"),  # keyword inside a literal
+    ],
+)
+def test_unload_unmapped_statements_pass_through(
+    query: str, database: str | None
+) -> None:
+    assert unload_trino_submission(query, database) is None
+
+
+@pytest.mark.parametrize(
+    "query,offender",
+    [
+        (
+            "UNLOAD (SELECT 1) TO 's3://b/' WITH (compression='zlib', "
+            "format='ORC')",
+            "zlib",
+        ),
+        (
+            "UNLOAD (SELECT 1) TO 's3://b/' WITH (compression_level=3, "
+            "format='PARQUET')",
+            "compression_level",
+        ),
+        (
+            "UNLOAD (SELECT 1) TO 's3://b/' WITH (bogus_property='x', "
+            "format='PARQUET')",
+            "bogus_property",
+        ),
+        # format is the only property real Athena requires; a WITH clause
+        # without it must not silently become Trino's default format.
+        (
+            "UNLOAD (SELECT 1) TO 's3://b/' WITH (compression='snappy')",
+            "format",
+        ),
+        ("UNLOAD (SELECT 1) TO 's3://b/'", "format"),
+    ],
+)
+def test_unload_unsupported_properties_raise_a_shaped_400(
+    query: str, offender: str
+) -> None:
+    with pytest.raises(InvalidRequestException, match=offender):
+        unload_trino_submission(query, "db")

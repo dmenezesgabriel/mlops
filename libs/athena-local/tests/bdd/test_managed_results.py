@@ -40,7 +40,12 @@ class _TerminalStatementClient:
     """StatementClient fake serving one finished page."""
 
     async def submit_statement(
-        self, query: str, catalog: str, schema: str, user: str
+        self,
+        query: str,
+        catalog: str,
+        schema: str,
+        user: str,
+        session_properties: dict[str, str] | None = None,
     ) -> TrinoPage:
         return TrinoPage(
             query_id="q",

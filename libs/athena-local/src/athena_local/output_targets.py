@@ -123,6 +123,19 @@ class OutputSnapshotter:
             )
         return self._snapshot(location)
 
+    def drop_table(self, database: str, table: str) -> None:
+        """Remove the Glue entry the UNLOAD→CTAS rewrite registered.
+
+        The emitted CTAS creates a temp table real UNLOAD never has, so the
+        executor calls this when the statement ends. A missing entry means
+        the cleanup is already satisfied; transport failures propagate as
+        ``InternalServerException`` for the executor to classify.
+        """
+        try:
+            self._glue.delete_table(database, table)
+        except MetadataException:
+            return
+
     def _snapshot(self, location: str) -> OutputSnapshot:
         return OutputSnapshot(
             location=_prefix(location),

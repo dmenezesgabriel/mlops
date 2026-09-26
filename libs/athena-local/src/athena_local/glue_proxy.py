@@ -37,8 +37,9 @@ GLUE_SECRET_ACCESS_KEY = "test"
 
 
 class CatalogClient(Protocol):
-    """The four Glue reads this boundary uses (thin interface).
+    """The Glue surface this boundary uses (thin interface).
 
+    Four reads plus ``DeleteTable`` for the UNLOAD→CTAS catalog cleanup.
     Parameter names mirror the botocore Glue client keyword arguments, hence
     the PascalCase (ruff N803 ignores below).
     """
@@ -51,6 +52,11 @@ class CatalogClient(Protocol):
         Expression: str | None = None,  # noqa: N803
     ) -> dict[str, object]: ...
     def get_table(  # noqa: N803
+        self,
+        DatabaseName: str,  # noqa: N803
+        Name: str,  # noqa: N803
+    ) -> dict[str, object]: ...
+    def delete_table(  # noqa: N803
         self,
         DatabaseName: str,  # noqa: N803
         Name: str,  # noqa: N803
@@ -209,6 +215,21 @@ class GlueProxy:
             resource=f"table {database_name}.{table_name}",
         )
         return _table_metadata_from_glue(_object(response, "Table"))
+
+    def delete_table(self, database_name: str, table_name: str) -> None:
+        """Remove a catalog entry (metadata only — S3 data is untouched).
+
+        The UNLOAD→CTAS rewrite registers a temp table real UNLOAD never
+        creates; the executor drops it here. A Glue ``DeleteTable`` can
+        never delete data files, unlike a connector ``DROP TABLE``.
+        """
+        self._run(
+            "DeleteTable",
+            lambda: self._client.delete_table(
+                DatabaseName=database_name, Name=table_name
+            ),
+            resource=f"table {database_name}.{table_name}",
+        )
 
     def _run(
         self,

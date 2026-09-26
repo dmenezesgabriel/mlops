@@ -21,12 +21,15 @@ from athena_local.common_schemas import (
     ResultConfiguration,
     ResultReuseByAgeConfiguration,
 )
-from athena_local.dialect import to_trino_dialect
+from athena_local.dialect import to_trino_dialect, unload_trino_submission
 from athena_local.error_mapping import (
     is_syntax_error,
     syntax_error_invalid_request,
 )
-from athena_local.errors import InvalidRequestException
+from athena_local.errors import (
+    InternalServerException,
+    InvalidRequestException,
+)
 from athena_local.executions import (
     CANCELLED,
     FAILED,
@@ -60,7 +63,12 @@ class StatementClient(Protocol):
     """
 
     async def submit_statement(
-        self, query: str, catalog: str, schema: str, user: str
+        self,
+        query: str,
+        catalog: str,
+        schema: str,
+        user: str,
+        session_properties: dict[str, str] | None = None,
     ) -> TrinoPage: ...
 
     async def fetch_next(self, next_uri: str) -> TrinoPage: ...
@@ -97,6 +105,10 @@ class ManifestSnapshotSource(Protocol):
         catalog: str | None,
         substatement_type: str | None,
     ) -> OutputSnapshot | None: ...
+
+    def drop_table(self, database: str, table: str) -> None:
+        """Remove a transient catalog entry (the UNLOAD temp table)."""
+        ...
 
 
 class ArtifactWriteError(Exception):
@@ -229,15 +241,31 @@ class QueryExecutor:
             record.transition_to(SUCCEEDED)
             return record
         submit_query = resolved_statement or query
-        # Athena accepts a few statements Trino's grammar rejects (e.g.
-        # CREATE DATABASE, MSCK REPAIR TABLE); submit the dialect-mapped
-        # form while the record keeps the query as written (dialect.py).
-        # The database context feeds the rewrite's schema fallback.
-        submit_query = to_trino_dialect(submit_query, database)
+        # UNLOAD has no Trino statement at all: the rewrite to a CTAS at the
+        # TO path also names the temp table the completion path must drop
+        # (dialect.py). Unsupported WITH properties reject here, mirroring
+        # real Athena's submit-time validation.
+        unload = unload_trino_submission(submit_query, database)
+        # Capture on the original statement text: the rewrite consumes the
+        # very TO clause ``unload_location`` resolves for the manifest.
         snapshot, capture_error = await self._capture_manifest(
             submit_query, database, catalog, statement_classification
         )
-        verdict = await self._preflight(submit_query, database)
+        session_properties: dict[str, str] | None = None
+        cleanup_table: tuple[str, str] | None = None
+        if unload is not None:
+            submit_query = unload.sql
+            session_properties = unload.session_properties or None
+            cleanup_table = unload.cleanup_table
+        else:
+            # Athena accepts a few statements Trino's grammar rejects (e.g.
+            # CREATE DATABASE, MSCK REPAIR TABLE); submit the dialect-mapped
+            # form while the record keeps the query as written (dialect.py).
+            # The database context feeds the rewrite's schema fallback.
+            submit_query = to_trino_dialect(submit_query, database)
+        verdict = await self._preflight(
+            submit_query, database, session_properties
+        )
         record = self._create_record(
             query=query,
             workgroup=workgroup,
@@ -252,6 +280,7 @@ class QueryExecutor:
             output_snapshot=snapshot,
             manifest_target_error=capture_error,
             result_reuse_configuration=result_reuse_configuration,
+            unload_cleanup_table=cleanup_table,
         )
         if verdict.failure_reason is not None:
             record.transition_to(FAILED, verdict.failure_reason)
@@ -366,6 +395,7 @@ class QueryExecutor:
         manifest_target_error: str | None = None,
         result_reuse_configuration: ResultReuseByAgeConfiguration
         | None = None,
+        unload_cleanup_table: tuple[str, str] | None = None,
     ) -> QueryExecutionRecord:
         """Create the execution record with the four submit-time wire fields."""
         return self._store.create(
@@ -391,6 +421,7 @@ class QueryExecutor:
             manifest_target_error=manifest_target_error,
             resolved_statement=resolved_statement,
             result_reuse_configuration=result_reuse_configuration,
+            unload_cleanup_table=unload_cleanup_table,
         )
 
     async def _capture_manifest(
@@ -431,7 +462,10 @@ class QueryExecutor:
         return snapshot, None
 
     async def _preflight(
-        self, query: str, database: str | None
+        self,
+        query: str,
+        database: str | None,
+        session_properties: dict[str, str] | None = None,
     ) -> PreflightVerdict:
         """POST the statement and follow one nextUri (ADR-0009 #2).
 
@@ -444,7 +478,11 @@ class QueryExecutor:
         """
         try:
             first_page = await self._client.submit_statement(
-                query, TRINO_CATALOG, database or "", self._trino_user
+                query,
+                TRINO_CATALOG,
+                database or "",
+                self._trino_user,
+                session_properties=session_properties,
             )
         except TrinoTransportError as error:
             return PreflightVerdict(
@@ -503,15 +541,22 @@ class QueryExecutor:
             if record.state != QUEUED:
                 # A cancel that beat the task, or a preflight failure the
                 # caller already made terminal, disarms the runner (ADR-0009).
+                # An UNLOAD's parked CTAS may still have registered the
+                # temp table server-side — best-effort drop, like the other
+                # non-success exits below.
+                self._drop_unload_table(record)
                 return
             record.transition_to(RUNNING)
             record.active_next_uri = first_page.next_uri
             page = await self._poll_to_end(record, first_page)
             if page is None:
+                self._drop_unload_table(record)
                 return
             if record.state == CANCELLED:
+                self._drop_unload_table(record)
                 return
             if page.error is not None:
+                self._drop_unload_table(record)
                 record.transition_to(FAILED, page.error.message)
                 return
             await self._complete(record, page)
@@ -550,6 +595,10 @@ class QueryExecutor:
             page.data,
         )
         record.cache_result_page(columns, rows)
+        cleanup_error = self._unload_cleanup_error(record)
+        if cleanup_error is not None:
+            record.transition_to(FAILED, cleanup_error)
+            return
         if record.managed_results:
             # Managed-results executions (ADR-0011) never expose S3 artifacts:
             # the workgroup's Athena-owned storage is invisible to consumers,
@@ -565,6 +614,45 @@ class QueryExecutor:
             )
             return
         record.transition_to(SUCCEEDED)
+
+    def _unload_cleanup_error(
+        self, record: QueryExecutionRecord
+    ) -> str | None:
+        """Drop the UNLOAD temp table before success; failure names a reason.
+
+        The emitted CTAS registers a Glue entry real UNLOAD never has, so
+        the drop is part of the statement's success semantics: consumers
+        must not see SUCCEEDED over a catalog showing emulator litter (the
+        same discipline as the artifact writer, ADR-0009 #4).
+        """
+        cleanup = record.unload_cleanup_table
+        if cleanup is None:
+            return None
+        if self._snapshotter is None:
+            return (
+                "UNLOAD temp catalog table could not be dropped: "
+                "no manifest snapshotter configured"
+            )
+        try:
+            self._snapshotter.drop_table(*cleanup)
+        except InternalServerException as error:
+            return f"UNLOAD temp catalog table could not be dropped: {error}"
+        return None
+
+    def _drop_unload_table(self, record: QueryExecutionRecord) -> None:
+        """Best-effort UNLOAD temp-table cleanup on a non-success exit.
+
+        A cancelled or engine-failed CTAS may still have registered the
+        table; the drop keeps the catalog clean, while its own failure is
+        swallowed — the record is already terminal with the truer reason.
+        """
+        cleanup = record.unload_cleanup_table
+        if cleanup is None or self._snapshotter is None:
+            return
+        try:
+            self._snapshotter.drop_table(*cleanup)
+        except InternalServerException:
+            return
 
     async def _stop_statement(self, record: QueryExecutionRecord) -> None:
         """DELETE the active Trino statement; best-effort (ADR-0009 #5)."""

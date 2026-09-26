@@ -52,6 +52,13 @@ class BrokenTransportClient(FakeGlueClient):
         raise EndpointConnectionError(endpoint_url="http://moto:5000")
 
 
+class BrokenDeleteClient(FakeGlueClient):
+    """Fake whose DeleteTable fails at the boto3 transport layer."""
+
+    def delete_table(self, DatabaseName: str, Name: str) -> None:  # noqa: N803
+        raise EndpointConnectionError(endpoint_url="http://moto:5000")
+
+
 class AccessDeniedClient(FakeGlueClient):
     """Fake that answers a non-entity Glue ClientError."""
 
@@ -207,6 +214,30 @@ def test_get_table_missing_raises_metadata_exception() -> None:
         proxy.get_table("geo", "missing")
 
     assert "missing" in exc_info.value.message
+
+
+def test_delete_table_removes_the_catalog_entry() -> None:
+    client = FakeGlueClient(tables={"analytics": [SAMPLE_TABLE]})
+    proxy = GlueProxy(client)
+
+    proxy.delete_table("analytics", "counties")
+
+    assert client.delete_table_calls == [("analytics", "counties")]
+    assert client.tables["analytics"] == []
+
+
+def test_delete_table_missing_raises_metadata_exception() -> None:
+    proxy = GlueProxy(FakeGlueClient(tables={"analytics": []}))
+
+    with pytest.raises(MetadataException):
+        proxy.delete_table("analytics", "gone")
+
+
+def test_delete_table_transport_failure_is_internal_server() -> None:
+    proxy = GlueProxy(BrokenDeleteClient())
+
+    with pytest.raises(InternalServerException):
+        proxy.delete_table("analytics", "counties")
 
 
 def test_records_are_immutable() -> None:

@@ -85,15 +85,31 @@ class TrinoClient:
         self._http_client = http_client
 
     async def submit_statement(
-        self, query: str, catalog: str, schema: str, user: str
+        self,
+        query: str,
+        catalog: str,
+        schema: str,
+        user: str,
+        session_properties: dict[str, str] | None = None,
     ) -> TrinoPage:
-        """POST ``query`` to ``/v1/statement`` and return the first page."""
+        """POST ``query`` to ``/v1/statement`` and return the first page.
+
+        ``session_properties`` travel on the ``X-Trino-Session`` header as
+        ``key=value`` pairs (client protocol); they apply to the statement's
+        whole page chain, so ``nextUri`` GETs carry no headers.
+        """
         headers = {
             "X-Trino-User": user,
             "X-Trino-Catalog": catalog,
             "X-Trino-Schema": schema,
             "Content-Type": TRINO_CONTENT_TYPE,
         }
+        if session_properties:
+            # Client protocol: comma-separated key=value pairs (probed on
+            # the coordinator — ';' separators fail header parsing).
+            headers["X-Trino-Session"] = ",".join(
+                f"{key}={value}" for key, value in session_properties.items()
+            )
         response = await self._request(
             "POST", self._statement_url, content=query, headers=headers
         )

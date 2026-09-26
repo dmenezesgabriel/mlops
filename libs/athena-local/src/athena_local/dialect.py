@@ -30,6 +30,10 @@ evidence-gated.
 from __future__ import annotations
 
 import re
+import uuid
+from dataclasses import dataclass
+
+from athena_local.errors import InvalidRequestException
 
 # The optional IF NOT EXISTS clause is part of the Athena CREATE DATABASE
 # grammar and appears in the awscli consumer evidence.  The identifier forms
@@ -155,3 +159,268 @@ def to_trino_dialect(query: str, database: str | None = None) -> str:
     if msck is None:
         return query
     return _msck_replacement(msck, database)
+
+
+# UNLOAD is Athena vocabulary Trino's grammar lacks outright (measured
+# against the coordinator): ``UNLOAD (query) TO 's3://…' WITH (props)`` maps
+# to a CTAS writing the same location through a generated temp table, whose
+# Glue entry the executor deletes on completion — real UNLOAD registers no
+# table. Trino's hive connector takes the write codec as the
+# ``hive.compression_codec`` session property, not a table property
+# (probed ``system.metadata.table_properties``), so ``compression`` travels
+# on the request's session headers instead of the emitted SQL.
+_UNLOAD_HEAD_RE = re.compile(r"(?i)^\s*unload\s*\(")
+_UNLOAD_TO_RE = re.compile(r"(?i)\s*to\s*'")
+_UNLOAD_WITH_RE = re.compile(r"(?i)\s*with\s*\(")
+_UNLOAD_TAIL_RE = re.compile(r"\s*;?\s*")
+
+_UNLOAD_SUPPORTED_PROPS = frozenset(
+    {"format", "compression", "field_delimiter", "partitioned_by"}
+)
+# Athena's lowercase compression names → Trino HiveCompressionCodec values;
+# 'zlib' has no Trino codec and is rejected rather than silently mapped.
+_UNLOAD_COMPRESSION_CODECS = {
+    "none": "NONE",
+    "snappy": "SNAPPY",
+    "lz4": "LZ4",
+    "zstd": "ZSTD",
+    "gzip": "GZIP",
+}
+
+
+@dataclass(frozen=True)
+class UnloadSubmission:
+    """The Trino CTAS an UNLOAD statement resolves to, plus its cleanup.
+
+    ``cleanup_table`` names the ``(schema, table)`` Glue entry the emitted
+    CTAS registers — the executor deletes it when the statement ends so the
+    catalog shows no residue of a statement real Athena keeps table-less.
+    """
+
+    sql: str
+    session_properties: dict[str, str]
+    cleanup_table: tuple[str, str]
+
+
+@dataclass(frozen=True)
+class _UnloadParts:
+    """The parsed pieces of ``UNLOAD (inner) TO 'loc' WITH (props)``."""
+
+    inner: str
+    location: str
+    properties: dict[str, str]
+
+
+def unload_trino_submission(
+    query: str, database: str | None
+) -> UnloadSubmission | None:
+    """Map an UNLOAD statement to a Trino CTAS at its ``TO`` location.
+
+    Returns None — leaving the statement for Trino to reject — when the
+    text is not UNLOAD-shaped, is unbalanced, has no ``TO`` clause, or has
+    no ``database`` context to host the temp table (the stack's Glue has
+    no ``default`` database). Raises ``InvalidRequestException`` for
+    properties the rewrite cannot honor — an unknown key, a ``compression``
+    value with no Trino codec, or a missing ``format`` — since real Athena
+    also rejects a malformed UNLOAD at submit.
+    """
+    parts = _parse_unload(query)
+    if parts is None or database is None:
+        return None
+    unsupported = sorted(set(parts.properties) - _UNLOAD_SUPPORTED_PROPS)
+    if unsupported:
+        raise InvalidRequestException(
+            f"UNLOAD property {unsupported[0]!r} is not supported; "
+            f"expected one of {sorted(_UNLOAD_SUPPORTED_PROPS)}"
+        )
+    file_format = _literal_value(parts.properties.get("format"))
+    if file_format is None:
+        raise InvalidRequestException(
+            "UNLOAD requires a 'format' property in its WITH clause; "
+            "expected one of PARQUET, ORC, AVRO, JSON, TEXTFILE"
+        )
+    session_properties = _unload_session_properties(parts.properties)
+    temp_table = f"athena_unload_{uuid.uuid4().hex[:16]}"
+    sql = (
+        f'CREATE TABLE "{_quoted_identifier(database)}"."{temp_table}" '
+        f"WITH ({', '.join(_unload_table_properties(parts, file_format))}) "
+        f"AS {parts.inner}"
+    )
+    return UnloadSubmission(
+        sql=sql,
+        session_properties=session_properties,
+        cleanup_table=(database, temp_table),
+    )
+
+
+def _unload_table_properties(
+    parts: _UnloadParts, file_format: str
+) -> list[str]:
+    """The CTAS ``WITH`` clause entries, in deterministic order."""
+    properties = [
+        f"format='{_sql_literal(file_format.upper())}'",
+        f"external_location='{_sql_literal(parts.location)}'",
+    ]
+    # partitioned_by is the same ARRAY[...] expression in both dialects;
+    # field_delimiter maps to the TEXTFILE separator property (probed
+    # property names) — a no-op for columnar formats, like Athena.
+    partitioned_by = parts.properties.get("partitioned_by")
+    if partitioned_by is not None:
+        properties.append(f"partitioned_by={partitioned_by}")
+    field_delimiter = parts.properties.get("field_delimiter")
+    if field_delimiter is not None:
+        properties.append(f"textfile_field_separator={field_delimiter}")
+    return properties
+
+
+def _unload_session_properties(
+    properties: dict[str, str],
+) -> dict[str, str]:
+    """WITH-clause values that travel as session properties, not DDL."""
+    compression = _literal_value(properties.get("compression"))
+    if compression is None:
+        return {}
+    codec = _UNLOAD_COMPRESSION_CODECS.get(compression.lower())
+    if codec is None:
+        raise InvalidRequestException(
+            f"UNLOAD compression {compression!r} has no Trino write codec; "
+            f"expected one of {sorted(_UNLOAD_COMPRESSION_CODECS)}"
+        )
+    return {"hive.compression_codec": codec}
+
+
+def _parse_unload(query: str) -> _UnloadParts | None:
+    """The ``(inner, TO, WITH)`` pieces of an UNLOAD, or None if not one."""
+    head = _UNLOAD_HEAD_RE.match(query)
+    if head is None:
+        return None
+    inner_start = head.end() - 1
+    inner_end = _balanced_span(query, inner_start)
+    if inner_end is None:
+        return None
+    inner = query[inner_start + 1 : inner_end - 1].strip()
+    to_match = _UNLOAD_TO_RE.match(query, inner_end)
+    if to_match is None:
+        return None
+    location_end = _string_end(query, to_match.end() - 1)
+    if location_end is None:
+        return None
+    location = query[to_match.end() : location_end - 1].replace("''", "'")
+    properties, tail = _parse_unload_with(query, location_end)
+    if properties is None or _UNLOAD_TAIL_RE.fullmatch(tail) is None:
+        return None
+    return _UnloadParts(inner=inner, location=location, properties=properties)
+
+
+def _parse_unload_with(
+    query: str, start: int
+) -> tuple[dict[str, str] | None, str]:
+    """``WITH (k=v, …)`` at ``start`` → (properties, remaining tail)."""
+    with_match = _UNLOAD_WITH_RE.match(query, start)
+    if with_match is None:
+        return {}, query[start:]
+    props_start = with_match.end() - 1
+    props_end = _balanced_span(query, props_start)
+    if props_end is None:
+        return None, ""
+    return (
+        _with_properties(query[props_start + 1 : props_end - 1]),
+        query[props_end:],
+    )
+
+
+def _with_properties(text: str) -> dict[str, str] | None:
+    """``k = v`` pairs split on top-level commas; keys fold to lowercase."""
+    properties: dict[str, str] = {}
+    for pair in _split_top_level(text):
+        key, separator, value = pair.partition("=")
+        key = key.strip().lower()
+        value = value.strip()
+        if not separator or not re.fullmatch(r"[a-z_][a-z0-9_]*", key):
+            return None
+        if not value:
+            return None
+        properties[key] = value
+    return properties
+
+
+def _split_top_level(text: str) -> list[str]:
+    """Split on commas outside strings and brackets (``ARRAY['a','b']``)."""
+    parts: list[str] = []
+    current: list[str] = []
+    depth = 0
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char == "'":
+            string_end = _string_end(text, index)
+            if string_end is None:
+                break
+            current.append(text[index:string_end])
+            index = string_end
+            continue
+        if char in "([":
+            depth += 1
+        elif char in ")]":
+            depth = max(0, depth - 1)
+        elif char == "," and depth == 0:
+            parts.append("".join(current))
+            current = []
+            index += 1
+            continue
+        current.append(char)
+        index += 1
+    parts.append("".join(current))
+    return parts
+
+
+def _balanced_span(text: str, start: int) -> int | None:
+    """Index just past the ``)`` closing ``text[start]``; None if unbalanced.
+
+    String literals (with ``''`` escapes) are skipped verbatim so parens
+    inside them cannot skew the depth.
+    """
+    depth = 0
+    index = start
+    while index < len(text):
+        char = text[index]
+        if char == "'":
+            string_end = _string_end(text, index)
+            if string_end is None:
+                return None
+            index = string_end
+            continue
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return index + 1
+        index += 1
+    return None
+
+
+def _string_end(text: str, start: int) -> int | None:
+    """Index just past the quoted literal at ``start``; None if unterminated."""
+    cursor = start + 1
+    while cursor < len(text):
+        if text[cursor] != "'":
+            cursor += 1
+            continue
+        if cursor + 1 < len(text) and text[cursor + 1] == "'":
+            cursor += 2
+            continue
+        return cursor + 1
+    return None
+
+
+def _literal_value(raw: str | None) -> str | None:
+    """The unescaped text inside a ``'…'`` literal; None if not a literal."""
+    if raw is None or len(raw) < 2 or raw[0] != "'" or raw[-1] != "'":
+        return None
+    return raw[1:-1].replace("''", "'")
+
+
+def _quoted_identifier(name: str) -> str:
+    """``"``-escape a name for use inside a quoted Trino identifier."""
+    return name.replace('"', '""')
