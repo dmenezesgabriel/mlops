@@ -98,6 +98,7 @@ consumers pass unmodified:
 | `error_mapping.py` | Trino statement errors → Athena's wire error vocabulary (ADR-0008) |
 | `statement_classification.py` | `StatementType`/`SubstatementType` + artifact kind, classified at submit |
 | `dialect.py` + `external_table.py` + `partition_alter.py` | Athena→Trino statement spellings (`CREATE/DROP DATABASE` → `SCHEMA`, identifier quoting, trailing `;`, `MSCK REPAIR TABLE` → `CALL system.sync_partition_metadata(…, 'ADD')`, `CREATE EXTERNAL TABLE` → `CREATE TABLE … WITH(…)`, `ALTER TABLE … ADD PARTITION` → `CALL system.register_partition` with `IF NOT EXISTS`→`ALREADY_EXISTS` no-op, `UNLOAD` → CTAS + session codec, ADR-0012) |
+| `iceberg.py` + `iceberg_table.py` | Iceberg routing to the dedicated `iceberg` catalog: `TBLPROPERTIES('table_type'='ICEBERG')` CREATE → `WITH(format, location[, partitioning])`; Glue `table_type` marker routes `INSERT`/`MERGE`/`DELETE`/`SELECT`/ALTER references; backtick→`"ident"` normalization; `ADD COLUMNS`/`CHANGE COLUMN` → Trino's single-action ALTERs (ADR-0013) |
 | `state.py` / `data_catalog_state.py` | In-memory registries: workgroups, named queries, prepared statements, data catalogs (ADR-0003) |
 | `workgroups.py` / `workgroup_payloads.py` | Workgroup ops + payload serialization/defaults |
 | `named_queries.py` / `prepared_statements.py` / `data_catalogs.py` / `engine_versions.py` / `tags.py` | Control-plane operation handlers |
@@ -113,10 +114,10 @@ consumers pass unmodified:
 | `glue_proxy.py` | boto3 client proxying catalog reads to moto Glue (ADR-0005) |
 
 Deployment artifacts (docker/): `athena/Dockerfile` (emulator image),
-`trino/` (config.properties, catalog/hive.properties), `moto/` (Glue overlay
-+ entrypoint shim on the official image) — wired into compose services
-`athena` (5001) and `trino` (8080) beside the existing `moto` (5000)
-(ADR-0002).
+`trino/` (config.properties, catalog/hive.properties,
+catalog/iceberg.properties), `moto/` (Glue overlay + entrypoint shim on
+the official image) — wired into compose services `athena` (5001) and
+`trino` (8080) beside the existing `moto` (5000) (ADR-0002).
 
 ## 6. Runtime View
 
@@ -193,7 +194,11 @@ Trino statement and records `CANCELLED` (ADR-0009).
     `object-storage/metastores.html`); native S3 `fs.s3.enabled=true`,
     `s3.endpoint=http://moto:5000`, `s3.region=us-east-1`,
     `s3.path-style-access=true`, static keys
-    (`object-storage/file-system-s3.html`). A 4 GiB memory cap keeps the
+    (`object-storage/file-system-s3.html`). A second catalog,
+    `iceberg.properties`, runs the same Glue metastore + S3 block under
+    `connector.name=iceberg` with `iceberg.catalog.type=glue` and
+    `iceberg.format-version=2` (Athena creates Iceberg v2 tables;
+    ADR-0013). A 4 GiB memory cap keeps the
     image's 80%-of-visible-RAM heap sizing inside the host budget; `/v1/info`
     healthcheck; `depends_on: moto`.
   - `athena` — built from `docker/athena/Dockerfile` (locked `uv export` +
@@ -307,6 +312,7 @@ independent of the query engine" import-linter contract.
 | 400 "Query has not yet finished" must not fire for wrangler's 1 s poll | **Handled**: ADR-0009 — only pre-finish inline reads fail; `GetQueryExecution`/`BatchGetQueryExecution` always answer |
 | Terraform-provider-aws can't be driven locally easily | **Handled** (within the local limit): a pinned AWS SDK Go v2 module plus boto3 drive the provider's five resource-family op shapes (`tests/terraform/`) over the live stack; a real `terraform apply` remains an unclaimed stretch |
 | Env-var vs config endpoint precedence surprises | **Handled**: explicit-arg → env-var → compose-default resolution in `main.build_query_executor`/`catalog_metadata`; the endpoint-split suite proves per-service `AWS_ENDPOINT_URL_ATHENA` routes only Athena while global `AWS_ENDPOINT_URL` keeps S3/Glue on moto |
+| Trino's Iceberg Glue catalog ↔ moto Glue commit semantics mismatch (iceberg writes `metadata_location`-tracked table versions), and consumers filter columns on markers Trino never writes | **Handled**: spike-proven live before integration — `CREATE`/`INSERT`/`SELECT`/`MERGE`/`DELETE` round-trip through `iceberg.catalog.type=glue` on moto, registering `Parameters.table_type=ICEBERG` (ADR-0013); the overlay injects AWS's `iceberg.field.current` column marker at `create_table`/`update_table` so wrangler's `filter_iceberg_current` reads the real schema; routing per-reference on the Glue marker keeps hive staging tables inside cross-catalog statements |
 
 ## 12. Glossary
 

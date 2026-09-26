@@ -33,6 +33,7 @@ from athena_local.executor import (
     QueryExecutor,
 )
 from athena_local.glue_proxy import GlueProxy
+from athena_local.iceberg import GlueIcebergProbe
 from athena_local.named_queries import register_named_query_handlers
 from athena_local.output_targets import OutputSnapshotter
 from athena_local.prepared_statements import (
@@ -97,15 +98,19 @@ def build_query_executor(
         or os.getenv(MOTO_ENDPOINT_ENV)
         or MOTO_ENDPOINT_DEFAULT
     )
+    # One Glue boundary feeds both the manifest snapshotter and the Iceberg
+    # routing probe — the same table_type metadata answers both questions.
+    glue = GlueProxy.for_endpoint(moto_endpoint_url)
     return QueryExecutor(
         store=store,
         client=create_trino_client(trino_url),
         max_concurrent_queries=_max_concurrent_queries(),
         writer=ArtifactWriter(S3Writer.for_endpoint(moto_endpoint_url)),
         snapshotter=OutputSnapshotter(
-            glue=GlueProxy.for_endpoint(moto_endpoint_url),
+            glue=glue,
             s3=S3Writer.for_endpoint(moto_endpoint_url),
         ),
+        iceberg_probe=GlueIcebergProbe(glue),
     )
 
 

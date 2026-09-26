@@ -10,10 +10,9 @@
 
 | ID | Feature (PARITY.md row) | Measured on the wire | Expected AWS behavior | Candidate fix surface | Size |
 |---|---|---|---|---|---|
-| GP-12 | `SHOW PARTITIONS <t>` Athena spelling (nb04) | 400: `mismatched input 'PARTITIONS'` — workaround `"t$partitions"` reads fine (PASS) | `SHOW PARTITIONS t` lists partition values | `dialect.py`: map `SHOW PARTITIONS t` → `SELECT * FROM "t$partitions"` (or `SHOW PARTITIONS FROM t` if Trino 483 accepts — verify against the coordinator at fix time) | S–M |
-| GP-13 | `CREATE EXTERNAL TABLE` Athena spelling (nb05) | 400 `InvalidRequestException`: `line 1:8: mismatched input 'EXTERNAL'` | creates an external table over S3 | `dialect.py`: map `CREATE EXTERNAL TABLE … [PARTITIONED BY …] STORED AS … LOCATION …` → Trino `CREATE TABLE … WITH(external_location, format, partitioned_by)`; serde/`TBLPROPERTIES` pairs beyond format+location are unmappable — waiver candidate for those | M |
-| GP-15 | `wr.athena.to_iceberg` (nb05) | 400: `backquoted identifiers are not supported` on `CREATE TABLE `t` (…) TBLPROPERTIES('table_type'='ICEBERG', 'format'='parquet')` | creates an Iceberg table, then `INSERT INTO … SELECT` | two blockers — dialect map (backticks/`TBLPROPERTIES`) AND no Iceberg connector provisioned (`docker/trino/catalog/`); fix = add an `iceberg` catalog on the same moto Glue + map the DDL, or waive as out of emulator scope | L / waiver |
-| GP-16 | `wr.athena.delete_from_iceberg_table` (nb05) | never reached the wire — wrangler raises `InvalidTable` client-side because the target can't be created (GP-15) | deletes matching rows from an Iceberg table | gated by GP-15: with an Iceberg catalog the `DELETE FROM … WHERE EXISTS(…)` lands on Trino's iceberg connector (row delete supported); shares GP-15's fix-or-waive decision | with GP-15 |
+
+Every measured row has shipped or been waived — the register is empty; the
+closed dispositions live in §Triage below.
 
 ## Triage (NB-6, 2026-09-25)
 
@@ -38,5 +37,5 @@ boundary decision, not a defect.
 | GP-12 | shipped | GF-10 | Probed the coordinator at fix time: Trino 483's SHOW grammar has no PARTITIONS form at all (every FROM/IN spelling fails `mismatched input 'PARTITIONS'` at 1:6) — mapped to `SELECT * FROM "<schema>"."<t>$partitions"`; wire rows are columnar where real Athena renders `key=value` (accepted shape-vs-content delta; AWS's own docs name `$partitions` the listing equivalent) |
 | GP-13 | shipped | GF-11 | `CREATE EXTERNAL TABLE … STORED AS … LOCATION` → `CREATE TABLE … WITH(external_location, format, partitioned_by)` |
 | GP-14 | shipped | GF-12 | Probed signature corrected the sketch: `register_partition(schema, table, partition_columns ARRAY, partition_values ARRAY, location)` — 5 args with `location` optional (4-arg form covers the omitted-LOCATION default); the procedure is disabled by default → `hive.allow-register-partition-procedure=true` in `docker/trino/catalog/hive.properties`. `IF NOT EXISTS` rides the record: Trino's `ALREADY_EXISTS` fires before any mutation → succeeded as AWS's no-op. Accepted deltas: spec keys emit in statement order, and Trino requires the location dir to exist where AWS registers empty prefixes |
-| GP-15 | waived | — | Iceberg writes need a dedicated `iceberg` Trino catalog on moto Glue **and** an Athena-DDL dialect map (`TBLPROPERTIES`, backticks) — a connector-level capability the PRD never scoped (FR-01…20 list no Iceberg). Revisit if a consumer needs it |
-| GP-16 | waived | — | Gated by GP-15 — shares the Iceberg scope decision |
+| GP-15 | shipped | GF-13 | Un-waived and shipped 2026-09-26: dedicated `iceberg` Trino catalog on the same moto Glue + `iceberg_table.py` maps `TBLPROPERTIES('table_type'='ICEBERG')` CREATE (backticks normalized; `bucket(N,col)` re-ordered to Trino's `(col,N)`); `iceberg.py` routes `INSERT`/`MERGE`/`SELECT` references on the Glue `table_type` marker so wrangler's staged hive temp tables stay session-catalog; `iceberg.field.current` column markers injected by the moto overlay (wrangler's `filter_iceberg_current`). Accepted deltas: `write_compression`/optimize/vacuum hints dropped, multi-column `ADD COLUMNS` + `CHANGE COLUMN` renames reject. ADR-0013 |
+| GP-16 | shipped | GF-13 | Shares GF-13 — `MERGE INTO … WHEN MATCHED THEN DELETE` qualifies only the Iceberg target; live wrangler probe deletes the matched row |

@@ -40,6 +40,10 @@ from athena_local.executions import (
     ExecutionStore,
     QueryExecutionRecord,
 )
+from athena_local.iceberg import (
+    IcebergTableProbe,
+    iceberg_trino_submission,
+)
 from athena_local.output_targets import (
     ManifestTargetError,
     OutputSnapshot,
@@ -144,6 +148,7 @@ class QueryExecutor:
         max_concurrent_queries: int = DEFAULT_MAX_CONCURRENT_QUERIES,
         trino_user: str = TRINO_USER,
         snapshotter: ManifestSnapshotSource | None = None,
+        iceberg_probe: IcebergTableProbe | None = None,
     ) -> None:
         self._store = store
         self._client = client
@@ -151,6 +156,7 @@ class QueryExecutor:
         self._semaphore = asyncio.Semaphore(max_concurrent_queries)
         self._trino_user = trino_user
         self._snapshotter = snapshotter
+        self._iceberg_probe = iceberg_probe
         self._tasks: dict[str, asyncio.Task[None]] = {}
 
     async def start(
@@ -271,11 +277,7 @@ class QueryExecutor:
             submit_query = partition_call.sql
             partition_noop_on_exists = partition_call.noop_if_exists
         else:
-            # Athena accepts a few statements Trino's grammar rejects (e.g.
-            # CREATE DATABASE, MSCK REPAIR TABLE); submit the dialect-mapped
-            # form while the record keeps the query as written (dialect.py).
-            # The database context feeds the rewrite's schema fallback.
-            submit_query = to_trino_dialect(submit_query, database)
+            submit_query = self._mapped_submission(submit_query, database)
         verdict = await self._preflight(
             submit_query, database, session_properties
         )
@@ -308,6 +310,29 @@ class QueryExecutor:
             lambda _: self._tasks.pop(record.query_execution_id, None)
         )
         return record
+
+    def _mapped_submission(
+        self, submit_query: str, database: str | None
+    ) -> str:
+        """The Trino text a plain statement maps to (iceberg + dialect).
+
+        Iceberg statements route first: Athena declares them via
+        TBLPROPERTIES or a Glue table_type=ICEBERG target, and the dedicated
+        Trino catalog cannot be expressed through the session — the rewrite
+        catalog-qualifies the bound table references instead (iceberg.py).
+        The dialect map then runs on whatever text survives: Athena accepts a
+        few statements Trino's grammar rejects (e.g. CREATE DATABASE, MSCK
+        REPAIR TABLE); the record keeps the query as written (dialect.py) and
+        the database context feeds the rewrite's schema fallback.
+        """
+        if self._iceberg_probe is not None:
+            submit_query = (
+                iceberg_trino_submission(
+                    submit_query, database, self._iceberg_probe
+                )
+                or submit_query
+            )
+        return to_trino_dialect(submit_query, database)
 
     def _request_token_replay(
         self,

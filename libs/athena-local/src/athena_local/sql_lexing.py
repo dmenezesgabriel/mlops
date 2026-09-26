@@ -3,11 +3,13 @@
 The dialect modules scan statement text by hand — anchored regexes where a
 single clause suffices, and these small lexers where balanced parentheses,
 quoted literals (``''`` escapes), and identifier chains must not be broken
-by a naive ``split``/regex (dialect.py, external_table.py). Nothing here is
-Athena- or Trino-specific.
+by a naive ``split``/regex (dialect.py, external_table.py, iceberg.py).
+Nothing here is Athena- or Trino-specific.
 """
 
 from __future__ import annotations
+
+import re
 
 # One identifier chain segment: backticked, double-quoted, or bare.
 # A double-quoted part may carry a ``""``-escaped quote
@@ -131,3 +133,24 @@ def string_end(text: str, start: int) -> int | None:
             continue
         return cursor + 1
     return None
+
+
+_QUOTED_PAIR = re.compile(r"^\s*'((?:[^']|'')*)'\s*=\s*'((?:[^']|'')*)'\s*$")
+
+
+def quoted_pair(pair: str) -> tuple[str, str] | None:
+    """A ``'key' = 'value'`` TBLPROPERTIES-style pair → decoded parts."""
+    match = _QUOTED_PAIR.match(pair)
+    if match is None:
+        return None
+    return (
+        match.group(1).replace("''", "'"),
+        match.group(2).replace("''", "'"),
+    )
+
+
+def skip_ws(text: str, index: int) -> int:
+    """Index of the first non-whitespace character at or after ``index``."""
+    while index < len(text) and text[index] in " \t\n\r":
+        index += 1
+    return index

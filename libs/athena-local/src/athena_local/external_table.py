@@ -27,6 +27,7 @@ from athena_local.sql_lexing import (
     identifier_name,
     literal_value,
     quoted_identifier,
+    quoted_pair,
     split_target,
     split_top_level,
     sql_literal,
@@ -213,7 +214,6 @@ _INPUTFORMAT = re.compile(r"(?i)\s*inputformat\s*'")
 _OUTPUTFORMAT = re.compile(r"(?i)\s*outputformat\s*'")
 _LOCATION = re.compile(r"(?i)\s*location\s*'")
 _TBLPROPERTIES = re.compile(r"(?i)\s*tblproperties\s*\(")
-_TBLPROP_PAIR = re.compile(r"^\s*'((?:[^']|'')*)'\s*=\s*'((?:[^']|'')*)'\s*$")
 
 
 def _raw_literal(query: str, match: re.Match[str]) -> tuple[str, int] | None:
@@ -396,13 +396,12 @@ def _match_tblproperties(
     for pair in split_top_level(query[match.end() : end - 1]):
         if not pair.strip():
             continue
-        kv = _TBLPROP_PAIR.match(pair)
+        kv = quoted_pair(pair)
         if kv is None:
             return None
-        key = kv.group(1).replace("''", "'")
+        key, value = kv
         if key.lower() != "skip.header.line.count":
             continue  # Others are dropped — documented limitation.
-        value = kv.group(2).replace("''", "'")
         if not value.isdigit():
             raise InvalidRequestException(
                 f"TBLPROPERTIES 'skip.header.line.count' value {value!r} "

@@ -22,6 +22,14 @@ partitions (upstream fix ``4db88f3a4`` / ``#10122``), and its ``_cast`` only
 knows bare type names while Trino registers keys as ``varchar(2)``,
 ``decimal(10,2)``, ``timestamp(3)`` and ``char(N)``.
 
+Finally it injects AWS Glue's Iceberg column markers at table-registration
+time: real Athena writes ``iceberg.field.*`` parameters onto every column of
+an Iceberg table's Glue record (its Iceberg engine owns them), Trino's Glue
+catalog does not, and awswrangler's ``get_table_types(
+filter_iceberg_current=True)`` filters on ``iceberg.field.current`` — without
+the marker a second ``to_iceberg`` call reads an empty schema and rejects its
+own frame as a schema change.
+
 Only the moto service container runs this module (docker/trino entrypoint);
 the athena-local library never imports it (ADR-0008).
 """
@@ -30,13 +38,13 @@ from __future__ import annotations
 
 import fnmatch
 from datetime import date, datetime
-from typing import TypeAlias
+from typing import Any, TypeAlias
 from weakref import WeakKeyDictionary
 
 from moto.core.responses import ActionResult, EmptyResult
 from moto.glue import utils as glue_utils
 from moto.glue.exceptions import InvalidInputException
-from moto.glue.models import GlueBackend
+from moto.glue.models import FakeTable, GlueBackend
 from moto.glue.responses import GlueResponse
 from moto.glue.utils import _PartitionFilterExpressionCache
 
@@ -267,6 +275,61 @@ def _get_filter_expression(
     return _ORIGINAL_FILTER_EXPRESSION_GET(self, expression)
 
 
+_ORIGINAL_CREATE_TABLE = GlueBackend.create_table
+_ORIGINAL_UPDATE_TABLE = GlueBackend.update_table
+
+
+def _mark_iceberg_columns(table_input: dict[str, Any]) -> None:
+    """Inject AWS Glue's Iceberg column markers into a table registration.
+
+    Real Athena writes ``iceberg.field.*`` parameters onto every column of
+    an Iceberg table's Glue record; Trino's Glue catalog does not, and
+    awswrangler's ``get_table_types(filter_iceberg_current=True)`` filters
+    on ``iceberg.field.current`` — the marker is what keeps a second
+    ``to_iceberg`` call from reading an empty schema.
+    """
+    parameters = table_input.get("Parameters")
+    if not isinstance(parameters, dict):
+        return
+    if str(parameters.get("table_type", "")).upper() != "ICEBERG":
+        return
+    storage = table_input.get("StorageDescriptor")
+    if not isinstance(storage, dict):
+        return
+    columns = storage.get("Columns")
+    if not isinstance(columns, list):
+        return
+    for column in columns:
+        if not isinstance(column, dict):
+            continue
+        column_parameters = column.setdefault("Parameters", {})
+        if not isinstance(column_parameters, dict):
+            continue
+        column_parameters["iceberg.field.current"] = "true"
+
+
+# Wrappers keep moto's exact (self, Any) signatures — pyright checks the
+# assignment against the real attributes.
+def create_table_with_iceberg_markers(
+    self: GlueBackend,
+    database_name: str,
+    table_name: str,
+    table_input: dict[str, Any],
+) -> FakeTable:
+    _mark_iceberg_columns(table_input)
+    return _ORIGINAL_CREATE_TABLE(self, database_name, table_name, table_input)
+
+
+def update_table_with_iceberg_markers(
+    self: GlueBackend,
+    database_name: str,
+    table_name: str,
+    table_input: dict[str, Any],
+) -> None:
+    _mark_iceberg_columns(table_input)
+    _ORIGINAL_UPDATE_TABLE(self, database_name, table_name, table_input)
+
+
 def apply_overlay() -> None:
     """Attach the Glue bridges to the running moto server classes."""
     if getattr(GlueResponse, "get_user_defined_functions", None) is not None:
@@ -278,3 +341,7 @@ def apply_overlay() -> None:
     # call _cast by name inside moto.glue.utils.
     _PartitionFilterExpressionCache.get = _get_filter_expression
     glue_utils._cast = _cast_partition_value
+    # Iceberg column markers belong on the stored table, not a response
+    # shim: update_table keeps them flowing through ALTER ADD COLUMN writes.
+    GlueBackend.create_table = create_table_with_iceberg_markers
+    GlueBackend.update_table = update_table_with_iceberg_markers
