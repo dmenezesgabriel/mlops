@@ -86,6 +86,11 @@ class QueryExecutionRecord:
     # the executor drops it before SUCCEEDED because real UNLOAD leaves no
     # catalog residue. Sticky and internal — never serialized.
     unload_cleanup_table: tuple[str, str] | None = None
+    # ``ALTER TABLE … ADD IF NOT EXISTS PARTITION`` submits Trino's
+    # register_partition, whose ALREADY_EXISTS on a registered partition is
+    # AWS's documented no-op — the executor succeeds on that error instead
+    # of failing the execution. Sticky and internal — never serialized.
+    partition_noop_on_exists: bool = False
     # The final Trino page the executor stashed before the terminal transition
     # (ADR-0009 #4): GetQueryResults serves rows from here without re-reading
     # S3, matching Athena's inline results endpoint (ADR-0007).
@@ -338,6 +343,7 @@ class ExecutionStore:
         result_reuse_configuration: ResultReuseByAgeConfiguration
         | None = None,
         unload_cleanup_table: tuple[str, str] | None = None,
+        partition_noop_on_exists: bool = False,
     ) -> QueryExecutionRecord:
         execution_id = str(uuid.uuid4())
         record = QueryExecutionRecord(
@@ -356,6 +362,7 @@ class ExecutionStore:
             resolved_statement=resolved_statement,
             result_reuse_configuration=result_reuse_configuration,
             unload_cleanup_table=unload_cleanup_table,
+            partition_noop_on_exists=partition_noop_on_exists,
         )
         self.by_id[execution_id] = record
         if client_request_token is not None:

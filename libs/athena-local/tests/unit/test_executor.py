@@ -1936,3 +1936,122 @@ def test_unload_without_snapshotter_fails_before_artifacts(
 
     asyncio.run(scenario())
     assert writer.calls == []
+
+
+ADD_PARTITION_QUERY = (
+    "ALTER TABLE sales ADD PARTITION (region='AP') LOCATION 's3://b/x/'"
+)
+ADD_PARTITION_IF_NOT_EXISTS_QUERY = (
+    "ALTER TABLE sales ADD IF NOT EXISTS PARTITION (region='AP') "
+    "LOCATION 's3://b/x/'"
+)
+
+
+def test_add_partition_submits_the_register_partition_call(
+    store: ExecutionStore,
+) -> None:
+    """Athena's ADD PARTITION reaches Trino as system.register_partition."""
+    writer = RecordingWriter()
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient(
+            [result_page(next_uri=URI_1), result_page(next_uri=None)]
+        )
+        executor = QueryExecutor(store=store, client=client, writer=writer)
+        record = await executor.start(
+            query=ADD_PARTITION_QUERY,
+            workgroup="primary",
+            database="analytics",
+        )
+        await executor._tasks[record.query_execution_id]
+
+        assert client.submissions == [
+            (
+                "CALL system.register_partition('analytics','sales',"
+                "ARRAY['region'],ARRAY['AP'],'s3://b/x/')",
+                TRINO_CATALOG,
+                "analytics",
+                TRINO_USER,
+            )
+        ]
+        assert record.state == SUCCEEDED
+        assert record.partition_noop_on_exists is False
+
+    asyncio.run(scenario())
+
+
+def test_add_partition_if_not_exists_tolerates_already_exists(
+    store: ExecutionStore,
+) -> None:
+    """An existing partition makes register_partition raise ALREADY_EXISTS;
+    with IF NOT EXISTS that is AWS's documented no-op — SUCCEEDED, with the
+    old registration kept (the procedure checks before mutating)."""
+    writer = RecordingWriter()
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient(
+            [
+                result_page(next_uri=URI_1),
+                result_page(
+                    next_uri=None,
+                    error=TrinoQueryError(
+                        message="Partition [region=AP] is already registered "
+                        "with location s3://b/x/",
+                        error_type="USER_ERROR",
+                        error_name="ALREADY_EXISTS",
+                    ),
+                ),
+            ]
+        )
+        executor = QueryExecutor(store=store, client=client, writer=writer)
+        record = await executor.start(
+            query=ADD_PARTITION_IF_NOT_EXISTS_QUERY,
+            workgroup="primary",
+            database="analytics",
+        )
+        await executor._tasks[record.query_execution_id]
+
+        assert record.state == SUCCEEDED
+        assert record.partition_noop_on_exists is True
+
+    asyncio.run(scenario())
+    # The tolerated path still writes result artifacts before SUCCEEDED
+    # (ADR-0009 #4) — a no-op ALTER produces them on real Athena too.
+    assert writer.calls == ["write:RUNNING"]
+
+
+def test_add_partition_without_guard_keeps_already_exists_a_failure(
+    store: ExecutionStore,
+) -> None:
+    """Without IF NOT EXISTS real Athena also fails a duplicate add."""
+    writer = RecordingWriter()
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient(
+            [
+                result_page(next_uri=URI_1),
+                result_page(
+                    next_uri=None,
+                    error=TrinoQueryError(
+                        message="Partition [region=AP] is already registered "
+                        "with location s3://b/x/",
+                        error_type="USER_ERROR",
+                        error_name="ALREADY_EXISTS",
+                    ),
+                ),
+            ]
+        )
+        executor = QueryExecutor(store=store, client=client, writer=writer)
+        record = await executor.start(
+            query=ADD_PARTITION_QUERY,
+            workgroup="primary",
+            database="analytics",
+        )
+        await executor._tasks[record.query_execution_id]
+
+        assert record.state == FAILED
+        assert "already registered" in record.state_change_reason
+        assert record.partition_noop_on_exists is False
+
+    asyncio.run(scenario())
+    assert writer.calls == []

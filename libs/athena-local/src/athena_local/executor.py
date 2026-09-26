@@ -44,9 +44,14 @@ from athena_local.output_targets import (
     ManifestTargetError,
     OutputSnapshot,
 )
+from athena_local.partition_alter import add_partition_trino_call
 from athena_local.result_shapes import to_athena_result_shape
 from athena_local.statement_classification import StatementClassification
-from athena_local.trino_client import TrinoPage, TrinoTransportError
+from athena_local.trino_client import (
+    TrinoPage,
+    TrinoQueryError,
+    TrinoTransportError,
+)
 
 TRINO_CATALOG = "hive"
 TRINO_USER = "athena-local"
@@ -246,6 +251,10 @@ class QueryExecutor:
         # (dialect.py). Unsupported WITH properties reject here, mirroring
         # real Athena's submit-time validation.
         unload = unload_trino_submission(submit_query, database)
+        # Athena's ``ALTER TABLE … ADD [IF NOT EXISTS] PARTITION`` has no
+        # Trino grammar either — it maps to a ``register_partition`` CALL
+        # whose ``IF NOT EXISTS`` flag rides the record (partition_alter.py).
+        partition_call = add_partition_trino_call(submit_query, database)
         # Capture on the original statement text: the rewrite consumes the
         # very TO clause ``unload_location`` resolves for the manifest.
         snapshot, capture_error = await self._capture_manifest(
@@ -253,10 +262,14 @@ class QueryExecutor:
         )
         session_properties: dict[str, str] | None = None
         cleanup_table: tuple[str, str] | None = None
+        partition_noop_on_exists = False
         if unload is not None:
             submit_query = unload.sql
             session_properties = unload.session_properties or None
             cleanup_table = unload.cleanup_table
+        elif partition_call is not None:
+            submit_query = partition_call.sql
+            partition_noop_on_exists = partition_call.noop_if_exists
         else:
             # Athena accepts a few statements Trino's grammar rejects (e.g.
             # CREATE DATABASE, MSCK REPAIR TABLE); submit the dialect-mapped
@@ -281,6 +294,7 @@ class QueryExecutor:
             manifest_target_error=capture_error,
             result_reuse_configuration=result_reuse_configuration,
             unload_cleanup_table=cleanup_table,
+            partition_noop_on_exists=partition_noop_on_exists,
         )
         if verdict.failure_reason is not None:
             record.transition_to(FAILED, verdict.failure_reason)
@@ -396,6 +410,7 @@ class QueryExecutor:
         result_reuse_configuration: ResultReuseByAgeConfiguration
         | None = None,
         unload_cleanup_table: tuple[str, str] | None = None,
+        partition_noop_on_exists: bool = False,
     ) -> QueryExecutionRecord:
         """Create the execution record with the four submit-time wire fields."""
         return self._store.create(
@@ -422,6 +437,7 @@ class QueryExecutor:
             resolved_statement=resolved_statement,
             result_reuse_configuration=result_reuse_configuration,
             unload_cleanup_table=unload_cleanup_table,
+            partition_noop_on_exists=partition_noop_on_exists,
         )
 
     async def _capture_manifest(
@@ -557,6 +573,9 @@ class QueryExecutor:
                 return
             if page.error is not None:
                 self._drop_unload_table(record)
+                if self._partition_exists_noop(record, page.error):
+                    await self._complete(record, page)
+                    return
                 record.transition_to(FAILED, page.error.message)
                 return
             await self._complete(record, page)
@@ -614,6 +633,22 @@ class QueryExecutor:
             )
             return
         record.transition_to(SUCCEEDED)
+
+    def _partition_exists_noop(
+        self, record: QueryExecutionRecord, error: TrinoQueryError
+    ) -> bool:
+        """Whether an ``IF NOT EXISTS`` partition add is AWS's no-op.
+
+        The statement rewrote to ``system.register_partition``, whose
+        ``ALREADY_EXISTS`` fires only when the partition is registered —
+        before any mutation (procedure source) — which is exactly the
+        guard's semantics on real Athena: keep the old registration,
+        report success.
+        """
+        return (
+            record.partition_noop_on_exists
+            and error.error_name == "ALREADY_EXISTS"
+        )
 
     def _unload_cleanup_error(
         self, record: QueryExecutionRecord

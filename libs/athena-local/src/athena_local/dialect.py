@@ -34,6 +34,11 @@ clause-by-clause mapping to ``CREATE TABLE … WITH(…)`` — including Hive
 type spellings, ``ROW FORMAT``/``STORED AS`` resolution, and the clauses
 that raise ``InvalidRequestException`` — lives in ``external_table.py``.
 
+``ALTER TABLE … ADD [IF NOT EXISTS] PARTITION`` is likewise executor-level:
+``partition_alter.py`` emits a ``register_partition`` CALL whose
+``IF NOT EXISTS`` flag rides the execution record (the procedure's
+``ALREADY_EXISTS`` is AWS's no-op).
+
 Only statement-leading rewrites apply; occurrences inside SELECTs, strings,
 and comments remain untouched. The mapping is intentionally small and
 evidence-gated.
