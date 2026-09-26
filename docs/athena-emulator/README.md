@@ -13,7 +13,7 @@ existing `docker-compose.yml`.
 | [architecture.md](architecture.md) | **Permanent** — arc42 architecture, building blocks, runtime, deployment, cross-cutting concepts, quality, risks, glossary | Keep in sync with the code |
 | [adr/](adr/) | **Permanent** — architecture decision records (Nygard-style, numbered, append-only) | Supersede only with a new ADR |
 | [prd.md](prd.md) | **Ephemeral** — product requirements (what/why, acceptance criteria) | Must NOT be cited from code |
-| [prompt-execution.md](../../prompt-execution.md) | **Operational** — session execution protocol, mapped to this repo's files | Keep in sync with doc map |
+| [prompt-execution.md](prompt-execution.md) | **Operational** — session execution protocol, mapped to this repo's files | Keep in sync with doc map |
 | [backlog.md](backlog.md) | **Ephemeral** — evidence-anchored work items, TDD-shaped | Must NOT be cited from code |
 | [milestones.md](milestones.md) | **Ephemeral** — ordered phases and steps with dense evidence refs | Must NOT be cited from code |
 | [gaps.md](gaps.md) | **Ephemeral** — measured FAIL/GAP register from the parity notebooks, one small-step fix sketch per row | Must NOT be cited from code |
