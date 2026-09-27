@@ -471,7 +471,7 @@ engineering-quality findings are filed as small items:
 1. [x] GF-14 — comma-separated FROM items after the first escape the Iceberg
    routing probe (`FROM hive_t, ice_t` → `UNSUPPORTED_TABLE_TYPE` where real
    Athena succeeds; live-measured).
-2. [ ] GF-15 — schema-position refs (`SHOW TABLES FROM x`) probed as tables;
+2. [x] GF-15 — schema-position refs (`SHOW TABLES FROM x`) probed as tables;
    a colliding Iceberg table name corrupts the statement (live-measured).
 3. [ ] QA-1…QA-4 — dead module + ~350 lines of duplicated validators /
    pagination / SQL scanners; consolidate on shared helpers.

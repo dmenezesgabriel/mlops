@@ -563,6 +563,80 @@ class TestIcebergCommaItems:
         assert ("analytics", "b") not in probe.calls
 
 
+class TestShowSchemaArgs:
+    """``SHOW <objects> FROM x`` — ``x`` names a schema/catalog, not a table.
+
+    The bare ``from`` anchor also matches the FROM inside ``SHOW TABLES``-
+    family spellings, whose argument is a schema or catalog: probing it as
+    a table rewrote ``SHOW TABLES FROM ice_t`` to
+    ``iceberg."db"."ice_t"`` whenever a colliding Iceberg table existed →
+    Trino ``Too many parts in schema name`` where AWS answers
+    schema-not-found (live-measured 2026-09-27 audit). ``SHOW COLUMNS
+    FROM t`` stays probed — its argument IS the table.
+    """
+
+    ICE = {("analytics", "ice_t")}
+
+    def test_show_tables_from_schema_arg_is_not_probed(self) -> None:
+        probe = StaticIcebergProbe(self.ICE)
+        sql = iceberg_trino_submission(
+            "SHOW TABLES FROM ice_t", DATABASE, probe
+        )
+        assert sql is None
+        assert probe.calls == []
+
+    def test_show_schema_family_args_are_not_probed(self) -> None:
+        for statement in (
+            "SHOW SCHEMAS FROM ice_t",
+            "SHOW DATABASES FROM ice_t",
+            "SHOW VIEWS FROM ice_t",
+            "SHOW FUNCTIONS FROM ice_t",
+            "SHOW ROLE GRANTS FROM ice_t",
+        ):
+            probe = StaticIcebergProbe(self.ICE)
+            assert (
+                iceberg_trino_submission(statement, DATABASE, probe) is None
+            ), statement
+            assert probe.calls == [], statement
+
+    def test_show_tables_in_is_not_probed(self) -> None:
+        probe = StaticIcebergProbe(self.ICE)
+        assert (
+            iceberg_trino_submission("SHOW TABLES IN ice_t", DATABASE, probe)
+            is None
+        )
+        assert probe.calls == []
+
+    def test_lowercase_show_tables_from_is_not_probed(self) -> None:
+        assert _route("show tables from ice_t", self.ICE) is None
+
+    def test_comment_before_show_from_still_skips(self) -> None:
+        assert _route("SHOW TABLES /* note */ FROM ice_t", self.ICE) is None
+
+    def test_show_columns_from_table_still_probes(self) -> None:
+        # COLUMNS is the one SHOW object whose FROM argument is a table.
+        sql = _route("SHOW COLUMNS FROM ice_t", self.ICE)
+        assert sql == 'SHOW COLUMNS FROM iceberg."analytics"."ice_t"'
+
+    def test_noun_without_show_still_probes(self) -> None:
+        sql = _route("SELECT tables FROM ice_t", self.ICE)
+        assert sql == 'SELECT tables FROM iceberg."analytics"."ice_t"'
+
+    def test_column_show_aliased_tables_still_probes(self) -> None:
+        # `show tables` in a select list is a `show` column with a `tables`
+        # alias — not the SHOW TABLES statement.
+        sql = _route("SELECT show tables FROM ice_t", self.ICE)
+        assert sql == ('SELECT show tables FROM iceberg."analytics"."ice_t"')
+
+    def test_dotted_show_tables_name_still_probes(self) -> None:
+        # `show.tables` is a schema-qualified table ref, not SHOW TABLES.
+        sql = _route("SELECT show.tables FROM ice_t", self.ICE)
+        assert sql == ('SELECT show.tables FROM iceberg."analytics"."ice_t"')
+
+    def test_explain_show_tables_from_is_not_probed(self) -> None:
+        assert _route("EXPLAIN SHOW TABLES FROM ice_t", self.ICE) is None
+
+
 class TestIcebergDispatch:
     def test_no_iceberg_work_returns_none(self) -> None:
         assert (

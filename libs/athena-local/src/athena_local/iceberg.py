@@ -18,7 +18,9 @@ reaches it:
    ``iceberg."schema"."table"`` when a Glue ``table_type`` lookup (``probe``)
    marks it Iceberg — and every later item in a comma-separated list
    (``FROM a, b``) shares the anchor's walk, skipping ``(…)`` derived
-   tables and ``ident(…)`` calls. Hive-bound references stay unqualified
+   tables and ``ident(…)`` calls. A bare ``from`` closing a ``SHOW
+   <objects> FROM`` spelling is skipped instead: that argument names a
+   schema/catalog, never a table. Hive-bound references stay unqualified
    and resolve in the session's hive catalog — exactly the staged
    ``INSERT INTO iceberg SELECT`` and ``MERGE INTO iceberg USING
    hive_temp`` cross-catalog shapes awswrangler emits
@@ -122,6 +124,24 @@ _REF = re.compile(
     rf"(?:\s*\.\s*(?:{IDENTIFIER_PART})){{0,2}})"
 )
 
+# Object words allowed between ``show`` and ``from`` when the argument is
+# a schema/catalog, never a table: ``SHOW TABLES|SCHEMAS|DATABASES|VIEWS
+# FROM``, plus Trino's ``SHOW FUNCTIONS|ROLES|ROLE GRANTS FROM``. Athena's
+# ``SHOW COLUMNS FROM t`` is absent on purpose — its argument IS the
+# table the probe must qualify.
+_SHOW_FROM_NOUNS = frozenset(
+    {
+        "databases",
+        "functions",
+        "grants",
+        "role",
+        "roles",
+        "schemas",
+        "tables",
+        "views",
+    }
+)
+
 
 def _route_iceberg_references(
     query: str, database: str | None, probe: IcebergTableProbe
@@ -135,6 +155,10 @@ def _route_iceberg_references(
     edits: list[tuple[int, int, str]] = []
     for anchor in _ANCHOR.finditer(query):
         if _inside(protected, anchor.start()):
+            continue
+        if anchor.group(0).lower() == "from" and _schema_arg_from(
+            query, anchor.start(), comments
+        ):
             continue
         for start, end in _table_item_refs(query, anchor.end(), comments):
             _route_ref(query, start, end, database, probe, verified, edits)
@@ -241,17 +265,85 @@ def _past_noise(query: str, pos: int, comments: list[tuple[int, int]]) -> int:
     """Index past whitespace and ``--``/``/* */`` comment spans."""
     while True:
         pos = skip_ws(query, pos)
-        end = _covering_end(comments, pos)
-        if end is None:
+        span = _covering_span(comments, pos)
+        if span is None:
             return pos
-        pos = end
+        pos = span[1]
 
 
-def _covering_end(spans: list[tuple[int, int]], position: int) -> int | None:
+def _noise_back(query: str, pos: int, comments: list[tuple[int, int]]) -> int:
+    """Index before whitespace and comment spans, scanning backwards."""
+    while True:
+        while pos > 0 and query[pos - 1] in " \t\n\r":
+            pos -= 1
+        span = _covering_span(comments, pos - 1)
+        if span is None:
+            return pos
+        pos = span[0]
+
+
+def _covering_span(
+    spans: list[tuple[int, int]], position: int
+) -> tuple[int, int] | None:
     for start, end in spans:
         if start <= position < end:
-            return end
+            return start, end
     return None
+
+
+def _word_back(
+    query: str, pos: int, comments: list[tuple[int, int]]
+) -> tuple[str, int] | None:
+    """(lowercased word, start) of the bare identifier ending before ``pos``.
+
+    Quote/dot/punctuation characters are not word characters, so
+    ``'x'``, ``"show"``, and ``show.tables`` all stop the scan — only a
+    whitespace/comment-separated bare word is returned.
+    """
+    end = _noise_back(query, pos, comments)
+    start = end
+    while start > 0 and query[start - 1] in _WORD_CHARS:
+        start -= 1
+    if start == end:
+        return None
+    return query[start:end].lower(), start
+
+
+# Identifiers continue on ``[A-Za-z0-9_$]`` (sql_lexing's IDENTIFIER_PART
+# tail); the backward scan needs the whole word so ``xtables`` never
+# suffix-matches a SHOW noun.
+_WORD_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$"
+)
+
+
+def _schema_arg_from(
+    query: str, start: int, comments: list[tuple[int, int]]
+) -> bool:
+    """Whether the bare ``from`` at ``start`` closes a ``SHOW <objects>``.
+
+    ``SHOW TABLES|SCHEMAS|… FROM x`` takes a schema or catalog argument,
+    so the anchor walk must not probe ``x``: probing rewrote ``SHOW
+    TABLES FROM ice_t`` to ``iceberg."db"."ice_t"`` → ``Too many parts in
+    schema name`` where AWS answers schema-not-found. ``SHOW COLUMNS FROM
+    t`` is excluded deliberately (``columns`` is not a noun above) — its
+    argument IS a table. A select item spelled ``show tables`` (column
+    ``show``, alias ``tables``) is ruled out by the prefix check: only a
+    statement boundary or an ``explain``/``from`` (``PREPARE … FROM
+    SHOW``) word may precede the SHOW keyword.
+    """
+    word = _word_back(query, start, comments)
+    if word is None or word[0] not in _SHOW_FROM_NOUNS:
+        return False
+    pos = word[1]
+    word = _word_back(query, pos, comments)
+    while word is not None and word[0] in _SHOW_FROM_NOUNS:
+        pos = word[1]
+        word = _word_back(query, pos, comments)
+    if word is None or word[0] != "show":
+        return False
+    prefix = _word_back(query, word[1], comments)
+    return prefix is None or prefix[0] in ("explain", "from")
 
 
 def _resolve(reference: str, database: str | None) -> tuple[str, str] | None:
@@ -358,7 +450,7 @@ def _quoted_end(query: str, start: int, quote: str) -> int:
 
 
 def _inside(spans: list[tuple[int, int]], position: int) -> bool:
-    return _covering_end(spans, position) is not None
+    return _covering_span(spans, position) is not None
 
 
 def _backtick_normalize(query: str) -> str:

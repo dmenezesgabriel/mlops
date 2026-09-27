@@ -11,6 +11,7 @@ what routes every later statement to the ``iceberg`` Trino catalog.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Iterator
 
 import awswrangler as wr
@@ -37,6 +38,31 @@ def consumer_harness(
 
 def _iceberg_frame() -> pd.DataFrame:
     return pd.DataFrame({"id": [1, 2], "v": ["x", "y"]})
+
+
+def _start(harness: ConsumerHarness, query: str) -> str:
+    return harness.athena.start_query_execution(
+        QueryString=query,
+        QueryExecutionContext={"Database": harness.database},
+        ResultConfiguration={"OutputLocation": harness.prefix},
+        WorkGroup="primary",
+    )["QueryExecutionId"]
+
+
+def _wait_terminal(harness: ConsumerHarness, query_id: str) -> dict:
+    """Block until a terminal state; return the execution."""
+    for _ in range(120):
+        execution = harness.athena.get_query_execution(
+            QueryExecutionId=query_id
+        )["QueryExecution"]
+        if execution["Status"]["State"] in (
+            "SUCCEEDED",
+            "FAILED",
+            "CANCELLED",
+        ):
+            return execution
+        time.sleep(0.5)
+    raise AssertionError(f"execution {query_id} did not finish within 60s")
 
 
 def test_to_iceberg_registers_and_inserts_live(
@@ -180,6 +206,51 @@ def test_delete_from_iceberg_table_merges_live(
         )["TableList"]
     ]
     assert names == [table]
+
+
+def test_show_tables_from_schema_arg_is_never_probed_live(
+    consumer_harness: ConsumerHarness,
+) -> None:
+    """``SHOW TABLES FROM x`` reads ``x`` as a schema, never a table.
+
+    A colliding Iceberg table name must not reroute the schema argument:
+    the unguarded FROM anchor probed ``x`` as a table and rewrote it to
+    ``iceberg."db"."x"`` → Trino failed ``Too many parts in schema name``
+    where real Athena answers schema-not-found (live-measured 2026-09-27
+    audit). A real schema argument still lists the table.
+    """
+    table = "show_arg"
+    wr.athena.to_iceberg(
+        df=_iceberg_frame(),
+        database=consumer_harness.database,
+        table=table,
+        temp_path=f"s3://{consumer_harness.bucket}/iceberg-tmp/",
+        table_location=(f"s3://{consumer_harness.bucket}/iceberg/{table}/"),
+        s3_output=consumer_harness.prefix,
+    )
+
+    execution = _wait_terminal(
+        consumer_harness,
+        _start(consumer_harness, f"SHOW TABLES FROM {table}"),
+    )
+    assert execution["Status"]["State"] == "FAILED", execution["Status"]
+    assert "does not exist" in execution["Status"]["StateChangeReason"]
+
+    execution = _wait_terminal(
+        consumer_harness,
+        _start(
+            consumer_harness,
+            f"SHOW TABLES FROM {consumer_harness.database}",
+        ),
+    )
+    assert execution["Status"]["State"] == "SUCCEEDED", execution["Status"]
+    rows = consumer_harness.athena.get_query_results(
+        QueryExecutionId=execution["QueryExecutionId"]
+    )["ResultSet"]["Rows"]
+    listed = [
+        column.get("VarCharValue") for row in rows for column in row["Data"]
+    ]
+    assert table in listed
 
 
 def test_to_iceberg_appends_to_existing_table_live(
