@@ -17,12 +17,8 @@ from athena_local.common_schemas import (
     ManagedQueryResultsConfigurationUpdates,
     ResultConfiguration,
     ResultConfigurationUpdates,
-    _as_object,
     _defaulted,
     _merge_field,
-    _optional_bool,
-    _optional_int,
-    _optional_string,
     _set_if_present,
     engine_version_payload,
     managed_query_results_payload,
@@ -32,6 +28,12 @@ from athena_local.common_schemas import (
     parse_result_configuration,
     parse_result_configuration_updates,
     result_configuration_payload,
+)
+from athena_local.request_fields import (
+    as_object,
+    optional_bool,
+    optional_int,
+    optional_string,
 )
 
 T = TypeVar("T")
@@ -83,7 +85,7 @@ _UPDATES_MEMBERS = frozenset(
 
 
 def _validated_map(raw: object) -> dict[str, object] | None:
-    return _as_object(raw, "configuration member")
+    return as_object(raw, "configuration member")
 
 
 def _updated(current: T | None, update_value: T | None) -> T | None:
@@ -198,7 +200,7 @@ class WorkGroupConfiguration:
     @classmethod
     def from_dict(cls, raw: object) -> WorkGroupConfiguration:
         """Parse the Configuration member of CreateWorkGroup."""
-        body = _as_object(raw, "Configuration")
+        body = as_object(raw, "Configuration")
         if body is None:
             return cls()
         known = {member: body.get(member) for member in _CONFIGURATION_MEMBERS}
@@ -216,23 +218,21 @@ class WorkGroupConfiguration:
                     known.get("ManagedQueryResultsConfiguration")
                 )
             ),
-            enforce_work_group_configuration=_optional_bool(
+            enforce_work_group_configuration=optional_bool(
                 body, "EnforceWorkGroupConfiguration"
             ),
-            publish_cloudwatch_metrics_enabled=_optional_bool(
+            publish_cloudwatch_metrics_enabled=optional_bool(
                 body, "PublishCloudWatchMetricsEnabled"
             ),
-            bytes_scanned_cutoff_per_query=_optional_int(
+            bytes_scanned_cutoff_per_query=optional_int(
                 body, "BytesScannedCutoffPerQuery"
             ),
-            requester_pays_enabled=_optional_bool(
-                body, "RequesterPaysEnabled"
-            ),
+            requester_pays_enabled=optional_bool(body, "RequesterPaysEnabled"),
             engine_version=parse_engine_version(known.get("EngineVersion")),
-            additional_configuration=_optional_string(
+            additional_configuration=optional_string(
                 body, "AdditionalConfiguration"
             ),
-            execution_role=_optional_string(body, "ExecutionRole"),
+            execution_role=optional_string(body, "ExecutionRole"),
             monitoring_configuration=_validated_map(
                 known.get("MonitoringConfiguration")
             ),
@@ -242,7 +242,7 @@ class WorkGroupConfiguration:
             customer_content_encryption_configuration=_validated_map(
                 known.get("CustomerContentEncryptionConfiguration")
             ),
-            enable_minimum_encryption_configuration=_optional_bool(
+            enable_minimum_encryption_configuration=optional_bool(
                 body, "EnableMinimumEncryptionConfiguration"
             ),
             identity_center_configuration=_validated_map(
@@ -345,7 +345,7 @@ class WorkGroupConfigurationUpdates:
     @classmethod
     def from_dict(cls, raw: object) -> WorkGroupConfigurationUpdates:
         """Parse the ConfigurationUpdates member of UpdateWorkGroup."""
-        body = _as_object(raw, "ConfigurationUpdates")
+        body = as_object(raw, "ConfigurationUpdates")
         if body is None:
             return cls()
         preserved = {
@@ -354,7 +354,7 @@ class WorkGroupConfigurationUpdates:
             if member not in _UPDATES_MEMBERS
         }
         return cls(
-            enforce_work_group_configuration=_optional_bool(
+            enforce_work_group_configuration=optional_bool(
                 body, "EnforceWorkGroupConfiguration"
             ),
             result_configuration_updates=parse_result_configuration_updates(
@@ -365,30 +365,28 @@ class WorkGroupConfigurationUpdates:
                     body.get("ManagedQueryResultsConfigurationUpdates")
                 )
             ),
-            publish_cloudwatch_metrics_enabled=_optional_bool(
+            publish_cloudwatch_metrics_enabled=optional_bool(
                 body, "PublishCloudWatchMetricsEnabled"
             ),
-            bytes_scanned_cutoff_per_query=_optional_int(
+            bytes_scanned_cutoff_per_query=optional_int(
                 body, "BytesScannedCutoffPerQuery"
             ),
-            remove_bytes_scanned_cutoff_per_query=_optional_bool(
+            remove_bytes_scanned_cutoff_per_query=optional_bool(
                 body, "RemoveBytesScannedCutoffPerQuery"
             ),
-            requester_pays_enabled=_optional_bool(
-                body, "RequesterPaysEnabled"
-            ),
+            requester_pays_enabled=optional_bool(body, "RequesterPaysEnabled"),
             engine_version=parse_engine_version(body.get("EngineVersion")),
-            remove_customer_content_encryption_configuration=_optional_bool(
+            remove_customer_content_encryption_configuration=optional_bool(
                 body, "RemoveCustomerContentEncryptionConfiguration"
             ),
-            additional_configuration=_optional_string(
+            additional_configuration=optional_string(
                 body, "AdditionalConfiguration"
             ),
-            execution_role=_optional_string(body, "ExecutionRole"),
+            execution_role=optional_string(body, "ExecutionRole"),
             customer_content_encryption_configuration=_validated_map(
                 body.get("CustomerContentEncryptionConfiguration")
             ),
-            enable_minimum_encryption_configuration=_optional_bool(
+            enable_minimum_encryption_configuration=optional_bool(
                 body, "EnableMinimumEncryptionConfiguration"
             ),
             query_results_s3_access_grants_configuration=_validated_map(

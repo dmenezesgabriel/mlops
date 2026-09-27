@@ -380,21 +380,3 @@ def test_apply_configuration_updates_managed_results_and_fields() -> None:
         expected_bucket_owner="123456789012",
         acl_configuration=AclConfiguration(s3_acl_option="BUCKET_OWNER"),
     )
-
-
-def test_primitive_validation_helpers_reject_invalid_types() -> None:
-    from athena_local.common_schemas import (
-        _optional_int,
-        _optional_string,
-        _required_bool,
-        _required_string,
-    )
-
-    with pytest.raises(InvalidRequestException, match="int_val"):
-        _optional_int({"int_val": "not_an_int"}, "int_val")
-    with pytest.raises(InvalidRequestException, match="str_val"):
-        _optional_string({"str_val": 123}, "str_val")
-    with pytest.raises(InvalidRequestException, match="req_str"):
-        _required_string({"req_str": ""}, "req_str")
-    with pytest.raises(InvalidRequestException, match="req_bool"):
-        _required_bool({"req_bool": "true"}, "req_bool")

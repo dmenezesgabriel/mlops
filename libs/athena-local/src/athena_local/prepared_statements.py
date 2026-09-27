@@ -12,10 +12,14 @@ The key difference from named queries: ``GetPreparedStatement`` raises
 
 from __future__ import annotations
 
-from typing import cast
-
 from athena_local.dispatch import register_handler
-from athena_local.errors import InvalidRequestException
+from athena_local.request_fields import (
+    member,
+    optional_string,
+    required_int,
+    required_string,
+    required_string_list,
+)
 from athena_local.state import (
     PreparedStatementStore,
     WorkGroupStore,
@@ -23,69 +27,16 @@ from athena_local.state import (
 )
 
 
-def _member(payload: dict[str, object] | None, member: str) -> object | None:
-    if payload is None:
-        return None
-    return payload.get(member)
-
-
-def _required_string(payload: dict[str, object] | None, member: str) -> str:
-    raw = _member(payload, member)
-    if not isinstance(raw, str) or not raw.strip():
-        raise InvalidRequestException(
-            f"{member} is required and must be a non-empty string, got {raw!r}"
-        )
-    return raw
-
-
-def _optional_string(
-    payload: dict[str, object] | None, member: str
-) -> str | None:
-    raw = _member(payload, member)
-    if raw is None:
-        return None
-    if not isinstance(raw, str):
-        raise InvalidRequestException(
-            f"{member} must be a string, got {raw!r}"
-        )
-    return raw
-
-
-def _required_int(payload: dict[str, object] | None, member: str) -> int:
-    raw = _member(payload, member)
-    if not isinstance(raw, int):
-        raise InvalidRequestException(
-            f"{member} must be an integer, got {raw!r}"
-        )
-    return raw
-
-
-def _required_string_list(
-    payload: dict[str, object] | None, member: str
-) -> list[str]:
-    raw = _member(payload, member)
-    if not isinstance(raw, list):
-        raise InvalidRequestException(f"{member} must be a list, got {raw!r}")
-    if not raw:
-        raise InvalidRequestException(f"{member} must not be empty")
-    for item in raw:
-        if not isinstance(item, str):
-            raise InvalidRequestException(
-                f"{member} must contain only strings, got {item!r}"
-            )
-    return cast(list[str], raw)
-
-
 def create_prepared_statement(
     store: PreparedStatementStore,
     workgroup_store: WorkGroupStore,
     payload: dict[str, object] | None,
 ) -> dict[str, object]:
-    statement_name = _required_string(payload, "StatementName")
-    workgroup = _required_string(payload, "WorkGroup")
+    statement_name = required_string(payload, "StatementName")
+    workgroup = required_string(payload, "WorkGroup")
     ensure_workgroup_enabled(workgroup_store, workgroup)
-    query_statement = _required_string(payload, "QueryStatement")
-    description = _optional_string(payload, "Description")
+    query_statement = required_string(payload, "QueryStatement")
+    description = optional_string(payload, "Description")
     store.create(
         statement_name=statement_name,
         query_statement=query_statement,
@@ -98,8 +49,8 @@ def create_prepared_statement(
 def get_prepared_statement(
     store: PreparedStatementStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    statement_name = _required_string(payload, "StatementName")
-    workgroup = _required_string(payload, "WorkGroup")
+    statement_name = required_string(payload, "StatementName")
+    workgroup = required_string(payload, "WorkGroup")
     record = store.get(statement_name, workgroup)
     return {"PreparedStatement": record.to_payload()}
 
@@ -107,11 +58,11 @@ def get_prepared_statement(
 def list_prepared_statements(
     store: PreparedStatementStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    workgroup = _required_string(payload, "WorkGroup")
+    workgroup = required_string(payload, "WorkGroup")
     max_results = None
-    if _member(payload, "MaxResults") is not None:
-        max_results = _required_int(payload, "MaxResults")
-    next_token = _optional_string(payload, "NextToken")
+    if member(payload, "MaxResults") is not None:
+        max_results = required_int(payload, "MaxResults")
+    next_token = optional_string(payload, "NextToken")
     statement_names, next_token_out = store.list(
         workgroup=workgroup,
         max_results=max_results,
@@ -131,10 +82,10 @@ def list_prepared_statements(
 def update_prepared_statement(
     store: PreparedStatementStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    statement_name = _required_string(payload, "StatementName")
-    workgroup = _required_string(payload, "WorkGroup")
-    query_statement = _required_string(payload, "QueryStatement")
-    description = _optional_string(payload, "Description")
+    statement_name = required_string(payload, "StatementName")
+    workgroup = required_string(payload, "WorkGroup")
+    query_statement = required_string(payload, "QueryStatement")
+    description = optional_string(payload, "Description")
     store.update(
         statement_name=statement_name,
         workgroup=workgroup,
@@ -147,8 +98,8 @@ def update_prepared_statement(
 def delete_prepared_statement(
     store: PreparedStatementStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    statement_name = _required_string(payload, "StatementName")
-    workgroup = _required_string(payload, "WorkGroup")
+    statement_name = required_string(payload, "StatementName")
+    workgroup = required_string(payload, "WorkGroup")
     store.delete(statement_name, workgroup)
     return {}
 
@@ -156,8 +107,8 @@ def delete_prepared_statement(
 def batch_get_prepared_statement(
     store: PreparedStatementStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    statement_names = _required_string_list(payload, "PreparedStatementNames")
-    workgroup = _required_string(payload, "WorkGroup")
+    statement_names = required_string_list(payload, "PreparedStatementNames")
+    workgroup = required_string(payload, "WorkGroup")
     found, unprocessed = store.batch_get(statement_names, workgroup)
     output: dict[str, object] = {
         "PreparedStatements": [record.to_payload() for record in found]

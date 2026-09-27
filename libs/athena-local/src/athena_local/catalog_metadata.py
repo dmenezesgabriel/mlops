@@ -20,6 +20,11 @@ from athena_local.data_catalog_state import (
 from athena_local.dispatch import register_handler
 from athena_local.errors import InvalidRequestException
 from athena_local.glue_proxy import GlueProxy
+from athena_local.request_fields import (
+    optional_max_results,
+    optional_string,
+    required_string,
+)
 
 MAX_LIST_DATABASES = 50
 MAX_LIST_TABLE_METADATA = 50
@@ -64,12 +69,12 @@ def list_databases(
     proxy: GlueProxy,
     payload: dict[str, object] | None,
 ) -> dict[str, object]:
-    catalog_name = _required_string(payload, "CatalogName")
+    catalog_name = required_string(payload, "CatalogName")
     _require_glue_catalog(store, catalog_name)
-    max_results = _optional_max_results(
+    max_results = optional_max_results(
         payload, "MaxResults", MAX_LIST_DATABASES
     )
-    next_token = _optional_string(payload, "NextToken")
+    next_token = optional_string(payload, "NextToken")
     databases = [record.to_payload() for record in proxy.list_databases()]
     page, next_token_out = _paginate(databases, max_results, next_token)
     output: dict[str, object] = {"DatabaseList": page}
@@ -83,9 +88,9 @@ def get_database(
     proxy: GlueProxy,
     payload: dict[str, object] | None,
 ) -> dict[str, object]:
-    catalog_name = _required_string(payload, "CatalogName")
+    catalog_name = required_string(payload, "CatalogName")
     _require_glue_catalog(store, catalog_name)
-    database_name = _required_string(payload, "DatabaseName")
+    database_name = required_string(payload, "DatabaseName")
     return {"Database": proxy.get_database(database_name).to_payload()}
 
 
@@ -94,14 +99,14 @@ def list_table_metadata(
     proxy: GlueProxy,
     payload: dict[str, object] | None,
 ) -> dict[str, object]:
-    catalog_name = _required_string(payload, "CatalogName")
+    catalog_name = required_string(payload, "CatalogName")
     _require_glue_catalog(store, catalog_name)
-    database_name = _required_string(payload, "DatabaseName")
-    expression = _optional_string(payload, "Expression")
-    max_results = _optional_max_results(
+    database_name = required_string(payload, "DatabaseName")
+    expression = optional_string(payload, "Expression")
+    max_results = optional_max_results(
         payload, "MaxResults", MAX_LIST_TABLE_METADATA
     )
-    next_token = _optional_string(payload, "NextToken")
+    next_token = optional_string(payload, "NextToken")
     tables = [
         record.to_payload()
         for record in proxy.list_tables(database_name, expression)
@@ -118,60 +123,15 @@ def get_table_metadata(
     proxy: GlueProxy,
     payload: dict[str, object] | None,
 ) -> dict[str, object]:
-    catalog_name = _required_string(payload, "CatalogName")
+    catalog_name = required_string(payload, "CatalogName")
     _require_glue_catalog(store, catalog_name)
-    database_name = _required_string(payload, "DatabaseName")
-    table_name = _required_string(payload, "TableName")
+    database_name = required_string(payload, "DatabaseName")
+    table_name = required_string(payload, "TableName")
     return {
         "TableMetadata": proxy.get_table(
             database_name, table_name
         ).to_payload()
     }
-
-
-def _member(payload: dict[str, object] | None, member: str) -> object | None:
-    if payload is None:
-        return None
-    return payload.get(member)
-
-
-def _required_string(payload: dict[str, object] | None, member: str) -> str:
-    raw = _member(payload, member)
-    if not isinstance(raw, str) or not raw.strip():
-        raise InvalidRequestException(
-            f"{member} is required and must be a non-empty string, got {raw!r}"
-        )
-    return raw
-
-
-def _optional_string(
-    payload: dict[str, object] | None, member: str
-) -> str | None:
-    raw = _member(payload, member)
-    if raw is None:
-        return None
-    if not isinstance(raw, str):
-        raise InvalidRequestException(
-            f"{member} must be a string, got {raw!r}"
-        )
-    return raw
-
-
-def _optional_max_results(
-    payload: dict[str, object] | None, member: str, maximum: int
-) -> int | None:
-    raw = _member(payload, member)
-    if raw is None:
-        return None
-    if not isinstance(raw, int):
-        raise InvalidRequestException(
-            f"{member} must be an integer, got {raw!r}"
-        )
-    if raw < 1 or raw > maximum:
-        raise InvalidRequestException(
-            f"{member} must be between 1 and {maximum}, got {raw}"
-        )
-    return raw
 
 
 def _require_glue_catalog(store: DataCatalogStore, catalog_name: str) -> None:

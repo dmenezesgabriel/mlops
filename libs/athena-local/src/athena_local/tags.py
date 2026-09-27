@@ -20,36 +20,16 @@ from athena_local.errors import (
     InvalidRequestException,
     ResourceNotFoundException,
 )
+from athena_local.request_fields import (
+    member,
+    required_string,
+    required_string_list,
+)
 from athena_local.schemas import Tag, parse_tags
 from athena_local.state import WorkGroupStore
 
 ATHENA_ARN_PREFIX = "arn:aws:athena:"
 TAGGABLE_RESOURCE_TYPES = ("workgroup", "datacatalog")
-
-
-def _required_string(payload: dict[str, object] | None, member: str) -> str:
-    raw = payload.get(member) if payload is not None else None
-    if not isinstance(raw, str) or not raw.strip():
-        raise InvalidRequestException(
-            f"{member} is required and must be a non-empty string, got {raw!r}"
-        )
-    return raw
-
-
-def _required_string_list(
-    payload: dict[str, object] | None, member: str
-) -> list[str]:
-    raw = payload.get(member) if payload is not None else None
-    if not isinstance(raw, list):
-        raise InvalidRequestException(f"{member} must be a list, got {raw!r}")
-    if not raw:
-        raise InvalidRequestException(f"{member} must not be empty")
-    for item in raw:
-        if not isinstance(item, str):
-            raise InvalidRequestException(
-                f"{member} must contain only strings, got {item!r}"
-            )
-    return raw
 
 
 def _parse_arn(resource_arn: str) -> tuple[str, str]:
@@ -114,9 +94,9 @@ def tag_resource(
     catalogs: DataCatalogStore,
     payload: dict[str, object] | None,
 ) -> dict[str, object]:
-    resource_type, name = _parse_arn(_required_string(payload, "ResourceARN"))
+    resource_type, name = _parse_arn(required_string(payload, "ResourceARN"))
     tags = _resolve_tags(workgroups, catalogs, resource_type, name)
-    new_tags = parse_tags(payload.get("Tags") if payload is not None else None)
+    new_tags = parse_tags(member(payload, "Tags"))
     if not new_tags:
         raise InvalidRequestException(
             "Tags must be a non-empty list of key/value objects"
@@ -132,9 +112,9 @@ def untag_resource(
     catalogs: DataCatalogStore,
     payload: dict[str, object] | None,
 ) -> dict[str, object]:
-    resource_type, name = _parse_arn(_required_string(payload, "ResourceARN"))
+    resource_type, name = _parse_arn(required_string(payload, "ResourceARN"))
     tags = _resolve_tags(workgroups, catalogs, resource_type, name)
-    tag_keys = _required_string_list(payload, "TagKeys")
+    tag_keys = required_string_list(payload, "TagKeys")
     tags[:] = [tag for tag in tags if tag.key not in tag_keys]
     return {}
 
@@ -144,7 +124,7 @@ def list_tags_for_resource(
     catalogs: DataCatalogStore,
     payload: dict[str, object] | None,
 ) -> dict[str, object]:
-    resource_type, name = _parse_arn(_required_string(payload, "ResourceARN"))
+    resource_type, name = _parse_arn(required_string(payload, "ResourceARN"))
     tags = _resolve_tags(workgroups, catalogs, resource_type, name)
     # MaxResults/NextToken are accepted for model compat but never produce a
     # second page: the model caps MaxResults at 75 while Athena resources hold

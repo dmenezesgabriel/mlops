@@ -10,73 +10,20 @@ from dataclasses import dataclass
 from typing import TypeVar
 
 from athena_local.errors import InvalidRequestException
+from athena_local.request_fields import (
+    as_object,
+    optional_bool,
+    optional_int,
+    optional_string,
+    required_bool,
+    required_string,
+)
 
 T = TypeVar("T")
 
 
 def _defaulted(value: T | None, default: T) -> T:
     return default if value is None else value
-
-
-def _as_object(raw: object, member: str) -> dict[str, object] | None:
-    if raw is None:
-        return None
-    if not isinstance(raw, dict):
-        raise InvalidRequestException(
-            f"{member} must be a JSON object, got {raw!r}"
-        )
-    return raw
-
-
-def _optional_bool(body: dict[str, object], member: str) -> bool | None:
-    raw = body.get(member)
-    if raw is None:
-        return None
-    if not isinstance(raw, bool):
-        raise InvalidRequestException(
-            f"{member} must be a boolean, got {raw!r}"
-        )
-    return raw
-
-
-def _required_bool(body: dict[str, object], member: str) -> bool:
-    raw = body.get(member)
-    if not isinstance(raw, bool):
-        raise InvalidRequestException(
-            f"{member} is required and must be a boolean, got {raw!r}"
-        )
-    return raw
-
-
-def _optional_int(body: dict[str, object], member: str) -> int | None:
-    raw = body.get(member)
-    if raw is None:
-        return None
-    if isinstance(raw, bool) or not isinstance(raw, int):
-        raise InvalidRequestException(
-            f"{member} must be an integer, got {raw!r}"
-        )
-    return raw
-
-
-def _optional_string(body: dict[str, object], member: str) -> str | None:
-    raw = body.get(member)
-    if raw is None:
-        return None
-    if not isinstance(raw, str):
-        raise InvalidRequestException(
-            f"{member} must be a string, got {raw!r}"
-        )
-    return raw
-
-
-def _required_string(body: dict[str, object], member: str) -> str:
-    raw = body.get(member)
-    if not isinstance(raw, str) or not raw.strip():
-        raise InvalidRequestException(
-            f"{member} is required and must be a non-empty string, got {raw!r}"
-        )
-    return raw
 
 
 def _set_if_present(
@@ -138,14 +85,12 @@ DEFAULT_ENGINE_VERSION = EngineVersion(
 
 
 def parse_engine_version(raw: object) -> EngineVersion | None:
-    body = _as_object(raw, "EngineVersion")
+    body = as_object(raw, "EngineVersion")
     if body is None:
         return None
     return EngineVersion(
-        selected_engine_version=_optional_string(
-            body, "SelectedEngineVersion"
-        ),
-        effective_engine_version=_optional_string(
+        selected_engine_version=optional_string(body, "SelectedEngineVersion"),
+        effective_engine_version=optional_string(
             body, "EffectiveEngineVersion"
         ),
     )
@@ -167,12 +112,12 @@ class EncryptionConfiguration:
 def parse_encryption_configuration(
     raw: object,
 ) -> EncryptionConfiguration | None:
-    body = _as_object(raw, "EncryptionConfiguration")
+    body = as_object(raw, "EncryptionConfiguration")
     if body is None:
         return None
     return EncryptionConfiguration(
-        encryption_option=_required_string(body, "EncryptionOption"),
-        kms_key=_optional_string(body, "KmsKey"),
+        encryption_option=required_string(body, "EncryptionOption"),
+        kms_key=optional_string(body, "KmsKey"),
     )
 
 
@@ -192,12 +137,10 @@ class AclConfiguration:
 
 
 def parse_acl_configuration(raw: object) -> AclConfiguration | None:
-    body = _as_object(raw, "AclConfiguration")
+    body = as_object(raw, "AclConfiguration")
     if body is None:
         return None
-    return AclConfiguration(
-        s3_acl_option=_required_string(body, "S3AclOption")
-    )
+    return AclConfiguration(s3_acl_option=required_string(body, "S3AclOption"))
 
 
 def acl_configuration_payload(acl: AclConfiguration) -> dict[str, object]:
@@ -213,15 +156,15 @@ class ResultConfiguration:
 
 
 def parse_result_configuration(raw: object) -> ResultConfiguration | None:
-    body = _as_object(raw, "ResultConfiguration")
+    body = as_object(raw, "ResultConfiguration")
     if body is None:
         return None
     return ResultConfiguration(
-        output_location=_optional_string(body, "OutputLocation"),
+        output_location=optional_string(body, "OutputLocation"),
         encryption_configuration=parse_encryption_configuration(
             body.get("EncryptionConfiguration")
         ),
-        expected_bucket_owner=_optional_string(body, "ExpectedBucketOwner"),
+        expected_bucket_owner=optional_string(body, "ExpectedBucketOwner"),
         acl_configuration=parse_acl_configuration(
             body.get("AclConfiguration")
         ),
@@ -272,16 +215,16 @@ def parse_result_reuse_configuration(
 ) -> ResultReuseByAgeConfiguration | None:
     """Parse ``ResultReuseConfiguration``; the outer object carries only the
     by-age member, so an absent/empty member parses to None."""
-    body = _as_object(raw, "ResultReuseConfiguration")
+    body = as_object(raw, "ResultReuseConfiguration")
     if body is None:
         return None
-    by_age = _as_object(
+    by_age = as_object(
         body.get("ResultReuseByAgeConfiguration"),
         "ResultReuseByAgeConfiguration",
     )
     if by_age is None:
         return None
-    max_age = _optional_int(by_age, "MaxAgeInMinutes")
+    max_age = optional_int(by_age, "MaxAgeInMinutes")
     if (
         max_age is not None
         and not 0 <= max_age <= MAX_RESULT_REUSE_AGE_MINUTES
@@ -291,7 +234,7 @@ def parse_result_reuse_configuration(
             f"{MAX_RESULT_REUSE_AGE_MINUTES}, got {max_age}"
         )
     return ResultReuseByAgeConfiguration(
-        enabled=_required_bool(by_age, "Enabled"),
+        enabled=required_bool(by_age, "Enabled"),
         max_age_in_minutes=_defaulted(max_age, 60),
     )
 
@@ -322,28 +265,26 @@ class ResultConfigurationUpdates:
 def parse_result_configuration_updates(
     raw: object,
 ) -> ResultConfigurationUpdates | None:
-    body = _as_object(raw, "ResultConfigurationUpdates")
+    body = as_object(raw, "ResultConfigurationUpdates")
     if body is None:
         return None
     return ResultConfigurationUpdates(
-        output_location=_optional_string(body, "OutputLocation"),
-        remove_output_location=_optional_bool(body, "RemoveOutputLocation"),
+        output_location=optional_string(body, "OutputLocation"),
+        remove_output_location=optional_bool(body, "RemoveOutputLocation"),
         encryption_configuration=parse_encryption_configuration(
             body.get("EncryptionConfiguration")
         ),
-        remove_encryption_configuration=_optional_bool(
+        remove_encryption_configuration=optional_bool(
             body, "RemoveEncryptionConfiguration"
         ),
-        expected_bucket_owner=_optional_string(body, "ExpectedBucketOwner"),
-        remove_expected_bucket_owner=_optional_bool(
+        expected_bucket_owner=optional_string(body, "ExpectedBucketOwner"),
+        remove_expected_bucket_owner=optional_bool(
             body, "RemoveExpectedBucketOwner"
         ),
         acl_configuration=parse_acl_configuration(
             body.get("AclConfiguration")
         ),
-        remove_acl_configuration=_optional_bool(
-            body, "RemoveAclConfiguration"
-        ),
+        remove_acl_configuration=optional_bool(body, "RemoveAclConfiguration"),
     )
 
 
@@ -372,19 +313,19 @@ class ManagedQueryResultsConfigurationUpdates:
 def parse_managed_query_results_configuration(
     raw: object,
 ) -> ManagedQueryResultsConfiguration | None:
-    body = _as_object(raw, "ManagedQueryResultsConfiguration")
+    body = as_object(raw, "ManagedQueryResultsConfiguration")
     if body is None:
         return None
-    encryption = _as_object(
+    encryption = as_object(
         body.get("EncryptionConfiguration"), "EncryptionConfiguration"
     )
     encryption_configuration = None
     if encryption is not None:
         encryption_configuration = ManagedQueryResultsEncryptionConfiguration(
-            kms_key=_required_string(encryption, "KmsKey")
+            kms_key=required_string(encryption, "KmsKey")
         )
     return ManagedQueryResultsConfiguration(
-        enabled=_required_bool(body, "Enabled"),
+        enabled=required_bool(body, "Enabled"),
         encryption_configuration=encryption_configuration,
     )
 
@@ -392,21 +333,21 @@ def parse_managed_query_results_configuration(
 def parse_managed_query_results_configuration_updates(
     raw: object,
 ) -> ManagedQueryResultsConfigurationUpdates | None:
-    body = _as_object(raw, "ManagedQueryResultsConfigurationUpdates")
+    body = as_object(raw, "ManagedQueryResultsConfigurationUpdates")
     if body is None:
         return None
-    encryption = _as_object(
+    encryption = as_object(
         body.get("EncryptionConfiguration"), "EncryptionConfiguration"
     )
     encryption_configuration = None
     if encryption is not None:
         encryption_configuration = ManagedQueryResultsEncryptionConfiguration(
-            kms_key=_required_string(encryption, "KmsKey")
+            kms_key=required_string(encryption, "KmsKey")
         )
     return ManagedQueryResultsConfigurationUpdates(
-        enabled=_optional_bool(body, "Enabled"),
+        enabled=optional_bool(body, "Enabled"),
         encryption_configuration=encryption_configuration,
-        remove_encryption_configuration=_optional_bool(
+        remove_encryption_configuration=optional_bool(
             body, "RemoveEncryptionConfiguration"
         ),
     )

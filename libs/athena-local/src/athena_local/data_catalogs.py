@@ -17,6 +17,13 @@ from __future__ import annotations
 from athena_local.data_catalog_state import DataCatalogStore
 from athena_local.dispatch import register_handler
 from athena_local.errors import InvalidRequestException
+from athena_local.request_fields import (
+    member,
+    optional_string,
+    optional_string_map,
+    required_int,
+    required_string,
+)
 
 SUPPORTED_CATALOG_TYPES = ("GLUE", "HIVE", "LAMBDA")
 UNSUPPORTED_CATALOG_TYPE = "FEDERATED"
@@ -26,45 +33,8 @@ UNSUPPORTED_CATALOG_TYPE = "FEDERATED"
 LAMBDA_FUNCTION_KEY = "function"
 
 
-def _member(payload: dict[str, object] | None, member: str) -> object | None:
-    if payload is None:
-        return None
-    return payload.get(member)
-
-
-def _required_string(payload: dict[str, object] | None, member: str) -> str:
-    raw = _member(payload, member)
-    if not isinstance(raw, str) or not raw.strip():
-        raise InvalidRequestException(
-            f"{member} is required and must be a non-empty string, got {raw!r}"
-        )
-    return raw
-
-
-def _optional_string(
-    payload: dict[str, object] | None, member: str
-) -> str | None:
-    raw = _member(payload, member)
-    if raw is None:
-        return None
-    if not isinstance(raw, str):
-        raise InvalidRequestException(
-            f"{member} must be a string, got {raw!r}"
-        )
-    return raw
-
-
-def _required_int(payload: dict[str, object] | None, member: str) -> int:
-    raw = _member(payload, member)
-    if not isinstance(raw, int):
-        raise InvalidRequestException(
-            f"{member} must be an integer, got {raw!r}"
-        )
-    return raw
-
-
 def _validated_type(payload: dict[str, object] | None) -> str:
-    raw = _required_string(payload, "Type")
+    raw = required_string(payload, "Type")
     if raw == UNSUPPORTED_CATALOG_TYPE:
         raise InvalidRequestException(
             "FEDERATED data catalogs are not supported by the emulator"
@@ -74,27 +44,6 @@ def _validated_type(payload: dict[str, object] | None) -> str:
             f"Type must be one of {SUPPORTED_CATALOG_TYPES}, got {raw!r}"
         )
     return raw
-
-
-def _optional_string_map(
-    payload: dict[str, object] | None, member: str
-) -> dict[str, str] | None:
-    raw = _member(payload, member)
-    if raw is None:
-        return None
-    if not isinstance(raw, dict):
-        raise InvalidRequestException(
-            f"{member} must be an object of string pairs, got {raw!r}"
-        )
-    parameters: dict[str, str] = {}
-    for key, value in raw.items():
-        if not isinstance(key, str) or not isinstance(value, str):
-            raise InvalidRequestException(
-                f"{member} entries must map string to string, "
-                f"got {key!r}: {value!r}"
-            )
-        parameters[key] = value
-    return parameters
 
 
 def _apply_lambda_defaults(
@@ -116,13 +65,13 @@ def _apply_lambda_defaults(
 def create_data_catalog(
     store: DataCatalogStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    name = _required_string(payload, "Name")
+    name = required_string(payload, "Name")
     catalog_type = _validated_type(payload)
-    parameters = _optional_string_map(payload, "Parameters") or {}
+    parameters = optional_string_map(payload, "Parameters") or {}
     record = store.create(
         name=name,
         catalog_type=catalog_type,
-        description=_optional_string(payload, "Description"),
+        description=optional_string(payload, "Description"),
         parameters=_apply_lambda_defaults(name, catalog_type, parameters),
     )
     return {"DataCatalog": record.to_payload()}
@@ -131,7 +80,7 @@ def create_data_catalog(
 def get_data_catalog(
     store: DataCatalogStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    name = _required_string(payload, "Name")
+    name = required_string(payload, "Name")
     return {"DataCatalog": store.get(name).to_payload()}
 
 
@@ -139,9 +88,9 @@ def list_data_catalogs(
     store: DataCatalogStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
     max_results = None
-    if _member(payload, "MaxResults") is not None:
-        max_results = _required_int(payload, "MaxResults")
-    next_token = _optional_string(payload, "NextToken")
+    if member(payload, "MaxResults") is not None:
+        max_results = required_int(payload, "MaxResults")
+    next_token = optional_string(payload, "NextToken")
     records, next_token_out = store.list(
         max_results=max_results, next_token=next_token
     )
@@ -158,15 +107,15 @@ def list_data_catalogs(
 def update_data_catalog(
     store: DataCatalogStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    name = _required_string(payload, "Name")
+    name = required_string(payload, "Name")
     catalog_type = _validated_type(payload)
-    parameters = _optional_string_map(payload, "Parameters")
+    parameters = optional_string_map(payload, "Parameters")
     if parameters is not None:
         parameters = _apply_lambda_defaults(name, catalog_type, parameters)
     store.update(
         name=name,
         catalog_type=catalog_type,
-        description=_optional_string(payload, "Description"),
+        description=optional_string(payload, "Description"),
         parameters=parameters,
     )
     return {}
@@ -175,7 +124,7 @@ def update_data_catalog(
 def delete_data_catalog(
     store: DataCatalogStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    name = _required_string(payload, "Name")
+    name = required_string(payload, "Name")
     return {"DataCatalog": store.delete(name).to_payload()}
 
 

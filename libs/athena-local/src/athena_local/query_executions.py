@@ -33,6 +33,14 @@ from athena_local.executions import (
 )
 from athena_local.executor import QueryExecutor
 from athena_local.prepared_execution import resolve_execute_statement
+from athena_local.request_fields import (
+    member,
+    optional_max_results,
+    optional_string,
+    optional_string_list,
+    required_string,
+    required_string_list,
+)
 from athena_local.state import (
     PRIMARY_WORKGROUP_NAME,
     PreparedStatementStore,
@@ -55,39 +63,13 @@ MAX_QUERY_STRING_LENGTH = 262144
 MAX_CLIENT_REQUEST_TOKEN_LENGTH = 36
 
 
-def _member(payload: dict[str, object] | None, member: str) -> object | None:
-    if payload is None:
-        return None
-    return payload.get(member)
-
-
-def _required_string(payload: dict[str, object] | None, member: str) -> str:
-    raw = _member(payload, member)
-    if not isinstance(raw, str) or not raw.strip():
-        raise InvalidRequestException(
-            f"{member} is required and must be a non-empty string, got {raw!r}"
-        )
-    return raw
-
-
-def _optional_string(payload: dict[str, object], member: str) -> str | None:
-    raw = payload.get(member)
-    if raw is None:
-        return None
-    if not isinstance(raw, str):
-        raise InvalidRequestException(
-            f"{member} must be a string, got {raw!r}"
-        )
-    return raw
-
-
 def _optional_client_request_token(
     payload: dict[str, object] | None,
 ) -> str | None:
     """ClientRequestToken under the model's IdempotencyToken 1..36 bound."""
     if payload is None:
         return None
-    token = _optional_string(payload, "ClientRequestToken")
+    token = optional_string(payload, "ClientRequestToken")
     if token is None:
         return None
     if not 1 <= len(token) <= MAX_CLIENT_REQUEST_TOKEN_LENGTH:
@@ -99,42 +81,10 @@ def _optional_client_request_token(
     return token
 
 
-def _required_string_list(
-    payload: dict[str, object] | None, member: str
-) -> list[str]:
-    raw = _member(payload, member)
-    if not isinstance(raw, list):
-        raise InvalidRequestException(f"{member} must be a list, got {raw!r}")
-    if not raw:
-        raise InvalidRequestException(f"{member} must not be empty")
-    for item in raw:
-        if not isinstance(item, str):
-            raise InvalidRequestException(
-                f"{member} must contain only strings, got {item!r}"
-            )
-    return [item for item in raw if isinstance(item, str)]
-
-
-def _optional_string_list(
-    payload: dict[str, object] | None, member: str
-) -> list[str] | None:
-    raw = _member(payload, member)
-    if raw is None:
-        return None
-    if not isinstance(raw, list):
-        raise InvalidRequestException(f"{member} must be a list, got {raw!r}")
-    for item in raw:
-        if not isinstance(item, str):
-            raise InvalidRequestException(
-                f"{member} must contain only strings, got {item!r}"
-            )
-    return [item for item in raw if isinstance(item, str)]
-
-
 def _query_execution_context(
     payload: dict[str, object] | None,
 ) -> tuple[str | None, str | None]:
-    raw = _member(payload, "QueryExecutionContext")
+    raw = member(payload, "QueryExecutionContext")
     if raw is None:
         return None, None
     if not isinstance(raw, dict):
@@ -142,8 +92,8 @@ def _query_execution_context(
             f"QueryExecutionContext must be a JSON object, got {raw!r}"
         )
     return (
-        _unquoted_identifier(_optional_string(raw, "Database")),
-        _optional_string(raw, "Catalog"),
+        _unquoted_identifier(optional_string(raw, "Database")),
+        optional_string(raw, "Catalog"),
     )
 
 
@@ -244,7 +194,7 @@ async def start_query_execution(
     both the SQL the executor submits and its classification.
     """
     workgroup = (
-        _optional_string(payload, "WorkGroup")
+        optional_string(payload, "WorkGroup")
         if isinstance(payload, dict)
         else None
     ) or PRIMARY_WORKGROUP_NAME
@@ -259,15 +209,13 @@ async def start_query_execution(
         ensure_executable_catalog(
             data_catalog_store or DataCatalogStore(), catalog
         )
-    query = _required_string(payload, "QueryString")
+    query = required_string(payload, "QueryString")
     if len(query) > MAX_QUERY_STRING_LENGTH:
         raise InvalidRequestException(
             f"QueryString length {len(query)} exceeds the maximum "
             f"{MAX_QUERY_STRING_LENGTH} characters"
         )
-    execution_parameters = _optional_string_list(
-        payload, "ExecutionParameters"
-    )
+    execution_parameters = optional_string_list(payload, "ExecutionParameters")
     client_request_token = _optional_client_request_token(payload)
     resolution = resolve_execute_statement(
         prepared_statement_store or PreparedStatementStore(),
@@ -281,9 +229,7 @@ async def start_query_execution(
         database=database,
         catalog=catalog,
         result_configuration=_effective_result_configuration(
-            parse_result_configuration(
-                _member(payload, "ResultConfiguration")
-            ),
+            parse_result_configuration(member(payload, "ResultConfiguration")),
             workgroup_record,
         ),
         managed_results=_is_managed_workgroup(workgroup_record),
@@ -311,7 +257,7 @@ async def start_query_execution(
         ),
         resolution_failure_reason=resolution.failure_reason,
         result_reuse_configuration=parse_result_reuse_configuration(
-            _member(payload, "ResultReuseConfiguration")
+            member(payload, "ResultReuseConfiguration")
         ),
     )
     return {"QueryExecutionId": record.query_execution_id}
@@ -322,7 +268,7 @@ def get_query_execution(
 ) -> dict[str, object]:
     return {
         "QueryExecution": store.get(
-            _required_string(payload, "QueryExecutionId")
+            required_string(payload, "QueryExecutionId")
         ).to_payload()
     }
 
@@ -330,7 +276,7 @@ def get_query_execution(
 def batch_get_query_execution(
     store: ExecutionStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    query_ids = _required_string_list(payload, "QueryExecutionIds")
+    query_ids = required_string_list(payload, "QueryExecutionIds")
     found, unprocessed = store.batch_get(query_ids)
     output: dict[str, object] = {
         "QueryExecutions": [record.to_payload() for record in found]
@@ -360,9 +306,9 @@ def list_query_executions(
     list op (dispatch/parse_body returns None for empty requests).
     """
     body = payload or {}
-    workgroup = _optional_string(body, "WorkGroup") or "primary"
-    max_results = _optional_max_results(body)
-    next_token = _optional_string(body, "NextToken")
+    workgroup = optional_string(body, "WorkGroup") or "primary"
+    max_results = optional_max_results(body, "MaxResults", MAX_LIST_EXECUTIONS)
+    next_token = optional_string(body, "NextToken")
     execution_ids, next_token_out = store.list_execution_ids(
         workgroup=workgroup,
         max_results=max_results,
@@ -382,7 +328,7 @@ async def stop_query_execution(
     The model marks the op idempotent: stopping a terminal execution is a
     200 no-op — the executor returns it unchanged rather than transitioning.
     """
-    await executor.cancel(_required_string(payload, "QueryExecutionId"))
+    await executor.cancel(required_string(payload, "QueryExecutionId"))
     return {}
 
 
@@ -402,7 +348,7 @@ def get_query_results(
     — the path wrangler's ``_fetch_api_result`` walks (awswrangler/athena/
     _read.py:335-384) — merges the pages back losslessly.
     """
-    query_execution_id = _required_string(payload, "QueryExecutionId")
+    query_execution_id = required_string(payload, "QueryExecutionId")
     record = executor.ensure_query_finished(query_execution_id)
     offset = _next_token_offset(payload)
     max_results = _max_results(payload)
@@ -418,7 +364,7 @@ def get_query_runtime_statistics(
 ) -> dict[str, object]:
     return {
         "QueryRuntimeStatistics": _runtime_statistics_payload(
-            store.get(_required_string(payload, "QueryExecutionId"))
+            store.get(required_string(payload, "QueryExecutionId"))
         )
     }
 
@@ -451,37 +397,11 @@ def _max_results(payload: dict[str, object] | None) -> int:
     outside the modeled bounds are rejected with the shaped error so a client
     can never widen a page beyond what the wire declares.
     """
-    raw = _member(payload, "MaxResults")
-    if raw is None:
-        return DEFAULT_MAX_RESULTS
-    if isinstance(raw, bool) or not isinstance(raw, int):
-        raise InvalidRequestException(
-            f"MaxResults must be an integer, got {raw!r}"
-        )
-    if raw < 1 or raw > DEFAULT_MAX_RESULTS:
-        raise InvalidRequestException(
-            f"MaxResults must be between 1 and {DEFAULT_MAX_RESULTS}, got {raw}"
-        )
-    return raw
+    raw = optional_max_results(payload, "MaxResults", DEFAULT_MAX_RESULTS)
+    return DEFAULT_MAX_RESULTS if raw is None else raw
 
 
 MAX_LIST_EXECUTIONS = 50  # model MaxQueryExecutionsCount (service-2.json)
-
-
-def _optional_max_results(payload: dict[str, object] | None) -> int | None:
-    """Validate an optional ListQueryExecutions MaxResults (1..50)."""
-    raw = _member(payload, "MaxResults")
-    if raw is None:
-        return None
-    if not isinstance(raw, int):
-        raise InvalidRequestException(
-            f"MaxResults must be an integer, got {raw!r}"
-        )
-    if raw < 1 or raw > MAX_LIST_EXECUTIONS:
-        raise InvalidRequestException(
-            f"MaxResults must be between 1 and {MAX_LIST_EXECUTIONS}, got {raw}"
-        )
-    return raw
 
 
 def _next_token_offset(payload: dict[str, object] | None) -> int:
@@ -491,7 +411,7 @@ def _next_token_offset(payload: dict[str, object] | None) -> int:
     zero-based data-row offset as the token and rejects anything it cannot
     decode with the shaped error, mirroring the state store's list pagination.
     """
-    raw = _member(payload, "NextToken")
+    raw = member(payload, "NextToken")
     if raw is None:
         return 0
     if not isinstance(raw, str):

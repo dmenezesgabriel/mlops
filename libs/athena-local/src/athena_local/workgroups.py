@@ -9,7 +9,12 @@ stay injectable and tests bind their own store.
 from __future__ import annotations
 
 from athena_local.dispatch import register_handler
-from athena_local.errors import InvalidRequestException
+from athena_local.request_fields import (
+    member,
+    optional_max_results,
+    optional_string,
+    required_string,
+)
 from athena_local.schemas import (
     WorkGroupConfiguration,
     WorkGroupConfigurationUpdates,
@@ -17,67 +22,21 @@ from athena_local.schemas import (
 )
 from athena_local.state import WorkGroupStore
 
-
-def _member(payload: dict[str, object] | None, member: str) -> object | None:
-    if payload is None:
-        return None
-    return payload.get(member)
-
-
-def _required_string(payload: dict[str, object] | None, member: str) -> str:
-    raw = _member(payload, member)
-    if not isinstance(raw, str) or not raw.strip():
-        raise InvalidRequestException(
-            f"{member} is required and must be a non-empty string, got {raw!r}"
-        )
-    return raw
-
-
-def _optional_string(
-    payload: dict[str, object] | None, member: str
-) -> str | None:
-    raw = _member(payload, member)
-    if raw is None:
-        return None
-    if not isinstance(raw, str):
-        raise InvalidRequestException(
-            f"{member} must be a string, got {raw!r}"
-        )
-    return raw
-
-
 MAX_LIST_WORKGROUPS = 50  # model MaxWorkGroupsCount (service-2.json)
-
-
-def _optional_max_results(payload: dict[str, object] | None) -> int | None:
-    """Validate an optional ListWorkGroups MaxResults (1..50)."""
-    raw = _member(payload, "MaxResults")
-    if raw is None:
-        return None
-    if not isinstance(raw, int):
-        raise InvalidRequestException(
-            f"MaxResults must be an integer, got {raw!r}"
-        )
-    if raw < 1 or raw > MAX_LIST_WORKGROUPS:
-        raise InvalidRequestException(
-            f"MaxResults must be between 1 and {MAX_LIST_WORKGROUPS}, "
-            f"got {raw}"
-        )
-    return raw
 
 
 def create_work_group(
     store: WorkGroupStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    name = _required_string(payload, "Name")
+    name = required_string(payload, "Name")
     configuration = WorkGroupConfiguration.from_dict(
-        _member(payload, "Configuration")
+        member(payload, "Configuration")
     )
     store.create(
         name=name,
         configuration=configuration,
-        description=_optional_string(payload, "Description"),
-        tags=parse_tags(_member(payload, "Tags")),
+        description=optional_string(payload, "Description"),
+        tags=parse_tags(member(payload, "Tags")),
     )
     return {}
 
@@ -85,7 +44,7 @@ def create_work_group(
 def get_work_group(
     store: WorkGroupStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    name = _required_string(payload, "WorkGroup")
+    name = required_string(payload, "WorkGroup")
     return {"WorkGroup": store.get(name).to_payload()}
 
 
@@ -93,8 +52,10 @@ def list_work_groups(
     store: WorkGroupStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
     records, next_token_out = store.list(
-        max_results=_optional_max_results(payload),
-        next_token=_optional_string(payload, "NextToken"),
+        max_results=optional_max_results(
+            payload, "MaxResults", MAX_LIST_WORKGROUPS
+        ),
+        next_token=optional_string(payload, "NextToken"),
     )
     output: dict[str, object] = {
         "WorkGroups": [record.to_summary_payload() for record in records]
@@ -107,14 +68,14 @@ def list_work_groups(
 def update_work_group(
     store: WorkGroupStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    name = _required_string(payload, "WorkGroup")
+    name = required_string(payload, "WorkGroup")
     updates = WorkGroupConfigurationUpdates.from_dict(
-        _member(payload, "ConfigurationUpdates")
+        member(payload, "ConfigurationUpdates")
     )
     store.update(
         name=name,
-        description=_optional_string(payload, "Description"),
-        state=_optional_string(payload, "State"),
+        description=optional_string(payload, "Description"),
+        state=optional_string(payload, "State"),
         updates=updates,
     )
     return {}
@@ -123,7 +84,7 @@ def update_work_group(
 def delete_work_group(
     store: WorkGroupStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    store.delete(_required_string(payload, "WorkGroup"))
+    store.delete(required_string(payload, "WorkGroup"))
     return {}
 
 

@@ -93,7 +93,7 @@ consumers pass unmodified:
 |---|---|
 | `main.py` | FastAPI app; `POST /` catch-all; `/health` probe; composition root for both planes |
 | `dispatch.py` | `X-Amz-Target` → operation handler; registry loaded from the installed botocore Athena model (ADR-0008) |
-| `schemas.py` / `common_schemas.py` / `workgroup_schemas.py` | Typed request/response shapes per `service-2.json` |
+| `schemas.py` / `common_schemas.py` / `workgroup_schemas.py` / `request_fields.py` | Typed request/response shapes per `service-2.json`; `request_fields` holds the shared member validators (`dict \| None` → absent = `None`) used by both top-level payloads and nested member objects |
 | `errors.py` | `InvalidRequestException`, `ResourceNotFoundException`, `TooManyRequestsException`, `InternalServerException`; `{"__type", "message"}` + `X-Amzn-Errortype` (ADR-0008) |
 | `error_mapping.py` | Trino statement errors → Athena's wire error vocabulary (ADR-0008) |
 | `statement_classification.py` | `StatementType`/`SubstatementType` + artifact kind, classified at submit |

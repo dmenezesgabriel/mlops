@@ -8,10 +8,14 @@ stay injectable and tests bind their own store.
 
 from __future__ import annotations
 
-from typing import cast
-
 from athena_local.dispatch import register_handler
-from athena_local.errors import InvalidRequestException
+from athena_local.request_fields import (
+    member,
+    optional_string,
+    required_int,
+    required_string,
+    required_string_list,
+)
 from athena_local.state import (
     NamedQueryStore,
     WorkGroupStore,
@@ -19,69 +23,16 @@ from athena_local.state import (
 )
 
 
-def _member(payload: dict[str, object] | None, member: str) -> object | None:
-    if payload is None:
-        return None
-    return payload.get(member)
-
-
-def _required_string(payload: dict[str, object] | None, member: str) -> str:
-    raw = _member(payload, member)
-    if not isinstance(raw, str) or not raw.strip():
-        raise InvalidRequestException(
-            f"{member} is required and must be a non-empty string, got {raw!r}"
-        )
-    return raw
-
-
-def _optional_string(
-    payload: dict[str, object] | None, member: str
-) -> str | None:
-    raw = _member(payload, member)
-    if raw is None:
-        return None
-    if not isinstance(raw, str):
-        raise InvalidRequestException(
-            f"{member} must be a string, got {raw!r}"
-        )
-    return raw
-
-
-def _required_int(payload: dict[str, object] | None, member: str) -> int:
-    raw = _member(payload, member)
-    if not isinstance(raw, int):
-        raise InvalidRequestException(
-            f"{member} must be an integer, got {raw!r}"
-        )
-    return raw
-
-
-def _required_string_list(
-    payload: dict[str, object] | None, member: str
-) -> list[str]:
-    raw = _member(payload, member)
-    if not isinstance(raw, list):
-        raise InvalidRequestException(f"{member} must be a list, got {raw!r}")
-    if not raw:
-        raise InvalidRequestException(f"{member} must not be empty")
-    for item in raw:
-        if not isinstance(item, str):
-            raise InvalidRequestException(
-                f"{member} must contain only strings, got {item!r}"
-            )
-    return cast(list[str], raw)
-
-
 def create_named_query(
     store: NamedQueryStore,
     workgroup_store: WorkGroupStore,
     payload: dict[str, object] | None,
 ) -> dict[str, object]:
-    name = _required_string(payload, "Name")
-    description = _optional_string(payload, "Description") or ""
-    database = _required_string(payload, "Database")
-    query_string = _required_string(payload, "QueryString")
-    workgroup = _optional_string(payload, "WorkGroup") or "primary"
+    name = required_string(payload, "Name")
+    description = optional_string(payload, "Description") or ""
+    database = required_string(payload, "Database")
+    query_string = required_string(payload, "QueryString")
+    workgroup = optional_string(payload, "WorkGroup") or "primary"
     ensure_workgroup_enabled(workgroup_store, workgroup)
     record = store.create(
         name=name,
@@ -96,7 +47,7 @@ def create_named_query(
 def get_named_query(
     store: NamedQueryStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    query_id = _required_string(payload, "NamedQueryId")
+    query_id = required_string(payload, "NamedQueryId")
     record = store.get(query_id)
     return {"NamedQuery": record.to_payload()}
 
@@ -104,11 +55,11 @@ def get_named_query(
 def list_named_queries(
     store: NamedQueryStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    workgroup = _optional_string(payload, "WorkGroup") or "primary"
+    workgroup = optional_string(payload, "WorkGroup") or "primary"
     max_results = None
-    if _member(payload, "MaxResults") is not None:
-        max_results = _required_int(payload, "MaxResults")
-    next_token = _optional_string(payload, "NextToken")
+    if member(payload, "MaxResults") is not None:
+        max_results = required_int(payload, "MaxResults")
+    next_token = optional_string(payload, "NextToken")
     query_ids, next_token_out = store.list(
         workgroup=workgroup,
         max_results=max_results,
@@ -123,7 +74,7 @@ def list_named_queries(
 def delete_named_query(
     store: NamedQueryStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    query_id = _required_string(payload, "NamedQueryId")
+    query_id = required_string(payload, "NamedQueryId")
     store.delete(query_id)
     return {}
 
@@ -131,7 +82,7 @@ def delete_named_query(
 def batch_get_named_query(
     store: NamedQueryStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    query_ids = _required_string_list(payload, "NamedQueryIds")
+    query_ids = required_string_list(payload, "NamedQueryIds")
     found, unprocessed = store.batch_get(query_ids)
     output: dict[str, object] = {
         "NamedQueries": [record.to_payload() for record in found]
