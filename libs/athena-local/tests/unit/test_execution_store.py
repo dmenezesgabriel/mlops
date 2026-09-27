@@ -18,10 +18,10 @@ from athena_local.common_schemas import (
 )
 from athena_local.executions import (
     RUNNING,
-    SUCCEEDED,
     ExecutionStore,
 )
 from athena_local.statement_classification import normalize_statement_text
+from tests.unit._execution_fakes import succeeded_execution
 
 
 @pytest.fixture()
@@ -178,20 +178,12 @@ def test_same_request_detects_each_changed_parameter(
     )
 
 
-def _succeeded(store: ExecutionStore, **kwargs: object):
-    """A SUCCEEDED record in ``store`` with a set completion time."""
-    record = store.create(**kwargs)
-    record.transition_to(RUNNING)
-    record.transition_to(SUCCEEDED)
-    return record
-
-
 def test_find_reusable_returns_the_matching_succeeded_execution(
     store: ExecutionStore,
 ) -> None:
     """AWS re-answers a query when an identical recent execution exists in
     the same workgroup (UG "Reusing query results")."""
-    source = _succeeded(
+    source = succeeded_execution(
         store,
         query="SELECT 1",
         workgroup="primary",
@@ -218,9 +210,9 @@ def test_find_reusable_prefers_the_newest_matching_result(
 ) -> None:
     # AWS uses the latest result when several match (UG "Reusing query
     # results"), so iteration walks the store newest-first.
-    _succeeded(store, query="SELECT 1", workgroup="primary")
-    newest = _succeeded(store, query="SELECT 1", workgroup="primary")
-    _succeeded(store, query="SELECT 2", workgroup="primary")
+    succeeded_execution(store, query="SELECT 1", workgroup="primary")
+    newest = succeeded_execution(store, query="SELECT 1", workgroup="primary")
+    succeeded_execution(store, query="SELECT 2", workgroup="primary")
 
     found = store.find_reusable(
         workgroup="primary",
@@ -240,7 +232,7 @@ def test_find_reusable_matches_ignoring_comments_and_whitespace(
 ) -> None:
     # Athena's match treats queries under 100 KB differing only in comments
     # and whitespace as identical (UG "Reusing query results").
-    source = _succeeded(store, query="SELECT 1", workgroup="primary")
+    source = succeeded_execution(store, query="SELECT 1", workgroup="primary")
 
     found = store.find_reusable(
         workgroup="primary",
@@ -258,7 +250,7 @@ def test_find_reusable_matches_ignoring_comments_and_whitespace(
 def test_find_reusable_rejects_each_mismatched_field(
     store: ExecutionStore,
 ) -> None:
-    _succeeded(
+    succeeded_execution(
         store,
         query="SELECT 1",
         workgroup="primary",
@@ -298,7 +290,7 @@ def test_find_reusable_rejects_each_mismatched_field(
 def test_find_reusable_rejects_expired_and_unfinished_results(
     store: ExecutionStore,
 ) -> None:
-    expired = _succeeded(store, query="SELECT 1", workgroup="primary")
+    expired = succeeded_execution(store, query="SELECT 1", workgroup="primary")
     assert expired.completion_time is not None
     expired.completion_time -= 120  # completed two minutes ago
 
@@ -351,7 +343,9 @@ def test_find_reusable_normalizes_only_the_incoming_query(
     # The scan must not re-normalize each stored query: the record caches
     # its key at create, so one lookup pays one normalization total.
     for index in range(100):
-        _succeeded(store, query=f"SELECT {index}", workgroup="primary")
+        succeeded_execution(
+            store, query=f"SELECT {index}", workgroup="primary"
+        )
 
     calls = 0
     real_normalize = normalize_statement_text
@@ -380,16 +374,18 @@ def test_find_reusable_normalizes_only_the_incoming_query(
     assert calls == 1
 
 
-def test_find_reusable_miss_scan_scales(store: ExecutionStore) -> None:
+def test_find_reusable_miss_scan_scales() -> None:
     # A miss over a 20k-execution history was O(executions × query-len)
     # (~40 ms at ~180-char queries) because every candidate re-normalized
     # its stored query; with the cached key the scan is ~4 ms of attribute
     # checks. The bound is generous because `make coverage`'s line tracing
     # inflates the pure-Python loop ~10x (~39 ms observed); the precise
-    # per-candidate-normalize guard is the counting test above.
+    # per-candidate-normalize guard is the counting test above. The store
+    # is sized past the fixture count so retention never fires mid-test.
+    store = ExecutionStore(max_retained_executions=25_000)
     for index in range(20_000):
         columns = ", ".join(f"c{index}_{number}" for number in range(25))
-        _succeeded(
+        succeeded_execution(
             store,
             query=f"SELECT {columns} FROM t_{index}",
             workgroup="primary",
@@ -414,7 +410,7 @@ def test_find_reusable_miss_scan_scales(store: ExecutionStore) -> None:
 def test_reuse_results_from_copies_the_result_surface(
     store: ExecutionStore,
 ) -> None:
-    source = _succeeded(
+    source = succeeded_execution(
         store,
         query="SELECT 1",
         workgroup="primary",
@@ -439,7 +435,7 @@ def test_reuse_results_from_copies_the_result_surface(
 
 def test_payload_reports_result_reuse_members(store: ExecutionStore) -> None:
     reuse = ResultReuseByAgeConfiguration(enabled=True, max_age_in_minutes=30)
-    source = _succeeded(
+    source = succeeded_execution(
         store,
         query="SELECT 1",
         workgroup="primary",

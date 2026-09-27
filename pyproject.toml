@@ -268,7 +268,7 @@ forbidden_modules = ["athena_local.submission", "athena_local.artifacts", "athen
 [[tool.importlinter.contracts]]
 name = "Athena query engine stays independent of the protocol core"
 type = "forbidden"
-source_modules = ["athena_local.executor", "athena_local.submission", "athena_local.executions"]
+source_modules = ["athena_local.executor", "athena_local.submission", "athena_local.executions", "athena_local.execution_record"]
 forbidden_modules = ["athena_local.dispatch", "athena_local.main", "athena_local.workgroups", "athena_local.named_queries", "athena_local.prepared_statements", "athena_local.data_catalogs", "athena_local.engine_versions", "athena_local.tags", "athena_local.catalog_metadata", "athena_local.query_executions", "athena_local.query_results"]
 
 [tool.uv.sources]

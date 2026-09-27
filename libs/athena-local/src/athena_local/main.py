@@ -27,7 +27,10 @@ from athena_local.data_catalogs import register_data_catalog_handlers
 from athena_local.dispatch import WireResponse, dispatch
 from athena_local.engine_versions import register_engine_version_handlers
 from athena_local.errors import InvalidRequestException, serialize_error
-from athena_local.executions import ExecutionStore
+from athena_local.executions import (
+    DEFAULT_MAX_RETAINED_EXECUTIONS,
+    ExecutionStore,
+)
 from athena_local.executor import (
     DEFAULT_MAX_CONCURRENT_QUERIES,
     QueryExecutor,
@@ -53,30 +56,41 @@ from athena_local.workgroups import register_workgroup_handlers
 TRINO_URL_ENV = "ATHENA_LOCAL_TRINO_URL"
 TRINO_URL_DEFAULT = "http://localhost:8080"
 MAX_CONCURRENT_QUERIES_ENV = "ATHENA_LOCAL_MAX_CONCURRENT_QUERIES"
+MAX_RETAINED_EXECUTIONS_ENV = "ATHENA_LOCAL_MAX_RETAINED_EXECUTIONS"
 # The canonical model's largest request member is QueryString (max 262144
 # chars); a 1 MiB cap admits every model-legal request while bounding the
 # memory a single POST can consume.
 MAX_REQUEST_BODY_BYTES = 1_048_576
 
 
-def _max_concurrent_queries() -> int:
-    """Executor concurrency bound from the environment; default stays 4."""
-    raw = os.getenv(MAX_CONCURRENT_QUERIES_ENV)
+def _positive_int_env(env_name: str, default: int) -> int:
+    """A positive-integer env override; bad values name themselves."""
+    raw = os.getenv(env_name)
     if raw is None:
-        return DEFAULT_MAX_CONCURRENT_QUERIES
+        return default
     try:
         bound = int(raw)
     except ValueError:
         raise ValueError(
-            f"{MAX_CONCURRENT_QUERIES_ENV} must be a positive integer, "
-            f"got {raw!r}"
+            f"{env_name} must be a positive integer, got {raw!r}"
         ) from None
     if bound < 1:
-        raise ValueError(
-            f"{MAX_CONCURRENT_QUERIES_ENV} must be a positive integer, "
-            f"got {raw!r}"
-        )
+        raise ValueError(f"{env_name} must be a positive integer, got {raw!r}")
     return bound
+
+
+def build_execution_store() -> ExecutionStore:
+    """Compose the execution registry with its env-tunable retention cap.
+
+    ``ATHENA_LOCAL_MAX_RETAINED_EXECUTIONS`` bounds how many finished
+    executions the store keeps (default 10 000); terminal records also age
+    out of query history at AWS's documented 45-day window.
+    """
+    return ExecutionStore(
+        max_retained_executions=_positive_int_env(
+            MAX_RETAINED_EXECUTIONS_ENV, DEFAULT_MAX_RETAINED_EXECUTIONS
+        )
+    )
 
 
 def build_query_executor(
@@ -104,7 +118,9 @@ def build_query_executor(
     return QueryExecutor(
         store=store,
         client=create_trino_client(trino_url),
-        max_concurrent_queries=_max_concurrent_queries(),
+        max_concurrent_queries=_positive_int_env(
+            MAX_CONCURRENT_QUERIES_ENV, DEFAULT_MAX_CONCURRENT_QUERIES
+        ),
         writer=ArtifactWriter(S3Writer.for_endpoint(moto_endpoint_url)),
         snapshotter=OutputSnapshotter(
             glue=glue,
@@ -134,7 +150,7 @@ register_engine_version_handlers()
 
 register_tag_handlers(workgroup_store, data_catalog_store)
 
-execution_store = ExecutionStore()
+execution_store = build_execution_store()
 executor = build_query_executor(execution_store)
 register_query_execution_handlers(
     execution_store,

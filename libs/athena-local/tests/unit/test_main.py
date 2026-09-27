@@ -18,8 +18,10 @@ from athena_local.executions import ExecutionStore
 from athena_local.main import (
     MAX_CONCURRENT_QUERIES_ENV,
     MAX_REQUEST_BODY_BYTES,
+    MAX_RETAINED_EXECUTIONS_ENV,
     TRINO_URL_ENV,
     app,
+    build_execution_store,
     build_query_executor,
     execution_store,
     reset_query_plane,
@@ -154,6 +156,36 @@ def test_build_query_executor_rejects_invalid_max_concurrent_queries(
 
     with pytest.raises(ValueError, match=re.escape(bad_value)):
         build_query_executor(ExecutionStore())
+
+
+def test_build_execution_store_reads_max_retained_executions_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(MAX_RETAINED_EXECUTIONS_ENV, "500")
+
+    store = build_execution_store()
+
+    assert store.max_retained_executions == 500
+
+
+def test_build_execution_store_defaults_max_retained_executions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(MAX_RETAINED_EXECUTIONS_ENV, raising=False)
+
+    store = build_execution_store()
+
+    assert store.max_retained_executions == 10_000
+
+
+@pytest.mark.parametrize("bad_value", ["abc", "0", "-1", "2.5"])
+def test_build_execution_store_rejects_invalid_max_retained_executions(
+    monkeypatch: pytest.MonkeyPatch, bad_value: str
+) -> None:
+    monkeypatch.setenv(MAX_RETAINED_EXECUTIONS_ENV, bad_value)
+
+    with pytest.raises(ValueError, match=re.escape(bad_value)):
+        build_execution_store()
 
 
 def test_error_content_type_is_json_11(client: TestClient) -> None:

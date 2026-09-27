@@ -485,8 +485,10 @@ engineering-quality findings are filed as small items:
    ~0.35 µs/char → token-match `re.sub` (92 → 7.9 ms at the 262 KB model
    cap); `find_reusable` per-candidate normalize → record-cached
    `normalized_query` (131 → 3.9 ms miss-scan @ 20 k executions).
-7. [ ] QA-9 — bounded execution/result retention (unbounded `by_id` /
-   `by_request_token` / cached rows; open risk in `architecture.md` §11).
+7. [x] QA-9 — bounded execution/result retention: 45-day terminal-record
+   expiry (AWS parity) + `max_retained_executions` count cap (default
+   10 000, env `ATHENA_LOCAL_MAX_RETAINED_EXECUTIONS`) evicting oldest
+   terminal records on create; in-flight exempt; §11 risk → Handled.
 8. [ ] QA-10 — cross-statement Iceberg-probe cache (~5.9 ms Glue RTT per
    unique ref today).
 

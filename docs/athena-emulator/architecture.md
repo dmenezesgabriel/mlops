@@ -105,7 +105,7 @@ consumers pass unmodified:
 | `workgroups.py` | Workgroup ops |
 | `named_queries.py` / `prepared_statements.py` / `data_catalogs.py` / `engine_versions.py` / `tags.py` | Control-plane operation handlers |
 | `catalog_metadata.py` | `ListDatabases`/`GetDatabase`/`ListTableMetadata`/`GetTableMetadata` read proxy to moto Glue (ADR-0005) |
-| `executions.py` | Execution record + `QUEUED→RUNNING→terminal` transition matrix (ADR-0003, ADR-0009) |
+| `executions.py` / `execution_record.py` | Execution record + `QUEUED→RUNNING→terminal` transition matrix (ADR-0003, ADR-0009); the registry bounds retention — terminal records leave history at AWS's 45-day window and `max_retained_executions` evicts oldest-first, in-flight exempt |
 | `executor.py` | Async lifecycle owner: thin `start` over `submission`, semaphore-bound poll task, writer-before-SUCCEEDED, cancellation (ADR-0009) |
 | `submission.py` | Submit-path planning for `start`: `StartRequest`/`PreparedSubmission` assembly, request-token replay + result-reuse decisions, failed-resolution shortcut, dialect rewrite and Trino preflight (ADR-0009) |
 | `prepared_execution.py` | Resolves `EXECUTE name [USING …]` against the workgroup store at submit |
@@ -211,8 +211,10 @@ Trino statement and records `CANCELLED` (ADR-0009).
     `http://localhost:8080`, compose `http://trino:8080`),
     `ATHENA_MOTO_ENDPOINT_URL` (default `http://127.0.0.1:5000`, compose
     `http://moto:5000`), `ATHENA_LOCAL_MAX_CONCURRENT_QUERIES` (default 4,
-    bounds the executor semaphore); `/health` healthcheck; `depends_on` trino
-    `service_healthy` + moto `service_started`.
+    bounds the executor semaphore), `ATHENA_LOCAL_MAX_RETAINED_EXECUTIONS`
+    (default 10 000, bounds retained execution history); `/health`
+    healthcheck; `depends_on` trino `service_healthy` + moto
+    `service_started`.
   - Request hardening: `POST /` rejects bodies over 1 MiB — the canonical
     model's largest member is `QueryString` at 262144 chars — with a shaped
     `InvalidRequestException` before dispatch.
@@ -324,7 +326,7 @@ independent of the query engine" import-linter contract.
 | Terraform-provider-aws can't be driven locally easily | **Handled** (within the local limit): a pinned AWS SDK Go v2 module plus boto3 drive the provider's five resource-family op shapes (`tests/terraform/`) over the live stack; a real `terraform apply` remains an unclaimed stretch |
 | Env-var vs config endpoint precedence surprises | **Handled**: explicit-arg → env-var → compose-default resolution in `main.build_query_executor`/`catalog_metadata`; the endpoint-split suite proves per-service `AWS_ENDPOINT_URL_ATHENA` routes only Athena while global `AWS_ENDPOINT_URL` keeps S3/Glue on moto |
 | Trino's Iceberg Glue catalog ↔ moto Glue commit semantics mismatch (iceberg writes `metadata_location`-tracked table versions), and consumers filter columns on markers Trino never writes | **Handled**: spike-proven live before integration — `CREATE`/`INSERT`/`SELECT`/`MERGE`/`DELETE` round-trip through `iceberg.catalog.type=glue` on moto, registering `Parameters.table_type=ICEBERG` (ADR-0013); the overlay injects AWS's `iceberg.field.current` column marker at `create_table`/`update_table` so wrangler's `filter_iceberg_current` reads the real schema; routing per-reference on the Glue marker keeps hive staging tables inside cross-catalog statements |
-| In-memory execution/result retention is unbounded — `by_id`, `by_request_token`, and cached result rows never evict, so memory grows with lifetime query volume where real Athena bounds retention (45-day history, ~500-row list windows); measured reuse-scan 131 ms @ 20 000 executions | **Open**: bounded by local-emulator scope today (ADR-0003 in-memory control plane); eviction must preserve `ClientRequestToken` dedup + in-flight execution safety |
+| In-memory execution/result retention is unbounded — `by_id`, `by_request_token`, and cached result rows never evict, so memory grows with lifetime query volume where real Athena bounds retention (45-day history, ~500-row list windows); measured reuse-scan 131 ms @ 20 000 executions | **Handled**: terminal records expire out of every read at AWS's documented 45-day query-history window (`QUERY_HISTORY_TTL_SECONDS`, anchored on `completion_time`), and `max_retained_executions` (default 10 000, `ATHENA_LOCAL_MAX_RETAINED_EXECUTIONS`) evicts oldest terminal records on `create` with `ClientRequestToken` entries freed via the record's `request_token` back-pointer; in-flight records are never evicted, so overshoot is bounded by the live count. Residual divergence: AWS has no count bound, and per-result row memory is bounded by the result itself |
 
 ## 12. Glossary
 
