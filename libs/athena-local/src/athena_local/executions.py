@@ -439,13 +439,16 @@ class ExecutionStore:
         and missing ones surface as ``UnprocessedQueryExecutionIds`` instead
         of failing the whole call (model BatchGetQueryExecutionOutput).
         """
-        found: list[QueryExecutionRecord] = []
-        unprocessed: list[str] = []
-        for query_execution_id in query_execution_ids:
-            if query_execution_id in self.by_id:
-                found.append(self.by_id[query_execution_id])
-            else:
-                unprocessed.append(query_execution_id)
+        found = [
+            self.by_id[query_execution_id]
+            for query_execution_id in query_execution_ids
+            if query_execution_id in self.by_id
+        ]
+        unprocessed = [
+            query_execution_id
+            for query_execution_id in query_execution_ids
+            if query_execution_id not in self.by_id
+        ]
         return found, unprocessed
 
     def list_execution_ids(

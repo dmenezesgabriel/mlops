@@ -100,8 +100,8 @@ class ArtifactWriter:
         try:
             if plan.kind == "manifest":
                 self._write_manifest(execution, plan)
-            else:
-                self._write_rows(execution, plan)
+                return
+            self._write_rows(execution, plan)
         except S3WriterError as error:
             raise ArtifactWriteError(str(error)) from error
 

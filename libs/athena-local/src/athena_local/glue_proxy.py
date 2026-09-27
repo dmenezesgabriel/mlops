@@ -122,10 +122,9 @@ class GlueTableMetadata:
             payload["CreateTime"] = self.create_time
         # A never-accessed table reports LastAccessTime 0.0 (the shape shown in
         # the CLI get-table-metadata.rst example).
+        payload["LastAccessTime"] = 0.0
         if self.last_access_time is not None:
             payload["LastAccessTime"] = self.last_access_time
-        else:
-            payload["LastAccessTime"] = 0.0
         if self.table_type is not None:
             payload["TableType"] = self.table_type
         if self.columns is not None:
@@ -185,20 +184,14 @@ class GlueProxy:
     def list_tables(
         self, database_name: str, expression: str | None
     ) -> list[GlueTableMetadata]:
-        if expression is None:
-            response = self._run(
-                "GetTables",
-                lambda: self._client.get_tables(DatabaseName=database_name),
-                resource=f"database {database_name}",
-            )
-        else:
-            response = self._run(
-                "GetTables",
-                lambda: self._client.get_tables(
-                    DatabaseName=database_name, Expression=expression
-                ),
-                resource=f"database {database_name}",
-            )
+        request: dict[str, str] = {"DatabaseName": database_name}
+        if expression is not None:
+            request["Expression"] = expression
+        response = self._run(
+            "GetTables",
+            lambda: self._client.get_tables(**request),
+            resource=f"database {database_name}",
+        )
         return [
             _table_metadata_from_glue(item)
             for item in _objects(response, "TableList")

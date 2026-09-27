@@ -309,13 +309,14 @@ class NamedQueryStore:
 
         Returns a tuple of (found_records, unprocessed_ids).
         """
-        found: list[NamedQueryRecord] = []
-        unprocessed: list[str] = []
-        for query_id in query_ids:
-            if query_id in self.by_id:
-                found.append(self.by_id[query_id])
-            else:
-                unprocessed.append(query_id)
+        found = [
+            self.by_id[query_id]
+            for query_id in query_ids
+            if query_id in self.by_id
+        ]
+        unprocessed = [
+            query_id for query_id in query_ids if query_id not in self.by_id
+        ]
         return found, unprocessed
 
 
@@ -452,12 +453,14 @@ class PreparedStatementStore:
 
         Returns a tuple of (found_records, unprocessed_names).
         """
-        found: list[PreparedStatementRecord] = []
-        unprocessed: list[str] = []
-        for statement_name in statement_names:
-            key = (workgroup, statement_name)
-            if key in self.by_key:
-                found.append(self.by_key[key])
-            else:
-                unprocessed.append(statement_name)
+        found = [
+            self.by_key[(workgroup, statement_name)]
+            for statement_name in statement_names
+            if (workgroup, statement_name) in self.by_key
+        ]
+        unprocessed = [
+            statement_name
+            for statement_name in statement_names
+            if (workgroup, statement_name) not in self.by_key
+        ]
         return found, unprocessed

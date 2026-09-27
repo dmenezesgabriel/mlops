@@ -20,7 +20,7 @@ from athena_local.executions import (
     QueryExecutionRecord,
 )
 from athena_local.executor import QueryExecutor
-from athena_local.query_executions import get_query_results
+from athena_local.query_results import get_query_results
 from pytest_bdd import given, parsers, scenarios, then, when
 
 scenarios("query_executions.feature")

@@ -168,12 +168,13 @@ def _parse_head(query: str, cursor: int, acc: _IcebergCreate) -> int | None:
     if target is None:
         return None
     parts = [identifier_name(p) for p in split_target(target.group("target"))]
+    if len(parts) not in (1, 2):
+        # 3+-part (hive.db.t) — leave the shape for Trino to reject.
+        return None
     if len(parts) == 2:
         acc.schema, acc.table = parts[0], parts[1]
     elif len(parts) == 1:
         acc.table = parts[0]
-    else:  # 3+-part (hive.db.t) — leave the shape for Trino to reject.
-        return None
     cursor = skip_ws(query, target.end())
     if query[cursor : cursor + 1] != "(":
         return cursor  # No column list — tail clauses still parse.

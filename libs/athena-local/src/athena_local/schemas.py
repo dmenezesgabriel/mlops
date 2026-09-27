@@ -33,10 +33,10 @@ from athena_local.common_schemas import (
 )
 from athena_local.workgroup_schemas import (
     WorkGroupConfiguration,
-    WorkGroupConfigurationUpdates,
     apply_defaults,
     to_payload,
 )
+from athena_local.workgroup_updates import WorkGroupConfigurationUpdates
 
 __all__ = [
     "DEFAULT_ENGINE_VERSION",

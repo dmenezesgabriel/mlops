@@ -93,7 +93,7 @@ consumers pass unmodified:
 |---|---|
 | `main.py` | FastAPI app; `POST /` catch-all; `/health` probe; composition root for both planes |
 | `dispatch.py` | `X-Amz-Target` → operation handler; registry loaded from the installed botocore Athena model (ADR-0008) |
-| `schemas.py` / `common_schemas.py` / `workgroup_schemas.py` / `request_fields.py` | Typed request/response shapes per `service-2.json`; `request_fields` holds the shared member validators (`dict \| None` → absent = `None`) used by both top-level payloads and nested member objects |
+| `schemas.py` / `common_schemas.py` / `workgroup_schemas.py` / `workgroup_updates.py` / `request_fields.py` | Typed request/response shapes per `service-2.json`; `workgroup_updates` holds the `UpdateWorkGroup` merge/removal shapes; `request_fields` holds the shared member validators (`dict \| None` → absent = `None`) used by both top-level payloads and nested member objects |
 | `errors.py` | `InvalidRequestException`, `ResourceNotFoundException`, `TooManyRequestsException`, `InternalServerException`; `{"__type", "message"}` + `X-Amzn-Errortype` (ADR-0008) |
 | `pagination.py` | Shared `offset_page` for every list op: opaque `str(index)` `NextToken`, undecodable → `InvalidRequestException`, past-end → empty page, `MaxResults <= 0` → no limit |
 | `error_mapping.py` | Trino statement errors → Athena's wire error vocabulary (ADR-0008) |
@@ -106,9 +106,11 @@ consumers pass unmodified:
 | `named_queries.py` / `prepared_statements.py` / `data_catalogs.py` / `engine_versions.py` / `tags.py` | Control-plane operation handlers |
 | `catalog_metadata.py` | `ListDatabases`/`GetDatabase`/`ListTableMetadata`/`GetTableMetadata` read proxy to moto Glue (ADR-0005) |
 | `executions.py` | Execution record + `QUEUED→RUNNING→terminal` transition matrix (ADR-0003, ADR-0009) |
-| `executor.py` | Async lifecycle: start preflight, semaphore-bound poll task, writer-before-SUCCEEDED, cancellation (ADR-0009) |
+| `executor.py` | Async lifecycle owner: thin `start` over `submission`, semaphore-bound poll task, writer-before-SUCCEEDED, cancellation (ADR-0009) |
+| `submission.py` | Submit-path planning for `start`: `StartRequest`/`PreparedSubmission` assembly, request-token replay + result-reuse decisions, failed-resolution shortcut, dialect rewrite and Trino preflight (ADR-0009) |
 | `prepared_execution.py` | Resolves `EXECUTE name [USING …]` against the workgroup store at submit |
-| `query_executions.py` | Query-plane op handlers (`Start/Stop/Get/BatchGet/List/GetResults/GetRuntimeStatistics`) |
+| `query_executions.py` | Query-plane op handlers (`Start/Stop/Get/BatchGet/List`) + op registration |
+| `query_results.py` | `GetQueryResults`/`GetQueryRuntimeStatistics` handlers: stashed-page `ResultSet` shape, header row on page zero only, `MaxResults`/`NextToken` over data rows |
 | `trino_client.py` | Thin wrapper over `POST /v1/statement`, `GET nextUri`, `DELETE` (ADR-0001; project-owned interface per `AGENTS.md` deps rule) |
 | `artifacts.py` | `.csv` / `.txt` / `-manifest.csv` + `.metadata` writers; `DataManifestLocation` (ADR-0007, ADR-0010) |
 | `output_targets.py` | INSERT/UNLOAD write-target resolution (Glue `StorageDescriptor.Location`, SQL `TO`) + pre-submit object snapshot; feeds the manifest diff (ADR-0007); drops the UNLOAD temp table through Glue (ADR-0012) |

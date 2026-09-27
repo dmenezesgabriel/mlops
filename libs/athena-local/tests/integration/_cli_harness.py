@@ -58,6 +58,29 @@ class CliResult:
         return json.loads(self.stdout)
 
 
+def parsed_json(result: CliResult) -> dict[str, object]:
+    payload = result.parsed()
+    assert isinstance(payload, dict), (
+        f"expected a JSON object, got {payload!r}: {result.stderr}"
+    )
+    return payload
+
+
+def as_dict(value: object) -> dict[str, object]:
+    assert isinstance(value, dict), f"expected a dict, got {value!r}"
+    return value
+
+
+def as_list(value: object) -> list[object]:
+    assert isinstance(value, list), f"expected a list, got {value!r}"
+    return value
+
+
+def as_str(value: object) -> str:
+    assert isinstance(value, str), f"expected a string, got {value!r}"
+    return value
+
+
 def aws_binary() -> Path | None:
     """The ``aws`` console script bound to this venv, or None if absent.
 

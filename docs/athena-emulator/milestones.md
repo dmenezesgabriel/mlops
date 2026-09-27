@@ -475,9 +475,11 @@ engineering-quality findings are filed as small items:
    a colliding Iceberg table name corrupts the statement (live-measured).
 3. [x] QA-1…QA-4 — dead module + ~350 lines of duplicated validators /
    pagination / SQL scanners; consolidate on shared helpers.
-4. [ ] QA-5 — file/function-size and `else` cleanup (src: executor.py 727,
-   query_executions.py 623, workgroup_schemas.py 513, state.py 508;
-   `executor.start` 116-line body; 11 `else` sites; four test files >500).
+4. [x] QA-5 — file/function-size and `else` cleanup: `executor.py` 727→353
+   via `submission.py` (`start` 116→45), `query_executions.py` 543→380 via
+   `query_results.py`, `workgroup_schemas.py` 511→406 via
+   `workgroup_updates.py`; all 11 src `else:` sites → early returns; six
+   test files split by op group into 23 files <500 (parity verified).
 5. [ ] QA-6 — pyright `standard` → `strict` for the lib.
 6. [ ] QA-7/QA-8 — measured submit-path scaling: `strip_comments`
    ~0.35 µs/char (92 ms at the 262 KB model cap); `find_reusable`

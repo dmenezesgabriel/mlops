@@ -165,10 +165,10 @@ def bind_parameters(stored_query: str, values: list[str]) -> str:
     supplied = iter(values)
     output: list[str] = []
     for segment in _placeholder_segments(stored_query):
-        if segment == "?":
-            output.append(f"({next(supplied)})")
-        else:
+        if segment != "?":
             output.append(segment)
+            continue
+        output.append(f"({next(supplied)})")
     return "".join(output)
 
 
@@ -347,22 +347,17 @@ def _split_top_level_values(text: str) -> list[str]:
     index = 0
     while index < len(text):
         char = text[index]
-        if char == "'":
-            index = quoted_end(text, index, "'")
-        elif char == '"':
-            index = quoted_end(text, index, '"')
-        elif char == "(":
+        if char in {"'", '"'}:
+            index = quoted_end(text, index, char)
+            continue
+        if char == "(":
             depth += 1
-            index += 1
         elif char == ")":
             depth -= 1
-            index += 1
         elif char == "," and depth == 0:
             values.append(text[start:index].strip())
             start = index + 1
-            index += 1
-        else:
-            index += 1
+        index += 1
     values.append(text[start:].strip())
     if any(not value for value in values):
         raise InvalidRequestException(
