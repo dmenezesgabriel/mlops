@@ -175,18 +175,22 @@ def skip_ws(text: str, index: int) -> int:
 # Alternation order is load-bearing: a string literal is matched whole
 # (including its ``''`` escapes) before any comment marker inside it, so
 # ``'-- x'`` or ``'/* x */'`` text cannot masquerade as a comment. An
-# unterminated ``/*`` swallows to end of input.
+# unterminated ``/*`` swallows to end of input. There is deliberately no
+# per-character fallback: text matching none of the alternatives passes
+# ``sub`` through untouched, keeping the scan proportional to the token
+# count rather than the input length.
 _COMMENT_ISOLATING_RE = re.compile(
-    r"'(?:[^']|'')*'|--[^\n]*|/\*.*?\*/|/\*.*|.",
+    r"'(?:[^']|'')*'|--[^\n]*|/\*.*?\*/|/\*.*",
     re.DOTALL,
 )
 
 
 def strip_comments(sql: str) -> str:
     """Drop ``--`` and ``/* */`` comments outside string literals."""
-    kept: list[str] = []
-    for match in _COMMENT_ISOLATING_RE.finditer(sql):
-        token = match.group(0)
-        if not token.startswith(("--", "/*")):
-            kept.append(token)
-    return "".join(kept)
+    return _COMMENT_ISOLATING_RE.sub(_drop_comment, sql)
+
+
+def _drop_comment(match: re.Match[str]) -> str:
+    """Empty string for comment matches; literals re-insert verbatim."""
+    token = match.group(0)
+    return "" if token.startswith(("--", "/*")) else token
