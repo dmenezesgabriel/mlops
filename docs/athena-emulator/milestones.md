@@ -481,9 +481,10 @@ engineering-quality findings are filed as small items:
    `workgroup_updates.py`; all 11 src `else:` sites → early returns; six
    test files split by op group into 23 files <500 (parity verified).
 5. [x] QA-6 — pyright `standard` → `strict` for the lib.
-6. [ ] QA-7/QA-8 — measured submit-path scaling: `strip_comments`
-   ~0.35 µs/char (92 ms at the 262 KB model cap); `find_reusable`
-   O(executions × query-len) (131 ms miss-scan @ 20 k executions).
+6. [x] QA-7/QA-8 — measured submit-path scaling fixed: `strip_comments`
+   ~0.35 µs/char → token-match `re.sub` (92 → 7.9 ms at the 262 KB model
+   cap); `find_reusable` per-candidate normalize → record-cached
+   `normalized_query` (131 → 3.9 ms miss-scan @ 20 k executions).
 7. [ ] QA-9 — bounded execution/result retention (unbounded `by_id` /
    `by_request_token` / cached rows; open risk in `architecture.md` §11).
 8. [ ] QA-10 — cross-statement Iceberg-probe cache (~5.9 ms Glue RTT per

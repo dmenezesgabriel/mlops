@@ -9,6 +9,8 @@ SUCCEEDED-only — that ``SubmissionPlanner`` consults at submit.
 
 from __future__ import annotations
 
+from time import monotonic
+
 import pytest
 from athena_local.common_schemas import (
     ResultConfiguration,
@@ -19,6 +21,7 @@ from athena_local.executions import (
     SUCCEEDED,
     ExecutionStore,
 )
+from athena_local.statement_classification import normalize_statement_text
 
 
 @pytest.fixture()
@@ -328,6 +331,84 @@ def test_find_reusable_rejects_expired_and_unfinished_results(
         )
         is expired
     )
+
+
+def test_record_caches_normalized_query_at_create(
+    store: ExecutionStore,
+) -> None:
+    record = store.create(
+        query=" SELECT  1 -- trailing\n", workgroup="primary"
+    )
+
+    assert record.normalized_query == normalize_statement_text(
+        " SELECT  1 -- trailing\n"
+    )
+
+
+def test_find_reusable_normalizes_only_the_incoming_query(
+    store: ExecutionStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The scan must not re-normalize each stored query: the record caches
+    # its key at create, so one lookup pays one normalization total.
+    for index in range(100):
+        _succeeded(store, query=f"SELECT {index}", workgroup="primary")
+
+    calls = 0
+    real_normalize = normalize_statement_text
+
+    def counting(query: str) -> str:
+        nonlocal calls
+        calls += 1
+        return real_normalize(query)
+
+    monkeypatch.setattr(
+        "athena_local.executions.normalize_statement_text", counting
+    )
+
+    assert (
+        store.find_reusable(
+            workgroup="primary",
+            query="SELECT missing",
+            database=None,
+            catalog=None,
+            execution_parameters=None,
+            result_configuration=None,
+            max_age_minutes=60,
+        )
+        is None
+    )
+    assert calls == 1
+
+
+def test_find_reusable_miss_scan_scales(store: ExecutionStore) -> None:
+    # A miss over a 20k-execution history was O(executions × query-len)
+    # (~40 ms at ~180-char queries) because every candidate re-normalized
+    # its stored query; with the cached key the scan is ~4 ms of attribute
+    # checks. The bound is generous because `make coverage`'s line tracing
+    # inflates the pure-Python loop ~10x (~39 ms observed); the precise
+    # per-candidate-normalize guard is the counting test above.
+    for index in range(20_000):
+        columns = ", ".join(f"c{index}_{number}" for number in range(25))
+        _succeeded(
+            store,
+            query=f"SELECT {columns} FROM t_{index}",
+            workgroup="primary",
+        )
+
+    started = monotonic()
+    found = store.find_reusable(
+        workgroup="primary",
+        query="SELECT missing",
+        database=None,
+        catalog=None,
+        execution_parameters=None,
+        result_configuration=None,
+        max_age_minutes=60,
+    )
+    elapsed_ms = (monotonic() - started) * 1000
+
+    assert found is None
+    assert elapsed_ms < 100
 
 
 def test_reuse_results_from_copies_the_result_surface(

@@ -115,6 +115,15 @@ class QueryExecutionRecord:
     # source execution's result file (AWS UG "Reusing query results").
     # Sticky and internal — never serialized.
     reused_output_location: str | None = None
+    # Comment-stripped, whitespace-collapsed query computed once at
+    # construction: ``find_reusable`` compares it against every candidate,
+    # and normalizing the stored text per candidate made the scan
+    # O(executions × query-len). ``query`` is never mutated post-create, so
+    # the cached key cannot drift. Internal — never serialized.
+    normalized_query: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.normalized_query = normalize_statement_text(self.query)
 
     def transition_to(self, new_state: str, reason: str | None = None) -> None:
         """Move to ``new_state``; terminal states are immutable (ADR-0009)."""
@@ -210,7 +219,7 @@ class QueryExecutionRecord:
             and self.catalog == catalog
             and self.execution_parameters == execution_parameters
             and self.result_configuration == result_configuration
-            and normalize_statement_text(self.query) == query_key
+            and self.normalized_query == query_key
         )
 
     def _result_output_location(self) -> str | None:
@@ -414,7 +423,7 @@ class ExecutionStore:
         """
         query_key = normalize_statement_text(query)
         oldest_allowed = time() - max_age_minutes * 60
-        for record in reversed(list(self.by_id.values())):
+        for record in reversed(self.by_id.values()):
             if record.state != SUCCEEDED:
                 continue
             if (record.completion_time or 0) < oldest_allowed:
