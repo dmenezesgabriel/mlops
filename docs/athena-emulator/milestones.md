@@ -461,10 +461,39 @@ Exit: every notebook executed green inside `jupyterlab` via the
 `PARITY.md` lists each probed feature with its measured status; each measured
 gap has a backlog item or a documented waiver.
 
+## M7 — Post-audit hardening (GF-14/GF-15, QA-*)
+
+Post-M6 full-signature audit of `libs/athena-local` (2026-09-27): every
+module walked end-to-end, hot paths microbenchmarked in-process, parity
+claims probed against the running stack. Two measured parity bugs and ten
+engineering-quality findings are filed as small items:
+
+1. [ ] GF-14 — comma-separated FROM items after the first escape the Iceberg
+   routing probe (`FROM hive_t, ice_t` → `UNSUPPORTED_TABLE_TYPE` where real
+   Athena succeeds; live-measured).
+2. [ ] GF-15 — schema-position refs (`SHOW TABLES FROM x`) probed as tables;
+   a colliding Iceberg table name corrupts the statement (live-measured).
+3. [ ] QA-1…QA-4 — dead module + ~350 lines of duplicated validators /
+   pagination / SQL scanners; consolidate on shared helpers.
+4. [ ] QA-5 — file/function-size and `else` cleanup (src: executor.py 727,
+   query_executions.py 623, workgroup_schemas.py 513, state.py 508;
+   `executor.start` 116-line body; 11 `else` sites; four test files >500).
+5. [ ] QA-6 — pyright `standard` → `strict` for the lib.
+6. [ ] QA-7/QA-8 — measured submit-path scaling: `_strip_comments`
+   ~0.35 µs/char (92 ms at the 262 KB model cap); `find_reusable`
+   O(executions × query-len) (131 ms miss-scan @ 20 k executions).
+7. [ ] QA-9 — bounded execution/result retention (unbounded `by_id` /
+   `by_request_token` / cached rows; open risk in `architecture.md` §11).
+8. [ ] QA-10 — cross-statement Iceberg-probe cache (~5.9 ms Glue RTT per
+   unique ref today).
+
+Exit: GF-14/GF-15 green on live probes + unit tests; each QA item's evidence
+cell names the exact files/lines and measured numbers it must improve.
+
 ## Sequence & dependencies
 
 ```
-M0 (SP) → M1 (QC/PC core) → M2 (MD) → M3 (QE/AR) → M4 (CS) → M5 (DP) → M6 (NB)
+M0 (SP) → M1 (QC/PC core) → M2 (MD) → M3 (QE/AR) → M4 (CS) → M5 (DP) → M6 (NB) → M7 (GF-14/15, QA)
 ```
 Blockers gating start: M0 SP-2/SP-3 must pass before QE/AR integration (M3).
 M2 MD-7 needs SP-3. QC gates (M1) precede any src/ code per NFR-01/02.
