@@ -53,6 +53,7 @@ from athena_local.sql_lexing import (
     IDENTIFIER_PART,
     balanced_span,
     identifier_name,
+    quoted_end,
     quoted_identifier,
     skip_ws,
     split_target,
@@ -414,7 +415,7 @@ def _identifier_step(
     spans: list[tuple[int, int]],
     quote_quoted: bool,
 ) -> int:
-    end = _quoted_end(query, index, char)
+    end = quoted_end(query, index, char)
     if char == '"' or quote_quoted:
         spans.append((index, end))
     return end
@@ -433,20 +434,6 @@ def _comment_step(
         end += 2
     spans.append((index, end))
     return end
-
-
-def _quoted_end(query: str, start: int, quote: str) -> int:
-    """Index past the closing ``quote``; doubled-quote escapes are skipped."""
-    cursor = start + 1
-    while cursor < len(query):
-        if query[cursor] != quote:
-            cursor += 1
-            continue
-        if query[cursor + 1 : cursor + 2] == quote:
-            cursor += 2
-            continue
-        return cursor + 1
-    return len(query)
 
 
 def _inside(spans: list[tuple[int, int]], position: int) -> bool:
@@ -474,7 +461,7 @@ def _emit_backticks(query: str, start: int, end: int, out: list[str]) -> None:
         if query[index] != "`":
             index += 1
             continue
-        close = _quoted_end(query, index, "`")
+        close = quoted_end(query, index, "`")
         if close > end:
             break  # Unterminated backtick — leave the tail for Trino.
         out.append(query[segment:index])

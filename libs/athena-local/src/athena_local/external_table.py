@@ -28,6 +28,7 @@ from athena_local.sql_lexing import (
     literal_value,
     quoted_identifier,
     quoted_pair,
+    skip_ws,
     split_target,
     split_top_level,
     sql_literal,
@@ -154,16 +155,10 @@ def _parse_head(query: str, cursor: int, acc: _ExternalTable) -> int | None:
         return None
     acc.schema = parts[0] if len(parts) == 2 else None
     acc.table = parts[-1]
-    cursor = _skip_ws(query, target.end())
+    cursor = skip_ws(query, target.end())
     if cursor < len(query) and query[cursor] == "(":
         return _column_list(query, cursor, acc)
     return cursor
-
-
-def _skip_ws(text: str, index: int) -> int:
-    while index < len(text) and text[index] in " \t\n\r":
-        index += 1
-    return index
 
 
 def _column_list(query: str, cursor: int, acc: _ExternalTable) -> int | None:

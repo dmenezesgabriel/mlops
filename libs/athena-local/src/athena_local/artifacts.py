@@ -32,14 +32,12 @@ from typing import Literal
 from athena_local.executions import QueryExecutionRecord
 from athena_local.executor import ArtifactWriteError
 from athena_local.s3_writer import S3Writer, S3WriterError
-from athena_local.statement_classification import (
-    _strip_comments,
-    artifact_output_kind,
-)
+from athena_local.sql_lexing import strip_comments
+from athena_local.statement_classification import artifact_output_kind
 from athena_local.trino_client import TrinoPage
 
 # ``''`` is SQL's escaped quote; the kept text still holds the literal the
-# same way _strip_comments preserves string literals.
+# same way strip_comments preserves string literals.
 _EXTERNAL_LOCATION_RE = re.compile(
     r"external_location\s*=\s*'((?:[^']|'')*)'",
     re.IGNORECASE | re.DOTALL,
@@ -219,7 +217,7 @@ def _manifest_bytes(paths: list[str]) -> bytes:
 
 
 def _external_location(query: str) -> str | None:
-    with_properties = _strip_comments(query)
+    with_properties = strip_comments(query)
     match = _EXTERNAL_LOCATION_RE.search(with_properties)
     if match is None:
         return None

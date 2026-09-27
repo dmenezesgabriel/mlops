@@ -21,6 +21,7 @@ from athena_local.sql_lexing import (
     balanced_span,
     identifier_name,
     quoted_identifier,
+    skip_ws,
     string_end,
 )
 
@@ -117,7 +118,7 @@ def hive_column_defs(text: str) -> list[HiveColumn] | None:
 
 
 def _parse_type(text: str, index: int) -> tuple[str, int] | None:
-    index = _skip_ws(text, index)
+    index = skip_ws(text, index)
     match = _TYPE_NAME.match(text, index)
     if match is None:
         return None
@@ -131,7 +132,7 @@ def _parse_type(text: str, index: int) -> tuple[str, int] | None:
         return _complex_type(text, index, name)
     if name not in _TYPE_SCALARS:
         return None
-    params = _skip_ws(text, index)
+    params = skip_ws(text, index)
     if params < len(text) and text[params] == "(":
         end = balanced_span(text, params)
         if end is None:
@@ -199,13 +200,7 @@ def _struct_field(text: str, index: int) -> tuple[str, int] | None:
 
 
 def _expect(text: str, index: int, char: str) -> int | None:
-    index = _skip_ws(text, index)
+    index = skip_ws(text, index)
     if index < len(text) and text[index] == char:
         return index + 1
     return None
-
-
-def _skip_ws(text: str, index: int) -> int:
-    while index < len(text) and text[index] in " \t\n\r":
-        index += 1
-    return index

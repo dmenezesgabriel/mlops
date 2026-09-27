@@ -20,6 +20,8 @@ import re
 from dataclasses import dataclass
 from typing import Literal
 
+from athena_local.sql_lexing import strip_comments
+
 DDL = "DDL"
 DML = "DML"
 UTILITY = "UTILITY"
@@ -131,35 +133,11 @@ def normalize_statement_text(query: str) -> str:
     only in comments and whitespace as identical (AWS UG "Reusing query
     results"); its ``INNER JOIN``/``JOIN`` equivalence is not emulated.
     """
-    return " ".join(_strip_comments(query).split())
+    return " ".join(strip_comments(query).split())
 
 
 def _leading_tokens(query: str) -> list[str]:
-    return _strip_comments(query).upper().split()
-
-
-# Alternation order is load-bearing: a string literal is matched whole
-# (including its ``''`` escapes) before any comment marker inside it, so
-# ``'-- x'`` or ``'/* x */'`` text cannot skew the leading keyword. An
-# unterminated ``/*`` swallows to end of input, matching the old scanner.
-_COMMENT_ISOLATING_RE = re.compile(
-    r"'(?:[^']|'')*'|--[^\n]*|/\*.*?\*/|/\*.*|.",
-    re.DOTALL,
-)
-
-
-def _strip_comments(sql: str) -> str:
-    """Drop ``--`` and ``/* */`` comments outside string literals.
-
-    Only the classification copy is stripped; the original query is what
-    reaches Trino.
-    """
-    kept: list[str] = []
-    for match in _COMMENT_ISOLATING_RE.finditer(sql):
-        token = match.group(0)
-        if not token.startswith(("--", "/*")):
-            kept.append(token)
-    return "".join(kept)
+    return strip_comments(query).upper().split()
 
 
 def _dml_substatement(first_token: str, tokens: list[str]) -> str:

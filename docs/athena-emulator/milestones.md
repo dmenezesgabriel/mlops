@@ -473,13 +473,13 @@ engineering-quality findings are filed as small items:
    Athena succeeds; live-measured).
 2. [x] GF-15 — schema-position refs (`SHOW TABLES FROM x`) probed as tables;
    a colliding Iceberg table name corrupts the statement (live-measured).
-3. [ ] QA-1…QA-4 — dead module + ~350 lines of duplicated validators /
+3. [x] QA-1…QA-4 — dead module + ~350 lines of duplicated validators /
    pagination / SQL scanners; consolidate on shared helpers.
 4. [ ] QA-5 — file/function-size and `else` cleanup (src: executor.py 727,
    query_executions.py 623, workgroup_schemas.py 513, state.py 508;
    `executor.start` 116-line body; 11 `else` sites; four test files >500).
 5. [ ] QA-6 — pyright `standard` → `strict` for the lib.
-6. [ ] QA-7/QA-8 — measured submit-path scaling: `_strip_comments`
+6. [ ] QA-7/QA-8 — measured submit-path scaling: `strip_comments`
    ~0.35 µs/char (92 ms at the 262 KB model cap); `find_reusable`
    O(executions × query-len) (131 ms miss-scan @ 20 k executions).
 7. [ ] QA-9 — bounded execution/result retention (unbounded `by_id` /

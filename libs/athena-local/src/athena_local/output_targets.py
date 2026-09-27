@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from athena_local.errors import MetadataException
 from athena_local.glue_proxy import GlueProxy
 from athena_local.s3_writer import S3Writer
-from athena_local.statement_classification import _strip_comments
+from athena_local.sql_lexing import string_end, strip_comments
 
 UNLOAD_HEAD_RE = re.compile(r"^\s*unload\b", re.IGNORECASE)
 
@@ -151,7 +151,7 @@ def insert_table_reference(query: str) -> tuple[str | None, str] | None:
     identifiers keep their case, and unquoted parts fold to lowercase the way
     Athena folds identifiers.
     """
-    parts = _identifier_tokens(_strip_comments(query))
+    parts = _identifier_tokens(strip_comments(query))
     if (
         len(parts) < 3
         or parts[0].upper() != "INSERT"
@@ -168,7 +168,7 @@ def unload_location(query: str) -> str | None:
     the parenthesized query cannot collide with the TO clause, and a quoted
     string's contents (including its ``''`` escapes) are skipped verbatim.
     """
-    stripped = _strip_comments(query)
+    stripped = strip_comments(query)
     if UNLOAD_HEAD_RE.search(stripped) is None:
         return None
     return _scan_unload_location(stripped)
@@ -180,10 +180,10 @@ def _scan_unload_location(text: str) -> str | None:
     while index < len(text):
         char = text[index]
         if char == "'":
-            string_end = _string_end(text, index)
-            if string_end is None:
+            end = string_end(text, index)
+            if end is None:
                 return None
-            index = string_end
+            index = end
             continue
         if char == "(":
             depth += 1
@@ -254,26 +254,6 @@ def _fold_identifier(segment: str) -> str:
     return segment.lower()
 
 
-def _escaped_quote_at(text: str, index: int) -> bool:
-    return (
-        index + 1 < len(text) and text[index] == "'" and text[index + 1] == "'"
-    )
-
-
-def _string_end(text: str, start: int) -> int | None:
-    """Index just past the quoted literal at ``start``, or None if unterminated."""
-    cursor = start + 1
-    while cursor < len(text):
-        if text[cursor] != "'":
-            cursor += 1
-            continue
-        if _escaped_quote_at(text, cursor):
-            cursor += 2
-            continue
-        return cursor + 1
-    return None
-
-
 def _to_clause_at(text: str, index: int) -> bool:
     """True when ``text[index:]`` starts a top-level ``to '<uri>'`` clause."""
     if text[index : index + 2].casefold() != "to":
@@ -287,7 +267,7 @@ def _to_clause_at(text: str, index: int) -> bool:
 def _quoted_string_at(text: str, start: int) -> str:
     """The SQL single-quoted literal at or after ``start``, ``''`` unescaped."""
     quote = text.find("'", start)
-    end = _string_end(text, quote)
+    end = string_end(text, quote)
     if end is None:
         return text[quote + 1 :]
     return text[quote + 1 : end - 1].replace("''", "'")

@@ -36,10 +36,10 @@ from athena_local.errors import (
     InvalidRequestException,
     ResourceNotFoundException,
 )
+from athena_local.sql_lexing import quoted_end, strip_comments
 from athena_local.state import PreparedStatementStore
 from athena_local.statement_classification import (
     StatementClassification,
-    _strip_comments,
     classify_statement,
 )
 
@@ -73,7 +73,7 @@ _LITERAL_OR_EXPRESSION_RE = re.compile(
 # string-literal / quoted-identifier / comment span as its own segment, so
 # binding can never rewrite a marker inside a literal (Athena forbids ``?``
 # in quotes anyway — aws docs "Use parameterized queries"). The alternation
-# order mirrors ``statement_classification._COMMENT_ISOLATING_RE``.
+# order mirrors ``sql_lexing._COMMENT_ISOLATING_RE``.
 _PLACEHOLDER_SCAN_RE = re.compile(
     r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"|--[^\n]*"
     r"|/\*.*?\*/|/\*.*|\?"
@@ -126,7 +126,7 @@ def parse_execute_statement(query: str) -> ExecuteParts | None:
         parse_execute_statement("EXECUTE \\"st\\" USING 'Washington'")
         # -> ExecuteParts(name="st", values=["'Washington'"])
     """
-    without_comments = _strip_comments(query).strip()
+    without_comments = strip_comments(query).strip()
     rest = _EXECUTE_PREFIX_RE.sub("", without_comments, count=1).lstrip()
     if rest == without_comments:
         return None
@@ -299,7 +299,7 @@ def _parse_statement_name(rest: str) -> tuple[str, str]:
             "EXECUTE requires a statement name, nothing followed the keyword"
         )
     if rest.startswith('"'):
-        end = _quoted_identifier_end(rest, 0)
+        end = quoted_end(rest, 0, '"')
         if end >= len(rest) and not rest.endswith('"'):
             raise InvalidRequestException(
                 f"EXECUTE statement name is an unterminated quoted "
@@ -334,32 +334,6 @@ def _count_placeholders(stored_query: str) -> int:
     )
 
 
-def _string_literal_end(text: str, start: int) -> int:
-    """Index just past a ``'...'`` literal, honoring SQL's ``''`` escape."""
-    index = start + 1
-    while index < len(text):
-        if text[index] == "'":
-            if text.startswith("''", index):
-                index += 2
-                continue
-            return index + 1
-        index += 1
-    return len(text)
-
-
-def _quoted_identifier_end(text: str, start: int) -> int:
-    """Index just past a ``"..."`` identifier, honoring SQL's ``""`` escape."""
-    index = start + 1
-    while index < len(text):
-        if text[index] == '"':
-            if text.startswith('""', index):
-                index += 2
-                continue
-            return index + 1
-        index += 1
-    return len(text)
-
-
 def _split_top_level_values(text: str) -> list[str]:
     """Split an inline USING list at top-level commas.
 
@@ -374,9 +348,9 @@ def _split_top_level_values(text: str) -> list[str]:
     while index < len(text):
         char = text[index]
         if char == "'":
-            index = _string_literal_end(text, index)
+            index = quoted_end(text, index, "'")
         elif char == '"':
-            index = _quoted_identifier_end(text, index)
+            index = quoted_end(text, index, '"')
         elif char == "(":
             depth += 1
             index += 1

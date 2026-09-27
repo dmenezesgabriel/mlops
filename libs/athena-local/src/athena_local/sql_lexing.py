@@ -122,13 +122,29 @@ def balanced_span(text: str, start: int) -> int | None:
 
 
 def string_end(text: str, start: int) -> int | None:
-    """Index just past the quoted literal at ``start``; None if unterminated."""
+    """Index just past the ``'``-quoted literal at ``start``; None if unterminated."""
+    return _quoted_scan(text, start, "'")
+
+
+def quoted_end(text: str, start: int, quote: str) -> int:
+    """Index just past the ``quote``-quoted span at ``start``.
+
+    Unlike ``string_end``, an unterminated span returns ``len(text)`` —
+    callers that swallow the tail (placeholder binding, backtick
+    normalization) use this contract.
+    """
+    end = _quoted_scan(text, start, quote)
+    return end if end is not None else len(text)
+
+
+def _quoted_scan(text: str, start: int, quote: str) -> int | None:
+    """Shared scan core: doubled ``quote`` escapes (``''``/``""``) skip."""
     cursor = start + 1
     while cursor < len(text):
-        if text[cursor] != "'":
+        if text[cursor] != quote:
             cursor += 1
             continue
-        if cursor + 1 < len(text) and text[cursor + 1] == "'":
+        if text[cursor + 1 : cursor + 2] == quote:
             cursor += 2
             continue
         return cursor + 1
@@ -154,3 +170,23 @@ def skip_ws(text: str, index: int) -> int:
     while index < len(text) and text[index] in " \t\n\r":
         index += 1
     return index
+
+
+# Alternation order is load-bearing: a string literal is matched whole
+# (including its ``''`` escapes) before any comment marker inside it, so
+# ``'-- x'`` or ``'/* x */'`` text cannot masquerade as a comment. An
+# unterminated ``/*`` swallows to end of input.
+_COMMENT_ISOLATING_RE = re.compile(
+    r"'(?:[^']|'')*'|--[^\n]*|/\*.*?\*/|/\*.*|.",
+    re.DOTALL,
+)
+
+
+def strip_comments(sql: str) -> str:
+    """Drop ``--`` and ``/* */`` comments outside string literals."""
+    kept: list[str] = []
+    for match in _COMMENT_ISOLATING_RE.finditer(sql):
+        token = match.group(0)
+        if not token.startswith(("--", "/*")):
+            kept.append(token)
+    return "".join(kept)
