@@ -100,7 +100,7 @@ consumers pass unmodified:
 | `dialect.py` + `external_table.py` + `partition_alter.py` | Athena→Trino statement spellings (`CREATE/DROP DATABASE` → `SCHEMA`, identifier quoting, trailing `;`, `MSCK REPAIR TABLE` → `CALL system.sync_partition_metadata(…, 'ADD')`, `CREATE EXTERNAL TABLE` → `CREATE TABLE … WITH(…)`, `ALTER TABLE … ADD PARTITION` → `CALL system.register_partition` with `IF NOT EXISTS`→`ALREADY_EXISTS` no-op, `UNLOAD` → CTAS + session codec, ADR-0012) |
 | `iceberg.py` + `iceberg_table.py` | Iceberg routing to the dedicated `iceberg` catalog: `TBLPROPERTIES('table_type'='ICEBERG')` CREATE → `WITH(format, location[, partitioning])`; Glue `table_type` marker routes `INSERT`/`MERGE`/`DELETE`/`SELECT`/ALTER references; backtick→`"ident"` normalization; `ADD COLUMNS`/`CHANGE COLUMN` → Trino's single-action ALTERs (ADR-0013) |
 | `state.py` / `data_catalog_state.py` | In-memory registries: workgroups, named queries, prepared statements, data catalogs (ADR-0003) |
-| `workgroups.py` / `workgroup_payloads.py` | Workgroup ops + payload serialization/defaults |
+| `workgroups.py` | Workgroup ops |
 | `named_queries.py` / `prepared_statements.py` / `data_catalogs.py` / `engine_versions.py` / `tags.py` | Control-plane operation handlers |
 | `catalog_metadata.py` | `ListDatabases`/`GetDatabase`/`ListTableMetadata`/`GetTableMetadata` read proxy to moto Glue (ADR-0005) |
 | `executions.py` | Execution record + `QUEUED→RUNNING→terminal` transition matrix (ADR-0003, ADR-0009) |
