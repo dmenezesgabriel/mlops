@@ -217,7 +217,7 @@ class QueryExecutor:
             if page is None:
                 self._drop_unload_table(record)
                 return
-            if record.state == CANCELLED:
+            if _cancelled(record):
                 self._drop_unload_table(record)
                 return
             if page.error is not None:
@@ -349,3 +349,10 @@ class QueryExecutor:
             # The execution is already terminal CANCELLED; a dead coordinator
             # must not turn a user-requested stop into a failure.
             return
+
+
+def _cancelled(record: QueryExecutionRecord) -> bool:
+    # Read through a function boundary on purpose: pyright narrows state to
+    # QUEUED above the transition_to/await chain, but StopQueryExecution can
+    # race the runner and set CANCELLED while _poll_to_end was in flight.
+    return record.state == CANCELLED

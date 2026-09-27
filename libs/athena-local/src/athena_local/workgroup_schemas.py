@@ -16,15 +16,15 @@ from athena_local.common_schemas import (
     EngineVersion,
     ManagedQueryResultsConfiguration,
     ResultConfiguration,
-    _defaulted,
-    _merge_field,
-    _set_if_present,
+    defaulted,
     engine_version_payload,
     managed_query_results_payload,
+    merge_field,
     parse_engine_version,
     parse_managed_query_results_configuration,
     parse_result_configuration,
     result_configuration_payload,
+    set_if_present,
 )
 from athena_local.request_fields import (
     as_object,
@@ -79,22 +79,22 @@ def _merge_result_configuration(
         return current
     base = current or ResultConfiguration()
     return ResultConfiguration(
-        output_location=_merge_field(
+        output_location=merge_field(
             base.output_location,
             updates.output_location,
             updates.remove_output_location,
         ),
-        encryption_configuration=_merge_field(
+        encryption_configuration=merge_field(
             base.encryption_configuration,
             updates.encryption_configuration,
             updates.remove_encryption_configuration,
         ),
-        expected_bucket_owner=_merge_field(
+        expected_bucket_owner=merge_field(
             base.expected_bucket_owner,
             updates.expected_bucket_owner,
             updates.remove_expected_bucket_owner,
         ),
-        acl_configuration=_merge_field(
+        acl_configuration=merge_field(
             base.acl_configuration,
             updates.acl_configuration,
             updates.remove_acl_configuration,
@@ -120,7 +120,7 @@ def _merge_managed_updates(
     current_enc = (
         current.encryption_configuration if current is not None else None
     )
-    encryption = _merge_field(
+    encryption = merge_field(
         current_enc,
         updates.encryption_configuration,
         updates.remove_encryption_configuration,
@@ -134,7 +134,7 @@ def _merge_customer_content(
     current: dict[str, object] | None,
     updates: WorkGroupConfigurationUpdates,
 ) -> dict[str, object] | None:
-    return _merge_field(
+    return merge_field(
         current,
         updates.customer_content_encryption_configuration,
         updates.remove_customer_content_encryption_configuration,
@@ -144,7 +144,7 @@ def _merge_customer_content(
 def _merge_bytes_scanned(
     current: int | None, updates: WorkGroupConfigurationUpdates
 ) -> int | None:
-    return _merge_field(
+    return merge_field(
         current,
         updates.bytes_scanned_cutoff_per_query,
         updates.remove_bytes_scanned_cutoff_per_query,
@@ -300,59 +300,59 @@ class WorkGroupConfiguration:
 def _write_config_flags(
     payload: dict[str, object], configuration: WorkGroupConfiguration
 ) -> None:
-    _set_if_present(
+    set_if_present(
         payload,
         "EnforceWorkGroupConfiguration",
         configuration.enforce_work_group_configuration,
     )
-    _set_if_present(
+    set_if_present(
         payload,
         "PublishCloudWatchMetricsEnabled",
         configuration.publish_cloudwatch_metrics_enabled,
     )
-    _set_if_present(
+    set_if_present(
         payload,
         "BytesScannedCutoffPerQuery",
         configuration.bytes_scanned_cutoff_per_query,
     )
-    _set_if_present(
+    set_if_present(
         payload, "RequesterPaysEnabled", configuration.requester_pays_enabled
     )
-    _set_if_present(
+    set_if_present(
         payload,
         "AdditionalConfiguration",
         configuration.additional_configuration,
     )
-    _set_if_present(payload, "ExecutionRole", configuration.execution_role)
+    set_if_present(payload, "ExecutionRole", configuration.execution_role)
 
 
 def _write_config_maps(
     payload: dict[str, object], configuration: WorkGroupConfiguration
 ) -> None:
-    _set_if_present(
+    set_if_present(
         payload,
         "MonitoringConfiguration",
         configuration.monitoring_configuration,
     )
-    _set_if_present(
+    set_if_present(
         payload, "EngineConfiguration", configuration.engine_configuration
     )
-    _set_if_present(
+    set_if_present(
         payload,
         "CustomerContentEncryptionConfiguration",
         configuration.customer_content_encryption_configuration,
     )
-    _set_if_present(
+    set_if_present(
         payload,
         "EnableMinimumEncryptionConfiguration",
         configuration.enable_minimum_encryption_configuration,
     )
-    _set_if_present(
+    set_if_present(
         payload,
         "IdentityCenterConfiguration",
         configuration.identity_center_configuration,
     )
-    _set_if_present(
+    set_if_present(
         payload,
         "QueryResultsS3AccessGrantsConfiguration",
         configuration.query_results_s3_access_grants_configuration,
@@ -388,19 +388,19 @@ def apply_defaults(
     """Fill create-time defaults exactly as moto ``WorkGroup.__init__`` does."""
     return replace(
         configuration,
-        enforce_work_group_configuration=_defaulted(
+        enforce_work_group_configuration=defaulted(
             configuration.enforce_work_group_configuration, True
         ),
-        publish_cloudwatch_metrics_enabled=_defaulted(
+        publish_cloudwatch_metrics_enabled=defaulted(
             configuration.publish_cloudwatch_metrics_enabled, False
         ),
-        requester_pays_enabled=_defaulted(
+        requester_pays_enabled=defaulted(
             configuration.requester_pays_enabled, False
         ),
-        enable_minimum_encryption_configuration=_defaulted(
+        enable_minimum_encryption_configuration=defaulted(
             configuration.enable_minimum_encryption_configuration, False
         ),
-        engine_version=_defaulted(
+        engine_version=defaulted(
             configuration.engine_version, DEFAULT_ENGINE_VERSION
         ),
     )

@@ -126,7 +126,7 @@ def _result_set_payload(
     offset: int,
     page_rows: list[list[object]],
 ) -> dict[str, object]:
-    rows = []
+    rows: list[dict[str, object]] = []
     if offset == 0:
         rows.append(
             {

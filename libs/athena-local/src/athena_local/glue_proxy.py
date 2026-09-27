@@ -22,6 +22,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol, cast
 
+# botocore ships no type information (no py.typed marker) and the community
+# stubs are deliberately not vendored — this module is the designated
+# botocore boundary, so the rule is scoped off here rather than weakened
+# project-wide.
+# pyright: reportMissingTypeStubs=false
 from botocore.exceptions import BotoCoreError, ClientError
 from botocore.session import Session
 
@@ -155,7 +160,7 @@ class GlueProxy:
     def for_endpoint(cls, endpoint_url: str) -> GlueProxy:
         """Build a proxy against ``endpoint_url`` with the moto static keys."""
         session = Session()
-        client = session.create_client(
+        client = session.create_client(  # pyright: ignore[reportUnknownMemberType]
             "glue",
             endpoint_url=endpoint_url,
             region_name=GLUE_REGION,
@@ -248,10 +253,15 @@ class GlueProxy:
 
 
 def _error_code(error: ClientError) -> str:
-    raw = error.response.get("Error")
+    # ClientError.response is untyped upstream; re-anchor it to the JSON
+    # object shape the wire parser actually produces.
+    response: object = getattr(error, "response", None)
+    if not isinstance(response, dict):
+        return ""
+    raw = cast(dict[str, object], response).get("Error")
     if not isinstance(raw, dict):
         return ""
-    code = raw.get("Code")
+    code = cast(dict[str, object], raw).get("Code")
     return code if isinstance(code, str) else ""
 
 
@@ -259,14 +269,19 @@ def _objects(response: dict[str, object], key: str) -> list[dict[str, object]]:
     raw = response.get(key)
     if not isinstance(raw, list):
         return []
-    return [item for item in raw if isinstance(item, dict)]
+    entries: list[object] = raw
+    return [
+        cast(dict[str, object], item)
+        for item in entries
+        if isinstance(item, dict)
+    ]
 
 
 def _object(response: dict[str, object], key: str) -> dict[str, object]:
     raw = response.get(key)
     if not isinstance(raw, dict):
         raise InternalServerException(f"Glue response missing {key} member")
-    return raw
+    return cast(dict[str, object], raw)
 
 
 def _database_from_glue(record: dict[str, object]) -> GlueDatabase:
@@ -280,7 +295,9 @@ def _database_from_glue(record: dict[str, object]) -> GlueDatabase:
 def _table_metadata_from_glue(record: dict[str, object]) -> GlueTableMetadata:
     storage = record.get("StorageDescriptor")
     columns = (
-        _columns(storage, "Columns") if isinstance(storage, dict) else None
+        _columns(cast(dict[str, object], storage), "Columns")
+        if isinstance(storage, dict)
+        else None
     )
     return GlueTableMetadata(
         name=_string(record, "Name") or "",
@@ -298,7 +315,7 @@ def _storage_location(record: dict[str, object]) -> str | None:
     storage = record.get("StorageDescriptor")
     if not isinstance(storage, dict):
         return None
-    return _string(storage, "Location")
+    return _string(cast(dict[str, object], storage), "Location")
 
 
 def _string(record: dict[str, object], key: str) -> str | None:
@@ -311,7 +328,8 @@ def _string_map(record: dict[str, object], key: str) -> dict[str, str] | None:
     if not isinstance(raw, dict):
         return None
     result: dict[str, str] = {}
-    for item_key, item_value in raw.items():
+    entries: dict[object, object] = raw
+    for item_key, item_value in entries.items():
         if isinstance(item_key, str) and isinstance(item_value, str):
             result[item_key] = item_value
     return result
@@ -330,12 +348,16 @@ def _columns(record: dict[str, object], key: str) -> list[GlueColumn] | None:
     raw = record.get(key)
     if not isinstance(raw, list):
         return None
-    return [
-        GlueColumn(
-            name=_string(column, "Name") or "",
-            column_type=_string(column, "Type") or "",
-            comment=_string(column, "Comment"),
+    columns: list[GlueColumn] = []
+    for item in cast(list[object], raw):
+        if not isinstance(item, dict):
+            continue
+        column = cast(dict[str, object], item)
+        columns.append(
+            GlueColumn(
+                name=_string(column, "Name") or "",
+                column_type=_string(column, "Type") or "",
+                comment=_string(column, "Comment"),
+            )
         )
-        for column in raw
-        if isinstance(column, dict)
-    ]
+    return columns

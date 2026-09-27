@@ -15,6 +15,8 @@ shaped error instead of silently reading the member as ``1``.
 
 from __future__ import annotations
 
+from typing import cast
+
 from athena_local.errors import InvalidRequestException
 
 
@@ -33,7 +35,7 @@ def as_object(raw: object, name: str) -> dict[str, object] | None:
         raise InvalidRequestException(
             f"{name} must be a JSON object, got {raw!r}"
         )
-    return raw
+    return cast(dict[str, object], raw)
 
 
 def required_string(payload: dict[str, object] | None, name: str) -> str:
@@ -102,12 +104,13 @@ def required_string_list(
         raise InvalidRequestException(f"{name} must be a list, got {raw!r}")
     if not raw:
         raise InvalidRequestException(f"{name} must not be empty")
-    for item in raw:
+    items: list[object] = raw
+    for item in items:
         if not isinstance(item, str):
             raise InvalidRequestException(
                 f"{name} must contain only strings, got {item!r}"
             )
-    return [item for item in raw if isinstance(item, str)]
+    return [item for item in items if isinstance(item, str)]
 
 
 def optional_string_list(
@@ -118,12 +121,13 @@ def optional_string_list(
         return None
     if not isinstance(raw, list):
         raise InvalidRequestException(f"{name} must be a list, got {raw!r}")
-    for item in raw:
+    items: list[object] = raw
+    for item in items:
         if not isinstance(item, str):
             raise InvalidRequestException(
                 f"{name} must contain only strings, got {item!r}"
             )
-    return [item for item in raw if isinstance(item, str)]
+    return [item for item in items if isinstance(item, str)]
 
 
 def optional_string_map(
@@ -137,7 +141,8 @@ def optional_string_map(
             f"{name} must be an object of string pairs, got {raw!r}"
         )
     pairs: dict[str, str] = {}
-    for key, value in raw.items():
+    entries: dict[object, object] = raw
+    for key, value in entries.items():
         if not isinstance(key, str) or not isinstance(value, str):
             raise InvalidRequestException(
                 f"{name} entries must map string to string, "

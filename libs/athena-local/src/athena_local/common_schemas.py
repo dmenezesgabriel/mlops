@@ -7,7 +7,7 @@ shapes. Helpers enforce non-empty strings, booleans, and nested objects.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TypeVar
+from typing import TypeVar, cast
 
 from athena_local.errors import InvalidRequestException
 from athena_local.request_fields import (
@@ -22,18 +22,18 @@ from athena_local.request_fields import (
 T = TypeVar("T")
 
 
-def _defaulted(value: T | None, default: T) -> T:
+def defaulted(value: T | None, default: T) -> T:
     return default if value is None else value
 
 
-def _set_if_present(
+def set_if_present(
     target: dict[str, object], member: str, value: object
 ) -> None:
     if value is not None:
         target[member] = value
 
 
-def _merge_field(
+def merge_field(
     current_value: T | None,
     update_value: T | None,
     remove_flag: bool | None,
@@ -58,17 +58,19 @@ def parse_tags(raw: object) -> list[Tag]:
     if not isinstance(raw, list):
         raise InvalidRequestException(f"Tags must be a list, got {raw!r}")
     tags: list[Tag] = []
-    for item in raw:
-        if not isinstance(item, dict) or not isinstance(item.get("Key"), str):
+    items: list[object] = raw
+    for item in items:
+        entry = cast(dict[str, object], item) if isinstance(item, dict) else {}
+        key, value = entry.get("Key"), entry.get("Value")
+        if not isinstance(key, str):
             raise InvalidRequestException(
                 f"Tag entries must be objects with a Key string, got {item!r}"
             )
-        value = item.get("Value")
         if value is not None and not isinstance(value, str):
             raise InvalidRequestException(
                 f"Tag Value must be a string, got {value!r}"
             )
-        tags.append(Tag(key=item["Key"], value=value))
+        tags.append(Tag(key=key, value=value))
     return tags
 
 
@@ -127,7 +129,7 @@ def encryption_configuration_payload(
     payload: dict[str, object] = {
         "EncryptionOption": encryption.encryption_option
     }
-    _set_if_present(payload, "KmsKey", encryption.kms_key)
+    set_if_present(payload, "KmsKey", encryption.kms_key)
     return payload
 
 
@@ -175,14 +177,14 @@ def result_configuration_payload(
     result_configuration: ResultConfiguration,
 ) -> dict[str, object]:
     payload: dict[str, object] = {}
-    _set_if_present(
+    set_if_present(
         payload, "OutputLocation", result_configuration.output_location
     )
     if result_configuration.encryption_configuration is not None:
         payload["EncryptionConfiguration"] = encryption_configuration_payload(
             result_configuration.encryption_configuration
         )
-    _set_if_present(
+    set_if_present(
         payload,
         "ExpectedBucketOwner",
         result_configuration.expected_bucket_owner,
@@ -235,7 +237,7 @@ def parse_result_reuse_configuration(
         )
     return ResultReuseByAgeConfiguration(
         enabled=required_bool(by_age, "Enabled"),
-        max_age_in_minutes=_defaulted(max_age, 60),
+        max_age_in_minutes=defaulted(max_age, 60),
     )
 
 

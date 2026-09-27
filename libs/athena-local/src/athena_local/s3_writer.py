@@ -13,6 +13,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Protocol, cast
 
+# botocore ships no type information (no py.typed marker) and the community
+# stubs are deliberately not vendored — this module is the designated
+# botocore boundary, so the rule is scoped off here rather than weakened
+# project-wide.
+# pyright: reportMissingTypeStubs=false
 from botocore.exceptions import BotoCoreError, ClientError
 from botocore.session import Session
 
@@ -57,7 +62,7 @@ class S3Writer:
     def for_endpoint(cls, endpoint_url: str) -> S3Writer:
         """Build a writer against ``endpoint_url`` with the moto static keys."""
         session = Session()
-        client = session.create_client(
+        client = session.create_client(  # pyright: ignore[reportUnknownMemberType]
             "s3",
             endpoint_url=endpoint_url,
             region_name=S3_REGION,
@@ -156,10 +161,15 @@ def _split_s3_path(path: str) -> tuple[str, str]:
 
 
 def _error_code(error: ClientError) -> str:
-    raw = error.response.get("Error")
+    # ClientError.response is untyped upstream; re-anchor it to the JSON
+    # object shape the wire parser actually produces.
+    response: object = getattr(error, "response", None)
+    if not isinstance(response, dict):
+        return ""
+    raw = cast(dict[str, object], response).get("Error")
     if not isinstance(raw, dict):
         return ""
-    code = raw.get("Code")
+    code = cast(dict[str, object], raw).get("Code")
     return code if isinstance(code, str) else ""
 
 
@@ -167,7 +177,12 @@ def _objects(response: dict[str, object], key: str) -> list[dict[str, object]]:
     raw = response.get(key)
     if not isinstance(raw, list):
         return []
-    return [item for item in raw if isinstance(item, dict)]
+    entries: list[object] = raw
+    return [
+        cast(dict[str, object], item)
+        for item in entries
+        if isinstance(item, dict)
+    ]
 
 
 def _string(record: dict[str, object], key: str) -> str | None:

@@ -33,6 +33,7 @@ from athena_local.query_results import (
     get_query_runtime_statistics,
 )
 from athena_local.request_fields import (
+    as_object,
     member,
     optional_max_results,
     optional_string,
@@ -82,13 +83,10 @@ def _query_execution_context(
     raw = member(payload, "QueryExecutionContext")
     if raw is None:
         return None, None
-    if not isinstance(raw, dict):
-        raise InvalidRequestException(
-            f"QueryExecutionContext must be a JSON object, got {raw!r}"
-        )
+    body = as_object(raw, "QueryExecutionContext")
     return (
-        _unquoted_identifier(optional_string(raw, "Database")),
-        optional_string(raw, "Catalog"),
+        _unquoted_identifier(optional_string(body, "Database")),
+        optional_string(body, "Catalog"),
     )
 
 

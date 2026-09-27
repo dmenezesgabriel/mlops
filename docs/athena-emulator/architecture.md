@@ -228,9 +228,16 @@ Trino statement and records `CANCELLED` (ADR-0009).
 ## 8. Cross-cutting Concepts
 
 ### 8.1 Typing
-pyright `standard` (repo root `pyproject.toml` `[tool.pyright]`), explicit
-types everywhere; schema dataclasses derived/verified against `service-2.json`;
-no `any`, no `Dict`.
+pyright `strict` (the lib's own `[tool.pyright]` in
+`libs/athena-local/pyproject.toml`; the repo-root config stays `standard`
+for the other packages it governs), explicit types everywhere; schema
+dataclasses derived/verified against `service-2.json`; no `any`, no `Dict`.
+botocore ships no `py.typed`: the three boundary modules
+(`dispatch.py`/`glue_proxy.py`/`s3_writer.py`) scope off
+`reportMissingTypeStubs` at file level and pin the partially-untyped member
+calls (`Session.create_client`, `get_service_model`, `operation_names`) with
+per-line ignores — the `CatalogClient`/`ObjectStoreClient` protocols still
+type-check every call site.
 
 ### 8.2 Errors
 `{"__type": "<ExceptionShapeName>", "message": "<text>"}` body +
@@ -298,7 +305,7 @@ independent of the query engine" import-linter contract.
 - **Q2 Consumer suites** (test-proven, not sampled): awswrangler
   `read_sql_query`/`to_parquet`/cache/CTAS/prepared statements; AWS CLI
   `athena` commands against `:5001`; boto3 low-level parity.
-- **Q3 Typed codebase**: pyright standard with zero violations in `src/`.
+- **Q3 Typed codebase**: pyright strict with zero violations in `src/`.
 - **Q4 Gates green at every commit**: the §8.4 table.
 - **Q5 TDD**: every new function has a test; bug fixes add regression tests;
   tests are F.I.R.S.T. (fast, independent, repeatable, self-validating,

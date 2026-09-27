@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass
+from typing import cast
 
 import httpx
 
@@ -200,7 +201,8 @@ def _parse_page(response: httpx.Response) -> TrinoPage:
             f"Trino answered {type(payload).__name__} for {response.url}, "
             "expected a JSON object"
         )
-    query_id = payload.get("id")
+    document = cast(dict[str, object], payload)
+    query_id = document.get("id")
     if not isinstance(query_id, str):
         raise TrinoTransportError(
             f"Trino answered a QueryResults with id {query_id!r}, "
@@ -208,12 +210,12 @@ def _parse_page(response: httpx.Response) -> TrinoPage:
         )
     return TrinoPage(
         query_id=query_id,
-        next_uri=_optional_string(payload, "nextUri"),
-        update_type=_optional_string(payload, "updateType"),
-        columns=_parse_columns(payload.get("columns")),
-        data=_parse_rows(payload.get("data")),
-        stats=_parse_stats(payload.get("stats")),
-        error=_parse_error(payload.get("error")),
+        next_uri=_optional_string(document, "nextUri"),
+        update_type=_optional_string(document, "updateType"),
+        columns=_parse_columns(document.get("columns")),
+        data=_parse_rows(document.get("data")),
+        stats=_parse_stats(document.get("stats")),
+        error=_parse_error(document.get("error")),
     )
 
 
@@ -226,12 +228,14 @@ def _parse_columns(raw_columns: object) -> list[TrinoColumn]:
     if not isinstance(raw_columns, list):
         return []
     columns: list[TrinoColumn] = []
-    for column in raw_columns:
+    entries: list[object] = raw_columns
+    for column in entries:
         if isinstance(column, dict):
+            entry = cast(dict[str, object], column)
             columns.append(
                 TrinoColumn(
-                    name=str(column.get("name", "")),
-                    column_type=str(column.get("type", "")),
+                    name=str(entry.get("name", "")),
+                    column_type=str(entry.get("type", "")),
                 )
             )
     return columns
@@ -241,28 +245,30 @@ def _parse_rows(raw_rows: object) -> list[list[object]]:
     if not isinstance(raw_rows, list):
         return []
     rows: list[list[object]] = []
-    for row in raw_rows:
+    entries: list[object] = raw_rows
+    for row in entries:
         if isinstance(row, list):
-            rows.append(row)
+            rows.append(cast(list[object], row))
     return rows
 
 
 def _parse_stats(raw_stats: object) -> dict[str, object]:
     if not isinstance(raw_stats, dict):
         return {}
-    return dict(raw_stats)
+    return dict(cast(dict[str, object], raw_stats))
 
 
 def _parse_error(raw_error: object) -> TrinoQueryError | None:
     if not isinstance(raw_error, dict):
         return None
+    error = cast(dict[str, object], raw_error)
     return TrinoQueryError(
-        message=_error_field(raw_error, "message"),
-        error_type=_error_field(raw_error, "errorType"),
-        error_name=_error_field(raw_error, "errorName"),
+        message=_error_field(error, "message"),
+        error_type=_error_field(error, "errorType"),
+        error_name=_error_field(error, "errorName"),
     )
 
 
-def _error_field(error: dict[object, object], key: str) -> str:
+def _error_field(error: dict[str, object], key: str) -> str:
     value = error.get(key)
     return value if isinstance(value, str) else ""

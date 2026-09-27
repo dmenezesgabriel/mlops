@@ -171,7 +171,7 @@ def test_awswrangler_get_workgroup_config_reads_managed_workgroup(
     assert config.managed_results is True
     assert config.s3_output is None
     # EnforceWorkGroupConfiguration defaults to True on create (moto parity:
-    # workgroup_schemas._defaulted, moto/athena WorkGroup.__init__) — the
+    # workgroup_schemas.defaulted, moto/athena WorkGroup.__init__) — the
     # same shape wrangler's own `workgroup_managed` fixture uses.
     assert config.enforced is True
 

@@ -480,7 +480,7 @@ engineering-quality findings are filed as small items:
    `query_results.py`, `workgroup_schemas.py` 511→406 via
    `workgroup_updates.py`; all 11 src `else:` sites → early returns; six
    test files split by op group into 23 files <500 (parity verified).
-5. [ ] QA-6 — pyright `standard` → `strict` for the lib.
+5. [x] QA-6 — pyright `standard` → `strict` for the lib.
 6. [ ] QA-7/QA-8 — measured submit-path scaling: `strip_comments`
    ~0.35 µs/char (92 ms at the 262 KB model cap); `find_reusable`
    O(executions × query-len) (131 ms miss-scan @ 20 k executions).

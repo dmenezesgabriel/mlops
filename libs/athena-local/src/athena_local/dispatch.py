@@ -23,6 +23,11 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import cast
 
+# botocore ships no type information (no py.typed marker) and the community
+# stubs are deliberately not vendored — this module is the designated
+# botocore boundary, so the rule is scoped off here rather than weakened
+# project-wide.
+# pyright: reportMissingTypeStubs=false
 from botocore.session import Session
 
 from athena_local.errors import (
@@ -52,10 +57,17 @@ OPERATION_HANDLERS: dict[str, OperationHandler] = {}
 @lru_cache(maxsize=1)
 def operation_names() -> frozenset[str]:
     """The 70 operation names declared by the canonical Athena model."""
-    model = Session().get_service_model(ATHENA_SERVICE_NAME)
+    model = Session().get_service_model(  # pyright: ignore[reportUnknownMemberType]
+        ATHENA_SERVICE_NAME
+    )
     # botocore declares operation_names as a CachedProperty descriptor, so
     # pyright cannot infer the list type behind it.
-    return frozenset(cast(list[str], model.operation_names))
+    return frozenset(
+        cast(
+            list[str],
+            model.operation_names,  # pyright: ignore[reportUnknownMemberType]
+        )
+    )
 
 
 def register_handler(operation: str, handler: OperationHandler) -> None:
