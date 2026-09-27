@@ -16,9 +16,12 @@ table references catalog-qualified — the exact shapes awswrangler emits
 
 from __future__ import annotations
 
+from athena_local.glue_proxy import GlueProxy
 from athena_local.iceberg import (
     iceberg_trino_submission,
 )
+from athena_local.iceberg_probe import GlueIcebergProbe
+from tests.unit._glue_fakes import FakeGlueClient
 from tests.unit._iceberg_fakes import DATABASE, StaticIcebergProbe, route
 
 
@@ -348,3 +351,113 @@ class TestIcebergDispatch:
             )
             is None
         )
+
+
+class TestCacheInvalidation:
+    """Catalog-mutating statements drop the probe's cross-statement cache.
+
+    Every Glue write the emulator can cause arrives as a submitted
+    statement, so a statement leading with ``CREATE``/``ALTER``/``DROP``/
+    ``TRUNCATE`` empties the cached verdicts — the next probe re-reads
+    Glue. Read statements (and DDL that never executes, like ``EXPLAIN`` or
+    ``PREPARE`` bodies) leave the cache warm.
+    """
+
+    def test_leading_catalog_verbs_invalidate(self) -> None:
+        for statement in (
+            "CREATE TABLE t (id int)",
+            "CREATE EXTERNAL TABLE t (id int) LOCATION 's3://b/t/'",
+            "CREATE OR REPLACE TABLE t (id int)",
+            "CREATE TABLE t AS SELECT 1",
+            "CREATE DATABASE db2",
+            "DROP TABLE t",
+            "DROP TABLE IF EXISTS t",
+            "DROP DATABASE db2 CASCADE",
+            "DROP VIEW v",
+            "ALTER TABLE t ADD COLUMNS (w double)",
+            "TRUNCATE TABLE t",
+            "create table t (id int)",
+            "/* note */ CREATE TABLE t (id int)",
+            "-- note\nDROP TABLE t",
+            "SELECT 1; DROP TABLE t",
+        ):
+            probe = StaticIcebergProbe(set())
+            iceberg_trino_submission(statement, DATABASE, probe)
+            assert probe.invalidations == 1, statement
+
+    def test_non_mutating_statements_keep_the_cache(self) -> None:
+        for statement in (
+            "SELECT * FROM t",
+            "INSERT INTO t SELECT 1",
+            "MERGE INTO t USING s ON t.a = s.a WHEN MATCHED THEN DELETE",
+            "UPDATE t SET a = 1",
+            "DELETE FROM t",
+            "DESCRIBE t",
+            "SHOW CREATE TABLE t",
+            "SHOW TABLES FROM db",
+            "MSCK REPAIR TABLE t",
+            "UNLOAD (SELECT 1) TO 's3://b/u/' WITH (format='PARQUET')",
+            "EXPLAIN CREATE TABLE t (id int)",
+            "PREPARE s FROM DROP TABLE t",
+            "WITH x AS (SELECT 1) SELECT * FROM x",
+        ):
+            probe = StaticIcebergProbe(set())
+            iceberg_trino_submission(statement, DATABASE, probe)
+            assert probe.invalidations == 0, statement
+
+    def test_cached_verdict_survives_repeated_reads_across_statements(
+        self,
+    ) -> None:
+        client = FakeGlueClient(
+            tables={
+                "analytics": [
+                    {"Name": "t", "Parameters": {"table_type": "ICEBERG"}}
+                ]
+            }
+        )
+        probe = GlueIcebergProbe(GlueProxy(client))
+        for _ in range(2):
+            sql = iceberg_trino_submission("SELECT * FROM t", DATABASE, probe)
+        assert sql == 'SELECT * FROM iceberg."analytics"."t"'
+        assert client.get_table_calls == [("analytics", "t")]
+
+    def test_drop_statement_clears_then_next_read_reprobes(self) -> None:
+        tables = {
+            "analytics": [
+                {"Name": "t", "Parameters": {"table_type": "ICEBERG"}}
+            ]
+        }
+        client = FakeGlueClient(tables=tables)
+        probe = GlueIcebergProbe(GlueProxy(client))
+        iceberg_trino_submission("SELECT * FROM t", DATABASE, probe)
+        sql = iceberg_trino_submission("DROP TABLE t", DATABASE, probe)
+        assert sql == 'DROP TABLE iceberg."analytics"."t"'
+        # The drop lands in Glue through Trino — mirror it on the fake.
+        tables.pop("analytics")
+        assert (
+            iceberg_trino_submission("SELECT * FROM t", DATABASE, probe)
+            is None
+        )
+        assert client.get_table_calls == [("analytics", "t")] * 2
+
+    def test_invalidated_create_target_reprobes_as_iceberg(self) -> None:
+        # A name probed False as missing must route once a CREATE makes it
+        # Iceberg — the create statement clears the stale verdict.
+        tables: dict[str, list[dict[str, object]]] = {"analytics": []}
+        client = FakeGlueClient(tables=tables)
+        probe = GlueIcebergProbe(GlueProxy(client))
+        assert (
+            iceberg_trino_submission("SELECT * FROM t", DATABASE, probe)
+            is None
+        )
+        iceberg_trino_submission(
+            "CREATE TABLE t (id bigint) LOCATION 's3://b/t/' "
+            "TBLPROPERTIES ('table_type'='ICEBERG')",
+            DATABASE,
+            probe,
+        )
+        tables["analytics"] = [
+            {"Name": "t", "Parameters": {"table_type": "ICEBERG"}}
+        ]
+        sql = iceberg_trino_submission("SELECT * FROM t", DATABASE, probe)
+        assert sql == 'SELECT * FROM iceberg."analytics"."t"'

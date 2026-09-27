@@ -37,7 +37,7 @@ from athena_local.executions import (
     ExecutionStore,
     QueryExecutionRecord,
 )
-from athena_local.iceberg import IcebergTableProbe
+from athena_local.iceberg_probe import IcebergTableProbe
 from athena_local.result_shapes import to_athena_result_shape
 from athena_local.statement_classification import StatementClassification
 from athena_local.submission import (

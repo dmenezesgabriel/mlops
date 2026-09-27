@@ -39,6 +39,7 @@ class FakeGlueClient:
         self.databases = databases if databases is not None else []
         self.tables = tables if tables is not None else {}
         self.list_tables_calls: list[dict[str, object]] = []
+        self.get_table_calls: list[tuple[str, str]] = []
         self.delete_table_calls: list[tuple[str, str]] = []
 
     def get_databases(self) -> dict[str, object]:
@@ -73,6 +74,7 @@ class FakeGlueClient:
         return {"TableList": list(tables)}
 
     def get_table(self, DatabaseName: str, Name: str) -> dict[str, object]:  # noqa: N803
+        self.get_table_calls.append((DatabaseName, Name))
         for table in self.tables.get(DatabaseName, []):
             if table.get("Name") == Name:
                 return {"Table": table}

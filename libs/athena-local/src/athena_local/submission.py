@@ -33,10 +33,8 @@ from athena_local.executions import (
     ExecutionStore,
     QueryExecutionRecord,
 )
-from athena_local.iceberg import (
-    IcebergTableProbe,
-    iceberg_trino_submission,
-)
+from athena_local.iceberg import iceberg_trino_submission
+from athena_local.iceberg_probe import IcebergTableProbe
 from athena_local.output_targets import (
     ManifestTargetError,
     OutputSnapshot,

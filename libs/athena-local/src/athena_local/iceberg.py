@@ -28,6 +28,9 @@ reaches it:
 3. The whole statement is backtick-normalized first
    (`` `ident` `` → ``"ident"``): Athena's DDL engine accepts backticks
    (which is why awswrangler emits them) but Trino's parser does not.
+4. Probe verdicts cache across statements (``iceberg_probe``); any
+   catalog-mutating statement — ``CREATE``/``ALTER``/``DROP``/``TRUNCATE`` —
+   empties the cache since it may have changed a ``table_type`` marker.
 
 The scan skips ``'…'`` literals and ``--``/``/* */`` comments so keywords or
 references inside them are never rewritten, and dedupes Glue lookups per
@@ -39,13 +42,10 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterator
-from typing import Protocol
 
-from athena_local.errors import MetadataException
-from athena_local.glue_proxy import GlueProxy
+from athena_local.iceberg_probe import IcebergTableProbe
 from athena_local.iceberg_table import (
     ICEBERG_CATALOG,
-    ICEBERG_TABLE_TYPE,
     iceberg_alter_ddl,
     iceberg_create_ddl,
 )
@@ -58,40 +58,8 @@ from athena_local.sql_lexing import (
     skip_ws,
     split_target,
     string_end,
+    strip_comments,
 )
-
-
-class IcebergTableProbe(Protocol):
-    """Whether a Glue table is Iceberg (the ``table_type`` marker)."""
-
-    def is_iceberg_table(self, database: str, table: str) -> bool: ...
-
-
-class GlueIcebergProbe:
-    """Iceberg detection over moto Glue's ``Parameters`` map.
-
-    Trino's Iceberg Glue registration writes ``table_type=ICEBERG`` plus the
-    current ``metadata_location`` — the same marker AWS's Iceberg Glue
-    integrations record — so a shared Glue read answers the routing
-    question for tables created through either engine.
-
-    Example::
-
-        probe = GlueIcebergProbe(glue_proxy)
-        probe.is_iceberg_table("analytics", "ice_t")  # True when Glue
-        # Parameters carry table_type=ICEBERG, else False.
-    """
-
-    def __init__(self, glue: GlueProxy) -> None:
-        self._glue = glue
-
-    def is_iceberg_table(self, database: str, table: str) -> bool:
-        try:
-            metadata = self._glue.get_table(database, table)
-        except MetadataException:
-            return False
-        parameters = metadata.parameters or {}
-        return parameters.get("table_type", "").upper() == ICEBERG_TABLE_TYPE
 
 
 def iceberg_trino_submission(
@@ -103,13 +71,31 @@ def iceberg_trino_submission(
     normal dialect path with its original text.
     """
     normalized = _backtick_normalize(query)
-    created = iceberg_create_ddl(normalized, database)
-    if created is not None:
-        return created
-    routed = _route_iceberg_references(normalized, database, probe)
-    if routed is None:
-        return None
-    return iceberg_alter_ddl(routed)
+    mapped = iceberg_create_ddl(normalized, database)
+    if mapped is None:
+        routed = _route_iceberg_references(normalized, database, probe)
+        if routed is not None:
+            mapped = iceberg_alter_ddl(routed)
+    _invalidate_on_catalog_ddl(normalized, probe)
+    return mapped
+
+
+# Every catalog write the emulator can cause arrives as a submitted
+# statement, and a leading ``create``/``alter``/``drop``/``truncate`` may
+# have changed a ``table_type`` marker — so the probe's verdict map clears
+# wholesale rather than resolving one name per mutation shape (RENAME
+# targets, DROP DATABASE cascades, OR REPLACE all ride the same rule).
+# Clearing runs only after the statement's own probes — a DROP still needs
+# the cached verdict to route — and never on mapping raises, since a
+# rejected statement mutates nothing. ``;``-joined tails match too.
+_CATALOG_MUTATING = re.compile(
+    r"(?i)(?:^|;)\s*(?:create|alter|drop|truncate)\b"
+)
+
+
+def _invalidate_on_catalog_ddl(query: str, probe: IcebergTableProbe) -> None:
+    if _CATALOG_MUTATING.search(strip_comments(query)) is not None:
+        probe.invalidate()
 
 
 # Statement-leading keywords after which a table reference may appear;

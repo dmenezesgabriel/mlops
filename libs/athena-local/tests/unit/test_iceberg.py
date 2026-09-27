@@ -18,53 +18,7 @@ from __future__ import annotations
 
 import pytest
 from athena_local.errors import InvalidRequestException
-from athena_local.glue_proxy import GlueProxy
-from athena_local.iceberg import (
-    GlueIcebergProbe,
-)
-from tests.unit._glue_fakes import FakeGlueClient
 from tests.unit._iceberg_fakes import route
-
-
-class TestGlueIcebergProbe:
-    def _probe(
-        self, tables: dict[str, list[dict[str, object]]]
-    ) -> GlueIcebergProbe:
-        return GlueIcebergProbe(GlueProxy(FakeGlueClient(tables=tables)))
-
-    def test_table_type_iceberg_is_detected(self) -> None:
-        probe = self._probe(
-            {
-                "analytics": [
-                    {"Name": "t", "Parameters": {"table_type": "ICEBERG"}}
-                ]
-            }
-        )
-        assert probe.is_iceberg_table("analytics", "t") is True
-
-    def test_table_type_value_matches_case_insensitively(self) -> None:
-        probe = self._probe(
-            {
-                "analytics": [
-                    {"Name": "t", "Parameters": {"table_type": "iceberg"}}
-                ]
-            }
-        )
-        assert probe.is_iceberg_table("analytics", "t") is True
-
-    def test_missing_table_is_not_iceberg(self) -> None:
-        probe = self._probe({})
-        assert probe.is_iceberg_table("analytics", "t") is False
-
-    def test_table_without_parameters_is_not_iceberg(self) -> None:
-        probe = self._probe({"analytics": [{"Name": "t"}]})
-        assert probe.is_iceberg_table("analytics", "t") is False
-
-    def test_hive_table_parameters_are_not_iceberg(self) -> None:
-        probe = self._probe(
-            {"analytics": [{"Name": "t", "Parameters": {"EXTERNAL": "TRUE"}}]}
-        )
-        assert probe.is_iceberg_table("analytics", "t") is False
 
 
 class TestIcebergCreate:

@@ -489,8 +489,11 @@ engineering-quality findings are filed as small items:
    expiry (AWS parity) + `max_retained_executions` count cap (default
    10 000, env `ATHENA_LOCAL_MAX_RETAINED_EXECUTIONS`) evicting oldest
    terminal records on create; in-flight exempt; §11 risk → Handled.
-8. [ ] QA-10 — cross-statement Iceberg-probe cache (~5.9 ms Glue RTT per
-   unique ref today).
+8. [x] QA-10 — cross-statement Iceberg-probe verdict cache
+   (`iceberg_probe.py`): cleared on catalog-mutating statements
+   (`create`/`alter`/`drop`/`truncate`), TTL-bounded at 30 s for
+   out-of-band moto writes; steady-state routing 6.20 → 0.034 ms per
+   statement, 1 Glue `get_table` per 101 repeated statements (was 101).
 
 Exit: GF-14/GF-15 green on live probes + unit tests; each QA item's evidence
 cell names the exact files/lines and measured numbers it must improve.

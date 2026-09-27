@@ -36,7 +36,7 @@ from athena_local.executor import (
     QueryExecutor,
 )
 from athena_local.glue_proxy import GlueProxy
-from athena_local.iceberg import GlueIcebergProbe
+from athena_local.iceberg_probe import GlueIcebergProbe
 from athena_local.named_queries import register_named_query_handlers
 from athena_local.output_targets import OutputSnapshotter
 from athena_local.prepared_statements import (

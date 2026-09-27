@@ -18,10 +18,14 @@ class StaticIcebergProbe:
     def __init__(self, iceberg_tables: set[tuple[str, str]]) -> None:
         self._iceberg_tables = iceberg_tables
         self.calls: list[tuple[str, str]] = []
+        self.invalidations = 0
 
     def is_iceberg_table(self, database: str, table: str) -> bool:
         self.calls.append((database, table))
         return (database, table) in self._iceberg_tables
+
+    def invalidate(self) -> None:
+        self.invalidations += 1
 
 
 def route(
