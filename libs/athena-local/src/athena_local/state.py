@@ -27,6 +27,7 @@ from athena_local.errors import (
     InvalidRequestException,
     ResourceNotFoundException,
 )
+from athena_local.pagination import offset_page
 from athena_local.schemas import (
     Tag,
     WorkGroupConfiguration,
@@ -161,25 +162,9 @@ class WorkGroupStore:
         Returns a tuple of (records, next_token). ``next_token`` is None
         when there are no more results.
         """
-        all_records = list(self.by_name.values())
-        start_index = 0
-        if next_token is not None:
-            try:
-                start_index = int(next_token)
-            except ValueError:
-                raise InvalidRequestException(
-                    f"Invalid NextToken: {next_token}"
-                ) from None
-        if start_index >= len(all_records):
-            return [], None
-        end_index = len(all_records)
-        if max_results is not None and max_results > 0:
-            end_index = min(start_index + max_results, len(all_records))
-        page_records = all_records[start_index:end_index]
-        next_token_out = (
-            str(end_index) if end_index < len(all_records) else None
+        return offset_page(
+            list(self.by_name.values()), max_results, next_token
         )
-        return page_records, next_token_out
 
     def update(
         self,
@@ -306,22 +291,7 @@ class NamedQueryStore:
         when there are no more results.
         """
         all_ids = self.by_workgroup.get(workgroup, [])
-        start_index = 0
-        if next_token is not None:
-            try:
-                start_index = int(next_token)
-            except ValueError:
-                raise InvalidRequestException(
-                    f"Invalid NextToken: {next_token}"
-                ) from None
-        if start_index >= len(all_ids):
-            return [], None
-        end_index = len(all_ids)
-        if max_results is not None and max_results > 0:
-            end_index = min(start_index + max_results, len(all_ids))
-        page_ids = all_ids[start_index:end_index]
-        next_token_out = str(end_index) if end_index < len(all_ids) else None
-        return page_ids, next_token_out
+        return offset_page(all_ids, max_results, next_token)
 
     def delete(self, query_id: str) -> None:
         record = self.get(query_id)
@@ -441,22 +411,7 @@ class PreparedStatementStore:
         when there are no more results.
         """
         all_names = self.by_workgroup.get(workgroup, [])
-        start_index = 0
-        if next_token is not None:
-            try:
-                start_index = int(next_token)
-            except ValueError:
-                raise InvalidRequestException(
-                    f"Invalid NextToken: {next_token}"
-                ) from None
-        if start_index >= len(all_names):
-            return [], None
-        end_index = len(all_names)
-        if max_results is not None and max_results > 0:
-            end_index = min(start_index + max_results, len(all_names))
-        page_names = all_names[start_index:end_index]
-        next_token_out = str(end_index) if end_index < len(all_names) else None
-        return page_names, next_token_out
+        return offset_page(all_names, max_results, next_token)
 
     def update(
         self,

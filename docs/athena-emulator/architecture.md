@@ -95,6 +95,7 @@ consumers pass unmodified:
 | `dispatch.py` | `X-Amz-Target` → operation handler; registry loaded from the installed botocore Athena model (ADR-0008) |
 | `schemas.py` / `common_schemas.py` / `workgroup_schemas.py` / `request_fields.py` | Typed request/response shapes per `service-2.json`; `request_fields` holds the shared member validators (`dict \| None` → absent = `None`) used by both top-level payloads and nested member objects |
 | `errors.py` | `InvalidRequestException`, `ResourceNotFoundException`, `TooManyRequestsException`, `InternalServerException`; `{"__type", "message"}` + `X-Amzn-Errortype` (ADR-0008) |
+| `pagination.py` | Shared `offset_page` for every list op: opaque `str(index)` `NextToken`, undecodable → `InvalidRequestException`, past-end → empty page, `MaxResults <= 0` → no limit |
 | `error_mapping.py` | Trino statement errors → Athena's wire error vocabulary (ADR-0008) |
 | `statement_classification.py` | `StatementType`/`SubstatementType` + artifact kind, classified at submit |
 | `dialect.py` + `external_table.py` + `partition_alter.py` | Athena→Trino statement spellings (`CREATE/DROP DATABASE` → `SCHEMA`, identifier quoting, trailing `;`, `MSCK REPAIR TABLE` → `CALL system.sync_partition_metadata(…, 'ADD')`, `CREATE EXTERNAL TABLE` → `CREATE TABLE … WITH(…)`, `ALTER TABLE … ADD PARTITION` → `CALL system.register_partition` with `IF NOT EXISTS`→`ALREADY_EXISTS` no-op, `UNLOAD` → CTAS + session codec, ADR-0012) |

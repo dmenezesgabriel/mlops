@@ -20,6 +20,7 @@ from athena_local.data_catalog_state import (
 from athena_local.dispatch import register_handler
 from athena_local.errors import InvalidRequestException
 from athena_local.glue_proxy import GlueProxy
+from athena_local.pagination import offset_page
 from athena_local.request_fields import (
     optional_max_results,
     optional_string,
@@ -76,7 +77,7 @@ def list_databases(
     )
     next_token = optional_string(payload, "NextToken")
     databases = [record.to_payload() for record in proxy.list_databases()]
-    page, next_token_out = _paginate(databases, max_results, next_token)
+    page, next_token_out = offset_page(databases, max_results, next_token)
     output: dict[str, object] = {"DatabaseList": page}
     if next_token_out is not None:
         output["NextToken"] = next_token_out
@@ -111,7 +112,7 @@ def list_table_metadata(
         record.to_payload()
         for record in proxy.list_tables(database_name, expression)
     ]
-    page, next_token_out = _paginate(tables, max_results, next_token)
+    page, next_token_out = offset_page(tables, max_results, next_token)
     output: dict[str, object] = {"TableMetadataList": page}
     if next_token_out is not None:
         output["NextToken"] = next_token_out
@@ -142,29 +143,3 @@ def _require_glue_catalog(store: DataCatalogStore, catalog_name: str) -> None:
             f"DataCatalog {catalog_name} is of type {record.catalog_type}; "
             "only GLUE catalogs serve database and table metadata"
         )
-
-
-def _paginate(
-    items: list[dict[str, object]],
-    max_results: int | None,
-    next_token: str | None,
-) -> tuple[list[dict[str, object]], str | None]:
-    """Slice ``items`` like DataCatalogStore.list, over payload dicts.
-
-    next_token is an integer offset rendered as ``str(index)``: opaque to
-    consumers, trivially reversible for the emulator's in-memory read sets.
-    """
-    start_index = 0
-    if next_token is not None:
-        try:
-            start_index = int(next_token)
-        except ValueError:
-            raise InvalidRequestException(
-                f"Invalid NextToken: {next_token}"
-            ) from None
-    end_index = len(items)
-    if max_results is not None:
-        end_index = min(start_index + max_results, len(items))
-    return items[start_index:end_index], (
-        str(end_index) if end_index < len(items) else None
-    )

@@ -28,6 +28,7 @@ from athena_local.common_schemas import (
 )
 from athena_local.errors import InvalidRequestException
 from athena_local.output_targets import OutputSnapshot
+from athena_local.pagination import offset_page
 from athena_local.statement_classification import (
     ARTIFACT_OUTPUT_SUFFIX,
     artifact_output_kind,
@@ -466,21 +467,4 @@ class ExecutionStore:
             for execution_id, record in reversed(self.by_id.items())
             if record.workgroup == workgroup
         ]
-        start_index = 0
-        if next_token is not None:
-            try:
-                start_index = int(next_token)
-            except ValueError:
-                raise InvalidRequestException(
-                    f"Invalid NextToken: {next_token}"
-                ) from None
-        if start_index >= len(newest_first):
-            return [], None
-        end_index = len(newest_first)
-        if max_results is not None and max_results > 0:
-            end_index = min(start_index + max_results, len(newest_first))
-        page_ids = newest_first[start_index:end_index]
-        next_token_out = (
-            str(end_index) if end_index < len(newest_first) else None
-        )
-        return page_ids, next_token_out
+        return offset_page(newest_first, max_results, next_token)

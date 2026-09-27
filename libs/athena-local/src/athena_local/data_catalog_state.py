@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from athena_local.errors import InvalidRequestException
+from athena_local.pagination import offset_page
 from athena_local.schemas import Tag
 
 AWS_DATA_CATALOG_NAME = "AwsDataCatalog"
@@ -105,25 +106,9 @@ class DataCatalogStore:
         Returns a tuple of (records, next_token). ``next_token`` is None when
         there are no more results.
         """
-        all_records = list(self.by_name.values())
-        start_index = 0
-        if next_token is not None:
-            try:
-                start_index = int(next_token)
-            except ValueError:
-                raise InvalidRequestException(
-                    f"Invalid NextToken: {next_token}"
-                ) from None
-        if start_index >= len(all_records):
-            return [], None
-        end_index = len(all_records)
-        if max_results is not None and max_results > 0:
-            end_index = min(start_index + max_results, len(all_records))
-        page_records = all_records[start_index:end_index]
-        next_token_out = (
-            str(end_index) if end_index < len(all_records) else None
+        return offset_page(
+            list(self.by_name.values()), max_results, next_token
         )
-        return page_records, next_token_out
 
     def update(
         self,
