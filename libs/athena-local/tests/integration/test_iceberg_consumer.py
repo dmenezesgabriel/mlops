@@ -88,6 +88,55 @@ def test_to_iceberg_registers_and_inserts_live(
     assert names == [table]
 
 
+def test_comma_join_routes_iceberg_item_live(
+    consumer_harness: ConsumerHarness,
+) -> None:
+    """``FROM hive_t h, ice_t i`` routes the comma-chained reference.
+
+    Athena answers implicit cross joins on mixed Hive/Iceberg tables
+    transparently; without the FROM-list walk the second item stays
+    session-catalog and Trino fails ``UNSUPPORTED_TABLE_TYPE``
+    (live-measured parity gap, 2026-09-27 audit).
+    """
+    hive_table = "comma_hive"
+    ice_table = "comma_ice"
+    source = pd.DataFrame({"id": [1, 2], "v": ["x", "y"]})
+    wr.s3.to_parquet(
+        df=source,
+        path=(
+            f"s3://{consumer_harness.bucket}/hive-comma/{hive_table}.parquet"
+        ),
+    )
+    wr.catalog.create_parquet_table(
+        database=consumer_harness.database,
+        table=hive_table,
+        path=f"s3://{consumer_harness.bucket}/hive-comma/",
+        columns_types={"id": "bigint", "v": "string"},
+    )
+    wr.athena.to_iceberg(
+        df=source,
+        database=consumer_harness.database,
+        table=ice_table,
+        temp_path=f"s3://{consumer_harness.bucket}/iceberg-tmp/",
+        table_location=(
+            f"s3://{consumer_harness.bucket}/iceberg/{ice_table}/"
+        ),
+        s3_output=consumer_harness.prefix,
+    )
+
+    frame = wr.athena.read_sql_query(
+        sql=(
+            f'SELECT h."id", h."v" FROM "{hive_table}" h, '
+            f'"{ice_table}" i WHERE h."id" = i."id" ORDER BY h."id"'
+        ),
+        database=consumer_harness.database,
+        ctas_approach=False,
+        s3_output=consumer_harness.prefix,
+    )
+    assert frame["id"].tolist() == [1, 2]
+    assert frame["v"].tolist() == ["x", "y"]
+
+
 def test_delete_from_iceberg_table_merges_live(
     consumer_harness: ConsumerHarness,
 ) -> None:

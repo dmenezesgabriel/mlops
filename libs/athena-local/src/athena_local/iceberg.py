@@ -16,10 +16,12 @@ reaches it:
    ``delete from``/``alter table``/``drop``/``describe``/``from``/
    ``join``/``using``-anchored table reference qualified
    ``iceberg."schema"."table"`` when a Glue ``table_type`` lookup (``probe``)
-   marks it Iceberg. Hive-bound references stay unqualified and resolve in
-   the session's hive catalog — exactly the staged ``INSERT INTO iceberg
-   SELECT`` and ``MERGE INTO iceberg USING hive_temp`` cross-catalog
-   shapes awswrangler emits
+   marks it Iceberg — and every later item in a comma-separated list
+   (``FROM a, b``) shares the anchor's walk, skipping ``(…)`` derived
+   tables and ``ident(…)`` calls. Hive-bound references stay unqualified
+   and resolve in the session's hive catalog — exactly the staged
+   ``INSERT INTO iceberg SELECT`` and ``MERGE INTO iceberg USING
+   hive_temp`` cross-catalog shapes awswrangler emits
    (``awswrangler/athena/_write_iceberg.py:411-426,871-877``).
 3. The whole statement is backtick-normalized first
    (`` `ident` `` → ``"ident"``): Athena's DDL engine accepts backticks
@@ -34,6 +36,7 @@ continue through the normal dialect path unchanged.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from typing import Protocol
 
 from athena_local.errors import MetadataException
@@ -46,8 +49,10 @@ from athena_local.iceberg_table import (
 )
 from athena_local.sql_lexing import (
     IDENTIFIER_PART,
+    balanced_span,
     identifier_name,
     quoted_identifier,
+    skip_ws,
     split_target,
     string_end,
 )
@@ -123,30 +128,130 @@ def _route_iceberg_references(
 ) -> str | None:
     """Qualify references whose (schema, table) the probe marks as Iceberg."""
     protected = _protected_spans(query, quote_quoted=True)
+    # Only comments are skipped between list items — quoted identifiers and
+    # literals stay visible since a quoted ident is a valid table ref.
+    comments = [s for s in protected if query[s[0]] in "-/"]
     verified: dict[tuple[str, str], bool] = {}
     edits: list[tuple[int, int, str]] = []
     for anchor in _ANCHOR.finditer(query):
         if _inside(protected, anchor.start()):
             continue
-        ref = _REF.match(query, anchor.end())
-        if ref is None:
-            continue
-        resolved = _resolve(ref.group("ref"), database)
-        if resolved is None:
-            continue
-        schema, table = resolved
-        key = (schema.lower(), table.lower())
-        if key not in verified:
-            verified[key] = probe.is_iceberg_table(schema, table)
-        if not verified[key]:
-            continue
-        start, end = ref.span("ref")
-        edits.append((start, end, _iceberg_qualified(schema, table)))
+        for start, end in _table_item_refs(query, anchor.end(), comments):
+            _route_ref(query, start, end, database, probe, verified, edits)
     if not edits:
         return None
     for start, end, replacement in sorted(edits, reverse=True):
         query = query[:start] + replacement + query[end:]
     return query
+
+
+def _route_ref(
+    query: str,
+    start: int,
+    end: int,
+    database: str | None,
+    probe: IcebergTableProbe,
+    verified: dict[tuple[str, str], bool],
+    edits: list[tuple[int, int, str]],
+) -> None:
+    resolved = _resolve(query[start:end], database)
+    if resolved is None:
+        return
+    schema, table = resolved
+    key = (schema.lower(), table.lower())
+    if key not in verified:
+        verified[key] = probe.is_iceberg_table(schema, table)
+    if not verified[key]:
+        return
+    edits.append((start, end, _iceberg_qualified(schema, table)))
+
+
+_AS = re.compile(r"(?i)as\b")
+
+
+def _table_item_refs(
+    query: str, start: int, comments: list[tuple[int, int]]
+) -> Iterator[tuple[int, int]]:
+    """Ref spans in a comma-separated table-item list (``FROM a, b``).
+
+    Every item is a table position: ``(SELECT …)`` derived tables are
+    skipped whole (nested FROM lists anchor on their own ``from``), a
+    chained ``ident(…)`` is a call (``UNNEST``/``LATERAL`` — never a Glue
+    probe), and ``[AS] alias [(cols)]`` gaps separate items. The first
+    item keeps the plain ``_REF`` path so ``INSERT INTO t (a,b)`` still
+    probes ``t`` — its ``(a,b)`` is a column list, not a call.
+    """
+    pos = start
+    chained = False
+    while True:
+        pos = _past_noise(query, pos, comments)
+        ref, pos = _scan_item(query, pos, chained, comments)
+        if pos is None:
+            return
+        if ref is not None:
+            yield ref
+        pos = _past_item_gap(query, pos, comments)
+        if pos >= len(query) or query[pos] != ",":
+            return
+        pos += 1
+        chained = True
+
+
+def _scan_item(
+    query: str, pos: int, chained: bool, comments: list[tuple[int, int]]
+) -> tuple[tuple[int, int] | None, int | None]:
+    """One item at ``pos`` → (ref span, item end); ``end`` None stops."""
+    if pos >= len(query):
+        return None, None
+    if query[pos] == "(":
+        return None, balanced_span(query, pos)
+    ref = _REF.match(query, pos)
+    if ref is None:
+        return None, None
+    after = _past_noise(query, ref.end(), comments)
+    if chained and after < len(query) and query[after] == "(":
+        return None, balanced_span(query, after)
+    return ref.span("ref"), ref.end()
+
+
+def _past_item_gap(
+    query: str, pos: int, comments: list[tuple[int, int]]
+) -> int:
+    """Index after ``[AS] alias [(cols)]`` — where a ``,`` may sit.
+
+    The one-identifier bound is the safety stop: ``GROUP BY a, b`` and
+    ``SET a = 1, b = 2`` commas stay untouched because ``GROUP``/``SET``
+    fills the alias slot and the following token is never ``,``.
+    """
+    pos = _past_noise(query, pos, comments)
+    match = _AS.match(query, pos)
+    if match is not None:
+        pos = _past_noise(query, match.end(), comments)
+    name = _REF.match(query, pos)
+    if name is not None:
+        pos = _past_noise(query, name.end(), comments)
+    if pos < len(query) and query[pos] == "(":
+        end = balanced_span(query, pos)
+        if end is not None:
+            pos = end
+    return _past_noise(query, pos, comments)
+
+
+def _past_noise(query: str, pos: int, comments: list[tuple[int, int]]) -> int:
+    """Index past whitespace and ``--``/``/* */`` comment spans."""
+    while True:
+        pos = skip_ws(query, pos)
+        end = _covering_end(comments, pos)
+        if end is None:
+            return pos
+        pos = end
+
+
+def _covering_end(spans: list[tuple[int, int]], position: int) -> int | None:
+    for start, end in spans:
+        if start <= position < end:
+            return end
+    return None
 
 
 def _resolve(reference: str, database: str | None) -> tuple[str, str] | None:
@@ -253,7 +358,7 @@ def _quoted_end(query: str, start: int, quote: str) -> int:
 
 
 def _inside(spans: list[tuple[int, int]], position: int) -> bool:
-    return any(start <= position < end for start, end in spans)
+    return _covering_end(spans, position) is not None
 
 
 def _backtick_normalize(query: str) -> str:

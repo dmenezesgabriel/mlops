@@ -468,7 +468,7 @@ module walked end-to-end, hot paths microbenchmarked in-process, parity
 claims probed against the running stack. Two measured parity bugs and ten
 engineering-quality findings are filed as small items:
 
-1. [ ] GF-14 — comma-separated FROM items after the first escape the Iceberg
+1. [x] GF-14 — comma-separated FROM items after the first escape the Iceberg
    routing probe (`FROM hive_t, ice_t` → `UNSUPPORTED_TABLE_TYPE` where real
    Athena succeeds; live-measured).
 2. [ ] GF-15 — schema-position refs (`SHOW TABLES FROM x`) probed as tables;

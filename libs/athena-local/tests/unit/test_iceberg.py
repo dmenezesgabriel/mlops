@@ -467,6 +467,102 @@ class TestIcebergRouting:
         assert sql == ('SELECT "don`t" FROM iceberg."analytics"."ice_t"')
 
 
+class TestIcebergCommaItems:
+    """Comma-separated FROM-list items share the anchor's route probe.
+
+    Athena's grammar accepts implicit cross joins (``FROM a, b``); every
+    item in the list is a table reference, so each must be probed — the
+    anchor keyword only precedes the first (live-measured gap: ``FROM
+    hive_t h, ice_t i`` left ``ice_t`` unqualified →
+    ``UNSUPPORTED_TABLE_TYPE``).
+    """
+
+    ICE = {("analytics", "ice_t")}
+
+    def test_comma_item_after_hive_table_is_qualified(self) -> None:
+        sql = _route(
+            "SELECT * FROM hive_t h, ice_t i WHERE h.a = i.a", self.ICE
+        )
+        assert sql == (
+            'SELECT * FROM hive_t h, iceberg."analytics"."ice_t" i '
+            "WHERE h.a = i.a"
+        )
+
+    def test_each_item_in_three_list_is_probed(self) -> None:
+        sql = _route("SELECT * FROM a, ice_t, b", self.ICE)
+        assert sql == 'SELECT * FROM a, iceberg."analytics"."ice_t", b'
+
+    def test_comma_item_after_derived_table_is_probed(self) -> None:
+        sql = _route("SELECT * FROM (SELECT 1) x, ice_t", self.ICE)
+        assert sql == (
+            'SELECT * FROM (SELECT 1) x, iceberg."analytics"."ice_t"'
+        )
+
+    def test_comma_item_after_table_function_is_probed(self) -> None:
+        probe = StaticIcebergProbe(self.ICE)
+        sql = iceberg_trino_submission(
+            "SELECT * FROM t, UNNEST(ARRAY[1]) u, ice_t", DATABASE, probe
+        )
+        assert sql == (
+            'SELECT * FROM t, UNNEST(ARRAY[1]) u, iceberg."analytics"."ice_t"'
+        )
+        # UNNEST is a call, not a table ref — it must never reach Glue.
+        assert ("analytics", "unnest") not in probe.calls
+
+    def test_comma_items_with_as_aliases_are_probed(self) -> None:
+        sql = _route(
+            "SELECT * FROM hive_t AS h, ice_t AS i WHERE h.a = i.a",
+            self.ICE,
+        )
+        assert sql == (
+            'SELECT * FROM hive_t AS h, iceberg."analytics"."ice_t" AS i '
+            "WHERE h.a = i.a"
+        )
+
+    def test_comma_items_inside_subquery_are_probed(self) -> None:
+        sql = _route(
+            "SELECT * FROM outer_t WHERE EXISTS (SELECT 1 FROM hive_t, ice_t)",
+            self.ICE,
+        )
+        assert sql is not None
+        assert 'FROM hive_t, iceberg."analytics"."ice_t"' in sql
+
+    def test_comment_between_comma_and_item_is_skipped(self) -> None:
+        sql = _route("SELECT * FROM hive_t, -- note\n ice_t", self.ICE)
+        assert sql == (
+            'SELECT * FROM hive_t, -- note\n iceberg."analytics"."ice_t"'
+        )
+
+    def test_qualified_comma_item_is_probed(self) -> None:
+        sql = _route("SELECT * FROM h, analytics.ice_t", self.ICE)
+        assert sql == ('SELECT * FROM h, iceberg."analytics"."ice_t"')
+
+    def test_clause_commas_are_not_table_items(self) -> None:
+        # GROUP BY's comma list must not be walked: the gap after an item
+        # admits one alias token, then a comma — `GROUP` consumes the slot
+        # and `BY` stops the walk.
+        probe = StaticIcebergProbe(self.ICE)
+        sql = iceberg_trino_submission(
+            "SELECT a, COUNT(*) FROM hive_t GROUP BY a, ice_t",
+            DATABASE,
+            probe,
+        )
+        assert sql is None
+        assert ("analytics", "ice_t") not in probe.calls
+
+    def test_update_set_commas_are_not_table_items(self) -> None:
+        probe = StaticIcebergProbe(
+            {("analytics", "ice_t"), ("analytics", "b")}
+        )
+        sql = iceberg_trino_submission(
+            "UPDATE ice_t SET a = 1, b = 2 WHERE id = 3", DATABASE, probe
+        )
+        assert sql == (
+            'UPDATE iceberg."analytics"."ice_t" SET a = 1, b = 2 WHERE id = 3'
+        )
+        assert ("analytics", "b") not in probe.calls
+
+
 class TestIcebergDispatch:
     def test_no_iceberg_work_returns_none(self) -> None:
         assert (
