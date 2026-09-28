@@ -13,6 +13,11 @@ pygments = "ssg_syntax_highlighting.infrastructure.plugin:create_pygments_html_p
 [tool.uv.sources]
 ssg = { workspace = true }
 
+[tool.coverage.run]
+# bare `--cov` traces the editable `ssg` workspace dependency; those modules
+# are covered by ssg's own suite, so measure only this package's code.
+source = ["src", "tests"]
+
 [tool.deptry.package_module_name_map]
 ssg = "ssg"
 ssg-syntax-highlighting = "ssg_syntax_highlighting"
