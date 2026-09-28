@@ -23,17 +23,17 @@ Exit: `backlog.md` rows carry measured evidence; no unmeasured item.
 
 ## MQ-1 — Gate wiring: every package exposes every gate
 
-1. [ ] `QG-2` radon recipe fix — **sequenced with its findings** (see
+1. [x] `QG-2` radon recipe fix — **sequenced with its findings** (see
    constraint): `QF-1`/`QF-2`/`QF-3`/`QF-9` fixes land first or in the
    same commit so `make complexity` stays green.
-2. [ ] `QG-3`/`QG-4` `sagemaker-local` + `sagemaker_*` ×4 gain
+2. [x] `QG-3`/`QG-4` `sagemaker-local` + `sagemaker_*` ×4 gain
    coverage/complexity/dependencies/security/maintainability targets.
-3. [ ] `QG-5` root `PACKAGES` += `ml_specialization` + `sagemaker_*`;
+3. [x] `QG-5` root `PACKAGES` += `ml_specialization` + `sagemaker_*`;
    root `quality` chain += `maintainability`.
-4. [ ] `QG-6`/`QG-7` bandit+vulture join every `security` target; xenon
+4. [x] `QG-6`/`QG-7` bandit+vulture join every `security` target; xenon
    `maintainability` target per package.
-5. [ ] `QG-8` import-linter: `glue_overlay` root + missing contracts.
-6. [ ] `QG-9` pre-commit: extend bandit/vulture/xenon past
+5. [x] `QG-8` import-linter: `glue_overlay` root + missing contracts.
+6. [x] `QG-9` pre-commit: extend bandit/vulture/xenon past
    `libs/athena-local/`.
 
 Exit: `make -C <pkg> quality` runs all ten gates for every workspace
@@ -46,14 +46,14 @@ Worst-first ordering; each row's evidence cell names file:line and the
 measured rank/count. Fixes are real refactors — no `# noqa`/`nosec`-spam;
 a configured-out finding carries its reason in the backlog row.
 
-1. [ ] `QF-1` `videos-linter` `linter_service.py` (D25 — worst measured).
-2. [ ] `QF-2` `athena-local` tests (~12 C+/D/E functions — whole-package
+1. [x] `QF-1` `videos-linter` `linter_service.py` (D25 — worst measured).
+2. [x] `QF-2` `athena-local` tests (~12 C+/D/E functions — whole-package
    scope decision created these).
-3. [ ] `QF-3` `videos` (ManimRenderer C11, module-B ×2, vulture 3@80).
-4. [ ] `QF-4` `nyc_taxi_demand_forecasting` (module-B `train.py`,
+3. [x] `QF-3` `videos` (ManimRenderer C11, module-B ×2, vulture 3@80).
+4. [x] `QF-4` `nyc_taxi_demand_forecasting` (module-B `train.py`,
    `monitor.py`).
-5. [ ] `QF-5`…`QF-9` remaining single-finding packages.
-6. [ ] `QF-10` verify-clean row re-measured after wiring.
+5. [x] `QF-5`…`QF-9` remaining single-finding packages.
+6. [x] `QF-10` verify-clean row re-measured after wiring.
 
 Exit: `make quality` green over the expanded `PACKAGES` with every gate
 functional.
