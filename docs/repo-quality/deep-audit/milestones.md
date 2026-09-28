@@ -27,8 +27,9 @@
 
 ## MA-2 — Foundations
 
-- [ ] **AU-02** `data-science-scaffold` (generates the `projects/*` skeleton —
+- [x] **AU-02** `data-science-scaffold` (generates the `projects/*` skeleton —
   template defects here replicate into AU-17/AU-18, so it audits first).
+  9 gaps (S3×8, S4×1) — template gate drift + anchor-fragile registration.
 - [ ] **AU-03** `docker/moto/glue_overlay.py` (wire-parsing — D8 heavy).
 - [ ] Remediate promoted S1+ gaps.
 
