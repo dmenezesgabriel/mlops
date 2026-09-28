@@ -69,11 +69,24 @@ testpaths = ["tests"]
 addopts = "-q -rfEs --tb=short --show-capture=no --import-mode=importlib"
 console_output_style = "classic"
 
+[tool.coverage.run]
+# bare `--cov` traces the editable `mlops_shared` workspace dependency; those
+# modules are covered by mlops-shared's own suite, so measure only this
+# package's code.
+source = ["src", "tests"]
+
 [tool.pyright]
 pythonVersion = "3.11"
-typeCheckingMode = "standard"
+typeCheckingMode = "strict"
 reportMissingParameterType = true
 reportMissingReturnType = true
 reportUnnecessaryCast = true
 reportUnusedIgnoreComment = true
 reportMissingImports = false
+
+[tool.vulture]
+min_confidence = 80
+# Stub implementations keep the documented parameter names (see each class
+# docstring) even though the bodies are TODO.
+ignore_names = ["raw_directory", "n_trials"]
+sort_by_size = true

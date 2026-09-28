@@ -1,5 +1,6 @@
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 from data_science_scaffold.scaffold import generate
@@ -37,6 +38,35 @@ def test_generated_project_passes_ruff_gates(tmp_path: Path) -> None:
     # Assert
     assert format_result.returncode == 0, format_result.stdout
     assert lint_result.returncode == 0, lint_result.stdout
+
+
+def test_generated_project_gates_match_live_shape(tmp_path: Path) -> None:
+    # Arrange
+    generated = generate("dummy_test_proj", tmp_path)
+
+    # Act
+    makefile = (generated / "Makefile").read_text(encoding="utf-8")
+    pyproject = tomllib.loads(
+        (generated / "pyproject.toml").read_text(encoding="utf-8")
+    )
+
+    # Assert — rendered gates must match the live projects/* gate set
+    assert '-e "*/node_modules/*"' in makefile
+    assert '-x "*/node_modules/*"' not in makefile
+    assert "--cov-fail-under" in makefile
+    assert "bandit -q -r src -ll" in makefile
+    assert "vulture --min-confidence 80 src" in makefile
+    assert "xenon" in makefile
+    assert "maintainability" in makefile
+    assert pyproject["tool"]["pyright"]["typeCheckingMode"] == "strict"
+    assert pyproject["tool"]["coverage"]["run"]["source"] == [
+        "src",
+        "tests",
+    ]
+    assert pyproject["tool"]["vulture"]["ignore_names"] == [
+        "raw_directory",
+        "n_trials",
+    ]
 
 
 def _run_ruff(*arguments: str, cwd: Path) -> subprocess.CompletedProcess[str]:
