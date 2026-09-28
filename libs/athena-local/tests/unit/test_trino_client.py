@@ -81,21 +81,13 @@ class RefusingTrinoHandler:
         )
 
 
-def test_submit_statement_posts_query_with_session_headers() -> None:
-    handler = ScriptedTrinoHandler(
-        [(200, json.dumps(query_results_document()), None)]
-    )
-    client = TrinoClient(
+def _trino_client(handler: ScriptedTrinoHandler) -> TrinoClient:
+    return TrinoClient(
         BASE_URL, httpx.AsyncClient(transport=httpx.MockTransport(handler))
     )
 
-    page = asyncio.run(
-        client.submit_statement(
-            "SELECT 1", catalog="hive", schema="analytics", user="alice"
-        )
-    )
 
-    request = handler.requests[0]
+def _assert_statement_post_shape(request: httpx.Request) -> None:
     assert request.method == "POST"
     assert str(request.url).endswith("/v1/statement")
     assert request.content.decode() == "SELECT 1"
@@ -105,6 +97,21 @@ def test_submit_statement_posts_query_with_session_headers() -> None:
     assert request.headers["content-type"].startswith(
         "text/plain; charset=utf-8"
     )
+
+
+def test_submit_statement_posts_query_with_session_headers() -> None:
+    handler = ScriptedTrinoHandler(
+        [(200, json.dumps(query_results_document()), None)]
+    )
+    client = _trino_client(handler)
+
+    page = asyncio.run(
+        client.submit_statement(
+            "SELECT 1", catalog="hive", schema="analytics", user="alice"
+        )
+    )
+
+    _assert_statement_post_shape(handler.requests[0])
     assert page.query_id == QUERY_ID
     assert page.next_uri == FIRST_NEXT_URI
     assert page.finished is False
@@ -123,9 +130,7 @@ def test_submit_statement_sends_session_properties_header() -> None:
     handler = ScriptedTrinoHandler(
         [(200, json.dumps(query_results_document()), None)]
     )
-    client = TrinoClient(
-        BASE_URL, httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    )
+    client = _trino_client(handler)
 
     asyncio.run(
         client.submit_statement(
@@ -152,9 +157,7 @@ def test_submit_statement_without_session_properties_omits_header() -> None:
     handler = ScriptedTrinoHandler(
         [(200, json.dumps(query_results_document()), None)]
     )
-    client = TrinoClient(
-        BASE_URL, httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    )
+    client = _trino_client(handler)
 
     asyncio.run(
         client.submit_statement(
@@ -182,9 +185,7 @@ def test_page_carries_columns_data_and_update_type() -> None:
             )
         ]
     )
-    client = TrinoClient(
-        BASE_URL, httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    )
+    client = _trino_client(handler)
 
     page = asyncio.run(
         client.submit_statement(
@@ -215,9 +216,7 @@ def test_fetch_next_gets_next_uri_until_finished() -> None:
             ),
         ]
     )
-    client = TrinoClient(
-        BASE_URL, httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    )
+    client = _trino_client(handler)
 
     asyncio.run(
         client.submit_statement(
@@ -235,9 +234,7 @@ def test_fetch_next_gets_next_uri_until_finished() -> None:
 
 def test_cancel_deletes_next_uri() -> None:
     handler = ScriptedTrinoHandler([(204, "", None)])
-    client = TrinoClient(
-        BASE_URL, httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    )
+    client = _trino_client(handler)
 
     asyncio.run(client.cancel(FIRST_NEXT_URI))
 
@@ -248,9 +245,7 @@ def test_cancel_deletes_next_uri() -> None:
 
 def test_cancel_non_204_raises_transport_error() -> None:
     handler = ScriptedTrinoHandler([(200, "", None), (200, "", None)])
-    client = TrinoClient(
-        BASE_URL, httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    )
+    client = _trino_client(handler)
 
     with pytest.raises(TrinoTransportError, match="expected 204"):
         asyncio.run(client.cancel(FIRST_NEXT_URI))
@@ -276,9 +271,7 @@ def test_failed_query_error_is_carried_in_page() -> None:
             )
         ]
     )
-    client = TrinoClient(
-        BASE_URL, httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    )
+    client = _trino_client(handler)
 
     page = asyncio.run(
         client.submit_statement(
@@ -298,9 +291,7 @@ def test_failed_query_error_is_carried_in_page() -> None:
 
 def test_non_retryable_status_raises_transport_error() -> None:
     handler = ScriptedTrinoHandler([(500, "boom", None)])
-    client = TrinoClient(
-        BASE_URL, httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    )
+    client = _trino_client(handler)
 
     with pytest.raises(TrinoTransportError, match="500"):
         asyncio.run(
@@ -317,9 +308,7 @@ def test_retries_intermittent_502_then_succeeds() -> None:
             (200, json.dumps(query_results_document(next_uri=None)), None),
         ]
     )
-    client = TrinoClient(
-        BASE_URL, httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    )
+    client = _trino_client(handler)
 
     page = asyncio.run(
         client.submit_statement(
@@ -335,9 +324,7 @@ def test_retry_exhausted_on_503_raises_transport_error() -> None:
     handler = ScriptedTrinoHandler(
         [(503, "service unavailable", None), (503, "still down", None)]
     )
-    client = TrinoClient(
-        BASE_URL, httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    )
+    client = _trino_client(handler)
 
     with pytest.raises(TrinoTransportError, match="503"):
         asyncio.run(
@@ -356,9 +343,7 @@ def test_retries_429_honoring_retry_after() -> None:
             (200, json.dumps(query_results_document(next_uri=None)), None),
         ]
     )
-    client = TrinoClient(
-        BASE_URL, httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    )
+    client = _trino_client(handler)
 
     page = asyncio.run(
         client.submit_statement(
@@ -372,9 +357,7 @@ def test_retries_429_honoring_retry_after() -> None:
 
 def test_empty_200_body_is_retried_then_transport_error() -> None:
     handler = ScriptedTrinoHandler([(200, "", None), (200, "", None)])
-    client = TrinoClient(
-        BASE_URL, httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    )
+    client = _trino_client(handler)
 
     with pytest.raises(TrinoTransportError, match="empty body"):
         asyncio.run(
@@ -388,9 +371,7 @@ def test_empty_200_body_is_retried_then_transport_error() -> None:
 
 def test_non_json_body_raises_transport_error() -> None:
     handler = ScriptedTrinoHandler([(200, "not-json", None)])
-    client = TrinoClient(
-        BASE_URL, httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    )
+    client = _trino_client(handler)
 
     with pytest.raises(TrinoTransportError, match="non-JSON"):
         asyncio.run(
@@ -402,9 +383,7 @@ def test_non_json_body_raises_transport_error() -> None:
 
 def test_page_without_id_raises_transport_error() -> None:
     handler = ScriptedTrinoHandler([(200, json.dumps({"stats": {}}), None)])
-    client = TrinoClient(
-        BASE_URL, httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    )
+    client = _trino_client(handler)
 
     with pytest.raises(TrinoTransportError, match="expected a string"):
         asyncio.run(

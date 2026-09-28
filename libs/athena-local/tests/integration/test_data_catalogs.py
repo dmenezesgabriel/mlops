@@ -26,6 +26,20 @@ def _client(endpoint_url: str) -> BaseClient:
     )
 
 
+def _catalog_names(client: BaseClient) -> set[str]:
+    return {
+        summary["CatalogName"]
+        for summary in client.list_data_catalogs()["DataCatalogsSummary"]
+    }
+
+
+def _assert_created_catalog_fetched(client: BaseClient) -> None:
+    fetched = client.get_data_catalog(Name="glue_catalog")["DataCatalog"]
+    assert fetched["Name"] == "glue_catalog"
+    assert fetched["Type"] == "GLUE"
+    assert fetched["Description"] == "Main Glue catalog"
+
+
 def test_data_catalog_crud_round_trip_with_botocore(
     live_athena_server: LiveAthenaServer,
 ) -> None:
@@ -36,21 +50,12 @@ def test_data_catalog_crud_round_trip_with_botocore(
         Type="GLUE",
         Description="Main Glue catalog",
     )
-
     catalog = create_response["DataCatalog"]
     assert catalog["Name"] == "glue_catalog"
     assert catalog["Type"] == "GLUE"
 
-    fetched = client.get_data_catalog(Name="glue_catalog")["DataCatalog"]
-    assert fetched["Name"] == "glue_catalog"
-    assert fetched["Type"] == "GLUE"
-    assert fetched["Description"] == "Main Glue catalog"
-
-    names = {
-        summary["CatalogName"]
-        for summary in client.list_data_catalogs()["DataCatalogsSummary"]
-    }
-    assert "glue_catalog" in names
+    _assert_created_catalog_fetched(client)
+    assert "glue_catalog" in _catalog_names(client)
 
     client.update_data_catalog(
         Name="glue_catalog",
@@ -62,11 +67,7 @@ def test_data_catalog_crud_round_trip_with_botocore(
 
     deleted = client.delete_data_catalog(Name="glue_catalog")["DataCatalog"]
     assert deleted["Name"] == "glue_catalog"
-    names = {
-        summary["CatalogName"]
-        for summary in client.list_data_catalogs()["DataCatalogsSummary"]
-    }
-    assert "glue_catalog" not in names
+    assert "glue_catalog" not in _catalog_names(client)
 
 
 def test_aws_data_catalog_is_listed(

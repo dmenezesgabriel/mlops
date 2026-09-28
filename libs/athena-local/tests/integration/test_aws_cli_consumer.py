@@ -27,6 +27,7 @@ import awscli
 import pytest
 from tests.integration._cli_examples import example_stems, load_example
 from tests.integration._cli_harness import (
+    CliStack,
     as_dict,
     as_list,
     as_str,
@@ -118,31 +119,69 @@ def test_cli_update_data_catalog_doc_function_flag_is_rejected() -> None:
     assert "Unknown options" in proc.stderr
 
 
+def _seed_workgroups(stack: CliStack, *names: str) -> None:
+    for name in names:
+        created = stack.run(
+            "athena",
+            "create-work-group",
+            "--name",
+            name,
+            "--description",
+            "cli-example seed",
+        )
+        assert created.returncode == 0, created.stderr
+
+
+def _workgroup_names(stack: CliStack) -> set[str]:
+    result = stack.run(*load_example("list-work-groups")[0])
+    return {
+        as_str(as_dict(entry)["Name"])
+        for entry in as_list(parsed_json(result)["WorkGroups"])
+    }
+
+
+def _assert_workgroup_tags(stack: CliStack) -> None:
+    result = stack.run(*load_example("list-tags-for-resource")[0])
+    tags = {
+        as_str(as_dict(tag)["Key"]): as_str(as_dict(tag)["Value"])
+        for tag in as_list(parsed_json(result)["Tags"])
+    }
+    assert tags == {
+        "Division": "West",
+        "Location": "Seattle",
+        "Team": "Big Data",
+    }
+
+
+def _assert_update_disables_workgroup(stack: CliStack) -> None:
+    result = stack.run(*load_example("update-work-group")[0])
+    assert result.returncode == 0, result.stderr
+    result = stack.run(
+        *substitute_tokens(
+            load_example("get-work-group")[0],
+            exact={"AthenaAdmin": "Data_Analyst_Group"},
+        )
+    )
+    assert as_dict(parsed_json(result)["WorkGroup"])["State"] == "DISABLED"
+
+
 def test_cli_workgroup_examples(
     live_athena_server: LiveAthenaServer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """create/get/update/list/delete-work-group + list-tags (workgroup ARN)."""
     with cli_scope(live_athena_server, monkeypatch, "cs3workgroup") as stack:
-        bucket = stack.harness.bucket
         result = stack.run(
             *substitute_tokens(
                 load_example("create-work-group")[0],
-                fragments={"s3://amzn-s3-demo-bucket": f"s3://{bucket}"},
+                fragments={
+                    "s3://amzn-s3-demo-bucket": f"s3://{stack.harness.bucket}"
+                },
             )
         )
         assert result.returncode == 0, result.stderr
 
         # The docs assume AthenaAdmin exists and TeamB is deletable.
-        for name in ("AthenaAdmin", "TeamB"):
-            created = stack.run(
-                "athena",
-                "create-work-group",
-                "--name",
-                name,
-                "--description",
-                "cli-example seed",
-            )
-            assert created.returncode == 0, created.stderr
+        _seed_workgroups(stack, "AthenaAdmin", "TeamB")
 
         result = stack.run(*load_example("get-work-group")[0])
         assert result.returncode == 0, result.stderr
@@ -150,42 +189,86 @@ def test_cli_workgroup_examples(
         assert workgroup["Name"] == "AthenaAdmin"
         assert workgroup["State"] == "ENABLED"
 
-        result = stack.run(*load_example("list-tags-for-resource")[0])
-        tags = {
-            as_str(as_dict(tag)["Key"]): as_str(as_dict(tag)["Value"])
-            for tag in as_list(parsed_json(result)["Tags"])
-        }
-        assert tags == {
-            "Division": "West",
-            "Location": "Seattle",
-            "Team": "Big Data",
-        }
-
-        result = stack.run(*load_example("update-work-group")[0])
-        assert result.returncode == 0, result.stderr
-        result = stack.run(
-            *substitute_tokens(
-                load_example("get-work-group")[0],
-                exact={"AthenaAdmin": "Data_Analyst_Group"},
-            )
+        _assert_workgroup_tags(stack)
+        _assert_update_disables_workgroup(stack)
+        assert {"primary", "AthenaAdmin", "Data_Analyst_Group"} <= (
+            _workgroup_names(stack)
         )
-        assert as_dict(parsed_json(result)["WorkGroup"])["State"] == "DISABLED"
-
-        result = stack.run(*load_example("list-work-groups")[0])
-        names = {
-            as_str(as_dict(entry)["Name"])
-            for entry in as_list(parsed_json(result)["WorkGroups"])
-        }
-        assert {"primary", "AthenaAdmin", "Data_Analyst_Group"} <= names
 
         result = stack.run(*load_example("delete-work-group")[0])
         assert result.returncode == 0, result.stderr
-        result = stack.run(*load_example("list-work-groups")[0])
-        names = {
-            as_str(as_dict(entry)["Name"])
-            for entry in as_list(parsed_json(result)["WorkGroups"])
-        }
-        assert "TeamB" not in names
+        assert "TeamB" not in _workgroup_names(stack)
+
+
+def _assert_dynamo_catalog_shape(stack: CliStack) -> None:
+    result = stack.run(*load_example("get-data-catalog")[0])
+    catalog = as_dict(parsed_json(result)["DataCatalog"])
+    assert catalog["Name"] == "dynamo_db_catalog"
+    assert catalog["Type"] == "LAMBDA"
+    parameters = as_dict(catalog["Parameters"])
+    assert "metadata-function" in parameters
+    assert "record-function" in parameters
+
+
+def _seed_data_catalogs(stack: CliStack, *names: str) -> None:
+    for name in names:
+        seeded = stack.run(
+            "athena",
+            "create-data-catalog",
+            "--name",
+            name,
+            "--type",
+            "LAMBDA",
+            "--description",
+            "cli-example seed",
+        )
+        assert seeded.returncode == 0, seeded.stderr
+
+
+def _run_corrected_update_data_catalog(stack: CliStack) -> None:
+    # The doc --function flag is rejected by the CLI (pinned above); run
+    # the example command in its model form.
+    corrected = substitute_tokens(
+        load_example("update-data-catalog")[0],
+        exact={
+            "--function=arn:aws:lambda:us-west-2:111122223333:function:new_cw_logs_lambda": [
+                "--parameters",
+                "function=arn:aws:lambda:us-west-2:111122223333:function:new_cw_logs_lambda",
+            ]
+        },
+    )
+    result = stack.run(*corrected)
+    assert result.returncode == 0, result.stderr
+
+
+def _catalog_types(stack: CliStack) -> dict[str, str]:
+    result = stack.run(*load_example("list-data-catalogs")[0])
+    return {
+        as_str(as_dict(entry)["CatalogName"]): as_str(as_dict(entry)["Type"])
+        for entry in as_list(parsed_json(result)["DataCatalogsSummary"])
+    }
+
+
+def _assert_catalog_tag_round_trip(stack: CliStack) -> None:
+    result = stack.run(*load_example("tag-resource")[0])
+    assert result.returncode == 0, result.stderr
+    result = stack.run(*load_example("list-tags-for-resource")[1])
+    tags = {
+        as_str(as_dict(tag)["Key"]): as_str(as_dict(tag)["Value"])
+        for tag in as_list(parsed_json(result)["Tags"])
+    }
+    assert tags["Organization"] == "Retail"
+    assert tags["Division"] == "Mountain"
+
+    result = stack.run(*load_example("untag-resource")[0])
+    assert result.returncode == 0, result.stderr
+    result = stack.run(*load_example("list-tags-for-resource")[1])
+    remaining = {
+        as_str(as_dict(tag)["Key"])
+        for tag in as_list(parsed_json(result)["Tags"])
+    }
+    assert "Organization" in remaining
+    assert "Specialization" not in remaining
 
 
 def test_cli_data_catalog_examples(
@@ -196,78 +279,60 @@ def test_cli_data_catalog_examples(
         result = stack.run(*load_example("create-data-catalog")[0])
         assert result.returncode == 0, result.stderr
 
-        result = stack.run(*load_example("get-data-catalog")[0])
-        catalog = as_dict(parsed_json(result)["DataCatalog"])
-        assert catalog["Name"] == "dynamo_db_catalog"
-        assert catalog["Type"] == "LAMBDA"
-        parameters = as_dict(catalog["Parameters"])
-        assert "metadata-function" in parameters
-        assert "record-function" in parameters
+        _assert_dynamo_catalog_shape(stack)
+        _seed_data_catalogs(stack, "cw_logs_catalog", "UnusedDataCatalog")
+        _run_corrected_update_data_catalog(stack)
 
-        for name in ("cw_logs_catalog", "UnusedDataCatalog"):
-            seeded = stack.run(
-                "athena",
-                "create-data-catalog",
-                "--name",
-                name,
-                "--type",
-                "LAMBDA",
-                "--description",
-                "cli-example seed",
-            )
-            assert seeded.returncode == 0, seeded.stderr
-
-        # The doc --function flag is rejected by the CLI (pinned above); run
-        # the example command in its model form.
-        corrected = substitute_tokens(
-            load_example("update-data-catalog")[0],
-            exact={
-                "--function=arn:aws:lambda:us-west-2:111122223333:function:new_cw_logs_lambda": [
-                    "--parameters",
-                    "function=arn:aws:lambda:us-west-2:111122223333:function:new_cw_logs_lambda",
-                ]
-            },
-        )
-        result = stack.run(*corrected)
-        assert result.returncode == 0, result.stderr
-
-        result = stack.run(*load_example("list-data-catalogs")[0])
-        catalogs = {
-            as_str(as_dict(entry)["CatalogName"]): as_str(
-                as_dict(entry)["Type"]
-            )
-            for entry in as_list(parsed_json(result)["DataCatalogsSummary"])
-        }
+        catalogs = _catalog_types(stack)
         assert catalogs["AwsDataCatalog"] == "GLUE"
         assert catalogs["dynamo_db_catalog"] == "LAMBDA"
 
         result = stack.run(*load_example("delete-data-catalog")[0])
         assert result.returncode == 0, result.stderr
-        result = stack.run(*load_example("list-data-catalogs")[0])
-        names = {
-            as_str(as_dict(entry)["CatalogName"])
-            for entry in as_list(parsed_json(result)["DataCatalogsSummary"])
-        }
-        assert "UnusedDataCatalog" not in names
+        assert "UnusedDataCatalog" not in _catalog_types(stack)
 
-        result = stack.run(*load_example("tag-resource")[0])
-        assert result.returncode == 0, result.stderr
-        result = stack.run(*load_example("list-tags-for-resource")[1])
-        tags = {
-            as_str(as_dict(tag)["Key"]): as_str(as_dict(tag)["Value"])
-            for tag in as_list(parsed_json(result)["Tags"])
-        }
-        assert tags["Organization"] == "Retail"
-        assert tags["Division"] == "Mountain"
-        result = stack.run(*load_example("untag-resource")[0])
-        assert result.returncode == 0, result.stderr
-        result = stack.run(*load_example("list-tags-for-resource")[1])
-        remaining = {
-            as_str(as_dict(tag)["Key"])
-            for tag in as_list(parsed_json(result)["Tags"])
-        }
-        assert "Organization" in remaining
-        assert "Specialization" not in remaining
+        _assert_catalog_tag_round_trip(stack)
+
+
+def _named_query_ids(stack: CliStack) -> set[str]:
+    result = stack.run(*load_example("list-named-queries")[0])
+    return {
+        as_str(entry)
+        for entry in as_list(parsed_json(result)["NamedQueryIds"])
+    }
+
+
+def _assert_named_query_shape(stack: CliStack, named_query_id: str) -> None:
+    result = stack.run(
+        *substitute_tokens(
+            load_example("get-named-query")[0],
+            exact={SAMPLE_NQ_ID: named_query_id},
+        )
+    )
+    named_query = as_dict(parsed_json(result)["NamedQuery"])
+    assert named_query["Name"] == "SEA to JFK delayed flights Jan 2016"
+    assert named_query["Database"] == "sampledb"
+    assert named_query["WorkGroup"] == "AthenaAdmin"
+
+
+def _assert_batch_get_named_query(
+    stack: CliStack, named_query_id: str
+) -> None:
+    result = stack.run(
+        *substitute_tokens(
+            load_example("batch-get-named-query")[0],
+            exact={SAMPLE_NQ_ID: named_query_id},
+        )
+    )
+    found = as_list(parsed_json(result)["NamedQueries"])
+    assert [as_dict(entry)["NamedQueryId"] for entry in found] == [
+        named_query_id
+    ]
+    unprocessed = {
+        as_str(as_dict(entry)["NamedQueryId"])
+        for entry in as_list(parsed_json(result)["UnprocessedNamedQueryIds"])
+    }
+    assert unprocessed == {SAMPLE_NQ_ID_2, SAMPLE_NQ_ID_3}
 
 
 def test_cli_named_query_examples(
@@ -279,41 +344,9 @@ def test_cli_named_query_examples(
         assert result.returncode == 0, result.stderr
         named_query_id = as_str(parsed_json(result)["NamedQueryId"])
 
-        result = stack.run(
-            *substitute_tokens(
-                load_example("get-named-query")[0],
-                exact={SAMPLE_NQ_ID: named_query_id},
-            )
-        )
-        named_query = as_dict(parsed_json(result)["NamedQuery"])
-        assert named_query["Name"] == "SEA to JFK delayed flights Jan 2016"
-        assert named_query["Database"] == "sampledb"
-        assert named_query["WorkGroup"] == "AthenaAdmin"
-
-        result = stack.run(*load_example("list-named-queries")[0])
-        listed = {
-            as_str(entry)
-            for entry in as_list(parsed_json(result)["NamedQueryIds"])
-        }
-        assert named_query_id in listed
-
-        result = stack.run(
-            *substitute_tokens(
-                load_example("batch-get-named-query")[0],
-                exact={SAMPLE_NQ_ID: named_query_id},
-            )
-        )
-        found = as_list(parsed_json(result)["NamedQueries"])
-        assert [as_dict(entry)["NamedQueryId"] for entry in found] == [
-            named_query_id
-        ]
-        unprocessed = {
-            as_str(as_dict(entry)["NamedQueryId"])
-            for entry in as_list(
-                parsed_json(result)["UnprocessedNamedQueryIds"]
-            )
-        }
-        assert unprocessed == {SAMPLE_NQ_ID_2, SAMPLE_NQ_ID_3}
+        _assert_named_query_shape(stack, named_query_id)
+        assert named_query_id in _named_query_ids(stack)
+        _assert_batch_get_named_query(stack, named_query_id)
 
         result = stack.run(
             *substitute_tokens(
@@ -322,12 +355,7 @@ def test_cli_named_query_examples(
             )
         )
         assert result.returncode == 0, result.stderr
-        result = stack.run(*load_example("list-named-queries")[0])
-        listed = {
-            as_str(entry)
-            for entry in as_list(parsed_json(result)["NamedQueryIds"])
-        }
-        assert named_query_id not in listed
+        assert named_query_id not in _named_query_ids(stack)
 
 
 def test_cli_catalog_metadata_examples(

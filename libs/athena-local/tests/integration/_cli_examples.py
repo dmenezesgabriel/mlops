@@ -74,19 +74,30 @@ def _tokenize(block: list[str]) -> list[str]:
     in_quotes = False
     index = 0
     while index < len(text):
-        char = text[index]
-        if char == '"':
-            in_quotes = not in_quotes
-        elif char.isspace() and not in_quotes:
-            if current:
-                tokens.append("".join(current))
-                current = []
-        elif char == "\\" and in_quotes and index + 1 < len(text):
-            current.append(text[index + 1])
-            index += 1
-        else:
-            current.append(char)
-        index += 1
+        in_quotes, index = _scan_char(text, index, in_quotes, tokens, current)
     if current:
         tokens.append("".join(current))
     return tokens
+
+
+def _scan_char(
+    text: str,
+    index: int,
+    in_quotes: bool,
+    tokens: list[str],
+    current: list[str],
+) -> tuple[bool, int]:
+    """Consume one character; returns ``(in_quotes, next_index)``."""
+    char = text[index]
+    if char == '"':
+        return not in_quotes, index + 1
+    if char == "\\" and in_quotes and index + 1 < len(text):
+        current.append(text[index + 1])
+        return in_quotes, index + 2
+    if char.isspace() and not in_quotes:
+        if current:
+            tokens.append("".join(current))
+            current.clear()
+        return in_quotes, index + 1
+    current.append(char)
+    return in_quotes, index + 1

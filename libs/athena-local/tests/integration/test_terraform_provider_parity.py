@@ -73,9 +73,7 @@ def _poll_boto3_query(client: BaseClient, query_id: str) -> None:
     pytest.fail(f"boto3 query {query_id} did not finish within 30s")
 
 
-def _exercise_boto3_control_plane(
-    client: BaseClient, database: str, suffix: str
-) -> None:
+def _exercise_workgroup_lifecycle(client: BaseClient, suffix: str) -> None:
     workgroup = f"boto3_wg_{suffix}"
     client.create_work_group(
         Name=workgroup,
@@ -100,6 +98,10 @@ def _exercise_boto3_control_plane(
         except ClientError:
             pass
 
+
+def _exercise_named_query_lifecycle(
+    client: BaseClient, database: str, suffix: str
+) -> None:
     named_query = client.create_named_query(
         Name=f"boto3_named_query_{suffix}",
         Database=database,
@@ -117,6 +119,8 @@ def _exercise_boto3_control_plane(
         except ClientError:
             pass
 
+
+def _exercise_data_catalog_lifecycle(client: BaseClient, suffix: str) -> None:
     catalog_name = f"boto3_catalog_{suffix}"
     client.create_data_catalog(
         Name=catalog_name,
@@ -149,6 +153,10 @@ def _exercise_boto3_control_plane(
         except ClientError:
             pass
 
+
+def _exercise_prepared_statement_lifecycle(
+    client: BaseClient, suffix: str
+) -> None:
     statement_name = f"boto3_statement_{suffix}"
     client.create_prepared_statement(
         StatementName=statement_name,
@@ -174,6 +182,15 @@ def _exercise_boto3_control_plane(
             )
         except ClientError:
             pass
+
+
+def _exercise_boto3_control_plane(
+    client: BaseClient, database: str, suffix: str
+) -> None:
+    _exercise_workgroup_lifecycle(client, suffix)
+    _exercise_named_query_lifecycle(client, database, suffix)
+    _exercise_data_catalog_lifecycle(client, suffix)
+    _exercise_prepared_statement_lifecycle(client, suffix)
 
 
 def test_terraform_provider_operation_shapes(

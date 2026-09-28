@@ -130,29 +130,35 @@ def inflate_structure(shape: Shape) -> dict[str, object]:
     }
 
 
+def _inflate_string(member: Shape) -> str:
+    if member.enum:
+        return member.enum[0]
+    minimum = member.metadata.get("min")
+    return "x" * minimum if isinstance(minimum, int) and minimum > 1 else "x"
+
+
+def _inflate_integer(member: Shape) -> int:
+    minimum = member.metadata.get("min")
+    return minimum if isinstance(minimum, int) else 1
+
+
 def inflate_member(member: Shape) -> object:
     """A minimal value for ``member`` that satisfies the model's constraints."""
-    if member.type_name == "string":
-        if member.enum:
-            return member.enum[0]
-        minimum = member.metadata.get("min")
-        return (
-            "x" * minimum if isinstance(minimum, int) and minimum > 1 else "x"
+    inflaters = {
+        "string": _inflate_string,
+        "integer": _inflate_integer,
+        "long": _inflate_integer,
+        "boolean": lambda shape: True,
+        "structure": inflate_structure,
+        "list": lambda shape: [inflate_member(shape.member)],
+        "map": lambda shape: {"k": inflate_member(shape.value)},
+    }
+    inflater = inflaters.get(member.type_name)
+    if inflater is None:
+        raise ValueError(
+            f"Inflater has no stub for {member.type_name} shape {member.name}"
         )
-    if member.type_name in ("integer", "long"):
-        minimum = member.metadata.get("min")
-        return minimum if isinstance(minimum, int) else 1
-    if member.type_name == "boolean":
-        return True
-    if member.type_name == "structure":
-        return inflate_structure(member)
-    if member.type_name == "list":
-        return [inflate_member(member.member)]
-    if member.type_name == "map":
-        return {"k": inflate_member(member.value)}
-    raise ValueError(
-        f"Inflater has no stub for {member.type_name} shape {member.name}"
-    )
+    return inflater(member)
 
 
 def assert_success_body(body: dict[str, object], op_name: str) -> None:

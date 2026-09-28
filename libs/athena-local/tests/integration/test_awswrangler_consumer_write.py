@@ -152,25 +152,20 @@ def test_read_sql_query_ctas_parquet_round_trip_live(
     wire_query = consumer_harness.athena.get_query_execution(
         QueryExecutionId=frame.query_metadata["QueryExecutionId"]
     )["QueryExecution"]["Query"]
-    table_match = re.search(
-        r'CREATE TABLE "(?P<database>[^"]+)"\.'
-        r'"(?P<table>[^"]+)"',
-        wire_query,
-    )
-    assert table_match is not None
-    assert table_match.group("database") == consumer_harness.database
-    table_name = table_match.group("table")
+    table_name = _ctas_table_name(wire_query, consumer_harness.database)
     expected_location = f"{consumer_harness.prefix}{table_name}"
-
-    manifest_key = "/".join(manifest.removeprefix("s3://").split("/")[1:])
-    body = (
-        consumer_harness.s3.get_object(
-            Bucket=consumer_harness.bucket, Key=manifest_key
-        )["Body"]
-        .read()
-        .decode("utf-8")
+    _assert_manifest_lists_data_files(
+        consumer_harness, manifest, expected_location, table_name
     )
-    paths = [line for line in body.splitlines() if line]
+
+
+def _assert_manifest_lists_data_files(
+    consumer_harness: ConsumerHarness,
+    manifest: str,
+    expected_location: str,
+    table_name: str,
+) -> None:
+    paths = _manifest_object_paths(consumer_harness, manifest)
     assert paths, "manifest must list the data files the CTAS wrote"
     for path in paths:
         assert path.startswith(f"{expected_location}/")
@@ -185,6 +180,31 @@ def test_read_sql_query_ctas_parquet_round_trip_live(
         f"s3://{consumer_harness.bucket}/{item['Key']}" for item in listing
     }
     assert set(paths) == object_paths
+
+
+def _ctas_table_name(wire_query: str, database: str) -> str:
+    match = re.search(
+        r'CREATE TABLE "(?P<database>[^"]+)"\.'
+        r'"(?P<table>[^"]+)"',
+        wire_query,
+    )
+    assert match is not None
+    assert match.group("database") == database
+    return match.group("table")
+
+
+def _manifest_object_paths(
+    consumer_harness: ConsumerHarness, manifest: str
+) -> list[str]:
+    manifest_key = "/".join(manifest.removeprefix("s3://").split("/")[1:])
+    body = (
+        consumer_harness.s3.get_object(
+            Bucket=consumer_harness.bucket, Key=manifest_key
+        )["Body"]
+        .read()
+        .decode("utf-8")
+    )
+    return [line for line in body.splitlines() if line]
 
 
 def test_create_ctas_table_registers_glue_table_live(

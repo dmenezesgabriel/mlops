@@ -129,20 +129,31 @@ def test_every_operation_round_trips_through_botocore(
         )
 
     if error_response is not None:
-        assert_modeled_client_error(error_response, operation)
-        message = error_response["Error"]["Message"]
-        if operation in implemented_operations():
-            assert NOT_IMPLEMENTED_MARKER not in message, (
-                f"{operation} is implemented but answered the default "
-                "not-yet-implemented error; the composition root lost its handler"
-            )
-        else:
-            assert NOT_IMPLEMENTED_MARKER in message, (
-                f"{operation} is unimplemented but did not answer "
-                "the not-yet-implemented error"
-            )
+        _assert_parity_error(error_response, operation)
         return
+    _assert_parity_success(result, operation)
 
+
+def _assert_parity_error(
+    error_response: dict[str, object], operation: str
+) -> None:
+    assert_modeled_client_error(error_response, operation)
+    message = error_response["Error"]["Message"]
+    if operation in implemented_operations():
+        assert NOT_IMPLEMENTED_MARKER not in message, (
+            f"{operation} is implemented but answered the default "
+            "not-yet-implemented error; the composition root lost its handler"
+        )
+        return
+    assert NOT_IMPLEMENTED_MARKER in message, (
+        f"{operation} is unimplemented but did not answer "
+        "the not-yet-implemented error"
+    )
+
+
+def _assert_parity_success(
+    result: dict[str, object] | None, operation: str
+) -> None:
     assert result is not None
     success_body = {
         key: value
