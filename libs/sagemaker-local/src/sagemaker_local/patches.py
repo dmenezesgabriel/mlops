@@ -1,3 +1,4 @@
+# pyright: reportPrivateUsage=false
 """Monkey-patches that make SageMaker local mode work offline and inside
 containers. All patches are idempotent and reversible via :func:`reset_all`.
 
@@ -26,6 +27,7 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import yaml
 
@@ -38,12 +40,12 @@ _DOCKERENV_PATH = Path("/.dockerenv")
 
 _COMPOSE_FILE_LABEL = "-f"
 _COMPOSE_CALLBACK = Callable[..., list[str]]
-_ORIGINAL_COMPOSE: _COMPOSE_CALLBACK | None = None
-_ORIGINAL_PREFIX: _COMPOSE_CALLBACK | None = None
-_ORIGINAL_GET_DOCKER_HOST: tuple[Callable[[], str], ...] | None = None
+_original_compose: _COMPOSE_CALLBACK | None = None
+_original_prefix: _COMPOSE_CALLBACK | None = None
+_original_get_docker_host: tuple[Callable[[], str], ...] | None = None
 
 
-def inject_network(compose: dict, network: str) -> None:
+def inject_network(compose: dict[str, Any], network: str) -> None:
     """Attach every service to an external docker network (idempotent).
 
     Example:
@@ -55,11 +57,11 @@ def inject_network(compose: dict, network: str) -> None:
     for service in compose.get("services", {}).values():
         networks = service.setdefault("networks", {})
         networks.setdefault(network, {})
-    top_level: dict = compose.setdefault("networks", {})
+    top_level: dict[str, Any] = compose.setdefault("networks", {})
     top_level.setdefault(network, external)
 
 
-def harden_service(service: dict) -> None:
+def harden_service(service: dict[str, Any]) -> None:
     """Add zombie-reaping init, bounded logs and a cleanup label (idempotent)."""
     service.setdefault("init", True)
     logging_cfg = service.setdefault("logging", {})
@@ -106,19 +108,19 @@ def tolerant_compose_cmd_prefix() -> list[str]:
 
 def apply_compose_patches(cfg: LocalModeConfig) -> None:
     """Install compose rewriting + detection patches exactly once per process."""
-    global _ORIGINAL_COMPOSE, _ORIGINAL_PREFIX
-    if _ORIGINAL_COMPOSE is not None:
+    global _original_compose, _original_prefix
+    if _original_compose is not None:
         return
     import sagemaker.local.image as sm_image
 
-    _ORIGINAL_COMPOSE = sm_image._SageMakerContainer._compose
-    _ORIGINAL_PREFIX = sm_image._SageMakerContainer._get_compose_cmd_prefix
+    _original_compose = sm_image._SageMakerContainer._compose
+    _original_prefix = sm_image._SageMakerContainer._get_compose_cmd_prefix
 
     container_cls = sm_image._SageMakerContainer
 
     def patched_compose(self: object, detached: bool = False) -> list[str]:
-        assert _ORIGINAL_COMPOSE is not None
-        compose_cmd = _ORIGINAL_COMPOSE(self, detached)
+        assert _original_compose is not None
+        compose_cmd = _original_compose(self, detached)
         path = Path(compose_cmd[compose_cmd.index(_COMPOSE_FILE_LABEL) + 1])
         _rewrite_compose_file(path, cfg)
         return compose_cmd
@@ -195,8 +197,8 @@ def apply_docker_host_patch(force: bool = False) -> None:
     Only activates when running inside a container unless ``force`` is set.
     Replaces ``get_docker_host`` in the three modules that import it by name.
     """
-    global _ORIGINAL_GET_DOCKER_HOST
-    if _ORIGINAL_GET_DOCKER_HOST is not None:
+    global _original_get_docker_host
+    if _original_get_docker_host is not None:
         return
     if not force and not _running_inside_container():
         logger.debug("not inside a container; skipping docker host patch")
@@ -215,7 +217,7 @@ def apply_docker_host_patch(force: bool = False) -> None:
             return gateway
         return fallback()
 
-    _ORIGINAL_GET_DOCKER_HOST = (
+    _original_get_docker_host = (
         sm_utils.get_docker_host,
         getattr(sm_entities, "get_docker_host"),  # noqa: B009
         getattr(sm_local_session, "get_docker_host"),  # noqa: B009
@@ -288,27 +290,27 @@ def cleanup_stale_serving_containers() -> int:
 
 def reset_all() -> None:
     """Undo every patch applied by this module (used by tests and teardown)."""
-    global _ORIGINAL_COMPOSE, _ORIGINAL_PREFIX, _ORIGINAL_GET_DOCKER_HOST
-    if _ORIGINAL_COMPOSE is not None:
+    global _original_compose, _original_prefix, _original_get_docker_host
+    if _original_compose is not None:
         import sagemaker.local.image as sm_image
 
         container_cls = sm_image._SageMakerContainer
-        container_cls._compose = _ORIGINAL_COMPOSE
+        container_cls._compose = _original_compose
         # pyright cannot type the staticmethod slot, so disassemble the raw
         # wrapper here; ruff's B010 does not apply to this roundabout restore.
-        setattr(container_cls, "_get_compose_cmd_prefix", _ORIGINAL_PREFIX)  # noqa: B010
-        _ORIGINAL_COMPOSE = None
-        _ORIGINAL_PREFIX = None
-    if _ORIGINAL_GET_DOCKER_HOST is not None:
+        setattr(container_cls, "_get_compose_cmd_prefix", _original_prefix)  # noqa: B010
+        _original_compose = None
+        _original_prefix = None
+    if _original_get_docker_host is not None:
         import sagemaker.local.entities as sm_entities
         import sagemaker.local.local_session as sm_local_session
         import sagemaker.local.utils as sm_utils
 
-        utils_ref, entities_ref, session_ref = _ORIGINAL_GET_DOCKER_HOST
+        utils_ref, entities_ref, session_ref = _original_get_docker_host
         for module, ref in (
             (sm_utils, utils_ref),
             (sm_entities, entities_ref),
             (sm_local_session, session_ref),
         ):
             _replace_module_attr(module, "get_docker_host", ref)
-        _ORIGINAL_GET_DOCKER_HOST = None
+        _original_get_docker_host = None

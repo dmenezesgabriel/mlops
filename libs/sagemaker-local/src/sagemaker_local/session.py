@@ -1,6 +1,9 @@
+# pyright: reportMissingTypeStubs=false, reportUnknownMemberType=false, reportUnknownVariableType=false
 """Factories for offline SageMaker sessions backed by a moto endpoint."""
 
 from __future__ import annotations
+
+from typing import Any
 
 import boto3
 import botocore.client
@@ -114,7 +117,7 @@ def _ensure_bucket(
             return
         if exc.response["Error"]["Code"] != "404":
             raise
-    kwargs: dict = {}
+    kwargs: dict[str, Any] = {}
     if cfg.region != "us-east-1":
         kwargs["CreateBucketConfiguration"] = {
             "LocationConstraint": cfg.region,
@@ -126,7 +129,7 @@ def _apply_local_mode_config(
     session: LocalSession, cfg: LocalModeConfig
 ) -> None:
     """Set the post-init local mode options (validated by the SDK setter)."""
-    local_cfg: dict = {
+    local_cfg: dict[str, Any] = {
         "local": {
             "serving_port": cfg.serving_port,
             "local_code": True,
