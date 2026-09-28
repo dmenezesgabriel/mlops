@@ -39,3 +39,11 @@ reportMissingReturnType = true
 reportUnnecessaryCast = true
 reportUnusedIgnoreComment = true
 reportMissingImports = false
+
+[tool.vulture]
+min_confidence = 80
+# src/ssg_latex/node_modules/katex is vendored upstream tooling, not ours.
+# handle_starttag's `attrs` keeps the stdlib HTMLParser callback signature.
+exclude = ["*/node_modules/*"]
+ignore_names = ["attrs"]
+sort_by_size = true
