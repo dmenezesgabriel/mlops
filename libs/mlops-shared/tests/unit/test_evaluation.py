@@ -56,6 +56,42 @@ def test_regression_metrics_reject_values_outside_thresholds() -> None:
         metrics.require_within(thresholds)
 
 
+def test_regression_metrics_reject_rmse_outside_threshold() -> None:
+    # Arrange
+    metrics = RegressionMetricCalculator().calculate([1.0, 1.0], [1.0, 3.0])
+    thresholds = StrictRegressionThresholds(max_mae=2.0, max_rmse=1.0)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="Invalid RMSE"):
+        metrics.require_within(thresholds)
+
+
+def test_regression_metrics_accept_values_at_threshold_boundary() -> None:
+    # Arrange — thresholds set to the computed metrics themselves so mae/rmse
+    # sit exactly on the boundary; a `>` -> `>=` mutation fails this test.
+    metrics = RegressionMetricCalculator().calculate([1.0, 3.0], [1.0, 1.0])
+    thresholds = StrictRegressionThresholds(
+        max_mae=metrics.mae, max_rmse=metrics.rmse
+    )
+
+    # Act / Assert — no exception
+    metrics.require_within(thresholds)
+
+
+def test_regression_metric_calculator_scores_perfect_nonconstant_actual() -> (
+    None
+):
+    # Arrange — non-constant actual keeps rss/tss != 1-rss/tss, so a mutant
+    # dropping the `1 -` fails this assertion.
+    calculator = RegressionMetricCalculator()
+
+    # Act
+    metrics = calculator.calculate([1.0, 2.0, 3.0], [1.0, 2.0, 3.0])
+
+    # Assert
+    assert metrics.r2 == 1.0
+
+
 def test_regression_metric_calculator_rejects_empty_inputs() -> None:
     # Arrange
     calculator = RegressionMetricCalculator()

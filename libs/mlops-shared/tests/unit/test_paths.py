@@ -52,3 +52,13 @@ def test_repository_path_resolver_normalizes_absolute_path(
 
     # Assert
     assert resolved_path == tmp_path / "b"
+
+
+def test_repository_path_resolver_exposes_normalized_root_path(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    resolver = RepositoryPathResolver(tmp_path / "sub" / "..")
+
+    # Act / Assert
+    assert resolver.root_path == tmp_path

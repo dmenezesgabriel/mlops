@@ -23,7 +23,7 @@
 | G-07 | mlops-shared | pipeline.py:43 | D1 | S3 | step whose `name` raises → RuntimeError propagates with zero log lines; started/failed pair broken | `run`: hoist `name` read or wrap the started-log line | waived |
 | G-08 | mlops-shared | datasets.py:8-27 | D4 | S3 | grep: 0 implementers/consumers repo-wide; speculative protocol surface (prior QF-6 vulture triage judged params "interface contract" — vulture disposition, not a design verdict) | delete module, or keep with documented extension-point reason at triage | shipped |
 | G-09 | mlops-shared | pipeline.py:32 | D4 | S3 | grep: 0 consumer subclasses (`videos` uses own port; scaffold template doesn't subclass) — only the test spy exercises it | delete `PipelineStep`, or keep with documented extension-point reason at triage | shipped |
-| G-10 | mlops-shared | tests/unit/* | D9 | S4 | mutants survived: `1 - rss/tss`→`rss/tss` (r2 unasserted), `>`→`>=` boundary; uncovered: evaluation.py:26-27,85 · logging.py:20,48-50 · paths.py:17,23 · pipeline.py:46-50 | assert `r2`/`require_within` boundary; cover `configure`, step-failure, absolute-path, exc_info branches | promoted |
+| G-10 | mlops-shared | tests/unit/* | D9 | S4 | mutants survived: `1 - rss/tss`→`rss/tss` (r2 unasserted), `>`→`>=` boundary; uncovered: evaluation.py:26-27,85 · logging.py:20,48-50 · paths.py:17,23 · pipeline.py:46-50 | assert `r2`/`require_within` boundary; cover `configure`, step-failure, absolute-path, exc_info branches | shipped |
 
 ## Triage
 
@@ -41,4 +41,4 @@ Rows are dispositioned at each milestone's remediation step; `shipped` and
 | G-07 | waived | — | fix surface deleted by AF-05 (`PipelineStep` removal under G-09) |
 | G-08 | shipped | AF-05 | deleted `datasets.py` + pyproject vulture `ignore_names`+comment 2026-09-28; `make quality` green — 19 tests, 96.90% cov, vulture clean at min-confidence 80 without ignores |
 | G-09 | shipped | AF-05 | deleted `PipelineStep` + `SpyPipelineStep` test + now-unused `abc`/`logging` imports 2026-09-28; batched with G-08 — one speculative-surface removal |
-| G-10 | promoted | AF-06 | residual coverage — sequenced last so AF-02…AF-05 fix tests settle scope |
+| G-10 | shipped | AF-06 | +6 tests cover RMSE reject, boundary equality, non-constant perfect r2, exc_info, configure(), root_path; both surviving mutants now killed; coverage 96.90%→100%, floor 75→95 (2026-09-28) |

@@ -13,7 +13,7 @@
   via pyproject `dependencies` + entry points).
 - [x] Parent `docs/repo-quality/README.md` doc map points here.
 
-## MA-1 — Spike (calibration)
+## MA-1 — Spike (calibration) ✅
 
 - [x] **AU-01** `libs/mlops-shared` — smallest foundation, depended on by all
   projects. Proves the rubric end-to-end and produces the effort-vs-size
@@ -22,9 +22,8 @@
   split `L` items further in `backlog.md` before proceeding. (Verdict:
   sizing holds — suspect count, not LOC, drives effort; all `L` items are
   pre-split by plane ≤~1600 LOC.)
-- [ ] Ship promoted `AF-*` + mark gap rows. (AF-01/S1 + AF-02 + AF-03 +
-  AF-04 + AF-05 shipped; AF-06 pending; G-07 waived, surface deleted by
-  AF-05.)
+- [x] Ship promoted `AF-*` + mark gap rows. (AF-01/S1 + AF-02 + AF-03 +
+  AF-04 + AF-05 + AF-06 shipped; G-07 waived, surface deleted by AF-05.)
 
 ## MA-2 — Foundations
 
