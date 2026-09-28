@@ -27,7 +27,7 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
@@ -69,8 +69,9 @@ def harden_service(service: dict[str, Any]) -> None:
     logging_cfg.setdefault("options", {}).setdefault("max-size", "10m")
     labels = service.setdefault("labels", {})
     if isinstance(labels, list):
-        if "sagemaker.local=true" not in labels:
-            labels.append("sagemaker.local=true")
+        labels_list = cast(list[str], labels)
+        if "sagemaker.local=true" not in labels_list:
+            labels_list.append("sagemaker.local=true")
     else:
         labels.setdefault("sagemaker.local", "true")
 
@@ -208,7 +209,7 @@ def apply_docker_host_patch(force: bool = False) -> None:
     import sagemaker.local.local_session as sm_local_session
     import sagemaker.local.utils as sm_utils
 
-    fallback = sm_utils.get_docker_host
+    fallback = cast(Callable[[], str], sm_utils.get_docker_host)
 
     def gateway_getter() -> str:
         gateway = _gateway_from_proc()

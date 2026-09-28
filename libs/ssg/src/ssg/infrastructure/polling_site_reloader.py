@@ -63,7 +63,7 @@ class PollingSiteReloader(SiteReloader):
         watched_paths: tuple[Path, ...],
         ignored_paths: tuple[Path, ...] = (),
     ) -> tuple[tuple[str, int, int], ...]:
-        files = []
+        files: list[tuple[str, int, int]] = []
         for watched_path in watched_paths:
             for path in watched_path.rglob("*"):
                 if not path.is_file():

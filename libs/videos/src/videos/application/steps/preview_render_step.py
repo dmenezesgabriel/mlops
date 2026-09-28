@@ -6,7 +6,7 @@ import logging
 from videos.application.pipeline_context import PipelineContext
 from videos.application.ports.artifact_store import ArtifactStore
 from videos.application.ports.layout_engine import LayoutEngine
-from videos.application.ports.renderer import Renderer
+from videos.application.ports.renderer import Renderer, RenderResult
 from videos.application.ports.scene_builder import SceneBuilder
 from videos.application.ports.telemetry import Telemetry
 
@@ -33,7 +33,7 @@ class PreviewRenderStep:
             raise RuntimeError(
                 "PreviewRenderStep requires storyboard to be set in context"
             )
-        results: list = []
+        results: list[RenderResult] = []
         renderer_context = (
             self._renderer.quality_context(context.quality)
             if hasattr(self._renderer, "quality_context")

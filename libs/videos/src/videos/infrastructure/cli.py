@@ -71,7 +71,7 @@ def main() -> None:
     artifact_store = FileSystemArtifactStore(output_root=args.output_dir)
     telemetry = ConsoleTelemetry()
     try:
-        from videos_linter.linter_service import (
+        from videos_linter.linter_service import (  # pyright: ignore[reportMissingTypeStubs]
             LinterService as AdvancedLinter,
         )
 

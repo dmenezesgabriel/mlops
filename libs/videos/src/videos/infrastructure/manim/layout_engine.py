@@ -33,7 +33,7 @@ class ManimLayoutEngine:
         if not scene.components:
             return scene
 
-        new_components = []
+        new_components: list[ComponentSpec] = []
         region_counts: dict[LayoutRegion, int] = {}
         for comp in scene.components:
             region = LayoutRegion(comp.region)

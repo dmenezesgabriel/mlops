@@ -24,7 +24,7 @@ class LinterService:
     def verify_geometry(
         self, mobjects: list[Any], scene_id: str
     ) -> list[RuleViolation]:
-        violations = []
+        violations: list[RuleViolation] = []
         # Check every pair of mobjects for overlap
         for i in range(len(mobjects)):
             for j in range(i + 1, len(mobjects)):

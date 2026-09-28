@@ -60,11 +60,11 @@ functional.
 
 ## MQ-3 — Hardening (user-approved stretch)
 
-1. [ ] Coverage floors: measure current % per package, wire
+1. [x] Coverage floors: measure current % per package, wire
    `--cov-fail-under` ratchets (target ≥75 matching athena; a package
    below floor gets a test-coverage sub-item or a documented floor with
    reason — no silent waivers).
-2. [ ] Pyright `standard`→`strict` per lib, athena QA-6 playbook (its
+2. [x] Pyright `standard`→`strict` per lib, athena QA-6 playbook (its
    flip cost 72 errors / 33 kLOC); root pyproject stays `standard`.
 
 Exit: floors and strictness ratcheted where measured feasible; the doc

@@ -32,7 +32,7 @@ class DensityAnalyzer:
 
             # Calculate spread as a ratio of image height
             # (using height as a proxy for vertical spread across regions)
-            img_width, img_height = img.size
+            _, img_height = img.size
             content_height = bbox[3] - bbox[1]
             spread_ratio = content_height / img_height
 

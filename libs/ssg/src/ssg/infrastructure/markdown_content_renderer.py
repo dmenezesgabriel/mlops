@@ -1,27 +1,13 @@
 import html
+import importlib
 import re
 import shutil
+from collections.abc import Callable
 from pathlib import Path
+from typing import cast
 
 from jinja2 import Environment, StrictUndefined
 from markdown_it import MarkdownIt
-
-try:
-    # Prefer the explicit table plugin when available
-    from mdit_py_plugins.table import table_plugin
-except (
-    Exception
-):  # pragma: no cover - optional runtime dependency during tests
-    table_plugin = None
-
-# Some releases expose table support as part of the GFM plugin. Import the
-# GFM plugin as a fallback so we still get table parsing if available.
-try:
-    from mdit_py_plugins.gfm import gfm_plugin
-except (
-    Exception
-):  # pragma: no cover - optional runtime dependency during tests
-    gfm_plugin = None  # type: ignore[assignment]
 from markupsafe import Markup
 
 from ssg.application.ports import ContentRenderer
@@ -34,6 +20,35 @@ from ssg.domain import (
 from ssg.infrastructure.frontend.media_components import (
     FrontendFragmentRenderer,
 )
+
+# mdit_py_plugins.table exists only in some releases (absent in 0.6.1); the
+# GFM plugin below provides table parsing there. Bindings are declared first
+# so the optional import never leaves an Unknown-typed symbol.
+table_plugin: Callable[[MarkdownIt], None] | None = None
+gfm_plugin: Callable[[MarkdownIt], None] | None = None
+try:
+    # Prefer the explicit table plugin when available; import_module keeps
+    # the optional boundary typed since the submodule may not exist.
+    table_plugin = cast(
+        Callable[[MarkdownIt], None],
+        getattr(
+            importlib.import_module("mdit_py_plugins.table"),
+            "table_plugin",
+            None,
+        ),
+    )
+except (
+    Exception
+):  # pragma: no cover - optional runtime dependency during tests
+    pass
+try:
+    from mdit_py_plugins.gfm import gfm_plugin as _gfm_plugin
+except (
+    Exception
+):  # pragma: no cover - optional runtime dependency during tests
+    pass
+else:
+    gfm_plugin = _gfm_plugin
 
 
 class MarkdownContentRenderer(ContentRenderer):
@@ -94,16 +109,26 @@ class MarkdownContentRenderer(ContentRenderer):
     ) -> str:
         environment = Environment(autoescape=True, undefined=StrictUndefined)
         template = environment.from_string(source)
-        return template.render(
-            include_source=lambda source_path: self._include_source(
+
+        def include_source(source_path: str) -> Markup:
+            return self._include_source(
                 collection, source_path, context, page, transclusions
-            ),
-            embed_video=lambda video_name: self._embed_video(
+            )
+
+        def embed_video(video_name: str) -> Markup:
+            return self._embed_video(
                 collection, context, page, video_name, transclusions
-            ),
-            embed_image=lambda image_name: self._embed_image(
+            )
+
+        def embed_image(image_name: str) -> Markup:
+            return self._embed_image(
                 collection, context, page, image_name, transclusions
-            ),
+            )
+
+        return template.render(
+            include_source=include_source,
+            embed_video=embed_video,
+            embed_image=embed_image,
         )
 
     def _include_source(

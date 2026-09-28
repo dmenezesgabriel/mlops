@@ -1,5 +1,6 @@
 from collections.abc import Mapping
 from pathlib import Path
+from typing import cast
 
 import yaml
 
@@ -25,7 +26,7 @@ class SiteConfigRepository(SiteRepository):
     def _load_yaml_mapping(self, config_path: Path) -> dict[object, object]:
         parsed_yaml = yaml.safe_load(config_path.read_text(encoding="utf-8"))
         if isinstance(parsed_yaml, dict):
-            return parsed_yaml
+            return cast(dict[object, object], parsed_yaml)
 
         raise ValueError(
             f"Invalid site config {config_path}: expected YAML mapping, "
@@ -39,27 +40,28 @@ class SiteConfigRepository(SiteRepository):
             raise ValueError(
                 f"Invalid collection in {config_path}: expected mapping"
             )
+        collection_map = cast(dict[object, object], collection)
 
         source_root = self._path_from_config(
             config_path,
-            self._required_string(collection, "source_root", config_path),
+            self._required_string(collection_map, "source_root", config_path),
         )
-        name = self._required_string(collection, "name", config_path)
+        name = self._required_string(collection_map, "name", config_path)
         return ContentCollection(
             name=name,
-            title=self._required_string(collection, "title", config_path),
+            title=self._required_string(collection_map, "title", config_path),
             source_root=source_root,
             output_slug=str(
-                collection.get("output_slug", name.replace("_", "-"))
+                collection_map.get("output_slug", name.replace("_", "-"))
             ),
             pages=tuple(
                 self._read_page(page, source_root, config_path)
                 for page in self._required_list(
-                    collection, "pages", config_path
+                    collection_map, "pages", config_path
                 )
             ),
-            videos=self._read_videos(collection, config_path),
-            images=self._read_images(collection, config_path),
+            videos=self._read_videos(collection_map, config_path),
+            images=self._read_images(collection_map, config_path),
         )
 
     def _read_page(
@@ -69,12 +71,13 @@ class SiteConfigRepository(SiteRepository):
             raise ValueError(
                 f"Invalid page in {config_path}: expected mapping"
             )
+        page_map = cast(dict[object, object], page)
 
         return Page(
-            slug=self._required_string(page, "slug", config_path),
-            title=self._required_string(page, "title", config_path),
+            slug=self._required_string(page_map, "slug", config_path),
+            title=self._required_string(page_map, "title", config_path),
             source_path=source_root
-            / self._required_string(page, "source", config_path),
+            / self._required_string(page_map, "source", config_path),
         )
 
     def _read_videos(
@@ -85,16 +88,18 @@ class SiteConfigRepository(SiteRepository):
             raise ValueError(
                 f"Invalid assets in {config_path}: expected mapping"
             )
+        assets_map = cast(dict[object, object], assets)
 
-        videos = assets.get("videos", {})
+        videos = assets_map.get("videos", {})
         if not isinstance(videos, dict):
             raise ValueError(
                 f"Invalid asset videos in {config_path}: expected mapping"
             )
+        videos_map = cast(dict[object, object], videos)
 
         return {
             str(name): self._path_from_config(config_path, str(video_path))
-            for name, video_path in videos.items()
+            for name, video_path in videos_map.items()
         }
 
     def _read_images(
@@ -105,16 +110,18 @@ class SiteConfigRepository(SiteRepository):
             raise ValueError(
                 f"Invalid assets in {config_path}: expected mapping"
             )
+        assets_map = cast(dict[object, object], assets)
 
-        images = assets.get("images", {})
+        images = assets_map.get("images", {})
         if not isinstance(images, dict):
             raise ValueError(
                 f"Invalid asset images in {config_path}: expected mapping"
             )
+        images_map = cast(dict[object, object], images)
 
         return {
             str(name): self._path_from_config(config_path, str(image_path))
-            for name, image_path in images.items()
+            for name, image_path in images_map.items()
         }
 
     def _read_extensions(
@@ -127,12 +134,13 @@ class SiteConfigRepository(SiteRepository):
             raise ValueError(
                 f"Invalid extensions in {config_path}: expected mapping"
             )
+        extensions_map = cast(dict[object, object], extensions)
 
         return {
             str(extension_name): self._read_extension_settings(
                 str(extension_name), extension_settings, config_path
             )
-            for extension_name, extension_settings in extensions.items()
+            for extension_name, extension_settings in extensions_map.items()
         }
 
     def _read_extension_settings(
@@ -145,12 +153,13 @@ class SiteConfigRepository(SiteRepository):
             raise ValueError(
                 f"Invalid extension {extension_name} in {config_path}: expected mapping"
             )
+        settings_map = cast(dict[object, object], extension_settings)
 
         return {
             str(setting_name): self._extension_setting_string(
                 extension_name, str(setting_name), setting_value, config_path
             )
-            for setting_name, setting_value in extension_settings.items()
+            for setting_name, setting_value in settings_map.items()
         }
 
     def _extension_setting_string(
@@ -185,7 +194,7 @@ class SiteConfigRepository(SiteRepository):
     ) -> Mapping[object, object]:
         value = config.get(key)
         if isinstance(value, dict):
-            return value
+            return cast(dict[object, object], value)
 
         raise ValueError(
             f"Invalid site config {config_path}: expected {key} mapping"
@@ -199,7 +208,7 @@ class SiteConfigRepository(SiteRepository):
     ) -> list[object]:
         value = config.get(key)
         if isinstance(value, list):
-            return value
+            return cast(list[object], value)
 
         raise ValueError(
             f"Invalid site config {config_path}: expected {key} list"

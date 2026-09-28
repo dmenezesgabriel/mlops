@@ -1,6 +1,7 @@
 import json
 import logging
 from datetime import UTC, datetime
+from typing import cast
 
 
 class JsonLogFormatter(logging.Formatter):
@@ -23,7 +24,8 @@ class JsonLogFormatter(logging.Formatter):
     def _context(self, record: logging.LogRecord) -> dict[str, object]:
         context = getattr(record, "context", {})
         if isinstance(context, dict):
-            return {str(key): value for key, value in context.items()}
+            context_map = cast(dict[object, object], context)
+            return {str(key): value for key, value in context_map.items()}
 
         return {"value": str(context)}
 

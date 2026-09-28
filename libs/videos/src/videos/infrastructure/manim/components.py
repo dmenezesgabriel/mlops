@@ -1,3 +1,6 @@
+# pyright: reportMissingModuleSource=false, reportUnknownVariableType=false, reportUnknownMemberType=false, reportUnknownParameterType=false, reportUnknownArgumentType=false
+# manim is an optional extra installed only in the render container and
+# ships no type information; this module is the adapters' boundary to it.
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -83,7 +86,11 @@ def create_target(
 
 class TitleComponent:
     def build(self, spec: ComponentSpec, scene: object) -> Any:
-        from manim import Scene, Text, Write
+        from manim import (  # pyright: ignore[reportUnusedImport]
+            Scene,
+            Text,
+            Write,
+        )
 
         content = str(spec.props.get("content", spec.region))
         text = Text(content, font_size=40)
@@ -98,7 +105,11 @@ class TitleComponent:
 
 class TextComponent:
     def build(self, spec: ComponentSpec, scene: object) -> Any:
-        from manim import Scene, Text, Write
+        from manim import (  # pyright: ignore[reportUnusedImport]
+            Scene,
+            Text,
+            Write,
+        )
 
         content = str(spec.props.get("content", ""))
         text = Text(content, font_size=24)
@@ -113,7 +124,7 @@ class TextComponent:
 
 class DiagramComponent:
     def build(self, spec: ComponentSpec, scene: object) -> Any:
-        from manim import Scene, Write
+        from manim import Scene, Write  # pyright: ignore[reportUnusedImport]
 
         kind = str(spec.props.get("kind", "cycle"))
         labels = cast(list[str], spec.props.get("labels", []))

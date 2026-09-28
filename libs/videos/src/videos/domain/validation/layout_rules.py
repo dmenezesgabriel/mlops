@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Protocol, cast
 
 from videos.domain.layout import LayoutRegion
 from videos.domain.quality import RuleViolation
@@ -74,12 +74,13 @@ class LayoutRules:
             if comp.type == "diagram":
                 kind = comp.props.get("kind")
                 if kind in ("cycle", "linear"):
-                    labels = comp.props.get("labels")
-                    if (
-                        not labels
-                        or not isinstance(labels, (list, tuple))
-                        or len(labels) == 0
-                    ):
+                    raw_labels = comp.props.get("labels")
+                    labels = (
+                        cast(list[object] | tuple[object, ...], raw_labels)
+                        if isinstance(raw_labels, (list, tuple))
+                        else []
+                    )
+                    if not labels:
                         violations.append(
                             RuleViolation(
                                 scene_id=scene.scene_id,

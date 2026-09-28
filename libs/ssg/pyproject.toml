@@ -51,7 +51,7 @@ markers = [
 
 [tool.pyright]
 pythonVersion = "3.11"
-typeCheckingMode = "standard"
+typeCheckingMode = "strict"
 reportMissingParameterType = true
 reportMissingReturnType = true
 reportUnnecessaryCast = true

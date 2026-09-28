@@ -1,3 +1,6 @@
+# pyright: reportMissingModuleSource=false, reportUnknownVariableType=false, reportUnknownMemberType=false, reportUnknownParameterType=false, reportUnknownArgumentType=false
+# manim is an optional extra installed only in the render container and
+# ships no type information; this module is the adapters' boundary to it.
 from __future__ import annotations
 
 import contextlib

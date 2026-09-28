@@ -118,7 +118,7 @@ def preview_site(
 
 
 def load_content_renderers() -> tuple[ContentRenderer, ...]:
-    plugin_renderers = []
+    plugin_renderers: list[ContentRenderer] = []
     for entry_point in entry_points(group="ssg.renderers"):
         renderer = entry_point.load()()
         LOGGER.info(
@@ -131,7 +131,7 @@ def load_content_renderers() -> tuple[ContentRenderer, ...]:
 
 
 def load_html_post_processors() -> tuple[HtmlPostProcessor, ...]:
-    html_post_processors = []
+    html_post_processors: list[HtmlPostProcessor] = []
     for entry_point in entry_points(group="ssg.html_post_processors"):
         html_post_processor = entry_point.load()()
         LOGGER.info(
@@ -144,8 +144,8 @@ def load_html_post_processors() -> tuple[HtmlPostProcessor, ...]:
 
 
 def load_site_variant_provider() -> SiteVariantProvider | None:
-    providers = []
-    provider_names = []
+    providers: list[SiteVariantProvider] = []
+    provider_names: list[str] = []
     for entry_point in entry_points(group="ssg.site_variant_providers"):
         providers.append(entry_point.load()())
         provider_names.append(entry_point.name)
