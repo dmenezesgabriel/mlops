@@ -65,7 +65,7 @@ def run(config_path: Path) -> None:
         "month",
     ]
     predictions = cast(
-        "Iterable[float]",
+        Iterable[float],
         model.predict(  # pyright: ignore[reportUnknownMemberType]
             test_frame.loc[:, feature_columns]
         ),

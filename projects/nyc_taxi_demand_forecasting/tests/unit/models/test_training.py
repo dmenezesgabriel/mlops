@@ -1,8 +1,22 @@
+from pathlib import Path
+
 import pandas as pd
 import pytest
+from fakes import (
+    FakeFeastModule,
+    FakeFeatureStore,
+    FakeMlflowModule,
+    entity_frame,
+    import_module_for,
+    project_config,
+    training_frame,
+)
+from nyc_taxi_demand_forecasting.models import training as training_module
 from nyc_taxi_demand_forecasting.models.training import (
     DemandDatasetSplitter,
+    DemandModelTrainer,
     LinearDemandRegressor,
+    MedianDemandRegressor,
     PyfuncDemandModel,
     RidgeDemandRegressor,
 )
@@ -90,3 +104,60 @@ def test_demand_dataset_splitter_preserves_order() -> None:
     # Assert
     assert train_frame["pickup_count"].to_list() == [1, 2, 3]
     assert test_frame["pickup_count"].to_list() == [4, 5]
+
+
+def test_median_demand_regressor_predicts_training_median() -> None:
+    # Arrange
+    features = pd.DataFrame({"pickup_count": [1.0, 2.0, 3.0]})
+    target = pd.Series([10.0, 20.0, 60.0])
+
+    # Act
+    model = MedianDemandRegressor().fit(features, target)
+    predictions = model.predict(pd.DataFrame({"pickup_count": [9.0, 9.0]}))
+
+    # Assert
+    assert predictions.to_list() == [20.0, 20.0]
+
+
+def test_trainer_trains_evaluates_and_logs_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Arrange
+    config = project_config(tmp_path)
+    dataset_path = tmp_path / "entities.parquet"
+    entity_frame().to_parquet(dataset_path, index=False)
+    FakeFeatureStore.historical_result = training_frame()
+    fake_mlflow = FakeMlflowModule()
+    monkeypatch.setattr(
+        training_module,
+        "import_module",
+        import_module_for({"feast": FakeFeastModule}),
+    )
+    monkeypatch.setattr(training_module, "mlflow", fake_mlflow)
+
+    # Act
+    metrics = DemandModelTrainer().train(
+        dataset_path,
+        config.paths.models,
+        config.training,
+        config.mlflow,
+        config.feast,
+        alpha=0.5,
+    )
+
+    # Assert
+    assert metrics.mae >= 0
+    store = FakeFeatureStore.instances[0]
+    assert store.repo_path == str(config.feast.repo_path)
+    assert fake_mlflow.params == {"alpha": 0.5}
+    assert set(fake_mlflow.metrics) == {"mae", "rmse", "r2"}
+    assert "model_summary.txt" in fake_mlflow.texts
+    assert fake_mlflow.pyfunc.logged_models[0] == {
+        "artifact_path": "model",
+        "python_model": fake_mlflow.pyfunc.logged_models[0]["python_model"],
+        "registered_model_name": "model",
+    }
+    assert isinstance(
+        fake_mlflow.pyfunc.logged_models[0]["python_model"],
+        PyfuncDemandModel,
+    )

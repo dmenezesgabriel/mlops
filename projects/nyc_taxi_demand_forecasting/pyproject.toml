@@ -62,8 +62,15 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["tests"]
 addopts = "-q -rfEs --tb=short --show-capture=no --import-mode=importlib"
 console_output_style = "classic"
+
+[tool.coverage.run]
+# bare `--cov` traces the editable `mlops_shared` workspace dependency; those
+# modules are covered by mlops-shared's own suite, so measure only this
+# package's code.
+source = ["src", "tests"]
 
 [tool.pyright]
 pythonVersion = "3.11"

@@ -1,8 +1,12 @@
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
+from fakes import FakeFeatureStore
 from fastapi.testclient import TestClient
-from nyc_taxi_demand_forecasting.inference.api import app
+from nyc_taxi_demand_forecasting.inference.api import (
+    app,
+    fetch_online_features,
+)
 
 
 @patch("nyc_taxi_demand_forecasting.inference.api._model")
@@ -87,3 +91,46 @@ def test_predict_returns_404_when_features_not_found(
         response.json()["detail"]
         == "No online features found for location ID 142"
     )
+
+
+@patch("nyc_taxi_demand_forecasting.inference.api._model")
+@patch("nyc_taxi_demand_forecasting.inference.api.fetch_online_features")
+def test_predict_returns_500_when_feature_store_fails(
+    mock_fetch: MagicMock, mock_model: MagicMock
+) -> None:
+    # Arrange
+    client = TestClient(app)
+    mock_fetch.side_effect = RuntimeError("store unavailable")
+
+    # Act
+    response = client.get("/predict/142")
+
+    # Assert
+    assert response.status_code == 500
+    assert "Failed to retrieve features" in response.json()["detail"]
+
+
+def test_fetch_online_features_queries_online_store() -> None:
+    # Arrange
+    expected = pd.DataFrame([{"pickup_count": 10, "hour": 8}])
+    FakeFeatureStore.online_result = expected
+    store = FakeFeatureStore(repo_path="repo")
+
+    # Act
+    with patch("nyc_taxi_demand_forecasting.inference.api._store", store):
+        features = fetch_online_features(142)
+
+    # Assert
+    assert features is expected
+    assert store.online_calls == [
+        (
+            [
+                "hourly_pickup_demand:pickup_count",
+                "hourly_pickup_demand:hour",
+                "hourly_pickup_demand:day_of_week",
+                "hourly_pickup_demand:is_weekend",
+                "hourly_pickup_demand:month",
+            ],
+            [{"pickup_location_id": 142}],
+        )
+    ]
