@@ -19,13 +19,12 @@ class OverlapDetector:
         # Intersection logic for 2D rectangles in the XY plane
         # Rect A: [dl_a[0], ur_a[0]] x [dl_a[1], ur_a[1]]
         # Rect B: [dl_b[0], ur_b[0]] x [dl_b[1], ur_b[1]]
-
-        # No overlap if one rectangle is to the left of the other
-        if ur_a[0] <= dl_b[0] or ur_b[0] <= dl_a[0]:
-            return False
-
-        # No overlap if one rectangle is above the other
-        if ur_a[1] <= dl_b[1] or ur_b[1] <= dl_a[1]:
-            return False
-
-        return True
+        # No overlap if one rectangle is fully left/right or above/below
+        # the other — touching edges do not count as overlap.
+        separated = (
+            ur_a[0] <= dl_b[0]
+            or ur_b[0] <= dl_a[0]
+            or ur_a[1] <= dl_b[1]
+            or ur_b[1] <= dl_a[1]
+        )
+        return not separated
