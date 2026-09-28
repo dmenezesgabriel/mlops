@@ -6,9 +6,50 @@ import mlflow
 import numpy as np
 import pandas as pd
 from mlflow.client import MlflowClient
+from mlflow.pyfunc import PyFuncModel
 from mlops_shared.evaluation import RegressionMetricCalculator
 
 from nyc_taxi_demand_forecasting.configuration import ProjectConfigLoader
+
+
+def _load_champion_model(
+    client: MlflowClient, model_name: str
+) -> tuple[PyFuncModel, str]:
+    """Champion alias, falling back to the latest version if unset."""
+    try:
+        model_uri = f"models:/{model_name}@champion"
+        model = mlflow.pyfunc.load_model(model_uri)
+        champion_version_info = client.get_model_version_by_alias(
+            model_name, "champion"
+        )
+        return model, champion_version_info.version
+    except Exception as err:
+        # Fallback if champion alias is not yet set
+        latest_versions = client.get_latest_versions(name=model_name)
+        if not latest_versions:
+            raise ValueError(
+                f"No model found for monitoring under name {model_name}"
+            ) from err
+        version = latest_versions[0].version
+        model_uri = f"models:/{model_name}/{version}"
+        return mlflow.pyfunc.load_model(model_uri), version
+
+
+def _pickup_drift_stats(
+    training_data: pd.DataFrame, simulated_prod: pd.DataFrame
+) -> tuple[float, float, float, str]:
+    train_mean = float(training_data["pickup_count"].mean())
+    prod_mean = float(simulated_prod["pickup_count"].mean())
+    drift_pct = (
+        ((prod_mean - train_mean) / train_mean) * 100
+        if train_mean != 0
+        else 0.0
+    )
+    if abs(drift_pct) > 10.0:
+        return train_mean, prod_mean, drift_pct, "🚨 Drift Detected (Warning)"
+    if abs(drift_pct) > 5.0:
+        return train_mean, prod_mean, drift_pct, "⚠️ Mild Drift (Caution)"
+    return train_mean, prod_mean, drift_pct, "Normal"
 
 
 def run(config_path: Path) -> None:
@@ -22,24 +63,7 @@ def run(config_path: Path) -> None:
     client = MlflowClient()
 
     model_name = config.mlflow.registered_model_name
-    try:
-        model_uri = f"models:/{model_name}@champion"
-        model = mlflow.pyfunc.load_model(model_uri)
-        champion_version_info = client.get_model_version_by_alias(
-            model_name, "champion"
-        )
-        version = champion_version_info.version
-    except Exception as err:
-        # Fallback if champion alias is not yet set
-        latest_versions = client.get_latest_versions(name=model_name)
-        if latest_versions:
-            version = latest_versions[0].version
-            model_uri = f"models:/{model_name}/{version}"
-            model = mlflow.pyfunc.load_model(model_uri)
-        else:
-            raise ValueError(
-                f"No model found for monitoring under name {model_name}"
-            ) from err
+    model, version = _load_champion_model(client, model_name)
 
     # 3. Create simulated production inference dataset with custom demand drift
     np.random.seed(config.training.random_state)
@@ -68,19 +92,9 @@ def run(config_path: Path) -> None:
     )
 
     # 6. Analyze data drift on the key feature 'pickup_count'
-    train_mean = float(training_data["pickup_count"].mean())
-    prod_mean = float(simulated_prod["pickup_count"].mean())
-    drift_pct = (
-        ((prod_mean - train_mean) / train_mean) * 100
-        if train_mean != 0
-        else 0.0
+    train_mean, prod_mean, drift_pct, drift_status = _pickup_drift_stats(
+        training_data, simulated_prod
     )
-
-    drift_status = "Normal"
-    if abs(drift_pct) > 10.0:
-        drift_status = "🚨 Drift Detected (Warning)"
-    elif abs(drift_pct) > 5.0:
-        drift_status = "⚠️ Mild Drift (Caution)"
 
     # 7. Write the monitoring report markdown
     report_dir = config.paths.reports
