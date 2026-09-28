@@ -21,6 +21,29 @@ def test_regression_metric_calculator_computes_errors() -> None:
     # Assert
     assert metrics.mae == 1 / 3
     assert round(metrics.rmse, 6) == 0.57735
+    assert metrics.r2 == 0.5
+
+
+def test_regression_metric_calculator_scores_perfect_constant_actual() -> None:
+    # Arrange
+    calculator = RegressionMetricCalculator()
+
+    # Act
+    metrics = calculator.calculate([1.0, 1.0, 1.0], [1.0, 1.0, 1.0])
+
+    # Assert
+    assert metrics.r2 == 1.0
+
+
+def test_regression_metric_calculator_scores_wrong_constant_actual() -> None:
+    # Arrange
+    calculator = RegressionMetricCalculator()
+
+    # Act
+    metrics = calculator.calculate([1.0, 1.0, 1.0], [2.0, 2.0, 2.0])
+
+    # Assert
+    assert metrics.r2 == 0.0
 
 
 def test_regression_metrics_reject_values_outside_thresholds() -> None:

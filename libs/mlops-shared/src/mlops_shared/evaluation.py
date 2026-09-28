@@ -81,10 +81,10 @@ class RegressionMetricCalculator:
         total_sum_squares = fsum(
             (actual_value - actual_mean) ** 2 for actual_value in actual
         )
-        if total_sum_squares == 0:
-            return 0.0
-
         residual_sum_squares = fsum(
             residual * residual for residual in residuals
         )
+        if total_sum_squares == 0:
+            return 1.0 if residual_sum_squares == 0 else 0.0
+
         return 1 - residual_sum_squares / total_sum_squares

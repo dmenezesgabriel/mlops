@@ -56,5 +56,5 @@
 
 | ID | Item | Gap row | Severity | Acceptance | Size |
 |---|---|---|---|---|---|
-| AF-01 | Fix G-01 — `_r2` returns 0.0 on constant `actual` regardless of fit; adopt sklearn `force_finite` convention (tss==0 → 1.0 when rss==0, else 0.0) + regression test | G-01 | S1 | RED→GREEN + gates | XS |
+| AF-01 | [x] done 2026-09-28 — `_r2` hoists rss and returns 1.0 on perfect constant-actual fit; r2 now asserted on constant + non-constant paths | Fix G-01 — `_r2` returns 0.0 on constant `actual` regardless of fit; adopt sklearn `force_finite` convention (tss==0 → 1.0 when rss==0, else 0.0) + regression test | G-01 | S1 | RED→GREEN + gates | XS |
 | AF-* | *(remaining G-02…G-10 rows promote at the MA-1 remediation step — triage to fix or waive)* | | | RED→GREEN + gates | |

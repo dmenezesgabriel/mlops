@@ -14,7 +14,7 @@
 
 | ID | Pkg | File:line | Dim | Severity | Measured evidence | Candidate fix surface | Status |
 |---|---|---|---|---|---|---|---|
-| G-01 | mlops-shared | evaluation.py:84-85 | D1 | S1 | `calculate([1]*3,[1]*3).r2==0.0`; sklearn `r2_score` → 1.0 perfect / 0.0 wrong — impl returns 0.0 for both, perfect vs garbage indistinguishable; consumed observability-only (mlflow metrics, monitor report) | `_r2`: when `tss==0` return `1.0` if `rss==0` else `0.0` (sklearn force_finite convention) | open |
+| G-01 | mlops-shared | evaluation.py:84-85 | D1 | S1 | `calculate([1]*3,[1]*3).r2==0.0`; sklearn `r2_score` → 1.0 perfect / 0.0 wrong — impl returns 0.0 for both, perfect vs garbage indistinguishable; consumed observability-only (mlflow metrics, monitor report) | `_r2`: when `tss==0` return `1.0` if `rss==0` else `0.0` (sklearn force_finite convention) | shipped |
 | G-02 | mlops-shared | logging.py:21,28-34 | D1 | S3 | `extra={"level":"SPOOFED","timestamp":"1970"}` on an ERROR record → output JSON carries spoofed `level`/`timestamp`; extras not filtered against reserved payload keys | `_extra_context`: exclude reserved payload field names | open |
 | G-03 | mlops-shared | logging.py:33,36-37 | D1 | S3 | `extra={"run_id": object()}` absent from output — silent drop | `_extra_context`/`_is_json_scalar`: `str(value)` fallback for non-scalars | open |
 | G-04 | mlops-shared | paths.py:14-19 | D8/D1 | S3 | `RepositoryPathResolver(/tmp/au01/repo).resolve("../../etc")` → `/tmp/etc` — escapes root; contract says repository-relative; trust boundary is repo-committed config (author error, not attacker input) | `resolve`: reject or flag non-contained results (`is_relative_to`), or document escape-by-design | open |
@@ -32,4 +32,4 @@ Rows are dispositioned at each milestone's remediation step; `shipped` and
 
 | Row | Disposition | Item | Reason / note |
 |---|---|---|---|
-| *(empty)* | | | |
+| G-01 | shipped | AF-01 | sklearn force_finite convention adopted 2026-09-28; regression tests cover both `tss==0` branches |
