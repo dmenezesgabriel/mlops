@@ -1,3 +1,6 @@
+# pyright: reportMissingTypeStubs=false, reportUnknownVariableType=false
+# types-pygments does not cover pygments.lexers.special and leaves get_lexer_by_name
+# partially untyped; both boundaries are cast/annotated at our call sites below.
 from logging import getLogger
 
 from pygments import highlight
@@ -17,7 +20,7 @@ LOGGER = getLogger(__name__)
 class PygmentsCodeSyntaxHighlighter(CodeSyntaxHighlighter):
     def __init__(self, style_name: str) -> None:
         self._style_name = style_name
-        self._formatter = HtmlFormatter(
+        self._formatter: HtmlFormatter[str] = HtmlFormatter(
             nowrap=True, noclasses=True, style=style_name
         )
 

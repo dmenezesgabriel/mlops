@@ -1,5 +1,9 @@
 """Render the data-science cookiecutter template into an output directory."""
 
+# pyright: reportMissingTypeStubs=false
+# cookiecutter ships no type stubs; the line-level ignore cannot survive
+# ruff's 79-col import split, so the rule is scoped off for this file.
+
 from pathlib import Path
 
 from cookiecutter.main import cookiecutter

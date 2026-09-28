@@ -19,40 +19,40 @@ from ssg_i18n_machine_translation.domain.value_objects.translation_evaluation_re
 )
 
 
-def _is_code_fence(line: str) -> bool:
+def is_code_fence(line: str) -> bool:
     return line.strip().startswith("```")
 
 
-def _is_empty_or_whitespace(line: str) -> bool:
+def is_empty_or_whitespace(line: str) -> bool:
     return not line.strip()
 
 
-def _is_math_block(line: str) -> bool:
+def is_math_block(line: str) -> bool:
     stripped = line.strip()
     return stripped.startswith("$$") or (
         stripped.startswith("$") and stripped.endswith("$")
     )
 
 
-def _is_horizontal_rule(line: str) -> bool:
+def is_horizontal_rule(line: str) -> bool:
     return bool(re.fullmatch(r"\s*-{3,}\s*", line.strip()))
 
 
-def _clean_line_for_comparison(line: str) -> str:
+def clean_line_for_comparison(line: str) -> str:
     line = line.strip().removesuffix("\n")
     line = re.sub(r"^(\s*(?:[*\-+]|\d+\.)\s+)", "", line)
     return line.strip()
 
 
-def _extract_text_nodes(node: object) -> list[object]:
+def extract_text_nodes(node: object) -> list[object]:
     class_name = node.__class__.__name__
     if class_name in ("Document", "List", "ListItem", "Table", "TableRow"):
         nodes: list[object] = []
         header = getattr(node, "header", None)
         if class_name == "Table" and header:
-            nodes.extend(_extract_text_nodes(header))
+            nodes.extend(extract_text_nodes(header))
         for child in getattr(node, "children", []):
-            nodes.extend(_extract_text_nodes(child))
+            nodes.extend(extract_text_nodes(child))
         return nodes
     if class_name not in ("Paragraph", "Heading", "TableCell"):
         return []
@@ -67,7 +67,7 @@ def _extract_text_nodes(node: object) -> list[object]:
     return [node]
 
 
-def _render_node(node: object, renderer: MarkdownRenderer) -> str:
+def render_node(node: object, renderer: MarkdownRenderer) -> str:
     if node.__class__.__name__ == "TableCell":
         lines = renderer.span_to_lines(
             getattr(node, "children", None) or [], max_line_length=0
@@ -78,9 +78,9 @@ def _render_node(node: object, renderer: MarkdownRenderer) -> str:
     return renderer.render(wrapper).strip()
 
 
-def _evaluate_node_pair(src: str, trans: str) -> LineResult:
-    src_clean = _clean_line_for_comparison(src)
-    trans_clean = _clean_line_for_comparison(trans)
+def evaluate_node_pair(src: str, trans: str) -> LineResult:
+    src_clean = clean_line_for_comparison(src)
+    trans_clean = clean_line_for_comparison(trans)
     is_fallback = (
         src_clean == trans_clean
         and len(src_clean) > 3
@@ -147,8 +147,8 @@ class MachineTranslationEvaluator:
     ) -> list[tuple[object, object]]:
         src_doc = Document(src_file.read_text(encoding="utf-8"))
         trans_doc = Document(trans_file.read_text(encoding="utf-8"))
-        src_nodes = _extract_text_nodes(src_doc)
-        trans_nodes = _extract_text_nodes(trans_doc)
+        src_nodes = extract_text_nodes(src_doc)
+        trans_nodes = extract_text_nodes(trans_doc)
         if len(src_nodes) != len(trans_nodes):
             msg = (
                 f"[STRUCTURE MISMATCH] File '{src_file.name}' has "
@@ -167,9 +167,9 @@ class MachineTranslationEvaluator:
         total, fallback, wiki, table = 0, 0, 0, 0
         with MarkdownRenderer() as renderer:
             for src_node, trans_node in node_pairs:
-                src_str = _render_node(src_node, renderer)
-                trans_str = _render_node(trans_node, renderer)
-                result = _evaluate_node_pair(src_str, trans_str)
+                src_str = render_node(src_node, renderer)
+                trans_str = render_node(trans_node, renderer)
+                result = evaluate_node_pair(src_str, trans_str)
                 total += 1
                 self._log_violations(
                     result, src_str, trans_str, filename, logs
@@ -230,7 +230,7 @@ class MachineTranslationEvaluator:
         )
         if not hypotheses:
             return 0.0
-        return float(sacrebleu.corpus_bleu(hypotheses, references).score)
+        return float(sacrebleu.corpus_bleu(hypotheses, references).score)  # pyright: ignore[reportUnknownMemberType]
 
     def _gather_bleu_data(
         self,

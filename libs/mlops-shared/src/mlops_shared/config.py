@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import cast
 
 import yaml
 
@@ -11,9 +12,12 @@ class YamlMappingLoader:
     """
 
     def load(self, config_path: Path) -> dict[str, object]:
-        parsed_yaml = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        parsed_yaml = cast(
+            object, yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        )
         if isinstance(parsed_yaml, dict):
-            return {str(key): value for key, value in parsed_yaml.items()}
+            mapping = cast(dict[object, object], parsed_yaml)
+            return {str(key): value for key, value in mapping.items()}
 
         raise ValueError(
             f"Invalid YAML in {config_path}: expected YAML mapping, "

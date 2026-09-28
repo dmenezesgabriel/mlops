@@ -1,6 +1,6 @@
 from collections.abc import Callable
 from importlib import import_module
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, cast, runtime_checkable
 
 from ssg_i18n.application.translation import TextTranslator
 from ssg_i18n.domain.locale import Locale
@@ -89,9 +89,10 @@ class TransformersTextTranslator(TextTranslator):
                 "expected non-empty list",
             )
 
-        first_result = result[0]
+        first_result = cast(object, result[0])
         if isinstance(first_result, dict):
-            translation_text = first_result.get("translation_text")
+            result_map = cast(dict[str, Any], first_result)
+            translation_text = result_map.get("translation_text")
             if isinstance(translation_text, str):
                 return translation_text
 

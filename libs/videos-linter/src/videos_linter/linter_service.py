@@ -49,7 +49,7 @@ class ContrastChecker:
             thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
 
-        violations = []
+        violations: list[RuleViolation] = []
         for idx, contour in enumerate(contours):
             x, y, w, h = cv2.boundingRect(contour)
             # Ignore extremely small noise
@@ -200,7 +200,7 @@ class ImageOverlapDetector:
     def _overlap_violations(
         self, boxes: list[Box], scene_id: str
     ) -> list[RuleViolation]:
-        violations = []
+        violations: list[RuleViolation] = []
         for i, box_a in enumerate(boxes):
             for j, box_b in enumerate(boxes[i + 1 :], start=i + 1):
                 violation = _overlap_violation(box_a, box_b, scene_id, i, j)
@@ -413,12 +413,14 @@ class LinterService:
     def verify_geometry(
         self, mobjects: list[Any], scene_id: str
     ) -> list[RuleViolation]:
-        from videos.infrastructure.validation.geometry_rules import (
+        # videos ships py.typed, but the hatchling editable install does not
+        # expose it to pyright — the diagnostic is about stubs, not types.
+        from videos.infrastructure.validation.geometry_rules import (  # pyright: ignore[reportMissingTypeStubs]
             OverlapDetector,
         )
 
         detector = OverlapDetector()
-        violations = []
+        violations: list[RuleViolation] = []
         for i in range(len(mobjects)):
             for j in range(i + 1, len(mobjects)):
                 if detector.check_overlap(mobjects[i], mobjects[j]):

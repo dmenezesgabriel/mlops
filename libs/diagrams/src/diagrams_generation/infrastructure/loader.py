@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 from diagrams_generation.domain import (
@@ -11,22 +11,23 @@ from diagrams_generation.domain import (
 
 
 def load_from_yaml_string(yaml_string: str) -> DiagramDefinition:
-    data = yaml.safe_load(yaml_string)
+    data = cast(object, yaml.safe_load(yaml_string))
     if not isinstance(data, dict):
         raise ValueError(
             f"Invalid YAML structure: expected a mapping, got {type(data).__name__}"
         )
+    document = cast(dict[str, Any], data)
 
-    nodes = _parse_nodes(data.get("nodes", []))
-    clusters = _parse_clusters(data.get("clusters", []))
-    connections = _parse_connections(data.get("connections", []))
-    graph_attr = _parse_graph_attr(data.get("graph_attr"))
-    node_attr = _parse_graph_attr(data.get("node_attr"))
+    nodes = _parse_nodes(document.get("nodes", []))
+    clusters = _parse_clusters(document.get("clusters", []))
+    connections = _parse_connections(document.get("connections", []))
+    graph_attr = _parse_graph_attr(document.get("graph_attr"))
+    node_attr = _parse_graph_attr(document.get("node_attr"))
 
     return DiagramDefinition(
-        name=str(data["name"]),
-        filename=str(data["filename"]),
-        direction=str(data.get("direction", "LR")),
+        name=str(document["name"]),
+        filename=str(document["filename"]),
+        direction=str(document.get("direction", "LR")),
         nodes=nodes,
         clusters=clusters,
         connections=connections,
@@ -87,4 +88,5 @@ def _parse_graph_attr(raw: Any) -> dict[str, str]:
             f"Invalid graph_attr {raw!r}: expected a string-keyed mapping, "
             f"got {type(raw).__name__}"
         )
-    return {str(k): str(v) for k, v in raw.items()}
+    mapping = cast(dict[object, object], raw)
+    return {str(k): str(v) for k, v in mapping.items()}

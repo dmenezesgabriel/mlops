@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import fnmatch
 from datetime import date, datetime
-from typing import Any, TypeAlias
+from typing import Any, TypeAlias, cast
 from weakref import WeakKeyDictionary
 
 from moto.core.responses import ActionResult, EmptyResult
@@ -46,6 +46,10 @@ from moto.glue import utils as glue_utils
 from moto.glue.exceptions import InvalidInputException
 from moto.glue.models import FakeTable, GlueBackend
 from moto.glue.responses import GlueResponse
+
+# pyright: reportPrivateUsage=false
+# This module is a moto overlay: it monkey-patches moto.glue internals
+# (_PartitionFilterExpressionCache, glue_utils._cast, _Expr) on purpose.
 from moto.glue.utils import _PartitionFilterExpressionCache
 
 ColumnStatistics: TypeAlias = dict[str, object]
@@ -157,6 +161,7 @@ def update_column_statistics_for_table(self: GlueResponse) -> EmptyResult:
             "updateColumnStatisticsForTable",
             f"expected list, got {type(statistics).__name__}: {statistics!r}",
         )
+    statistics_list = cast(list[ColumnStatistics], statistics)
     update_column_statistics(
         self.glue_backend,
         as_string(
@@ -165,7 +170,7 @@ def update_column_statistics_for_table(self: GlueResponse) -> EmptyResult:
         as_string(
             parameters.get("TableName"), "updateColumnStatisticsForTable"
         ),
-        statistics,
+        statistics_list,
     )
     return EmptyResult()
 
@@ -291,21 +296,26 @@ def _mark_iceberg_columns(table_input: dict[str, Any]) -> None:
     parameters = table_input.get("Parameters")
     if not isinstance(parameters, dict):
         return
-    if str(parameters.get("table_type", "")).upper() != "ICEBERG":
+    parameter_map = cast(dict[str, Any], parameters)
+    if str(parameter_map.get("table_type", "")).upper() != "ICEBERG":
         return
     storage = table_input.get("StorageDescriptor")
     if not isinstance(storage, dict):
         return
-    columns = storage.get("Columns")
+    storage_map = cast(dict[str, Any], storage)
+    columns = storage_map.get("Columns")
     if not isinstance(columns, list):
         return
-    for column in columns:
+    for column in cast(list[Any], columns):
         if not isinstance(column, dict):
             continue
-        column_parameters = column.setdefault("Parameters", {})
+        column_map = cast(dict[str, Any], column)
+        column_parameters = column_map.setdefault("Parameters", {})
         if not isinstance(column_parameters, dict):
             continue
-        column_parameters["iceberg.field.current"] = "true"
+        cast(dict[str, Any], column_parameters)["iceberg.field.current"] = (
+            "true"
+        )
 
 
 # Wrappers keep moto's exact (self, Any) signatures — pyright checks the

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import mlflow
 import pandas as pd
@@ -85,7 +85,10 @@ def predict_demand(location_id: int) -> dict[str, Any]:
     ]
     pred_features = features[feature_cols]
 
-    prediction = _model.predict(pred_features)
+    prediction = cast(
+        pd.Series,
+        _model.predict(pred_features),  # pyright: ignore[reportUnknownMemberType]
+    )
     pred_val = float(prediction.iloc[0])
 
     return {
