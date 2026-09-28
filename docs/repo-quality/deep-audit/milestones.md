@@ -22,9 +22,9 @@
   split `L` items further in `backlog.md` before proceeding. (Verdict:
   sizing holds — suspect count, not LOC, drives effort; all `L` items are
   pre-split by plane ≤~1600 LOC.)
-- [ ] Ship promoted `AF-*` + mark gap rows. (AF-01/S1 shipped; triage
-  2026-09-28 promoted G-02…G-10 → AF-02…AF-06 — batched by fix surface;
-  G-07 waived, surface deleted by AF-05.)
+- [ ] Ship promoted `AF-*` + mark gap rows. (AF-01/S1 + AF-02 shipped;
+  AF-03…AF-06 pending — batched by fix surface; G-07 waived, surface
+  deleted by AF-05.)
 
 ## MA-2 — Foundations
 
