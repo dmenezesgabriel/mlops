@@ -17,7 +17,7 @@
 
 | ID | Item | Evidence (measured anchors) | Acceptance | Size |
 |---|---|---|---|---|
-| AU-01 | **Spike**: audit `libs/mlops-shared` — calibrates rubric + effort sizing for all later items | 276 src LOC; `config.py`, `logging.py`, `pipeline.py`, `datasets.py`, `evaluation.py`, `paths.py`; shared by every project | Report filed; gaps promoted; effort-vs-size note in report tail drives re-splits of oversized items | S |
+| AU-01 | [x] done 2026-09-28 — report `audits/AU-01-mlops-shared.md`; 10 gaps promoted (S1×1, S3×8, S4×1); spike verdict: no re-split | **Spike**: audit `libs/mlops-shared` — calibrates rubric + effort sizing for all later items | 276 src LOC; `config.py`, `logging.py`, `pipeline.py`, `datasets.py`, `evaluation.py`, `paths.py`; shared by every project | Report filed; gaps promoted; effort-vs-size note in report tail drives re-splits of oversized items | S |
 | AU-02 | Audit `libs/data-science-scaffold` — project generator; template correctness rides on AU-17/AU-18 consuming it | 152 src LOC; `register.py`, `scaffold.py`; `template/` generates the `projects/*` shape | Report + gaps | XS |
 | AU-03 | Audit `docker/moto/glue_overlay.py` — request parsing, error shaping, dispatch safety | 357 src LOC; single-file HTTP overlay on moto Glue | Report + gaps; D8 (request parsing) mandatory | S |
 | AU-04 | Audit `libs/ssg` domain + application: entities, use cases, `static_site_builder` (357), `site_preview` | ~670 src LOC; `domain/entities/{site,content_collection}.py`, `application/` | Report + gaps | M |
@@ -56,4 +56,5 @@
 
 | ID | Item | Gap row | Severity | Acceptance | Size |
 |---|---|---|---|---|---|
-| AF-* | *(empty — promoted rows land here as `AF-NN` at each milestone's remediation step)* | | | RED→GREEN + gates | |
+| AF-01 | Fix G-01 — `_r2` returns 0.0 on constant `actual` regardless of fit; adopt sklearn `force_finite` convention (tss==0 → 1.0 when rss==0, else 0.0) + regression test | G-01 | S1 | RED→GREEN + gates | XS |
+| AF-* | *(remaining G-02…G-10 rows promote at the MA-1 remediation step — triage to fix or waive)* | | | RED→GREEN + gates | |

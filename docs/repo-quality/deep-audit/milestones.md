@@ -15,12 +15,15 @@
 
 ## MA-1 — Spike (calibration)
 
-- [ ] **AU-01** `libs/mlops-shared` — smallest foundation, depended on by all
+- [x] **AU-01** `libs/mlops-shared` — smallest foundation, depended on by all
   projects. Proves the rubric end-to-end and produces the effort-vs-size
   datapoint that re-splits any oversized remaining item.
-- [ ] Recalibrate: if the spike's effort-to-LOC ratio suggests mis-sizing,
-  split `L` items further in `backlog.md` before proceeding.
-- [ ] Ship promoted `AF-*` (if any) + mark gap rows.
+- [x] Recalibrate: if the spike's effort-to-LOC ratio suggests mis-sizing,
+  split `L` items further in `backlog.md` before proceeding. (Verdict:
+  sizing holds — suspect count, not LOC, drives effort; all `L` items are
+  pre-split by plane ≤~1600 LOC.)
+- [ ] Ship promoted `AF-*` (if any) + mark gap rows. (AF-01/S1 preempts
+  AU-02; G-02…G-10 triage batches here.)
 
 ## MA-2 — Foundations
 
