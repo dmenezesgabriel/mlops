@@ -11,6 +11,40 @@ from ssg_notebook_render.notebook_fragment_renderer import (
 )
 
 
+def _collection(
+    source_root: Path, videos: dict | None = None
+) -> ContentCollection:
+    return ContentCollection(
+        name="sample_collection",
+        title="Sample Collection",
+        source_root=source_root,
+        output_slug="sample-collection",
+        pages=(),
+        videos=videos or {},
+    )
+
+
+def _page(notebook_path: Path) -> Page:
+    return Page(
+        slug="feature-engineering",
+        title="Feature Engineering",
+        source_path=notebook_path,
+    )
+
+
+def _context(tmp_path: Path) -> BuildContext:
+    return BuildContext(
+        config_path=tmp_path / "site.yaml",
+        output_path=tmp_path / "build",
+        collection_name=None,
+        correlation_id="test",
+    )
+
+
+def _write_notebook(path: Path, cells: list) -> None:
+    nbformat.write(nbformat.v4.new_notebook(cells=cells), path)
+
+
 def test_render_transcludes_source_and_copies_video(tmp_path: Path) -> None:
     # Arrange
     source_root = tmp_path / "content"
@@ -22,41 +56,20 @@ def test_render_transcludes_source_and_copies_video(tmp_path: Path) -> None:
     video_path = tmp_path / "videos" / "demo.mp4"
     video_path.parent.mkdir()
     video_path.write_bytes(b"mp4")
-    nbformat.write(
-        nbformat.v4.new_notebook(
-            cells=[
-                nbformat.v4.new_markdown_cell(
-                    '{{ include_source("script.py") }}\n{{ embed_video("demo") }}',
-                ),
-            ],
-        ),
+    _write_notebook(
         notebook_path,
+        [
+            nbformat.v4.new_markdown_cell(
+                '{{ include_source("script.py") }}\n{{ embed_video("demo") }}',
+            ),
+        ],
     )
-    collection = ContentCollection(
-        name="sample_collection",
-        title="Sample Collection",
-        source_root=source_root,
-        output_slug="sample-collection",
-        pages=(),
-        videos={"demo": video_path},
-    )
-    page = Page(
-        slug="feature-engineering",
-        title="Feature Engineering",
-        source_path=notebook_path,
-    )
-    build_path = tmp_path / "build"
-    output_path = build_path / "sample-collection"
+    collection = _collection(source_root, videos={"demo": video_path})
+    output_path = tmp_path / "build" / "sample-collection"
 
     # Act
-    context = BuildContext(
-        config_path=tmp_path / "site.yaml",
-        output_path=build_path,
-        collection_name=None,
-        correlation_id="test",
-    )
     rendered_content = NotebookContentRenderer().render(
-        collection, page, context
+        collection, _page(notebook_path), _context(tmp_path)
     )
 
     # Assert
@@ -85,36 +98,21 @@ def test_render_preserves_transcluded_source_blank_lines_and_indentation(
         encoding="utf-8",
     )
     notebook_path = source_root / "feature_engineering.ipynb"
-    nbformat.write(
-        nbformat.v4.new_notebook(
-            cells=[
-                nbformat.v4.new_markdown_cell(
-                    '{{ include_source("feature_views.py") }}'
-                )
-            ],
-        ),
+    _write_notebook(
         notebook_path,
+        [
+            nbformat.v4.new_markdown_cell(
+                '{{ include_source("feature_views.py") }}'
+            )
+        ],
     )
-    collection = ContentCollection(
-        name="sample_collection",
-        title="Sample Collection",
-        source_root=source_root,
-        output_slug="sample-collection",
-        pages=(),
-        videos={},
-    )
+    collection = _collection(source_root)
 
     # Act
-    context = BuildContext(
-        config_path=tmp_path / "site.yaml",
-        output_path=tmp_path / "build",
-        collection_name=None,
-        correlation_id="test",
-    )
     rendered_content = NotebookContentRenderer().render(
         collection,
         Page(slug="overview", title="Overview", source_path=notebook_path),
-        context,
+        _context(tmp_path),
     )
 
     # Assert
@@ -130,44 +128,23 @@ def test_render_preserves_transcluded_source_blank_lines_and_indentation(
 def test_render_includes_code_cell_and_stream_output(tmp_path: Path) -> None:
     # Arrange
     notebook_path = tmp_path / "feature_engineering.ipynb"
-    nbformat.write(
-        nbformat.v4.new_notebook(
-            cells=[
-                nbformat.v4.new_code_cell(
-                    "print('hourly demand')",
-                    outputs=[
-                        nbformat.v4.new_output(
-                            "stream", name="stdout", text="hourly demand\n"
-                        )
-                    ],
-                ),
-            ],
-        ),
+    _write_notebook(
         notebook_path,
-    )
-    collection = ContentCollection(
-        name="sample_collection",
-        title="Sample Collection",
-        source_root=tmp_path,
-        output_slug="sample-collection",
-        pages=(),
-        videos={},
-    )
-    page = Page(
-        slug="feature-engineering",
-        title="Feature Engineering",
-        source_path=notebook_path,
+        [
+            nbformat.v4.new_code_cell(
+                "print('hourly demand')",
+                outputs=[
+                    nbformat.v4.new_output(
+                        "stream", name="stdout", text="hourly demand\n"
+                    )
+                ],
+            ),
+        ],
     )
 
     # Act
-    context = BuildContext(
-        config_path=tmp_path / "site.yaml",
-        output_path=tmp_path / "build",
-        collection_name=None,
-        correlation_id="test",
-    )
     rendered_content = NotebookContentRenderer().render(
-        collection, page, context
+        _collection(tmp_path), _page(notebook_path), _context(tmp_path)
     )
 
     # Assert
@@ -236,29 +213,9 @@ def test_render_includes_code_cell_and_html_and_widget_output(
 
     nbformat.write(notebook, notebook_path)
 
-    collection = ContentCollection(
-        name="sample_collection",
-        title="Sample Collection",
-        source_root=tmp_path,
-        output_slug="sample-collection",
-        pages=(),
-        videos={},
-    )
-    page = Page(
-        slug="feature-engineering",
-        title="Feature Engineering",
-        source_path=notebook_path,
-    )
-
     # Act
-    context = BuildContext(
-        config_path=tmp_path / "site.yaml",
-        output_path=tmp_path / "build",
-        collection_name=None,
-        correlation_id="test",
-    )
     rendered_content = NotebookContentRenderer().render(
-        collection, page, context
+        _collection(tmp_path), _page(notebook_path), _context(tmp_path)
     )
 
     # Assert

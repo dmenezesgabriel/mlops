@@ -15,21 +15,33 @@ class TestLocalModeConfigDefaults:
         assert cfg.s3_endpoint_url == "http://moto:5000"
         assert cfg.bucket == "my-bucket"
 
-    def test_sensible_defaults_for_offline_usage(self):
+    @pytest.mark.parametrize(
+        ("field", "expected"),
+        [
+            ("region", "us-east-1"),
+            ("serving_port", 8080),
+            ("image_tag", "sagemaker-local:latest"),
+            ("aws_access_key_id", "test"),
+            ("aws_secret_access_key", "test"),
+            ("network", None),
+            ("container_root", None),
+            ("inject_compose_network", True),
+            ("harden_containers", True),
+        ],
+    )
+    def test_sensible_defaults_for_offline_usage(self, field, expected):
         cfg = LocalModeConfig(
             s3_endpoint_url="http://moto:5000", bucket="my-bucket"
         )
 
-        assert cfg.region == "us-east-1"
-        assert cfg.serving_port == 8080
-        assert cfg.image_tag == "sagemaker-local:latest"
-        assert cfg.aws_access_key_id == "test"
-        assert cfg.aws_secret_access_key == "test"
+        assert getattr(cfg, field) == expected
+
+    def test_role_arn_defaults_to_fake_iam_role(self):
+        cfg = LocalModeConfig(
+            s3_endpoint_url="http://moto:5000", bucket="my-bucket"
+        )
+
         assert cfg.role_arn.startswith("arn:aws:iam::123456789012:role/")
-        assert cfg.network is None
-        assert cfg.container_root is None
-        assert cfg.inject_compose_network is True
-        assert cfg.harden_containers is True
 
     def test_config_is_immutable(self):
         cfg = LocalModeConfig(
