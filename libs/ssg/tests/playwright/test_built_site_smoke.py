@@ -180,7 +180,7 @@ def _serve_directory(directory: Path) -> Iterator[str]:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             super().__init__(*args, directory=str(directory), **kwargs)
 
-        def log_message(self, format: str, *args: object) -> None:
+        def log_message(self, _format: str, *args: object) -> None:
             return
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), QuietHandler)

@@ -73,3 +73,11 @@ reportMissingReturnType = true
 reportUnnecessaryCast = true
 reportUnusedIgnoreComment = true
 reportMissingImports = false
+
+[tool.vulture]
+min_confidence = 80
+# DemandModelTrainer.train keeps model_directory in the public signature —
+# the trained model ships to the MLflow registry, not to disk (documented
+# API, exercised positionally from pipelines/train.py).
+ignore_names = ["model_directory"]
+sort_by_size = true

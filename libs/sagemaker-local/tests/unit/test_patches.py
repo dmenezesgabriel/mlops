@@ -34,7 +34,7 @@ class FakeRunner:
         self.listed_ids = listed_ids or []
         self.calls: list[list[str]] = []
 
-    def __call__(self, cmd, **kwargs):  # noqa: ANN003
+    def __call__(self, cmd, **_kwargs):  # noqa: ANN003
         self.calls.append(cmd)
         if "--filter" in cmd:
             return type(
@@ -187,21 +187,21 @@ class TestComposeCommandDetection:
         monkeypatch.setattr(
             subprocess,
             "check_output",
-            lambda *a, **k: "Docker Compose version v5.3.1\n",
+            lambda *_, **__: "Docker Compose version v5.3.1\n",
         )
-        monkeypatch.setattr(patches.shutil, "which", lambda name: None)
+        monkeypatch.setattr(patches.shutil, "which", lambda _name: None)
 
         assert patches.tolerant_compose_cmd_prefix() == ["docker", "compose"]
 
     def test_legacy_fallback_when_plugin_missing(self, monkeypatch):
         import subprocess
 
-        def boom(*a, **k):  # noqa: ANN002, ANN003
+        def boom(*a, **__):  # noqa: ANN002, ANN003
             raise subprocess.CalledProcessError(1, a[0] if a else "docker")
 
         monkeypatch.setattr(subprocess, "check_output", boom)
         monkeypatch.setattr(
-            patches.shutil, "which", lambda name: "/usr/bin/docker-compose"
+            patches.shutil, "which", lambda _name: "/usr/bin/docker-compose"
         )
 
         assert patches.tolerant_compose_cmd_prefix() == ["docker-compose"]
@@ -209,11 +209,11 @@ class TestComposeCommandDetection:
     def test_import_error_when_nothing_available(self, monkeypatch):
         import subprocess
 
-        def boom(*a, **k):  # noqa: ANN002, ANN003
+        def boom(*a, **__):  # noqa: ANN002, ANN003
             raise subprocess.CalledProcessError(1, a[0] if a else "docker")
 
         monkeypatch.setattr(subprocess, "check_output", boom)
-        monkeypatch.setattr(patches.shutil, "which", lambda name: None)
+        monkeypatch.setattr(patches.shutil, "which", lambda _name: None)
 
         with pytest.raises(ImportError, match="docker compose"):
             patches.tolerant_compose_cmd_prefix()
@@ -224,9 +224,9 @@ class TestComposeCommandDetection:
         monkeypatch.setattr(
             subprocess,
             "check_output",
-            lambda *a, **k: "Docker Compose version v5.3.1\n",
+            lambda *_, **__: "Docker Compose version v5.3.1\n",
         )
-        monkeypatch.setattr(patches.shutil, "which", lambda name: None)
+        monkeypatch.setattr(patches.shutil, "which", lambda _name: None)
 
         patches.apply_compose_patches(make_config())
 
@@ -318,7 +318,7 @@ class TestCleanupStaleServingContainers:
 class DockerlessRunner:
     """Fails if anything tries to shell out — proves gateway came from routes."""
 
-    def __call__(self, *args, **kwargs):  # noqa: ANN002, ANN003
+    def __call__(self, *args, **_kwargs):  # noqa: ANN002, ANN003
         raise AssertionError(f"subprocess called unexpectedly: {args}")
 
 

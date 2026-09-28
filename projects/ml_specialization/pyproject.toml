@@ -77,3 +77,10 @@ reportMissingReturnType = true
 reportUnnecessaryCast = true
 reportUnusedIgnoreComment = true
 reportMissingImports = false
+
+[tool.vulture]
+min_confidence = 80
+# Stub implementations for the specialization exercises keep the documented
+# parameter names (see each class docstring) even though the bodies are TODO.
+ignore_names = ["raw_directory", "n_trials"]
+sort_by_size = true

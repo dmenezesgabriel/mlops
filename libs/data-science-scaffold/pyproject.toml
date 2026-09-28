@@ -37,3 +37,11 @@ reportMissingReturnType = true
 reportUnnecessaryCast = true
 reportUnusedIgnoreComment = true
 reportMissingImports = false
+
+[tool.vulture]
+min_confidence = 80
+# The cookiecutter template's exercise stubs keep the documented parameter
+# names (see each class docstring) even though the bodies are TODO.
+exclude = ["*/node_modules/*"]
+ignore_names = ["raw_directory", "n_trials"]
+sort_by_size = true

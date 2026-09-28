@@ -36,11 +36,11 @@ class _FakeS3Client:
         self.head_bucket_calls = 0
         self.create_bucket_calls = 0
 
-    def head_bucket(self, **kwargs):
+    def head_bucket(self, **_kwargs):
         self.head_bucket_calls += 1
         raise ClientError("404")
 
-    def create_bucket(self, **kwargs):
+    def create_bucket(self, **_kwargs):
         self.create_bucket_calls += 1
 
 
@@ -144,7 +144,7 @@ class TestEnsureBucket:
 
     def test_forbidden_bucket_is_left_untouched(self):
         fake = _FakeS3Client()
-        fake.head_bucket = lambda **kw: (_ for _ in ()).throw(
+        fake.head_bucket = lambda **_: (_ for _ in ()).throw(
             ClientError("403")
         )
 

@@ -24,7 +24,7 @@ class TestCLIOrchestration:
     )
     def test_should_orchestrate_diagram_rendering(
         self,
-        mock_exists: MagicMock,
+        _mock_exists: MagicMock,
         mock_load_from_file: MagicMock,
         mock_renderer_class: MagicMock,
     ) -> None:

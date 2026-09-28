@@ -160,7 +160,8 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
     ) -> Markup:
         marker = f"SSG_TRANSCLUSION_{len(transclusions)}"
         transclusions[marker] = rendered_html
-        return Markup(marker)
+        # marker is a self-generated constant, never user input
+        return Markup(marker)  # nosec B704
 
     def _replace_transclusions(
         self, rendered_html: str, transclusions: dict[str, Markup]

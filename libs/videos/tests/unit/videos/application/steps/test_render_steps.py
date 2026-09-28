@@ -85,7 +85,7 @@ def test_preview_render_step_enters_quality_context() -> None:
 def test_final_render_step_enters_quality_context() -> None:
     renderer = SpyRenderer()
     scene_builder = MagicMock()
-    scene_builder.build_storyboard.side_effect = lambda sb, le: (
+    scene_builder.build_storyboard.side_effect = lambda sb, _le: (
         renderer.log.append("build_storyboard") or object()
     )
 

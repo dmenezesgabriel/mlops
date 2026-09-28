@@ -41,3 +41,10 @@ reportMissingReturnType = true
 reportUnnecessaryCast = true
 reportUnusedIgnoreComment = true
 reportMissingImports = false
+
+[tool.vulture]
+min_confidence = 80
+# LinterPort.verify_video (ports/linter.py) and its implementation keep the
+# video_path param name from the interface contract; stub bodies ignore it.
+ignore_names = ["video_path"]
+sort_by_size = true
