@@ -1,17 +1,24 @@
-# Repo-wide quality-gate parity — documentation index
+# Repo-wide quality — documentation index
 
-Bring every uv-workspace package up to the `libs/athena-local` static-check
-standard: ruff format+lint, pyright, pytest, pytest-cov, radon, xenon,
-vulture, bandit, semgrep, deptry, import-linter — wired as per-package
-`make` targets reachable from the root `make quality` loop, with findings
-tracked and fixed item by item.
+Two workstreams live here:
+
+1. **Gate parity** (this directory's `backlog.md`/`milestones.md`) — **complete**:
+   brought every uv-workspace package up to the `libs/athena-local`
+   static-check standard: ruff format+lint, pyright, pytest, pytest-cov,
+   radon, xenon, vulture, bandit, semgrep, deptry, import-linter — wired as
+   per-package `make` targets reachable from the root `make quality` loop.
+2. **Deep audit** ([deep-audit/](deep-audit/)) — in progress: walks every
+   package's callstack to measure asymptotics, type honesty, design fit,
+   correctness, memory, races, security, and test depth; findings ship as
+   small fix items. Start at [deep-audit/README.md](deep-audit/README.md).
 
 ## Documentation map
 
 | Path | Kind | Status |
 |---|---|---|
-| [backlog.md](backlog.md) | **Ephemeral** — evidence-anchored work items, one measured gate gap or finding fix per row | Must NOT be cited from code |
-| [milestones.md](milestones.md) | **Ephemeral** — ordered phases: audit → wiring → findings → floors/strictness | Must NOT be cited from code |
+| [deep-audit/](deep-audit/) | **Workstream** — full doc set (README, methodology, adr/, prd, prompt-execution, backlog, milestones, gaps, audits/) | Active |
+| [backlog.md](backlog.md) | **Ephemeral** — gate-parity work items, one measured gate gap or finding fix per row | Must NOT be cited from code |
+| [milestones.md](milestones.md) | **Ephemeral** — gate-parity phases: audit → wiring → findings → floors/strictness | Must NOT be cited from code |
 
 Rule enforced repo-wide: **backlog and milestones are ephemeral working
 documents; never quote their IDs or content in code, docstrings, or
@@ -47,6 +54,7 @@ comments.**
 
 ## Implementer starting point
 
-Read `milestones.md` for the current phase, then the item's row in
-`backlog.md` — its evidence cell names the exact files and measured
-numbers. Execute one item, keep `make quality` green, check the box.
+For the active work, start at `deep-audit/README.md` and follow
+`deep-audit/prompt-execution.md`. The gate-parity docs below are closed
+history: `milestones.md`/`backlog.md` rows record the measured numbers that
+established today's gate floors.
