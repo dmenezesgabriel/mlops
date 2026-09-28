@@ -2,10 +2,11 @@
 tests.
 
 Inline rows answer from the page the executor stashed before SUCCEEDED
-(ADR-0007 #4): the header row rides page zero only, ``MaxResults``/``NextToken``
-slice data-row offsets, a FAILED execution answers a header-only result set
-(moto never raises on state at ``moto/athena/models.py:415``; wrangler only
-reads inline results for SUCCEEDED executions).
+(ADR-0007 #4): the header row rides page zero only when the execution
+carried result columns, ``MaxResults``/``NextToken`` slice data-row offsets,
+and a zero-column result (DDL, FAILED) answers an empty ``Rows`` — real AWS
+emits no header without columns and consumers like the terraform provider's
+``executeAndExpectNoRows`` require it.
 """
 
 from __future__ import annotations
@@ -191,7 +192,28 @@ def test_get_results_failed_execution_returns_empty_result_set(
         store, executor, {"QueryExecutionId": record.query_execution_id}
     )
 
-    assert output["ResultSet"]["Rows"] == [{"Data": []}]
+    assert output["ResultSet"]["Rows"] == []
+    assert output["ResultSet"]["ResultSetMetadata"]["ColumnInfo"] == []
+
+
+def test_get_results_zero_column_result_set_has_no_header_row(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    # terraform-provider-aws's executeAndExpectNoRows hard-fails on ANY row
+    # for DDL (internal/service/athena/database.go); real AWS answers
+    # Rows: [] when the execution carried no result columns.
+    record = store.create(query="CREATE SCHEMA x", workgroup="primary")
+    record.transition_to(RUNNING)
+    record.cache_result_page([], [])
+    record.transition_to(SUCCEEDED)
+
+    output = get_query_results(
+        store, executor, {"QueryExecutionId": record.query_execution_id}
+    )
+
+    assert output["ResultSet"]["Rows"] == []
     assert output["ResultSet"]["ResultSetMetadata"]["ColumnInfo"] == []
 
 

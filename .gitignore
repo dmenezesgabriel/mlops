@@ -48,3 +48,7 @@ logs/
 
 research_repos
 *.joblib
+# Terraform lifecycle test artifacts (libs/athena-local CS-6)
+libs/athena-local/tests/terraform/.plugin-cache/
+libs/athena-local/tests/terraform/apply/.terraform/
+libs/athena-local/tests/terraform/apply/*.tfstate*

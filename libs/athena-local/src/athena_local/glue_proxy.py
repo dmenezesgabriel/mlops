@@ -39,6 +39,8 @@ GLUE_ENTITY_NOT_FOUND_CODE = "EntityNotFoundException"
 GLUE_REGION = "us-east-1"
 GLUE_ACCESS_KEY_ID = "test"
 GLUE_SECRET_ACCESS_KEY = "test"
+# Parameter key Trino's Glue metastore stamps on every database it creates.
+_TRINO_DATABASE_STAMP = "trino_query_id"
 
 
 class CatalogClient(Protocol):
@@ -285,10 +287,19 @@ def _object(response: dict[str, object], key: str) -> dict[str, object]:
 
 
 def _database_from_glue(record: dict[str, object]) -> GlueDatabase:
+    parameters = _string_map(record, "Parameters") or {}
+    # Trino's Glue metastore stamps its issuing engine query id on every
+    # database it creates; the stamp is engine-internal and must not surface
+    # as caller DBPROPERTIES on the Athena wire.
+    parameters = {
+        key: value
+        for key, value in parameters.items()
+        if key != _TRINO_DATABASE_STAMP
+    }
     return GlueDatabase(
         name=_string(record, "Name") or "",
         description=_string(record, "Description"),
-        parameters=_string_map(record, "Parameters"),
+        parameters=parameters or None,
     )
 
 

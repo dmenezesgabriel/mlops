@@ -24,6 +24,7 @@ from athena_local.request_fields import (
     required_int,
     required_string,
 )
+from athena_local.schemas import parse_tags
 
 SUPPORTED_CATALOG_TYPES = ("GLUE", "HIVE", "LAMBDA")
 UNSUPPORTED_CATALOG_TYPE = "FEDERATED"
@@ -73,6 +74,7 @@ def create_data_catalog(
         catalog_type=catalog_type,
         description=optional_string(payload, "Description"),
         parameters=_apply_lambda_defaults(name, catalog_type, parameters),
+        tags=parse_tags(member(payload, "Tags")),
     )
     return {"DataCatalog": record.to_payload()}
 

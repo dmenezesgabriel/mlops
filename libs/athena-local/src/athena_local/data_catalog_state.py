@@ -79,6 +79,7 @@ class DataCatalogStore:
         catalog_type: str,
         description: str | None,
         parameters: dict[str, str],
+        tags: list[Tag],
     ) -> DataCatalogRecord:
         if name in self.by_name:
             raise InvalidRequestException(f"DataCatalog {name} already exists")
@@ -87,6 +88,7 @@ class DataCatalogStore:
             catalog_type=catalog_type,
             description=description,
             parameters=parameters,
+            tags=tags,
         )
         self.by_name[name] = record
         return record

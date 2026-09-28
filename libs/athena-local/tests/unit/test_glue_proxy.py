@@ -95,6 +95,34 @@ def test_get_database_returns_record() -> None:
     assert database.description == "Sample database"
 
 
+def test_database_parameters_drop_the_engine_query_stamp() -> None:
+    # Trino's Glue metastore stamps ``trino_query_id`` on every database it
+    # creates; real AWS surfaces only caller DBPROPERTIES, and consumers that
+    # round-trip Parameters (the terraform provider's ``properties`` attribute
+    # is ForceNew) treat the stamp as drift.
+    stamped = {
+        "Name": "enginedb",
+        "Parameters": {
+            "trino_query_id": "20260927_000000_00001_abc",
+            "team": "data",
+        },
+    }
+    proxy = GlueProxy(FakeGlueClient(databases=[stamped]))
+
+    assert proxy.get_database("enginedb").parameters == {"team": "data"}
+    assert proxy.list_databases()[0].parameters == {"team": "data"}
+
+
+def test_database_parameters_none_when_only_engine_stamp() -> None:
+    stamped = {
+        "Name": "enginedb",
+        "Parameters": {"trino_query_id": "20260927_000000_00001_abc"},
+    }
+    proxy = GlueProxy(FakeGlueClient(databases=[stamped]))
+
+    assert proxy.get_database("enginedb").parameters is None
+
+
 def test_get_database_missing_raises_metadata_exception() -> None:
     proxy = GlueProxy(FakeGlueClient())
 

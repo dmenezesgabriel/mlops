@@ -103,6 +103,24 @@ def test_create_data_catalog_rejects_federated_type(
         )
 
 
+def test_create_data_catalog_stores_request_tags(
+    store: DataCatalogStore,
+) -> None:
+    # CreateDataCatalog carries a Tags member (service-2.json); terraform's
+    # tags_all refresh reads them back through ListTagsForResource.
+    create_data_catalog(
+        store,
+        {
+            "Name": "tagged_catalog",
+            "Type": "LAMBDA",
+            "Tags": [{"Key": "env", "Value": "test"}],
+        },
+    )
+
+    record = store.get("tagged_catalog")
+    assert [(tag.key, tag.value) for tag in record.tags] == [("env", "test")]
+
+
 def test_create_data_catalog_duplicate_raises(
     store: DataCatalogStore,
 ) -> None:

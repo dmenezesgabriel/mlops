@@ -494,6 +494,13 @@ engineering-quality findings are filed as small items:
    (`create`/`alter`/`drop`/`truncate`), TTL-bounded at 30 s for
    out-of-band moto writes; steady-state routing 6.20 → 0.034 ms per
    statement, 1 Glue `get_table` per 101 repeated statements (was 101).
+9. [x] CS-6 — real `terraform apply` lifecycle (terraform 1.16.3 +
+   hashicorp/aws 6.65.0, lock-pinned): `init → apply → plan
+   -detailed-exitcode → destroy` over the five `aws_athena_*` resources,
+   boto3-witnessed; the drift check surfaced and closed three wire gaps
+   the op-shape layer could not see (zero-column `GetQueryResults` header
+   row, `CreateDataCatalog` create-time `Tags`, `trino_query_id`
+   `Parameters` leak).
 
 Exit: GF-14/GF-15 green on live probes + unit tests; each QA item's evidence
 cell names the exact files/lines and measured numbers it must improve.

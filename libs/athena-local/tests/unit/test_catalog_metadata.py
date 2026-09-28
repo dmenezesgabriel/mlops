@@ -168,6 +168,7 @@ def test_list_databases_non_glue_catalog_is_rejected(
         catalog_type="LAMBDA",
         description=None,
         parameters={},
+        tags=[],
     )
 
     with pytest.raises(InvalidRequestException):

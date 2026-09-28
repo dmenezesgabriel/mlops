@@ -36,6 +36,9 @@ def get_query_results(
 ) -> dict[str, object]:
     """Run GetQueryResults: paginated terminal rows, header on page zero.
 
+    The header row exists only when the execution carried result columns —
+    DDL and FAILED executions answer an empty ``Rows`` like real AWS.
+
     Non-terminal executions raise the exact 400 Athena sends; terminal ones
     answer from the cached final page regardless of the terminal flavor (moto
     never conditions on state at ``moto/athena/models.py:415``, and wrangler
@@ -127,7 +130,10 @@ def _result_set_payload(
     page_rows: list[list[object]],
 ) -> dict[str, object]:
     rows: list[dict[str, object]] = []
-    if offset == 0:
+    # A zero-column execution (DDL, FAILED) has no header to carry: real AWS
+    # answers Rows: [] there, and consumers that read DDL results require it
+    # (the terraform provider's executeAndExpectNoRows rejects any row).
+    if offset == 0 and record.result_columns:
         rows.append(
             {
                 "Data": [

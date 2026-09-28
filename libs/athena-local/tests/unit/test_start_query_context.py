@@ -128,7 +128,7 @@ def test_start_rejects_non_glue_registered_catalog(
     # A registered catalog of any other DataCatalogType names a data source
     # the emulator cannot run (federated/lambda/external Hive); accepting it
     # would silently execute on the Glue-backed catalog instead.
-    catalogs.create("lambda_cat", "LAMBDA", None, {})
+    catalogs.create("lambda_cat", "LAMBDA", None, {}, [])
 
     with pytest.raises(InvalidRequestException, match="GLUE"):
         asyncio.run(
@@ -180,7 +180,7 @@ def test_start_accepts_registered_glue_catalog(
     workgroups: WorkGroupStore,
     catalogs: DataCatalogStore,
 ) -> None:
-    catalogs.create("extra_glue", "GLUE", None, {})
+    catalogs.create("extra_glue", "GLUE", None, {}, [])
 
     async def scenario() -> None:
         output = await start_query_execution(
