@@ -1,5 +1,5 @@
 .SILENT:
-.PHONY: format lint type-check test coverage complexity dependencies security quality
+.PHONY: format lint type-check test coverage complexity dependencies security quality maintainability
 
 format:
 	uv run ruff format .
@@ -27,6 +27,11 @@ dependencies:
 	uv run deptry .
 
 security:
+	uv run bandit -q -ll glue_overlay.py
+	uv run vulture --min-confidence 80 glue_overlay.py tests
 	uv run semgrep --quiet --config auto .
+
+maintainability:
+	uv run xenon --max-absolute B --max-modules A --max-average A . -e "*/node_modules/*"
 
 quality: lint type-check test coverage complexity dependencies security

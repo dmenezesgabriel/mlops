@@ -122,6 +122,7 @@ known_first_party = [
 ]
 
 [tool.importlinter]
+include_external_packages = true
 root_packages = [
   "mlops_shared",
   "data_science_scaffold",
@@ -148,13 +149,13 @@ root_packages = [
 name = "Shared libraries do not import projects"
 type = "forbidden"
 source_modules = ["mlops_shared", "data_science_scaffold", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "diagrams_generation"]
-forbidden_modules = ["nyc_taxi_demand_forecasting", "ml_specialization", "sagemaker_scikit_learn", "sagemaker_xgboost", "sagemaker_lightgbm", "sagemaker_catboost"]
+forbidden_modules = ["nyc_taxi_demand_forecasting", "ml_specialization", "sagemaker_scikit_learn", "sagemaker_xgboost", "sagemaker_lightgbm", "sagemaker_catboost", "glue_overlay"]
 
 [[tool.importlinter.contracts]]
 name = "Videos library does not import projects"
 type = "forbidden"
 source_modules = ["videos"]
-forbidden_modules = ["nyc_taxi_demand_forecasting", "ml_specialization", "sagemaker_scikit_learn", "sagemaker_xgboost", "sagemaker_lightgbm", "sagemaker_catboost"]
+forbidden_modules = ["nyc_taxi_demand_forecasting", "ml_specialization", "sagemaker_scikit_learn", "sagemaker_xgboost", "sagemaker_lightgbm", "sagemaker_catboost", "glue_overlay"]
 
 [[tool.importlinter.contracts]]
 name = "Site domain stays independent"
@@ -172,7 +173,7 @@ forbidden_modules = ["ssg.infrastructure"]
 name = "Static site generator stays MLOps agnostic"
 type = "forbidden"
 source_modules = ["ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex"]
-forbidden_modules = ["mlops_shared", "nyc_taxi_demand_forecasting", "ml_specialization", "sagemaker_scikit_learn", "sagemaker_xgboost", "sagemaker_lightgbm", "sagemaker_catboost"]
+forbidden_modules = ["mlops_shared", "nyc_taxi_demand_forecasting", "ml_specialization", "sagemaker_scikit_learn", "sagemaker_xgboost", "sagemaker_lightgbm", "sagemaker_catboost", "glue_overlay"]
 
 [[tool.importlinter.contracts]]
 name = "Machine translation stays an i18n extension"
@@ -209,7 +210,7 @@ forbidden_modules = ["ssg.infrastructure"]
 name = "Diagrams generation stays independent"
 type = "forbidden"
 source_modules = ["diagrams_generation"]
-forbidden_modules = ["mlops_shared", "data_science_scaffold", "nyc_taxi_demand_forecasting", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "videos", "ml_specialization", "sagemaker_scikit_learn", "sagemaker_xgboost", "sagemaker_lightgbm", "sagemaker_catboost"]
+forbidden_modules = ["mlops_shared", "data_science_scaffold", "nyc_taxi_demand_forecasting", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "videos", "ml_specialization", "sagemaker_scikit_learn", "sagemaker_xgboost", "sagemaker_lightgbm", "sagemaker_catboost", "glue_overlay"]
 
 [[tool.importlinter.contracts]]
 name = "Videos domain stays independent"
@@ -227,13 +228,13 @@ forbidden_modules = ["videos.infrastructure"]
 name = "Videos linter is independent of site and other systems"
 type = "forbidden"
 source_modules = ["videos_linter"]
-forbidden_modules = ["mlops_shared", "data_science_scaffold", "nyc_taxi_demand_forecasting", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "diagrams_generation", "ml_specialization", "sagemaker_scikit_learn", "sagemaker_xgboost", "sagemaker_lightgbm", "sagemaker_catboost"]
+forbidden_modules = ["mlops_shared", "data_science_scaffold", "nyc_taxi_demand_forecasting", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "diagrams_generation", "ml_specialization", "sagemaker_scikit_learn", "sagemaker_xgboost", "sagemaker_lightgbm", "sagemaker_catboost", "glue_overlay"]
 
 [[tool.importlinter.contracts]]
 name = "Athena emulator stays independent of the monorepo's other packages"
 type = "forbidden"
 source_modules = ["athena_local"]
-forbidden_modules = ["mlops_shared", "data_science_scaffold", "nyc_taxi_demand_forecasting", "sagemaker_catboost", "sagemaker_lightgbm", "sagemaker_xgboost", "sagemaker_scikit_learn", "ml_specialization", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "videos", "diagrams_generation", "videos_linter", "sagemaker_local"]
+forbidden_modules = ["mlops_shared", "data_science_scaffold", "nyc_taxi_demand_forecasting", "sagemaker_catboost", "sagemaker_lightgbm", "sagemaker_xgboost", "sagemaker_scikit_learn", "ml_specialization", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "videos", "diagrams_generation", "videos_linter", "sagemaker_local", "glue_overlay"]
 
 [[tool.importlinter.contracts]]
 name = "Athena protocol core stays independent of the query engine"
@@ -270,6 +271,32 @@ name = "Athena query engine stays independent of the protocol core"
 type = "forbidden"
 source_modules = ["athena_local.executor", "athena_local.submission", "athena_local.executions", "athena_local.execution_record"]
 forbidden_modules = ["athena_local.dispatch", "athena_local.main", "athena_local.workgroups", "athena_local.named_queries", "athena_local.prepared_statements", "athena_local.data_catalogs", "athena_local.engine_versions", "athena_local.tags", "athena_local.catalog_metadata", "athena_local.query_executions", "athena_local.query_results"]
+
+# glue_overlay (docker/moto) is a single-file module, not a package — grimp
+# cannot scan it as a root. It is listed as a forbidden target instead, so any
+# workspace package importing it breaks the contracts above.
+[[tool.importlinter.contracts]]
+name = "SageMaker local stays independent of the monorepo's other packages"
+type = "forbidden"
+source_modules = ["sagemaker_local"]
+forbidden_modules = ["mlops_shared", "data_science_scaffold", "nyc_taxi_demand_forecasting", "sagemaker_catboost", "sagemaker_lightgbm", "sagemaker_xgboost", "sagemaker_scikit_learn", "ml_specialization", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "videos", "diagrams_generation", "videos_linter", "athena_local", "glue_overlay"]
+
+[[tool.importlinter.contracts]]
+name = "SageMaker project images are independent of each other"
+type = "independence"
+modules = ["sagemaker_catboost", "sagemaker_lightgbm", "sagemaker_xgboost", "sagemaker_scikit_learn"]
+
+[[tool.importlinter.contracts]]
+name = "SageMaker project images stay independent of the monorepo's other packages"
+type = "forbidden"
+source_modules = ["sagemaker_catboost", "sagemaker_lightgbm", "sagemaker_xgboost", "sagemaker_scikit_learn"]
+forbidden_modules = ["mlops_shared", "data_science_scaffold", "nyc_taxi_demand_forecasting", "ml_specialization", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "videos", "diagrams_generation", "videos_linter", "sagemaker_local", "athena_local", "glue_overlay"]
+
+[[tool.importlinter.contracts]]
+name = "ML specialization uses only the shared library"
+type = "forbidden"
+source_modules = ["ml_specialization"]
+forbidden_modules = ["data_science_scaffold", "nyc_taxi_demand_forecasting", "sagemaker_catboost", "sagemaker_lightgbm", "sagemaker_xgboost", "sagemaker_scikit_learn", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "videos", "diagrams_generation", "videos_linter", "sagemaker_local", "athena_local", "glue_overlay"]
 
 [tool.uv.sources]
 ssg-i18n = { workspace = true }

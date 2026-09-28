@@ -9,26 +9,16 @@ repos:
         exclude: ^libs/data-science-scaffold/template/
   - repo: local
     hooks:
-      - id: bandit
-        name: bandit security scan
-        entry: uv run bandit -q -r libs/athena-local/src -ll
+      - id: security
+        name: package security scans (bandit, vulture, semgrep)
+        entry: make security
         language: system
         pass_filenames: false
-        files: ^libs/athena-local/
-      - id: vulture
-        name: vulture dead code check
-        # The ignore list mirrors [tool.vulture] in libs/athena-local/pyproject.toml
-        # (the hook runs from the repo root, so the lib config does not apply).
-        entry: uv run vulture --min-confidence 80 --ignore-names "implemented_operations,test_*,*_test,*kwargs,__*__,Name,DatabaseName,Expression,Bucket,Key,Body,Prefix,ContinuationToken" libs/athena-local/src
+      - id: maintainability
+        name: xenon maintainability
+        entry: make maintainability
         language: system
         pass_filenames: false
-        files: ^libs/athena-local/
-      - id: xenon
-        name: xenon maintainability check
-        entry: uv run xenon --max-absolute B --max-modules A --max-average A libs/athena-local/src
-        language: system
-        pass_filenames: false
-        files: ^libs/athena-local/
       - id: deptry
         name: deptry
         entry: make dependencies

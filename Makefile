@@ -6,7 +6,7 @@ MANIM_CUSTOM_IMAGE ?= mlops-manim-prod
 VIDEO_OUTPUT_DIR ?= videos/output
 
 .SILENT:
-.PHONY: install scaffold format lint type-check test test-bdd test-e2e test-videos-docker coverage complexity dependencies architecture security quality build-site preview-site evaluate-translation render-video check-videos diagrams-build diagrams-render jupyterlab-build jupyterlab collect preprocess features train tune evaluate deploy monitor mlflow
+.PHONY: install scaffold format lint type-check test test-bdd test-e2e test-videos-docker coverage complexity dependencies architecture security maintainability quality build-site preview-site evaluate-translation render-video check-videos diagrams-build diagrams-render jupyterlab-build jupyterlab collect preprocess features train tune evaluate deploy monitor mlflow
 SITE_CONFIG ?= site/site.yaml
 SITE_OUTPUT ?= site/build
 
@@ -22,7 +22,7 @@ scaffold:
 	$(MAKE) -C projects/$(PROJECT) format
 	cd projects/$(PROJECT) && uv run ruff check --fix .
 
-PACKAGES = libs/mlops-shared libs/data-science-scaffold libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting libs/ssg-latex libs/videos libs/diagrams libs/videos-linter libs/sagemaker-local libs/athena-local docker/moto projects/$(PROJECT)
+PACKAGES = libs/mlops-shared libs/data-science-scaffold libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting libs/ssg-latex libs/videos libs/diagrams libs/videos-linter libs/sagemaker-local libs/athena-local docker/moto projects/$(PROJECT) projects/ml_specialization projects/sagemaker_catboost projects/sagemaker_lightgbm projects/sagemaker_scikit_learn projects/sagemaker_xgboost
 
 format:
 	for package in $(PACKAGES); do \
@@ -85,7 +85,12 @@ security:
 		$(MAKE) -C $$package security; \
 	done
 
-quality: lint type-check test coverage complexity dependencies architecture security
+maintainability:
+	for package in $(PACKAGES); do \
+		$(MAKE) -C $$package maintainability; \
+	done
+
+quality: lint type-check test coverage complexity dependencies architecture security maintainability
 
 mlflow:
 	uv run mlflow server --backend-store-uri sqlite:///projects/$(PROJECT)/mlflow.db --default-artifact-root ./projects/$(PROJECT)/mlruns --host 127.0.0.1 --port 5000

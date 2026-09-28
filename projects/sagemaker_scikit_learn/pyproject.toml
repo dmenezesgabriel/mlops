@@ -25,6 +25,15 @@ sagemaker-scikit-learn = "sagemaker_scikit_learn"
 # sagemaker-local:latest (installed in that image, not the workspace).
 DEP001 = ["sklearn", "joblib"]
 
+# ipykernel/nbclient/nbconvert are declared for `make test-notebooks`
+# (integration notebooks execute via nbclient/nbconvert on ipykernel);
+# deptry only sees static imports, so they read as unused.
+DEP002 = ["ipykernel", "nbclient", "nbconvert"]
+# notebooks and train.py import sagemaker/sklearn/joblib/numpy, which
+# run inside the SageMaker container (or arrive transitively in the dev
+# workspace) rather than as direct dependencies.
+DEP003 = ["joblib", "numpy", "sagemaker", "sklearn"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q -rfEs --tb=short --show-capture=no --import-mode=importlib"

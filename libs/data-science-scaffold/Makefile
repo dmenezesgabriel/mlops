@@ -1,5 +1,5 @@
 .SILENT:
-.PHONY: format lint type-check test coverage complexity dependencies security quality
+.PHONY: format lint type-check test coverage complexity dependencies security quality maintainability
 
 # Code tools are scoped to src and tests because template/ contains
 # cookiecutter Jinja files that are not valid Python.
@@ -29,6 +29,11 @@ dependencies:
 	uv run deptry .
 
 security:
+	uv run bandit -q -r src -ll
+	uv run vulture --min-confidence 80 src
 	uv run semgrep --quiet --config auto .
 
-quality: lint type-check test coverage complexity dependencies security
+maintainability:
+	uv run xenon --max-absolute B --max-modules A --max-average A src
+
+quality: lint type-check test coverage complexity dependencies security maintainability

@@ -15,7 +15,7 @@ try:
 except ImportError:
     # Fallback dummy for environments where manim is not installed
     class Scene:  # type: ignore[no-redef]
-        def __init__(self, *args: object, **kwargs: object) -> None:
+        def __init__(self, *args: object, **_kwargs: object) -> None:
             pass
 
 

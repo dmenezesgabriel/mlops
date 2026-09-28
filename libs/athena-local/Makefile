@@ -20,7 +20,7 @@ coverage:
 
 complexity:
 	tmp=$$(mktemp); \
-	uv run radon cc . -s -n C -x "*/node_modules/*" > $$tmp 2>&1 || { cat $$tmp; rm -f $$tmp; exit 1; }; \
+	uv run radon cc . -s -n C -e "*/node_modules/*" > $$tmp 2>&1 || { cat $$tmp; rm -f $$tmp; exit 1; }; \
 	if [ -s $$tmp ]; then cat $$tmp; rm -f $$tmp; exit 1; fi; \
 	rm -f $$tmp
 
@@ -33,6 +33,6 @@ security:
 	uv run semgrep --quiet --config auto .
 
 maintainability:
-	uv run xenon --max-absolute B --max-modules A --max-average A src
+	uv run xenon --max-absolute B --max-modules A --max-average A . -e "*/node_modules/*"
 
 quality: lint type-check test coverage complexity dependencies security maintainability
