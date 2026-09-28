@@ -1,11 +1,32 @@
 from __future__ import annotations
 
+import math
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import cv2
 import numpy as np
 from videos.domain.quality import RuleViolation
+
+Box = tuple[int, int, int, int]
+
+
+def _read_image(img_path: Path) -> np.ndarray | None:
+    img = cv2.imread(str(img_path))
+    if img is None:
+        return None
+    return img
+
+
+def _frame_centroid(gray: np.ndarray) -> tuple[int, int] | None:
+    _, thresh = cv2.threshold(gray, 40, 255, cv2.THRESH_BINARY)
+    moments = cv2.moments(thresh)
+    if moments["m00"] <= 0:
+        return None
+    return int(moments["m10"] / moments["m00"]), int(
+        moments["m01"] / moments["m00"]
+    )
 
 
 class ContrastChecker:
@@ -15,7 +36,7 @@ class ContrastChecker:
     def check_image(
         self, image_path: Path, scene_id: str = "unknown"
     ) -> list[RuleViolation]:
-        img = cv2.imread(str(image_path))
+        img = _read_image(image_path)
         if img is None:
             return []
 
@@ -96,7 +117,7 @@ class BlurDetector:
     def check_image(
         self, image_path: Path, scene_id: str = "unknown"
     ) -> list[RuleViolation]:
-        img = cv2.imread(str(image_path))
+        img = _read_image(image_path)
         if img is None:
             return []
 
@@ -119,81 +140,167 @@ class BlurDetector:
         return []
 
 
+def _detect_boxes(img: np.ndarray) -> list[Box]:
+    channels = list(cv2.split(img)) + [cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)]
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 20))
+    boxes: list[Box] = []
+    for ch in channels:
+        _collect_channel_boxes(ch, kernel, boxes)
+    return boxes
+
+
+def _collect_channel_boxes(
+    ch: np.ndarray, kernel: np.ndarray, boxes: list[Box]
+) -> None:
+    _, thresh = cv2.threshold(ch, 40, 255, cv2.THRESH_BINARY)
+    thresh = cv2.dilate(thresh, kernel, iterations=1)
+    contours, _ = cv2.findContours(
+        thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+    for contour in contours:
+        x, y, w, h = cv2.boundingRect(contour)
+        # Ignore extremely small noise
+        if w < 5 or h < 5:
+            continue
+        box = (x, y, w, h)
+        if not _is_known_box(box, boxes):
+            boxes.append(box)
+
+
+def _is_known_box(box: Box, boxes: list[Box]) -> bool:
+    x, y, w, h = box
+    return any(
+        abs(x - bx) < 3
+        and abs(y - by) < 3
+        and abs(w - bw) < 3
+        and abs(h - bh) < 3
+        for bx, by, bw, bh in boxes
+    )
+
+
+def _intersection_area(a: Box, b: Box) -> int:
+    x_right = min(a[0] + a[2], b[0] + b[2])
+    y_bottom = min(a[1] + a[3], b[1] + b[3])
+    width = x_right - max(a[0], b[0])
+    height = y_bottom - max(a[1], b[1])
+    if width <= 0 or height <= 0:
+        return 0
+    return width * height
+
+
 class ImageOverlapDetector:
     def check_image(
         self, image_path: Path, scene_id: str = "unknown"
     ) -> list[RuleViolation]:
-        img = cv2.imread(str(image_path))
+        img = _read_image(image_path)
         if img is None:
             return []
+        return self._overlap_violations(_detect_boxes(img), scene_id)
 
-        boxes: list[tuple[int, int, int, int]] = []
-        channels = list(cv2.split(img)) + [
-            cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        ]
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 20))
-        for ch in channels:
-            _, thresh = cv2.threshold(ch, 40, 255, cv2.THRESH_BINARY)
-            thresh = cv2.dilate(thresh, kernel, iterations=1)
-            contours, _ = cv2.findContours(
-                thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-            )
-            for contour in contours:
-                x, y, w, h = cv2.boundingRect(contour)
-                if w < 5 or h < 5:
-                    continue
-                is_duplicate = False
-                for bx, by, bw, bh in boxes:
-                    if (
-                        abs(x - bx) < 3
-                        and abs(y - by) < 3
-                        and abs(w - bw) < 3
-                        and abs(h - bh) < 3
-                    ):
-                        is_duplicate = True
-                        break
-                if not is_duplicate:
-                    boxes.append((x, y, w, h))
-
+    def _overlap_violations(
+        self, boxes: list[Box], scene_id: str
+    ) -> list[RuleViolation]:
         violations = []
-        for i in range(len(boxes)):
-            for j in range(i + 1, len(boxes)):
-                x_a, y_a, w_a, h_a = boxes[i]
-                x_b, y_b, w_b, h_b = boxes[j]
-
-                x_left = max(x_a, x_b)
-                y_top = max(y_a, y_b)
-                x_right = min(x_a + w_a, x_b + w_b)
-                y_bottom = min(y_a + h_a, y_b + h_b)
-
-                if x_right > x_left and y_bottom > y_top:
-                    intersection_area = (x_right - x_left) * (y_bottom - y_top)
-
-                    # Calculate ratio of intersection over the smaller box
-                    area_a = w_a * h_a
-                    area_b = w_b * h_b
-                    min_area = min(area_a, area_b)
-
-                    if min_area > 0 and (intersection_area / min_area) > 0.7:
-                        # Skip almost identical or heavily nested boxes (channel duplicates)
-                        continue
-
-                    if intersection_area > 10:
-                        violations.append(
-                            RuleViolation(
-                                scene_id=scene_id,
-                                rule="visual_overlap",
-                                suggestion=(
-                                    f"Rendered elements overlap in image space. "
-                                    f"Overlap area of {intersection_area} pixels detected "
-                                    f"between element {i} and element {j}."
-                                ),
-                                object_id=f"elements_{i}_{j}",
-                                actual=f"overlap_area={intersection_area}",
-                                expected="no overlap",
-                            )
-                        )
+        for i, box_a in enumerate(boxes):
+            for j, box_b in enumerate(boxes[i + 1 :], start=i + 1):
+                violation = _overlap_violation(box_a, box_b, scene_id, i, j)
+                if violation is not None:
+                    violations.append(violation)
         return violations
+
+
+def _overlap_violation(
+    box_a: Box, box_b: Box, scene_id: str, i: int, j: int
+) -> RuleViolation | None:
+    area = _intersection_area(box_a, box_b)
+    if area <= 10:
+        return None
+    min_area = min(box_a[2] * box_a[3], box_b[2] * box_b[3])
+    # Skip almost identical or heavily nested boxes (channel duplicates):
+    # intersection covers >0.7 of the smaller box.
+    if min_area > 0 and area / min_area > 0.7:
+        return None
+    return RuleViolation(
+        scene_id=scene_id,
+        rule="visual_overlap",
+        suggestion=(
+            f"Rendered elements overlap in image space. "
+            f"Overlap area of {area} pixels detected "
+            f"between element {i} and element {j}."
+        ),
+        object_id=f"elements_{i}_{j}",
+        actual=f"overlap_area={area}",
+        expected="no overlap",
+    )
+
+
+@dataclass
+class _FrameStats:
+    fps: float
+    brightnesses: list[float]
+    diffs: list[float]
+    centroids: list[tuple[int, int] | None]
+
+
+def _collect_frame_stats(cap: cv2.VideoCapture) -> _FrameStats | None:
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    if fps <= 0:
+        fps = 30.0
+
+    ret, frame = cap.read()
+    if not ret:
+        return None
+
+    prev_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    brightnesses = [float(np.mean(prev_gray))]
+    diffs: list[float] = []
+    centroids = [_frame_centroid(prev_gray)]
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        brightnesses.append(float(np.mean(gray)))
+        diffs.append(float(np.mean(cv2.absdiff(gray, prev_gray))))
+        centroids.append(_frame_centroid(gray))
+        prev_gray = gray
+
+    if len(brightnesses) < 2:
+        return None
+    return _FrameStats(fps, brightnesses, diffs, centroids)
+
+
+def _longest_frozen_run(diffs: list[float]) -> int:
+    longest = current = 0
+    for diff_val in diffs:
+        if diff_val >= 0.05:
+            current = 0
+            continue
+        current += 1
+        longest = max(longest, current)
+    return longest
+
+
+def _is_brightness_sign_flip(before: float, mid: float, after: float) -> bool:
+    diff1 = after - mid
+    diff2 = mid - before
+    if abs(diff1) <= 10.0 or abs(diff2) <= 10.0:
+        return False
+    return (diff1 > 0) != (diff2 > 0)
+
+
+def _first_jump_distance(
+    centroids: list[tuple[int, int] | None], threshold: float
+) -> float | None:
+    # Adjacent pairs: the offset slice is one shorter by design.
+    for prev, curr in zip(centroids, centroids[1:], strict=False):
+        if curr is None or prev is None:
+            continue
+        dist = math.hypot(curr[0] - prev[0], curr[1] - prev[1])
+        if dist > threshold:
+            return dist
+    return None
 
 
 class VideoMotionAnalyzer:
@@ -208,138 +315,82 @@ class VideoMotionAnalyzer:
     def analyze_video(
         self, video_path: Path, scene_id: str = "unknown"
     ) -> list[RuleViolation]:
-        import math
-
         cap = cv2.VideoCapture(str(video_path))
         if not cap.isOpened():
             return []
-
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        if fps <= 0:
-            fps = 30.0
-
-        frame_brightnesses: list[float] = []
-        frame_diffs: list[float] = []
-        centroids: list[tuple[int, int] | None] = []
-
-        ret, prev_frame = cap.read()
-        if not ret:
-            cap.release()
-            return []
-
-        prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
-        frame_brightnesses.append(float(np.mean(prev_gray)))
-
-        _, prev_thresh = cv2.threshold(prev_gray, 40, 255, cv2.THRESH_BINARY)
-        moments = cv2.moments(prev_thresh)
-        if moments["m00"] > 0:
-            prev_cx = int(moments["m10"] / moments["m00"])
-            prev_cy = int(moments["m01"] / moments["m00"])
-            centroids.append((prev_cx, prev_cy))
-        else:
-            centroids.append(None)
-
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            frame_brightnesses.append(float(np.mean(gray)))
-
-            diff = cv2.absdiff(gray, prev_gray)
-            diff_mean = float(np.mean(diff))
-            frame_diffs.append(diff_mean)
-
-            _, thresh = cv2.threshold(gray, 40, 255, cv2.THRESH_BINARY)
-            moments = cv2.moments(thresh)
-            if moments["m00"] > 0:
-                cx = int(moments["m10"] / moments["m00"])
-                cy = int(moments["m01"] / moments["m00"])
-                centroids.append((cx, cy))
-            else:
-                centroids.append(None)
-
-            prev_gray = gray
-
+        stats = _collect_frame_stats(cap)
         cap.release()
-
-        violations = []
-        num_frames = len(frame_brightnesses)
-        if num_frames < 2:
+        if stats is None:
             return []
-
-        consecutive_frozen = 0
-        max_consecutive_frozen = 0
-        for diff_val in frame_diffs:
-            if diff_val < 0.05:
-                consecutive_frozen += 1
-                if consecutive_frozen > max_consecutive_frozen:
-                    max_consecutive_frozen = consecutive_frozen
-            else:
-                consecutive_frozen = 0
-
-        frozen_seconds = max_consecutive_frozen / fps
-        if frozen_seconds > self._max_frozen_seconds:
-            violations.append(
-                RuleViolation(
-                    scene_id=scene_id,
-                    rule="frozen_video",
-                    suggestion=(
-                        f"Video animation is frozen for too long. "
-                        f"Detected frozen segment of {frozen_seconds:.2f}s, expected <= {self._max_frozen_seconds}s."
-                    ),
-                    actual=f"{frozen_seconds:.2f}s",
-                    expected=f"<= {self._max_frozen_seconds}s",
-                )
-            )
-
-        flicker_count = 0
-        for i in range(2, num_frames):
-            diff1 = frame_brightnesses[i] - frame_brightnesses[i - 1]
-            diff2 = frame_brightnesses[i - 1] - frame_brightnesses[i - 2]
-            if abs(diff1) > 10.0 and abs(diff2) > 10.0:
-                if (diff1 > 0 and diff2 < 0) or (diff1 < 0 and diff2 > 0):
-                    flicker_count += 1
-
-        flicker_ratio = flicker_count / num_frames
-        if flicker_ratio > 0.1:
-            violations.append(
-                RuleViolation(
-                    scene_id=scene_id,
-                    rule="video_flicker",
-                    suggestion=(
-                        f"High-frequency brightness flickering detected. "
-                        f"Flicker ratio {flicker_ratio * 100:.1f}% exceeds safe limit of 10%."
-                    ),
-                    actual=f"{flicker_ratio * 100:.1f}%",
-                    expected="<= 10%",
-                )
-            )
-
-        for i in range(1, num_frames):
-            c_curr = centroids[i]
-            c_prev = centroids[i - 1]
-            if c_curr is not None and c_prev is not None:
-                dist = math.sqrt(
-                    (c_curr[0] - c_prev[0]) ** 2 + (c_curr[1] - c_prev[1]) ** 2
-                )
-                if dist > self._stutter_threshold:
-                    violations.append(
-                        RuleViolation(
-                            scene_id=scene_id,
-                            rule="video_stutter_jump",
-                            suggestion=(
-                                f"Sudden jump or stutter detected in video animation. "
-                                f"Centroid displacement of {dist:.2f} pixels exceeds threshold {self._stutter_threshold}."
-                            ),
-                            actual=f"{dist:.2f} pixels",
-                            expected=f"<= {self._stutter_threshold} pixels",
-                        )
-                    )
-                    break
-
+        violations = self._check_frozen(stats, scene_id)
+        violations += self._check_flicker(stats, scene_id)
+        violations += self._check_stutter(stats, scene_id)
         return violations
+
+    def _check_frozen(
+        self, stats: _FrameStats, scene_id: str
+    ) -> list[RuleViolation]:
+        frozen_seconds = _longest_frozen_run(stats.diffs) / stats.fps
+        if frozen_seconds <= self._max_frozen_seconds:
+            return []
+        return [
+            RuleViolation(
+                scene_id=scene_id,
+                rule="frozen_video",
+                suggestion=(
+                    f"Video animation is frozen for too long. "
+                    f"Detected frozen segment of {frozen_seconds:.2f}s, expected <= {self._max_frozen_seconds}s."
+                ),
+                actual=f"{frozen_seconds:.2f}s",
+                expected=f"<= {self._max_frozen_seconds}s",
+            )
+        ]
+
+    def _check_flicker(
+        self, stats: _FrameStats, scene_id: str
+    ) -> list[RuleViolation]:
+        brightnesses = stats.brightnesses
+        flicker_count = sum(
+            1
+            for i in range(2, len(brightnesses))
+            if _is_brightness_sign_flip(
+                brightnesses[i - 2], brightnesses[i - 1], brightnesses[i]
+            )
+        )
+        flicker_ratio = flicker_count / len(brightnesses)
+        if flicker_ratio <= 0.1:
+            return []
+        return [
+            RuleViolation(
+                scene_id=scene_id,
+                rule="video_flicker",
+                suggestion=(
+                    f"High-frequency brightness flickering detected. "
+                    f"Flicker ratio {flicker_ratio * 100:.1f}% exceeds safe limit of 10%."
+                ),
+                actual=f"{flicker_ratio * 100:.1f}%",
+                expected="<= 10%",
+            )
+        ]
+
+    def _check_stutter(
+        self, stats: _FrameStats, scene_id: str
+    ) -> list[RuleViolation]:
+        dist = _first_jump_distance(stats.centroids, self._stutter_threshold)
+        if dist is None:
+            return []
+        return [
+            RuleViolation(
+                scene_id=scene_id,
+                rule="video_stutter_jump",
+                suggestion=(
+                    f"Sudden jump or stutter detected in video animation. "
+                    f"Centroid displacement of {dist:.2f} pixels exceeds threshold {self._stutter_threshold}."
+                ),
+                actual=f"{dist:.2f} pixels",
+                expected=f"<= {self._stutter_threshold} pixels",
+            )
+        ]
 
 
 class LinterError(RuntimeError):
@@ -382,26 +433,17 @@ class LinterService:
         return violations
 
     def verify_visuals(self, image_path: Path, scene_id: str) -> None:
-        violations = self._contrast_checker.check_image(image_path, scene_id)
-        if violations:
-            raise LinterError(
-                f"Visual Linter failed for scene {scene_id!r} due to contrast issues: "
-                + "; ".join(v.suggestion for v in violations)
-            )
-
-        violations = self._blur_detector.check_image(image_path, scene_id)
-        if violations:
-            raise LinterError(
-                f"Visual Linter failed for scene {scene_id!r} due to blurriness: "
-                + "; ".join(v.suggestion for v in violations)
-            )
-
-        violations = self._overlap_detector.check_image(image_path, scene_id)
-        if violations:
-            raise LinterError(
-                f"Visual Linter failed for scene {scene_id!r} due to overlapping elements: "
-                + "; ".join(v.suggestion for v in violations)
-            )
+        for checker, label in (
+            (self._contrast_checker, "contrast issues"),
+            (self._blur_detector, "blurriness"),
+            (self._overlap_detector, "overlapping elements"),
+        ):
+            violations = checker.check_image(image_path, scene_id)
+            if violations:
+                raise LinterError(
+                    f"Visual Linter failed for scene {scene_id!r} due to {label}: "
+                    + "; ".join(v.suggestion for v in violations)
+                )
 
     def verify_video(self, video_path: Path, scene_id: str) -> None:
         violations = self._motion_analyzer.analyze_video(video_path, scene_id)
