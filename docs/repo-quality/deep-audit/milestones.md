@@ -30,8 +30,12 @@
 - [x] **AU-02** `data-science-scaffold` (generates the `projects/*` skeleton —
   template defects here replicate into AU-17/AU-18, so it audits first).
   9 gaps (S3×8, S4×1) — template gate drift + anchor-fragile registration.
-- [ ] **AU-03** `docker/moto/glue_overlay.py` (wire-parsing — D8 heavy).
-- [ ] Remediate promoted S1+ gaps.
+- [x] **AU-03** `docker/moto/glue_overlay.py` (wire-parsing — D8 heavy).
+  8 gaps (S1×1, S3×6, S4×1) — stale column statistics resurrect on
+  table/db recreate; `ColumnNames` ignored; malformed stat entry → 500;
+  dead UDF store; apply-guard + type-fold parity nits; 78% cov.
+- [ ] Remediate promoted S1+ gaps. (AF-12, AF-13 pending from AU-02 +
+  AF-14…AF-19 from AU-03; AF-14 is the S1 — first up.)
 
 ## MA-3 — SSG core
 
