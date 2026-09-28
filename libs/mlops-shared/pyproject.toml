@@ -27,8 +27,4 @@ reportMissingImports = false
 
 [tool.vulture]
 min_confidence = 80
-# DatasetLoader/DatasetWriter protocol stubs (datasets.py) name parameters for
-# implementers and keyword callers; stub bodies are `...` so vulture sees them
-# as unused.
-ignore_names = ["dataset", "dataset_path"]
 sort_by_size = true
