@@ -52,3 +52,11 @@ reportMissingReturnType = true
 reportUnnecessaryCast = true
 reportUnusedIgnoreComment = true
 reportMissingImports = false
+
+[tool.vulture]
+min_confidence = 80
+# TransformersModule.pipeline (transformers_text_translator.py) is a Protocol
+# stub whose task/model names mirror transformers.pipeline kwargs; the `...`
+# body never references them.
+ignore_names = ["task", "model"]
+sort_by_size = true
