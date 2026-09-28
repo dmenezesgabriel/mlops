@@ -1,3 +1,10 @@
+# pyright: reportMissingTypeStubs=false, reportPrivateUsage=false
+# pyright: reportUnknownVariableType=false, reportUnknownMemberType=false
+# pyright: reportUnknownArgumentType=false
+# mistletoe is untyped and this module adapts its internals on purpose:
+# it patches block_token.remove_token/_token_types, dispatches through
+# renderer.render_map (max_line_length is a real runtime kwarg), and
+# introspects token nodes via getattr.
 import json
 import re
 from collections.abc import Iterable
@@ -46,8 +53,11 @@ class _CustomMarkdownRenderer(MarkdownRenderer):
                 else:
                     yield ""
             first = False
+            # mistletoe's own render() passes max_line_length the same way;
+            # its untyped stubs just don't model the render_map signatures.
             yield from self.render_map[token.__class__.__name__](
-                token, max_line_length=max_line_length
+                token,
+                max_line_length=max_line_length,  # pyright: ignore[reportCallIssue]
             )
 
     def render_list(  # type: ignore[override]

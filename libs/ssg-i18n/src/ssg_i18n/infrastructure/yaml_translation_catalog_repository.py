@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import cast
 
 import yaml
 
@@ -26,9 +27,11 @@ class YamlTranslationCatalogRepository:
         )
 
     def _load_manifest(self, catalog_path: Path) -> dict[object, object]:
-        parsed_yaml = yaml.safe_load(catalog_path.read_text(encoding="utf-8"))
+        parsed_yaml = cast(
+            object, yaml.safe_load(catalog_path.read_text(encoding="utf-8"))
+        )
         if isinstance(parsed_yaml, dict):
-            return parsed_yaml
+            return cast(dict[object, object], parsed_yaml)
 
         raise ValueError(
             f"Invalid i18n catalog {catalog_path}: expected YAML mapping, "
@@ -44,7 +47,8 @@ class YamlTranslationCatalogRepository:
                 f"Invalid i18n catalog {catalog_path}: expected {key} mapping"
             )
 
+        mapping = cast(dict[object, object], value)
         return {
             str(source_text): str(translated_text)
-            for source_text, translated_text in value.items()
+            for source_text, translated_text in mapping.items()
         }

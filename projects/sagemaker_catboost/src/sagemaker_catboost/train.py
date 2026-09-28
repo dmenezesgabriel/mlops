@@ -11,6 +11,14 @@ Example:
               hyperparameters={"dataset": "breast_cancer"})
 """
 
+# pyright: reportMissingTypeStubs=false
+# pyright: reportUnknownVariableType=false, reportUnknownMemberType=false
+# pyright: reportUnknownArgumentType=false, reportUnknownLambdaType=false
+# pyright: reportUnknownParameterType=false, reportMissingParameterType=false
+# This module runs inside the SageMaker training image: joblib/sklearn/
+# catboost/xgboost/lightgbm are installed in the image, not the workspace
+# (see [tool.deptry] DEP001 ignores), so their members are untyped here.
+
 from __future__ import annotations
 
 import json

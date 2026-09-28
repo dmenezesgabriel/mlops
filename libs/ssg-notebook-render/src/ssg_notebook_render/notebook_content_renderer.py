@@ -3,6 +3,7 @@ import html
 import re
 import shutil
 from pathlib import Path
+from typing import Any, cast
 
 import nbformat
 from jinja2 import Environment, StrictUndefined
@@ -57,16 +58,26 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
     ) -> str:
         environment = Environment(autoescape=True, undefined=StrictUndefined)
         template = environment.from_string(source)
-        return template.render(
-            include_source=lambda source_path: self._include_source(
+
+        def include_source(source_path: str) -> Markup:
+            return self._include_source(
                 collection, source_path, context, page, transclusions
-            ),
-            embed_video=lambda video_name: self._embed_video(
+            )
+
+        def embed_video(video_name: str) -> Markup:
+            return self._embed_video(
                 collection, context, page, video_name, transclusions
-            ),
-            embed_image=lambda image_name: self._embed_image(
+            )
+
+        def embed_image(image_name: str) -> Markup:
+            return self._embed_image(
                 collection, context, page, image_name, transclusions
-            ),
+            )
+
+        return template.render(
+            include_source=include_source,
+            embed_video=embed_video,
+            embed_image=embed_image,
         )
 
     def _include_source(
@@ -216,7 +227,14 @@ class NotebookContentRenderer(ContentRenderer):
                 page, page.source_path
             )
 
-        notebook = nbformat.read(page.source_path, as_version=4)
+        # nbformat's NotebookNode tree is untyped JSON; treating it as Any
+        # keeps every downstream cell/metadata access honest about that.
+        notebook = cast(
+            Any,
+            nbformat.read(  # pyright: ignore[reportUnknownMemberType]
+                page.source_path, as_version=4
+            ),
+        )
         rendered_cells = [
             self._render_cell(cell, collection, page, context, index)
             for index, cell in enumerate(notebook.cells)
@@ -292,7 +310,7 @@ class NotebookContentRenderer(ContentRenderer):
         if output_type == "stream":
             stream_text = getattr(output, "text", "")
             if isinstance(stream_text, list):
-                stream_text = "".join(stream_text)
+                stream_text = "".join(cast(list[str], stream_text))
             return self._fragment_renderer.render_stream_output(
                 str(stream_text)
             )
@@ -300,32 +318,37 @@ class NotebookContentRenderer(ContentRenderer):
         data = getattr(output, "data", {})
         if not isinstance(data, dict):
             return ""
+        data_map = cast(dict[str, Any], data)
 
-        if "application/vnd.jupyter.widget-view+json" in data:
+        if "application/vnd.jupyter.widget-view+json" in data_map:
             import json
 
-            widget_view = data["application/vnd.jupyter.widget-view+json"]
+            widget_view = data_map["application/vnd.jupyter.widget-view+json"]
             return self._fragment_renderer.render_widget_view_output(
                 json.dumps(widget_view)
             )
 
-        if "text/html" in data:
-            html_content = data["text/html"]
+        if "text/html" in data_map:
+            html_content = data_map["text/html"]
             if isinstance(html_content, list):
-                html_content = "".join(html_content)
+                html_content = "".join(cast(list[str], html_content))
             return self._fragment_renderer.render_html_output(
                 str(html_content)
             )
 
-        if "image/png" in data:
+        if "image/png" in data_map:
             return self._write_png_output(
-                data["image/png"], page, output_path, cell_index, output_index
+                data_map["image/png"],
+                page,
+                output_path,
+                cell_index,
+                output_index,
             )
 
-        if "text/plain" in data:
-            plain_text = data["text/plain"]
+        if "text/plain" in data_map:
+            plain_text = data_map["text/plain"]
             if isinstance(plain_text, list):
-                plain_text = "".join(plain_text)
+                plain_text = "".join(cast(list[str], plain_text))
             return self._fragment_renderer.render_text_output(str(plain_text))
 
         return ""

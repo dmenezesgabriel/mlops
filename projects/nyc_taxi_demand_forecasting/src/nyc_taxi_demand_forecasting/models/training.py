@@ -222,7 +222,7 @@ class DemandModelTrainer:
         config: MlflowConfig,
     ) -> None:
         mlflow.set_tracking_uri(config.tracking_uri)
-        mlflow.set_experiment(config.experiment_name)
+        mlflow.set_experiment(config.experiment_name)  # pyright: ignore[reportUnknownMemberType]
         with mlflow.start_run(run_name="demand_model"):
             mlflow.log_param("alpha", alpha)
             mlflow.log_metrics(
@@ -234,7 +234,7 @@ class DemandModelTrainer:
             )
             # Log & register PyFunc model
             pyfunc_model = PyfuncDemandModel(model)
-            mlflow.pyfunc.log_model(
+            mlflow.pyfunc.log_model(  # pyright: ignore[reportUnknownMemberType]
                 artifact_path="model",
                 python_model=pyfunc_model,
                 registered_model_name=config.registered_model_name,

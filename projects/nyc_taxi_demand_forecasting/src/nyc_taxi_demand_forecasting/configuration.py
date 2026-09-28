@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from mlops_shared.config import YamlMappingLoader
 from mlops_shared.paths import RepositoryPathResolver
@@ -174,9 +175,10 @@ class ProjectConfigLoader:
     ) -> dict[str, object]:
         value = config.get(key)
         if isinstance(value, dict):
+            mapping = cast(dict[object, object], value)
             return {
                 str(item_key): item_value
-                for item_key, item_value in value.items()
+                for item_key, item_value in mapping.items()
             }
 
         raise ValueError(f"Invalid project config key {key}: expected mapping")
@@ -211,9 +213,9 @@ class ProjectConfigLoader:
     def _integer_list(self, config: dict[str, object], key: str) -> list[int]:
         value = config.get(key)
         if isinstance(value, list) and all(
-            isinstance(item, int) for item in value
+            isinstance(item, int) for item in cast(list[object], value)
         ):
-            return value
+            return cast(list[int], value)
 
         raise ValueError(
             f"Invalid project config key {key}: expected integer list, got {value!r}"

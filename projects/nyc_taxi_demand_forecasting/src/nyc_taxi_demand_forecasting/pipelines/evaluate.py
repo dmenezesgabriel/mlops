@@ -1,5 +1,7 @@
 import logging
+from collections.abc import Iterable
 from pathlib import Path
+from typing import cast
 
 import mlflow
 import pandas as pd
@@ -62,7 +64,12 @@ def run(config_path: Path) -> None:
         "is_weekend",
         "month",
     ]
-    predictions = model.predict(test_frame.loc[:, feature_columns])
+    predictions = cast(
+        "Iterable[float]",
+        model.predict(  # pyright: ignore[reportUnknownMemberType]
+            test_frame.loc[:, feature_columns]
+        ),
+    )
 
     # 4. Compute metrics
     metrics = RegressionMetricCalculator().calculate(

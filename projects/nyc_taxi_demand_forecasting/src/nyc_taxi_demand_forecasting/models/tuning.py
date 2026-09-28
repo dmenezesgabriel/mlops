@@ -99,7 +99,7 @@ class DemandModelTuner:
 
     def _init_mlflow(self, mlflow_config: MlflowConfig) -> None:
         mlflow.set_tracking_uri(mlflow_config.tracking_uri)
-        mlflow.set_experiment(mlflow_config.experiment_name)
+        mlflow.set_experiment(mlflow_config.experiment_name)  # pyright: ignore[reportUnknownMemberType]
 
     def _run_optuna_study(
         self,

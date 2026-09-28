@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 import mlflow
 import numpy as np
@@ -83,7 +84,12 @@ def run(config_path: Path) -> None:
     ]
 
     # 4. Score the incoming production data
-    predictions = model.predict(simulated_prod.loc[:, feature_columns])
+    predictions = cast(
+        pd.Series,
+        model.predict(  # pyright: ignore[reportUnknownMemberType]
+            simulated_prod.loc[:, feature_columns]
+        ),
+    )
     simulated_prod["prediction"] = predictions
 
     # 5. Compute performance metrics on production data

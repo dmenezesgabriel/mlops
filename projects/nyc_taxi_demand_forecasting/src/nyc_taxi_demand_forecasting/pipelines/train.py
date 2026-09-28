@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import cast
 
 import mlflow
 import pandas as pd
@@ -16,7 +17,7 @@ def _resolve_best_alpha(tracking_uri: str, experiment_name: str) -> float:
         return 1.0
 
     runs = mlflow.search_runs(
-        experiment_ids=[experiment.experiment_id],
+        experiment_ids=[cast(str, experiment.experiment_id)],  # pyright: ignore[reportUnknownMemberType]
         filter_string="tags.mlflow.runName = 'hyperparameter_tuning'",
         order_by=["start_time DESC"],
         max_results=1,
