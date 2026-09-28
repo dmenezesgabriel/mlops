@@ -25,7 +25,7 @@ sync:
 	uv sync --all-packages
 
 coverage:
-	uv run pytest -m "not integration" --cov --cov-report=term-missing:skip-covered --cov-fail-under=69
+	uv run pytest -m "not integration" --cov --cov-report=term-missing:skip-covered --cov-fail-under=85
 
 complexity:
 	tmp=$$(mktemp); \
