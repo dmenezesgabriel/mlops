@@ -1,7 +1,12 @@
+import sys
 from pathlib import Path
 
 import pytest
-from data_science_scaffold.register import register_project
+from data_science_scaffold.register import (
+    _assert_valid_toml,
+    main,
+    register_project,
+)
 
 
 def test_register_project_adds_slug_to_all_lists(tmp_path: Path) -> None:
@@ -226,6 +231,64 @@ def test_register_project_fails_when_no_contract_guards_projects(
     with pytest.raises(RuntimeError, match="forbidden_modules"):
         register_project("dummy_test_proj", pyproject_path)
     assert pyproject_path.read_text(encoding="utf-8") == original
+
+
+def test_main_rejects_bad_slug_without_traceback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange — slug validation runs before any file I/O, so argv alone
+    # exercises the path.
+    monkeypatch.setattr(sys, "argv", ["register", "Bad-Slug"])
+
+    # Act & Assert — a clean SystemExit carries the message; an uncaught
+    # ValueError would surface as a traceback to the operator.
+    with pytest.raises(SystemExit, match="Invalid project slug"):
+        main()
+
+
+def test_main_usage_names_module_entry_point(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    monkeypatch.setattr(sys, "argv", ["register"])
+
+    # Act & Assert — the usage string must name the real entry point,
+    # not a nonexistent scripts/register_project.py.
+    with pytest.raises(SystemExit, match="data_science_scaffold.register"):
+        main()
+
+
+def test_main_reports_drifted_pyproject_without_traceback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange — a drifted pyproject makes register_project raise RuntimeError;
+    # that is operator-facing too and must not dump a traceback.
+    monkeypatch.setattr(sys, "argv", ["register", "dummy_test_proj"])
+    monkeypatch.setattr(
+        "data_science_scaffold.register.register_project",
+        _fail_with_drift_error,
+    )
+
+    # Act & Assert
+    with pytest.raises(SystemExit, match="tool.deptry"):
+        main()
+
+
+def test_assert_valid_toml_reports_decode_error() -> None:
+    # Act & Assert — the guard is defensive: the transforms preserve TOML
+    # validity by construction, so it is exercised directly. The message
+    # must carry tomllib's decode detail, not just the static prefix.
+    with pytest.raises(RuntimeError, match=r"after registering: .+\(at .+\)"):
+        _assert_valid_toml("[broken")
+
+
+def _fail_with_drift_error(
+    slug: str, pyproject_path: Path | None = None
+) -> bool:
+    raise RuntimeError(
+        "section [tool.deptry] not found in pyproject.toml; expected "
+        "a [tool.deptry] table for project registration"
+    )
 
 
 def _sample_pyproject() -> str:

@@ -168,20 +168,23 @@ def _assert_valid_toml(text: str) -> None:
         tomllib.loads(text)
     except tomllib.TOMLDecodeError as exc:
         raise RuntimeError(
-            "pyproject.toml is no longer valid TOML after registering"
+            f"pyproject.toml is no longer valid TOML after registering: {exc}"
         ) from exc
 
 
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit(
-            "Usage: python scripts/register_project.py <project_slug>"
+            "Usage: python -m data_science_scaffold.register <project_slug>"
         )
-    changed = register_project(sys.argv[1])
+    try:
+        changed = register_project(sys.argv[1])
+    except (ValueError, RuntimeError) as exc:
+        raise SystemExit(str(exc)) from exc
     if changed:
         print(f"Registered {sys.argv[1]} in pyproject.toml")
-    else:
-        print(f"{sys.argv[1]} is already registered in pyproject.toml")
+        return
+    print(f"{sys.argv[1]} is already registered in pyproject.toml")
 
 
 if __name__ == "__main__":
