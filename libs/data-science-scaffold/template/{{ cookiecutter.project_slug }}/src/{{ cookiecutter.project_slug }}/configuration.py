@@ -197,14 +197,25 @@ class ProjectConfigLoader:
         self, config: dict[str, object], key: str
     ) -> dict[str, object]:
         value = config.get(key)
-        if isinstance(value, dict):
-            mapping = cast(dict[object, object], value)
-            return {
-                str(item_key): item_value
-                for item_key, item_value in mapping.items()
-            }
+        if not isinstance(value, dict):
+            raise ValueError(
+                f"Invalid project config key {key}: expected mapping"
+            )
 
-        raise ValueError(f"Invalid project config key {key}: expected mapping")
+        mapping = cast(dict[object, object], value)
+        return {
+            self._require_string_key(key, item_key): item_value
+            for item_key, item_value in mapping.items()
+        }
+
+    def _require_string_key(self, section: str, item_key: object) -> str:
+        if isinstance(item_key, str):
+            return item_key
+
+        raise ValueError(
+            f"Invalid project config key {section}: expected string key, "
+            f"got {item_key!r} ({type(item_key).__name__})"
+        )
 
     def _string(self, config: dict[str, object], key: str) -> str:
         value = config.get(key)

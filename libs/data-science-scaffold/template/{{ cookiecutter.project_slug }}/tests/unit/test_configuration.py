@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from {{ cookiecutter.project_slug }}.configuration import ProjectConfigLoader
 
 
@@ -30,6 +32,43 @@ def test_project_config_loader_anchors_relative_mlflow_uri_to_project_root(
 
     # Assert
     assert config.mlflow.tracking_uri == f"sqlite:////{tmp_path / 'mlflow.db'}"
+
+
+@pytest.mark.parametrize(
+    "bad_line", ["  1: data/one\n", "  on: data/on\n"]
+)
+def test_project_config_loader_rejects_non_string_section_keys(
+    tmp_path: Path, bad_line: str
+) -> None:
+    # Arrange — G-16 probes: int and YAML-1.1 bool keys must not coerce
+    config_path = tmp_path / "configs" / "project.yaml"
+    config_path.parent.mkdir()
+    config_path.write_text(
+        _project_config().replace("paths:\n", f"paths:\n{bad_line}"),
+        encoding="utf-8",
+    )
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="expected string key"):
+        ProjectConfigLoader().load(config_path)
+
+
+def test_project_config_loader_rejects_colliding_section_keys(
+    tmp_path: Path,
+) -> None:
+    # Arrange — `1:` and `"1":` used to merge into one entry silently
+    config_path = tmp_path / "configs" / "project.yaml"
+    config_path.parent.mkdir()
+    config_path.write_text(
+        _project_config().replace(
+            "paths:\n", 'paths:\n  1: data/one\n  "1": data/two\n'
+        ),
+        encoding="utf-8",
+    )
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="expected string key"):
+        ProjectConfigLoader().load(config_path)
 
 
 def _project_config() -> str:

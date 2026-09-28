@@ -1,7 +1,9 @@
+import importlib.util
 import subprocess
 import sys
 import tomllib
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 from cookiecutter.exceptions import (
@@ -74,6 +76,25 @@ def test_generated_project_gates_match_live_shape(tmp_path: Path) -> None:
     ]
 
 
+def test_rendered_config_loader_rejects_non_string_section_keys(
+    tmp_path: Path,
+) -> None:
+    # Arrange — G-16 probe: an int key under `paths:` must not coerce to "1"
+    generated = generate("dummy_test_proj", tmp_path)
+    module = _load_rendered_configuration(generated, "dummy_test_proj")
+    config_path = generated / "configs" / "project.yaml"
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace(
+            "paths:\n", "paths:\n  1: data/extra\n"
+        ),
+        encoding="utf-8",
+    )
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="expected string key"):
+        module.ProjectConfigLoader().load(config_path)
+
+
 def test_pre_gen_hook_exits_clean_inside_rendered_tree(tmp_path: Path) -> None:
     # Arrange — render and run the hook exactly as cookiecutter does
     # (template → script, cwd = the just-created project dir) with a stray
@@ -116,6 +137,18 @@ def test_generate_rejects_invalid_slug(tmp_path: Path) -> None:
     # Act & Assert — the pre_gen hook still validates the slug pattern.
     with pytest.raises(FailedHookException):
         generate("9abc", tmp_path)
+
+
+def _load_rendered_configuration(generated: Path, slug: str) -> ModuleType:
+    module_path = generated / "src" / slug / "configuration.py"
+    spec = importlib.util.spec_from_file_location(
+        f"{slug}.configuration", module_path
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def _run_ruff(*arguments: str, cwd: Path) -> subprocess.CompletedProcess[str]:
