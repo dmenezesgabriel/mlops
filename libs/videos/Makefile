@@ -18,7 +18,7 @@ test-docker:
 	make -C ../.. test-videos-docker
 
 coverage:
-	uv run pytest -m "not docker" --cov --cov-report=term-missing:skip-covered
+	uv run pytest -m "not docker" --cov --cov-report=term-missing:skip-covered --cov-fail-under=75
 
 complexity:
 	tmp=$$(mktemp); \

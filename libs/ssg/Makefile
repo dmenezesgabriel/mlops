@@ -18,7 +18,7 @@ test-e2e:
 	uv run pytest -m playwright
 
 coverage:
-	uv run pytest -m "not (playwright or docker)" --cov --cov-report=term-missing:skip-covered
+	uv run pytest -m "not (playwright or docker)" --cov --cov-report=term-missing:skip-covered --cov-fail-under=75
 
 complexity:
 	tmp=$$(mktemp); \
