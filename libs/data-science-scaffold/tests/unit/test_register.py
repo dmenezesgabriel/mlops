@@ -1,8 +1,11 @@
 import sys
+import tomllib
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 from data_science_scaffold.register import (
+    PYPROJECT_PATH,
     _assert_valid_toml,
     main,
     register_project,
@@ -61,14 +64,26 @@ def test_register_project_leaves_unrelated_contracts_untouched(
     assert 'forbidden_modules = ["ssg.infrastructure"]\n' in updated
 
 
-def test_register_project_rejects_invalid_slug(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "slug",
+    [
+        "Invalid-Slug",
+        "x!y",
+        "9abc",  # digit-leading: kills the ^[a-z] → ^[a-z0-9_] mutant
+        "_abc",  # underscore-leading: kills the same mutant
+        "abc\n",  # trailing newline: kills the fullmatch → match mutant
+    ],
+)
+def test_register_project_rejects_invalid_slug(
+    tmp_path: Path, slug: str
+) -> None:
     # Arrange
     pyproject_path = tmp_path / "pyproject.toml"
     pyproject_path.write_text(_sample_pyproject(), encoding="utf-8")
 
     # Act & Assert
     with pytest.raises(ValueError, match="Invalid project slug"):
-        register_project("Invalid-Slug", pyproject_path)
+        register_project(slug, pyproject_path)
 
 
 def test_register_project_fails_loudly_when_anchors_are_missing(
@@ -272,6 +287,76 @@ def test_main_reports_drifted_pyproject_without_traceback(
     # Act & Assert
     with pytest.raises(SystemExit, match="tool.deptry"):
         main()
+
+
+def _register_changed(slug: str, pyproject_path: Path | None = None) -> bool:
+    return True
+
+
+def _register_unchanged(slug: str, pyproject_path: Path | None = None) -> bool:
+    return False
+
+
+@pytest.mark.parametrize(
+    ("register_stub", "expected"),
+    [
+        (_register_changed, "Registered dummy_test_proj in pyproject.toml"),
+        (
+            _register_unchanged,
+            "dummy_test_proj is already registered in pyproject.toml",
+        ),
+    ],
+)
+def test_main_reports_registration_result(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    register_stub: Callable[..., bool],
+    expected: str,
+) -> None:
+    # Arrange — the stub owns the file I/O so the branch under test is
+    # main()'s message selection, not registration itself.
+    monkeypatch.setattr(sys, "argv", ["register", "dummy_test_proj"])
+    monkeypatch.setattr(
+        "data_science_scaffold.register.register_project", register_stub
+    )
+
+    # Act
+    main()
+
+    # Assert
+    assert capsys.readouterr().out.strip() == expected
+
+
+def test_register_project_anchors_match_real_pyproject(
+    tmp_path: Path,
+) -> None:
+    # Arrange — register against a copy of the live pyproject: if an anchor
+    # drifts out of the repo file, the RuntimeError here is the alarm rather
+    # than a silent misregistration at scaffold time.
+    copy = tmp_path / "pyproject.toml"
+    copy.write_text(
+        PYPROJECT_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+
+    # Act
+    changed = register_project("anchor_conformance_probe", copy)
+
+    # Assert — the probe must land in every required list and in every
+    # forbidden contract that guards project imports.
+    assert changed is True
+    tool = tomllib.loads(copy.read_text(encoding="utf-8"))["tool"]
+    probe = "anchor_conformance_probe"
+    assert f"projects/{probe}" in tool["uv"]["workspace"]["members"]
+    assert probe in tool["deptry"]["known_first_party"]
+    assert probe in tool["importlinter"]["root_packages"]
+    guarded = [
+        contract
+        for contract in tool["importlinter"]["contracts"]
+        if "nyc_taxi_demand_forecasting"
+        in contract.get("forbidden_modules", [])
+    ]
+    assert guarded, "no forbidden contract lists the anchor module"
+    assert all(probe in contract["forbidden_modules"] for contract in guarded)
 
 
 def test_assert_valid_toml_reports_decode_error() -> None:
