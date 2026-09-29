@@ -112,13 +112,17 @@ def delete_column_statistics(
 
 
 def get_column_statistics(
-    this: GlueBackend, database_name: str, table_name: str
+    this: GlueBackend,
+    database_name: str,
+    table_name: str,
+    column_names: list[str],
 ) -> list[ColumnStatistics]:
     this.get_table(database_name, table_name)
     stores = _column_statistics.get(this)
     if stores is None:
         return []
-    return list(stores.get((database_name, table_name), {}).values())
+    table_store = stores.get((database_name, table_name), {})
+    return [table_store[name] for name in column_names if name in table_store]
 
 
 def resolve_user_defined_functions(
@@ -161,7 +165,15 @@ def update_column_statistics_for_table(self: GlueResponse) -> EmptyResult:
             "updateColumnStatisticsForTable",
             f"expected list, got {type(statistics).__name__}: {statistics!r}",
         )
-    statistics_list = cast(list[ColumnStatistics], statistics)
+    entries: list[object] = statistics
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            raise InvalidInputException(
+                "updateColumnStatisticsForTable",
+                f"expected dict at ColumnStatisticsList[{index}], "
+                f"got {type(entry).__name__}: {entry!r}",
+            )
+    statistics_list = cast(list[ColumnStatistics], entries)
     update_column_statistics(
         self.glue_backend,
         as_string(
@@ -194,12 +206,23 @@ def delete_column_statistics_for_table(self: GlueResponse) -> EmptyResult:
 
 def get_column_statistics_for_table(self: GlueResponse) -> ActionResult:
     parameters = self.parameters
+    column_names = parameters.get("ColumnNames")
+    if not isinstance(column_names, list):
+        raise InvalidInputException(
+            "getColumnStatisticsForTable",
+            f"expected list, got {type(column_names).__name__}: "
+            f"{column_names!r}",
+        )
     statistics = get_column_statistics(
         self.glue_backend,
         as_string(
             parameters.get("DatabaseName"), "getColumnStatisticsForTable"
         ),
         as_string(parameters.get("TableName"), "getColumnStatisticsForTable"),
+        [
+            as_string(name, "getColumnStatisticsForTable")
+            for name in cast(list[object], column_names)
+        ],
     )
     return ActionResult({"ColumnStatisticsList": statistics})
 

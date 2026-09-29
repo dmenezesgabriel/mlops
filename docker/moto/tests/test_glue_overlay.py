@@ -3,15 +3,76 @@
 Run with: `make -C docker/moto test`. Each case drives boto3 against moto's
 in-process Glue backend through the same JSON-1.1 dispatch the server uses,
 so the assertions cover wire shape and status parity, not just storage.
+Member shapes boto3's serializer refuses outright are exercised with raw
+HTTP posts against a real ``ThreadedMotoServer``.
 """
+
+import http.client
+import json
 
 import boto3
 import pytest
 from moto import mock_aws
+from moto.server import ThreadedMotoServer
 
 import glue_overlay
 
 glue_overlay.apply_overlay()
+
+
+def _post_glue(
+    port: int, action: str, payload: dict[str, object]
+) -> tuple[int, bytes]:
+    """POST a raw Glue JSON-1.1 request to a running moto server.
+
+    Malformed member shapes — a string where a list belongs, a non-dict list
+    entry — never reach the wire through boto3 because its serializer
+    enforces the modeled shape client-side; only a raw HTTP caller exercises
+    the handler's own validation.
+    """
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+    connection.request(
+        "POST",
+        "/",
+        body=json.dumps(payload),
+        headers={
+            "Content-Type": "application/x-amz-json-1.1",
+            "X-Amz-Target": f"AWSGlue_20170331.{action}",
+            # moto routes account/region off the credential scope; the
+            # signature itself is never verified.
+            "Authorization": (
+                "AWS4-HMAC-SHA256 "
+                "Credential=testing/20260101/us-east-1/glue/aws4_request, "
+                "SignedHeaders=host;x-amz-date, Signature=testing"
+            ),
+        },
+    )
+    response = connection.getresponse()
+    return response.status, response.read()
+
+
+def _live_glue_client(port: int):
+    return boto3.client(
+        "glue",
+        region_name="us-east-1",
+        endpoint_url=f"http://127.0.0.1:{port}",
+        aws_access_key_id="testing",
+        aws_secret_access_key="testing",
+    )
+
+
+@pytest.fixture
+def moto_server():
+    """A real moto HTTP server, for shapes boto3 cannot serialize."""
+    server = ThreadedMotoServer("127.0.0.1", 0, verbose=False)
+    server.start()
+    _, port = server.get_host_and_port()
+    yield port
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+    connection.request("POST", "/moto-api/reset")
+    connection.getresponse().read()
+    server.stop()
+
 
 SAMPLE_STATISTICS = [
     {
@@ -235,6 +296,146 @@ def test_delete_without_statistics_store_succeeds() -> None:
 
     client.delete_table(DatabaseName="analytics", Name="events")
     client.delete_database(Name="analytics")
+
+
+@mock_aws
+def test_get_column_statistics_filters_to_column_names() -> None:
+    client = boto3.client("glue", region_name="us-east-1")
+    client.create_database(DatabaseInput={"Name": "analytics"})
+    client.create_table(
+        DatabaseName="analytics",
+        TableInput={"Name": "events", "StorageDescriptor": {}},
+    )
+    quantity_statistics = [{**SAMPLE_STATISTICS[0], "ColumnName": "quantity"}]
+    client.update_column_statistics_for_table(
+        DatabaseName="analytics",
+        TableName="events",
+        ColumnStatisticsList=SAMPLE_STATISTICS + quantity_statistics,
+    )
+
+    response = client.get_column_statistics_for_table(
+        DatabaseName="analytics", TableName="events", ColumnNames=["amount"]
+    )
+    assert [
+        stat["ColumnName"] for stat in response["ColumnStatisticsList"]
+    ] == ["amount"]
+
+    # Columns with no stored statistics are omitted, like real AWS.
+    response = client.get_column_statistics_for_table(
+        DatabaseName="analytics",
+        TableName="events",
+        ColumnNames=["amount", "ghost"],
+    )
+    assert [
+        stat["ColumnName"] for stat in response["ColumnStatisticsList"]
+    ] == ["amount"]
+
+    response = client.get_column_statistics_for_table(
+        DatabaseName="analytics",
+        TableName="events",
+        ColumnNames=["quantity", "amount"],
+    )
+    assert [
+        stat["ColumnName"] for stat in response["ColumnStatisticsList"]
+    ] == ["quantity", "amount"]
+
+
+def test_get_column_statistics_missing_column_names_returns_400(
+    moto_server,
+) -> None:
+    # ColumnNames is required in the Glue service model; a caller omitting it
+    # must get a shaped 400, not the unfiltered store.
+    client = _live_glue_client(moto_server)
+    client.create_database(DatabaseInput={"Name": "analytics"})
+    client.create_table(
+        DatabaseName="analytics",
+        TableInput={"Name": "events", "StorageDescriptor": {}},
+    )
+
+    status, body = _post_glue(
+        moto_server,
+        "GetColumnStatisticsForTable",
+        {"DatabaseName": "analytics", "TableName": "events"},
+    )
+
+    assert status == 400
+    assert b"InvalidInputException" in body
+
+
+def test_get_column_statistics_non_list_column_names_returns_400(
+    moto_server,
+) -> None:
+    client = _live_glue_client(moto_server)
+    client.create_database(DatabaseInput={"Name": "analytics"})
+    client.create_table(
+        DatabaseName="analytics",
+        TableInput={"Name": "events", "StorageDescriptor": {}},
+    )
+
+    status, body = _post_glue(
+        moto_server,
+        "GetColumnStatisticsForTable",
+        {
+            "DatabaseName": "analytics",
+            "TableName": "events",
+            "ColumnNames": "amount",
+        },
+    )
+
+    assert status == 400
+    assert b"InvalidInputException" in body
+
+
+def test_get_column_statistics_non_str_column_name_returns_400(
+    moto_server,
+) -> None:
+    client = _live_glue_client(moto_server)
+    client.create_database(DatabaseInput={"Name": "analytics"})
+    client.create_table(
+        DatabaseName="analytics",
+        TableInput={"Name": "events", "StorageDescriptor": {}},
+    )
+
+    status, body = _post_glue(
+        moto_server,
+        "GetColumnStatisticsForTable",
+        {
+            "DatabaseName": "analytics",
+            "TableName": "events",
+            "ColumnNames": [5],
+        },
+    )
+
+    assert status == 400
+    assert b"InvalidInputException" in body
+
+
+def test_update_column_statistics_non_dict_entry_returns_400(
+    moto_server,
+) -> None:
+    # A non-dict entry escapes call_action as a bare AttributeError → HTTP
+    # 500 (werkzeug HTML page); real AWS returns a shaped 400 naming the bad
+    # member.
+    client = _live_glue_client(moto_server)
+    client.create_database(DatabaseInput={"Name": "analytics"})
+    client.create_table(
+        DatabaseName="analytics",
+        TableInput={"Name": "events", "StorageDescriptor": {}},
+    )
+
+    status, body = _post_glue(
+        moto_server,
+        "UpdateColumnStatisticsForTable",
+        {
+            "DatabaseName": "analytics",
+            "TableName": "events",
+            "ColumnStatisticsList": [SAMPLE_STATISTICS[0], "bogus"],
+        },
+    )
+
+    assert status == 400
+    assert b"InvalidInputException" in body
+    assert b"ColumnStatisticsList[1]" in body
 
 
 def _seed_partitioned_table(
