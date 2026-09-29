@@ -115,6 +115,128 @@ def test_update_statistics_unknown_table_raises_entity_not_found() -> None:
     assert raised.value.response["Error"]["Code"] == "EntityNotFoundException"
 
 
+@mock_aws
+def test_delete_table_purges_column_statistics() -> None:
+    client = boto3.client("glue", region_name="us-east-1")
+    client.create_database(DatabaseInput={"Name": "analytics"})
+    client.create_table(
+        DatabaseName="analytics",
+        TableInput={"Name": "events", "StorageDescriptor": {}},
+    )
+    client.update_column_statistics_for_table(
+        DatabaseName="analytics",
+        TableName="events",
+        ColumnStatisticsList=SAMPLE_STATISTICS,
+    )
+
+    client.delete_table(DatabaseName="analytics", Name="events")
+    client.create_table(
+        DatabaseName="analytics",
+        TableInput={"Name": "events", "StorageDescriptor": {}},
+    )
+
+    response = client.get_column_statistics_for_table(
+        DatabaseName="analytics", TableName="events", ColumnNames=["amount"]
+    )
+    assert response["ColumnStatisticsList"] == []
+
+
+@mock_aws
+def test_delete_database_purges_column_statistics() -> None:
+    client = boto3.client("glue", region_name="us-east-1")
+    client.create_database(DatabaseInput={"Name": "analytics"})
+    client.create_table(
+        DatabaseName="analytics",
+        TableInput={"Name": "events", "StorageDescriptor": {}},
+    )
+    client.update_column_statistics_for_table(
+        DatabaseName="analytics",
+        TableName="events",
+        ColumnStatisticsList=SAMPLE_STATISTICS,
+    )
+
+    client.delete_database(Name="analytics")
+    client.create_database(DatabaseInput={"Name": "analytics"})
+    client.create_table(
+        DatabaseName="analytics",
+        TableInput={"Name": "events", "StorageDescriptor": {}},
+    )
+
+    response = client.get_column_statistics_for_table(
+        DatabaseName="analytics", TableName="events", ColumnNames=["amount"]
+    )
+    assert response["ColumnStatisticsList"] == []
+
+
+@mock_aws
+def test_batch_delete_table_purges_column_statistics() -> None:
+    client = boto3.client("glue", region_name="us-east-1")
+    client.create_database(DatabaseInput={"Name": "analytics"})
+    client.create_table(
+        DatabaseName="analytics",
+        TableInput={"Name": "events", "StorageDescriptor": {}},
+    )
+    client.update_column_statistics_for_table(
+        DatabaseName="analytics",
+        TableName="events",
+        ColumnStatisticsList=SAMPLE_STATISTICS,
+    )
+
+    client.batch_delete_table(
+        DatabaseName="analytics", TablesToDelete=["events"]
+    )
+    client.create_table(
+        DatabaseName="analytics",
+        TableInput={"Name": "events", "StorageDescriptor": {}},
+    )
+
+    response = client.get_column_statistics_for_table(
+        DatabaseName="analytics", TableName="events", ColumnNames=["amount"]
+    )
+    assert response["ColumnStatisticsList"] == []
+
+
+@mock_aws
+def test_statistics_store_does_not_grow_across_drop_cycles() -> None:
+    client = boto3.client("glue", region_name="us-east-1")
+    client.create_database(DatabaseInput={"Name": "analytics"})
+    stored_keys_before = sum(
+        len(stores) for stores in glue_overlay._column_statistics.values()
+    )
+    for round_index in range(5):
+        table_name = f"events_{round_index}"
+        client.create_table(
+            DatabaseName="analytics",
+            TableInput={"Name": table_name, "StorageDescriptor": {}},
+        )
+        client.update_column_statistics_for_table(
+            DatabaseName="analytics",
+            TableName=table_name,
+            ColumnStatisticsList=SAMPLE_STATISTICS,
+        )
+        client.delete_table(DatabaseName="analytics", Name=table_name)
+
+    # The weak-keyed store can still pin entries for earlier tests' live
+    # backends, so assert the delta this test produced, not an absolute.
+    stored_keys_after = sum(
+        len(stores) for stores in glue_overlay._column_statistics.values()
+    )
+    assert stored_keys_after == stored_keys_before
+
+
+@mock_aws
+def test_delete_without_statistics_store_succeeds() -> None:
+    client = boto3.client("glue", region_name="us-east-1")
+    client.create_database(DatabaseInput={"Name": "analytics"})
+    client.create_table(
+        DatabaseName="analytics",
+        TableInput={"Name": "events", "StorageDescriptor": {}},
+    )
+
+    client.delete_table(DatabaseName="analytics", Name="events")
+    client.delete_database(Name="analytics")
+
+
 def _seed_partitioned_table(
     client,
     database_name: str,

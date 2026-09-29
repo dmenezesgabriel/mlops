@@ -282,6 +282,8 @@ def _get_filter_expression(
 
 _ORIGINAL_CREATE_TABLE = GlueBackend.create_table
 _ORIGINAL_UPDATE_TABLE = GlueBackend.update_table
+_ORIGINAL_DELETE_TABLE = GlueBackend.delete_table
+_ORIGINAL_DELETE_DATABASE = GlueBackend.delete_database
 
 
 def _mark_iceberg_columns(table_input: dict[str, Any]) -> None:
@@ -340,6 +342,35 @@ def update_table_with_iceberg_markers(
     _ORIGINAL_UPDATE_TABLE(self, database_name, table_name, table_input)
 
 
+# Column statistics live on (database, table) name keys in the side store,
+# not on the FakeTable, so moto's deletes strand them: a recreated table
+# would read its previous incarnation's numbers, and the store grows one
+# key per drop cycle. Purge only after the real delete succeeds — a
+# raising delete changes nothing.
+def delete_table_with_statistics_purge(
+    self: GlueBackend,
+    database_name: str,
+    table_name: str,
+) -> None:
+    _ORIGINAL_DELETE_TABLE(self, database_name, table_name)
+    stores = _column_statistics.get(self)
+    if stores is None:
+        return
+    stores.pop((database_name, table_name), None)
+
+
+def delete_database_with_statistics_purge(
+    self: GlueBackend,
+    database_name: str,
+) -> None:
+    _ORIGINAL_DELETE_DATABASE(self, database_name)
+    stores = _column_statistics.get(self)
+    if stores is None:
+        return
+    for key in [key for key in stores if key[0] == database_name]:
+        del stores[key]
+
+
 def apply_overlay() -> None:
     """Attach the Glue bridges to the running moto server classes."""
     if getattr(GlueResponse, "get_user_defined_functions", None) is not None:
@@ -355,3 +386,5 @@ def apply_overlay() -> None:
     # shim: update_table keeps them flowing through ALTER ADD COLUMN writes.
     GlueBackend.create_table = create_table_with_iceberg_markers
     GlueBackend.update_table = update_table_with_iceberg_markers
+    GlueBackend.delete_table = delete_table_with_statistics_purge
+    GlueBackend.delete_database = delete_database_with_statistics_purge
