@@ -278,9 +278,12 @@ def _normalize_partition_type(type_: str) -> str:
 
     Stops ``varchar(2)``/``decimal(10,2)``/``timestamp(3)``/``char(N)`` at the
     first ``(`` and folds the remaining real-AWS scalars (double, float, real,
-    boolean, integer) onto the branch moto implements.
+    boolean, integer) onto the branch moto implements. Registered spellings
+    arrive verbatim while moto only knows bare lowercase names, so
+    ``VARCHAR(2)`` and ``decimal (10,2)`` must normalize case and
+    whitespace as well.
     """
-    base = type_.split("(", 1)[0]
+    base = type_.split("(", 1)[0].strip().lower()
     return _SCALAR_TYPE_FOLDS.get(base, base)
 
 
@@ -394,20 +397,32 @@ def delete_database_with_statistics_purge(
         del stores[key]
 
 
+# Patches must stay module-global lookups to work: PartitionFilter resolves
+# _PARTITION_FILTER_EXPRESSION_CACHE.get on the class, _Ident/_Like call
+# _cast by name inside moto.glue.utils, and the Iceberg column markers
+# belong on the stored table — not a response shim — so update_table is
+# wrapped too, keeping them flowing through ALTER ADD COLUMN writes.
+_PATCHES: tuple[tuple[object, str, object], ...] = (
+    (_PartitionFilterExpressionCache, "get", _get_filter_expression),
+    (glue_utils, "_cast", _cast_partition_value),
+    (GlueBackend, "create_table", create_table_with_iceberg_markers),
+    (GlueBackend, "update_table", update_table_with_iceberg_markers),
+    (GlueBackend, "delete_table", delete_table_with_statistics_purge),
+    (GlueBackend, "delete_database", delete_database_with_statistics_purge),
+)
+
+
 def apply_overlay() -> None:
-    """Attach the Glue bridges to the running moto server classes."""
-    if getattr(GlueResponse, "get_user_defined_functions", None) is not None:
-        return
+    """Attach the Glue bridges to the running moto server classes.
+
+    Every attach point is guarded on its own: an op already present on
+    GlueResponse (ours from a previous call, or shipped by a newer moto)
+    is left alone, and a patch already wrapping its target is not wrapped
+    twice — partial upstream adoption can never silence the rest.
+    """
     for operation, handler in _RESPONSE_OPERATIONS.items():
-        setattr(GlueResponse, operation, handler)
-    # Both replacements are module-global lookups: PartitionFilter resolves
-    # _PARTITION_FILTER_EXPRESSION_CACHE.get on the class, and _Ident/_Like
-    # call _cast by name inside moto.glue.utils.
-    _PartitionFilterExpressionCache.get = _get_filter_expression
-    glue_utils._cast = _cast_partition_value
-    # Iceberg column markers belong on the stored table, not a response
-    # shim: update_table keeps them flowing through ALTER ADD COLUMN writes.
-    GlueBackend.create_table = create_table_with_iceberg_markers
-    GlueBackend.update_table = update_table_with_iceberg_markers
-    GlueBackend.delete_table = delete_table_with_statistics_purge
-    GlueBackend.delete_database = delete_database_with_statistics_purge
+        if getattr(GlueResponse, operation, None) is None:
+            setattr(GlueResponse, operation, handler)
+    for owner, attribute, replacement in _PATCHES:
+        if getattr(owner, attribute, None) is not replacement:
+            setattr(owner, attribute, replacement)

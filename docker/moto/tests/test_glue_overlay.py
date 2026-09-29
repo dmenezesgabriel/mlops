@@ -13,6 +13,10 @@ import json
 import boto3
 import pytest
 from moto import mock_aws
+from moto.glue import utils as glue_utils
+from moto.glue.models import GlueBackend
+from moto.glue.responses import GlueResponse
+from moto.glue.utils import _PartitionFilterExpressionCache
 from moto.server import ThreadedMotoServer
 
 import glue_overlay
@@ -573,6 +577,51 @@ def test_equality_filter_on_double_partition_key() -> None:
 
 
 @mock_aws
+def test_equality_filter_on_uppercase_varchar_partition_key() -> None:
+    # AWS accepts "VARCHAR(2)" as a key type and the registered spelling
+    # reaches the store verbatim; moto's _cast only knows bare lowercase
+    # names, so the overlay's fold must normalize case and whitespace too.
+    client = boto3.client("glue", region_name="us-east-1")
+    database_name = "sales_db"
+    table_name = "sales"
+    _seed_partitioned_table(
+        client,
+        database_name,
+        table_name,
+        partition_keys=[{"Name": "region", "Type": "VARCHAR(2)"}],
+        partition_values=[["US"], ["EU"]],
+    )
+
+    response = client.get_partitions(
+        DatabaseName=database_name,
+        TableName=table_name,
+        Expression="region = 'EU'",
+    )
+    assert _partition_values_from(response) == [["EU"]]
+
+
+@mock_aws
+def test_equality_filter_on_spaced_decimal_partition_key() -> None:
+    client = boto3.client("glue", region_name="us-east-1")
+    database_name = "sales_db"
+    table_name = "sales"
+    _seed_partitioned_table(
+        client,
+        database_name,
+        table_name,
+        partition_keys=[{"Name": "amount", "Type": "decimal (10,2)"}],
+        partition_values=[["10.50"], ["3.14"]],
+    )
+
+    response = client.get_partitions(
+        DatabaseName=database_name,
+        TableName=table_name,
+        Expression="amount = 10.5",
+    )
+    assert _partition_values_from(response) == [["10.50"]]
+
+
+@mock_aws
 def test_get_user_defined_functions_returns_empty_list() -> None:
     client = boto3.client("glue", region_name="us-east-1")
     client.create_database(DatabaseInput={"Name": "analytics"})
@@ -592,3 +641,51 @@ def test_get_user_defined_functions_missing_database_raises() -> None:
             DatabaseName="analytics", Pattern="*"
         )
     assert raised.value.response["Error"]["Code"] == "EntityNotFoundException"
+
+
+def _detach_overlay() -> None:
+    """Restore every moto attach point to its pre-overlay state."""
+    for operation in glue_overlay._RESPONSE_OPERATIONS:
+        try:
+            delattr(GlueResponse, operation)
+        except AttributeError:
+            pass
+    _PartitionFilterExpressionCache.get = (
+        glue_overlay._ORIGINAL_FILTER_EXPRESSION_GET
+    )
+    glue_utils._cast = glue_overlay._ORIGINAL_PARTITION_CAST
+    GlueBackend.create_table = glue_overlay._ORIGINAL_CREATE_TABLE
+    GlueBackend.update_table = glue_overlay._ORIGINAL_UPDATE_TABLE
+    GlueBackend.delete_table = glue_overlay._ORIGINAL_DELETE_TABLE
+    GlueBackend.delete_database = glue_overlay._ORIGINAL_DELETE_DATABASE
+
+
+def test_apply_overlay_attaches_remaining_bridges_after_upstream_drift() -> (
+    None
+):
+    # A future moto shipping one of these operations natively must not
+    # silence the rest: the single-attribute gate skipped every bridge on
+    # exactly that drift. The sentinel doubles as proof a shipped op is
+    # left alone rather than overwritten by the stub.
+    _detach_overlay()
+    sentinel = object()
+    GlueResponse.get_user_defined_functions = sentinel
+    try:
+        glue_overlay.apply_overlay()
+
+        for operation, handler in glue_overlay._RESPONSE_OPERATIONS.items():
+            expected = (
+                sentinel
+                if operation == "get_user_defined_functions"
+                else handler
+            )
+            assert getattr(GlueResponse, operation) is expected
+        for owner, attribute, replacement in glue_overlay._PATCHES:
+            assert getattr(owner, attribute) is replacement
+    finally:
+        if (
+            getattr(GlueResponse, "get_user_defined_functions", None)
+            is sentinel
+        ):
+            del GlueResponse.get_user_defined_functions
+        glue_overlay.apply_overlay()
