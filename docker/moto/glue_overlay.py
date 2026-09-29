@@ -36,7 +36,6 @@ the athena-local library never imports it (ADR-0008).
 
 from __future__ import annotations
 
-import fnmatch
 from datetime import date, datetime
 from typing import Any, TypeAlias, cast
 from weakref import WeakKeyDictionary
@@ -53,16 +52,12 @@ from moto.glue.responses import GlueResponse
 from moto.glue.utils import _PartitionFilterExpressionCache
 
 ColumnStatistics: TypeAlias = dict[str, object]
-UserDefinedFunction: TypeAlias = dict[str, object]
 
-# Both stores are keyed by the Glue backend instance so moto's
+# The store is keyed by the Glue backend instance so moto's
 # per-(account, region) reset across mock_glue() boundaries yields fresh
 # empty state without touching moto's own constructors.
 _column_statistics: WeakKeyDictionary[
     GlueBackend, dict[tuple[str, str], dict[str, ColumnStatistics]]
-] = WeakKeyDictionary()
-_user_defined_functions: WeakKeyDictionary[
-    GlueBackend, dict[str, dict[str, UserDefinedFunction]]
 ] = WeakKeyDictionary()
 
 
@@ -123,38 +118,6 @@ def get_column_statistics(
         return []
     table_store = stores.get((database_name, table_name), {})
     return [table_store[name] for name in column_names if name in table_store]
-
-
-def resolve_user_defined_functions(
-    this: GlueBackend, database_name: str | None, pattern: str
-) -> list[UserDefinedFunction]:
-    stores = _matching_stores(this, database_name)
-    return _matching_functions(stores, pattern)
-
-
-def _matching_stores(
-    this: GlueBackend, database_name: str | None
-) -> list[dict[str, UserDefinedFunction]]:
-    all_stores = _user_defined_functions.get(this)
-    if database_name is not None:
-        # A call scoped to a missing database is an error, matching AWS Glue.
-        this.get_database(database_name)
-    if all_stores is None:
-        return []
-    if database_name is None:
-        return list(all_stores.values())
-    return [all_stores.get(database_name, {})]
-
-
-def _matching_functions(
-    stores: list[dict[str, UserDefinedFunction]], pattern: str
-) -> list[UserDefinedFunction]:
-    return [
-        function
-        for store in stores
-        for name, function in store.items()
-        if fnmatch.fnmatchcase(name, pattern)
-    ]
 
 
 def update_column_statistics_for_table(self: GlueResponse) -> EmptyResult:
@@ -228,27 +191,14 @@ def get_column_statistics_for_table(self: GlueResponse) -> ActionResult:
 
 
 def get_user_defined_functions(self: GlueResponse) -> ActionResult:
-    parameters = self.parameters
-    functions = resolve_user_defined_functions(
-        self.glue_backend,
-        _optional_string(
-            parameters.get("DatabaseName"), "getUserDefinedFunctions"
-        ),
-        _pattern(parameters.get("Pattern")),
-    )
-    return ActionResult({"UserDefinedFunctions": functions})
-
-
-def _optional_string(value: object, operation: str) -> str | None:
-    if value is None:
-        return None
-    return as_string(value, operation)
-
-
-def _pattern(value: object) -> str:
-    if value is None:
-        return "*"
-    return as_string(value, "getUserDefinedFunctions")
+    # moto ships no UDF write op, so the list is always empty; scoping the
+    # call to a missing database is still an error, matching AWS Glue.
+    database_name = self.parameters.get("DatabaseName")
+    if database_name is not None:
+        self.glue_backend.get_database(
+            as_string(database_name, "getUserDefinedFunctions")
+        )
+    return ActionResult({"UserDefinedFunctions": []})
 
 
 _RESPONSE_OPERATIONS: dict[str, object] = {
