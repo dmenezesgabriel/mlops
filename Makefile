@@ -15,8 +15,7 @@ install:
 	uv run pre-commit install
 
 scaffold:
-	uvx cookiecutter --output-dir projects --no-input \
-	  libs/data-science-scaffold/template project_slug=$(PROJECT)
+	uv run python -m data_science_scaffold.scaffold $(PROJECT)
 	uv run python -m data_science_scaffold.register $(PROJECT)
 	uv sync --all-packages --dev --extra notebooks
 	$(MAKE) -C projects/$(PROJECT) format
