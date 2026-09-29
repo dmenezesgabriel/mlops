@@ -34,8 +34,9 @@
   8 gaps (S1×1, S3×6, S4×1) — stale column statistics resurrect on
   table/db recreate; `ColumnNames` ignored; malformed stat entry → 500;
   dead UDF store; apply-guard + type-fold parity nits; 78% cov.
-- [ ] Remediate promoted S1+ gaps. (AF-19 from AU-03 pending;
-  AF-12 + AF-13 + AF-15 + AF-16 + AF-17 + AF-18 shipped; the AF-14 S1 shipped.)
+- [x] Remediate promoted S1+ gaps. (AF-07…AF-19 all shipped — every
+  AU-02/AU-03 gap dispositioned; AF-14 carried the S1, AF-19 closed the
+  G-27 test-depth row.)
 
 ## MA-3 — SSG core
 

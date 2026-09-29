@@ -7,6 +7,7 @@ Member shapes boto3's serializer refuses outright are exercised with raw
 HTTP posts against a real ``ThreadedMotoServer``.
 """
 
+import copy
 import http.client
 import json
 
@@ -442,6 +443,98 @@ def test_update_column_statistics_non_dict_entry_returns_400(
     assert b"ColumnStatisticsList[1]" in body
 
 
+@pytest.mark.parametrize(
+    "statistics_list",
+    [5, {"ColumnName": "amount"}, None],
+    ids=["scalar", "dict", "absent"],
+)
+def test_update_column_statistics_non_list_returns_400(
+    moto_server, statistics_list
+) -> None:
+    # The isinstance guard is what turns a non-list payload into a shaped
+    # 400; without it a non-iterable escapes the handler as a TypeError and
+    # call_action answers HTTP 500. A dict exercises the same guard but
+    # would still 400 via the per-entry check — only the scalar/absent
+    # params distinguish a missing guard.
+    payload: dict[str, object] = {
+        "DatabaseName": "analytics",
+        "TableName": "events",
+    }
+    if statistics_list is not None:
+        payload["ColumnStatisticsList"] = statistics_list
+
+    status, body = _post_glue(
+        moto_server, "UpdateColumnStatisticsForTable", payload
+    )
+
+    assert status == 400
+    assert b"InvalidInputException" in body
+
+
+def test_update_column_statistics_non_str_database_name_returns_400(
+    moto_server,
+) -> None:
+    status, body = _post_glue(
+        moto_server,
+        "UpdateColumnStatisticsForTable",
+        {
+            "DatabaseName": 5,
+            "TableName": "events",
+            "ColumnStatisticsList": SAMPLE_STATISTICS,
+        },
+    )
+
+    assert status == 400
+    assert b"InvalidInputException" in body
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [{"ColumnName": 5}, {"StatisticsData": {}}],
+    ids=["non-str", "absent"],
+)
+def test_update_column_statistics_bad_column_name_returns_400(
+    moto_server, entry
+) -> None:
+    # ColumnName is read inside update_column_statistics after the table
+    # lookup, so the table must exist for the raise to be reachable.
+    client = _live_glue_client(moto_server)
+    client.create_database(DatabaseInput={"Name": "analytics"})
+    client.create_table(
+        DatabaseName="analytics",
+        TableInput={"Name": "events", "StorageDescriptor": {}},
+    )
+
+    status, body = _post_glue(
+        moto_server,
+        "UpdateColumnStatisticsForTable",
+        {
+            "DatabaseName": "analytics",
+            "TableName": "events",
+            "ColumnStatisticsList": [entry],
+        },
+    )
+
+    assert status == 400
+    assert b"InvalidInputException" in body
+    assert b"ColumnName" in body
+
+
+@mock_aws
+def test_get_column_statistics_without_store_returns_empty() -> None:
+    client = boto3.client("glue", region_name="us-east-1")
+    client.create_database(DatabaseInput={"Name": "analytics"})
+    client.create_table(
+        DatabaseName="analytics",
+        TableInput={"Name": "events", "StorageDescriptor": {}},
+    )
+
+    response = client.get_column_statistics_for_table(
+        DatabaseName="analytics", TableName="events", ColumnNames=["amount"]
+    )
+    assert response["ColumnStatisticsList"] == []
+
+
 def _seed_partitioned_table(
     client,
     database_name: str,
@@ -621,6 +714,48 @@ def test_equality_filter_on_spaced_decimal_partition_key() -> None:
     assert _partition_values_from(response) == [["10.50"]]
 
 
+@pytest.mark.parametrize(
+    ("key_type", "values", "expression", "expected"),
+    [
+        ("char(2)", ["US", "EU"], "k = 'EU'", ["EU"]),
+        (
+            "timestamp(3)",
+            ["2026-01-01 00:00:00", "2026-01-02 00:00:00"],
+            "k = '2026-01-02 00:00:00'",
+            ["2026-01-02 00:00:00"],
+        ),
+        ("integer", ["5", "7"], "k = 5", ["5"]),
+        ("boolean", ["true", "false"], "k = 'true'", ["true"]),
+        ("float", ["3.14", "2.71"], "k = 3.14", ["3.14"]),
+        ("real", ["3.14", "2.71"], "k = 3.14", ["3.14"]),
+    ],
+    ids=["char", "timestamp", "integer", "boolean", "float", "real"],
+)
+@mock_aws
+def test_partition_filter_folded_scalar_types(
+    key_type: str,
+    values: list[str],
+    expression: str,
+    expected: list[str],
+) -> None:
+    # Trino registers keys with full Hive spellings; each _SCALAR_TYPE_FOLDS
+    # entry folds onto a _cast branch moto implements, and char/timestamp
+    # strip at "(". Every fold is a removable mutant without a probe.
+    client = boto3.client("glue", region_name="us-east-1")
+    _seed_partitioned_table(
+        client,
+        "sales_db",
+        "sales",
+        partition_keys=[{"Name": "k", "Type": key_type}],
+        partition_values=[[value] for value in values],
+    )
+
+    response = client.get_partitions(
+        DatabaseName="sales_db", TableName="sales", Expression=expression
+    )
+    assert _partition_values_from(response) == [[value] for value in expected]
+
+
 @mock_aws
 def test_get_user_defined_functions_returns_empty_list() -> None:
     client = boto3.client("glue", region_name="us-east-1")
@@ -689,3 +824,125 @@ def test_apply_overlay_attaches_remaining_bridges_after_upstream_drift() -> (
         ):
             del GlueResponse.get_user_defined_functions
         glue_overlay.apply_overlay()
+
+
+@mock_aws
+def test_create_iceberg_table_marks_columns() -> None:
+    # Real Athena writes iceberg.field.* parameters onto every column of an
+    # Iceberg table's Glue record; awswrangler's filter_iceberg_current
+    # reads iceberg.field.current to tell current columns from stale ones.
+    client = boto3.client("glue", region_name="us-east-1")
+    client.create_database(DatabaseInput={"Name": "analytics"})
+    client.create_table(
+        DatabaseName="analytics",
+        TableInput={
+            "Name": "events",
+            "Parameters": {"table_type": "ICEBERG"},
+            "StorageDescriptor": {
+                "Columns": [
+                    {"Name": "amount", "Type": "bigint"},
+                    {"Name": "label", "Type": "string"},
+                ]
+            },
+        },
+    )
+
+    table = client.get_table(DatabaseName="analytics", Name="events")["Table"]
+    for column in table["StorageDescriptor"]["Columns"]:
+        assert column["Parameters"]["iceberg.field.current"] == "true"
+
+
+@mock_aws
+def test_create_non_iceberg_table_leaves_columns_unmarked() -> None:
+    # The table_type gate mutant (== for !=) marks every non-ICEBERG table;
+    # asserting a plain table stays marker-free is what kills it.
+    client = boto3.client("glue", region_name="us-east-1")
+    client.create_database(DatabaseInput={"Name": "analytics"})
+    client.create_table(
+        DatabaseName="analytics",
+        TableInput={
+            "Name": "events",
+            "Parameters": {"table_type": "EXTERNAL_TABLE"},
+            "StorageDescriptor": {
+                "Columns": [{"Name": "amount", "Type": "bigint"}]
+            },
+        },
+    )
+
+    table = client.get_table(DatabaseName="analytics", Name="events")["Table"]
+    column = table["StorageDescriptor"]["Columns"][0]
+    assert "iceberg.field.current" not in column.get("Parameters", {})
+
+
+@mock_aws
+def test_update_table_marks_iceberg_columns() -> None:
+    # ALTER writes reach the backend through update_table, so the marker
+    # wrap lives there too — not only on create.
+    client = boto3.client("glue", region_name="us-east-1")
+    client.create_database(DatabaseInput={"Name": "analytics"})
+    client.create_table(
+        DatabaseName="analytics",
+        TableInput={"Name": "events", "StorageDescriptor": {}},
+    )
+
+    client.update_table(
+        DatabaseName="analytics",
+        TableInput={
+            "Name": "events",
+            "Parameters": {"table_type": "ICEBERG"},
+            "StorageDescriptor": {
+                "Columns": [{"Name": "amount", "Type": "bigint"}]
+            },
+        },
+    )
+
+    table = client.get_table(DatabaseName="analytics", Name="events")["Table"]
+    column = table["StorageDescriptor"]["Columns"][0]
+    assert column["Parameters"]["iceberg.field.current"] == "true"
+
+
+@pytest.mark.parametrize(
+    "table_input",
+    [
+        {"Parameters": {"table_type": "ICEBERG"}, "StorageDescriptor": 5},
+        {
+            "Parameters": {"table_type": "ICEBERG"},
+            "StorageDescriptor": {"Columns": 5},
+        },
+        {
+            "Parameters": {"table_type": "ICEBERG"},
+            "StorageDescriptor": {"Columns": [5]},
+        },
+        {
+            "Parameters": {"table_type": "ICEBERG"},
+            "StorageDescriptor": {
+                "Columns": [{"Name": "amount", "Parameters": 5}]
+            },
+        },
+    ],
+    ids=[
+        "storage-not-dict",
+        "columns-not-list",
+        "column-not-dict",
+        "column-params-not-dict",
+    ],
+)
+def test_mark_iceberg_columns_tolerates_malformed_shapes(
+    table_input: dict[str, object],
+) -> None:
+    # Malformed wire shapes must pass through untouched: the marker only
+    # writes onto fully-formed column descriptors.
+    untouched = copy.deepcopy(table_input)
+    glue_overlay._mark_iceberg_columns(table_input)
+    assert table_input == untouched
+
+
+def test_apply_overlay_is_idempotent() -> None:
+    # A second application must not double-wrap: every attach point already
+    # holds our replacement, so the guards leave each one untouched.
+    glue_overlay.apply_overlay()
+
+    for operation, handler in glue_overlay._RESPONSE_OPERATIONS.items():
+        assert getattr(GlueResponse, operation) is handler
+    for owner, attribute, replacement in glue_overlay._PATCHES:
+        assert getattr(owner, attribute) is replacement
