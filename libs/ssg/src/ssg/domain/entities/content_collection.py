@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ssg.domain.entities.page import Page
+from ssg.domain.value_objects.navigation_link import NavigationLink
 
 
 @dataclass(frozen=True)
@@ -13,6 +14,33 @@ class ContentCollection:
     pages: tuple[Page, ...]
     videos: dict[str, Path]
     images: dict[str, Path] = field(default_factory=dict)
+    _slug_to_index: dict[str, int] = field(
+        init=False, repr=False, compare=False
+    )
+    navigation_links: tuple[NavigationLink, ...] = field(
+        init=False, repr=False, compare=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "_slug_to_index",
+            {page.slug: index for index, page in enumerate(self.pages)},
+        )
+        # Links are only rendered from inside the collection's output dir, so
+        # they carry the "../" prefix Site._root_relative_href applies in page
+        # context — built once here instead of once per page.
+        object.__setattr__(
+            self,
+            "navigation_links",
+            tuple(
+                NavigationLink(
+                    label=page.title,
+                    href=f"../{self.output_slug}/{page.file_name()}",
+                )
+                for page in self.pages
+            ),
+        )
 
     def source_file(self, relative_path: str) -> Path:
         resolved_path = (self.source_root / relative_path).resolve()
@@ -45,10 +73,19 @@ class ContentCollection:
         )
 
     def page_href(self, page_slug: str) -> str:
-        if any(page.slug == page_slug for page in self.pages):
+        if page_slug in self._slug_to_index:
             return f"{page_slug}.html"
 
-        expected_slugs = sorted(page.slug for page in self.pages)
+        expected_slugs = sorted(self._slug_to_index)
+        raise ValueError(
+            f"Unknown collection page {page_slug}: expected one of {expected_slugs}"
+        )
+
+    def page_index(self, page_slug: str) -> int:
+        if page_slug in self._slug_to_index:
+            return self._slug_to_index[page_slug]
+
+        expected_slugs = sorted(self._slug_to_index)
         raise ValueError(
             f"Unknown collection page {page_slug}: expected one of {expected_slugs}"
         )
@@ -75,26 +112,16 @@ class ContentCollection:
         )
 
     def previous_page(self, current_page: Page) -> Page | None:
-        page_index = self._page_index(current_page)
+        page_index = self.page_index(current_page.slug)
         if page_index == 0:
             return None
 
         return self.pages[page_index - 1]
 
     def next_page(self, current_page: Page) -> Page | None:
-        page_index = self._page_index(current_page)
+        page_index = self.page_index(current_page.slug)
         next_index = page_index + 1
         if next_index >= len(self.pages):
             return None
 
         return self.pages[next_index]
-
-    def _page_index(self, current_page: Page) -> int:
-        for index, page in enumerate(self.pages):
-            if page.slug == current_page.slug:
-                return index
-
-        expected_slugs = sorted(page.slug for page in self.pages)
-        raise ValueError(
-            f"Unknown collection page {current_page.slug}: expected one of {expected_slugs}",
-        )

@@ -58,8 +58,7 @@ def test_navigation_for_page_marks_current_page_and_links_from_collection_page(
     # Assert
     assert navigation.home_href == "../index.html"
     assert navigation.sections[0].href == "../sample-collection/overview.html"
-    assert navigation.sections[0].links[1].current is True
-    assert navigation.sections[0].links[1].aria_current() == "page"
+    assert navigation.sections[0].current_link_index == 1
 
 
 def test_navigation_for_homepage_lists_projects_without_article_links(
@@ -90,6 +89,46 @@ def test_navigation_for_homepage_lists_projects_without_article_links(
     assert navigation.sections[0].href == "first-collection/overview.html"
     assert navigation.sections[0].links == ()
     assert navigation.sections[1].links == ()
+
+
+def test_navigation_for_reuses_collection_links_across_pages(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    collection = _collection_with_pages(
+        tmp_path, "sample_collection", "Sample Collection"
+    )
+    site = Site(
+        title="Learning Site", description="", collections=(collection,)
+    )
+
+    # Act
+    first = site.navigation_for(collection, collection.pages[0])
+    second = site.navigation_for(collection, collection.pages[1])
+
+    # Assert
+    assert first.sections[0].links is second.sections[0].links
+    assert first.sections[0].current_link_index == 0
+    assert second.sections[0].current_link_index == 1
+
+
+def test_navigation_for_collection_without_page_marks_no_current_link(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    collection = _collection_with_pages(
+        tmp_path, "sample_collection", "Sample Collection"
+    )
+    site = Site(
+        title="Learning Site", description="", collections=(collection,)
+    )
+
+    # Act
+    navigation = site.navigation_for(collection, None)
+
+    # Assert
+    assert navigation.sections[0].links == collection.navigation_links
+    assert navigation.sections[0].current_link_index is None
 
 
 def _collection_with_pages(

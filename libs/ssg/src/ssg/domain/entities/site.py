@@ -75,13 +75,11 @@ class Site:
     ) -> NavigationSection:
         collection_is_current = current_collection == collection
         links: tuple[NavigationLink, ...] = ()
+        current_link_index: int | None = None
         if collection_is_current:
-            links = tuple(
-                self._navigation_link(
-                    collection, page, current_collection, current_page
-                )
-                for page in collection.pages
-            )
+            links = collection.navigation_links
+            if current_page is not None:
+                current_link_index = collection.page_index(current_page.slug)
 
         return NavigationSection(
             title=collection.title,
@@ -90,23 +88,7 @@ class Site:
             ),
             current=collection_is_current,
             links=links,
-        )
-
-    def _navigation_link(
-        self,
-        collection: ContentCollection,
-        page: Page,
-        current_collection: ContentCollection | None,
-        current_page: Page | None,
-    ) -> NavigationLink:
-        current = current_collection == collection and current_page == page
-        return NavigationLink(
-            label=page.title,
-            href=self._root_relative_href(
-                current_collection,
-                f"{collection.output_slug}/{page.file_name()}",
-            ),
-            current=current,
+            current_link_index=current_link_index,
         )
 
     def _root_relative_href(

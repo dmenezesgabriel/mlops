@@ -9,3 +9,4 @@ class NavigationSection:
     href: str
     links: tuple[NavigationLink, ...]
     current: bool = False
+    current_link_index: int | None = None
