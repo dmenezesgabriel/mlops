@@ -40,7 +40,11 @@
 
 ## MA-3 — SSG core
 
-- [ ] **AU-04** `ssg` domain + application.
+- [x] **AU-04** `ssg` domain + application. 12 gaps (S1×1, S2×1, S3×9, S4×1) —
+  preview rebuild no-op via per-call fresh dependency tracker (S1);
+  `--collection` nav leaks unbuilt collections; empty collection crashes;
+  `trigger_reload` off-protocol; O(n²) nav+pager; dead `page_by_slug`/
+  `aria_current`; wiring-seam test gap.
 - [ ] **AU-05** `ssg` infrastructure + CLI — includes the entry-point loading
   contract every plugin in MA-4 implements; its verdicts are reused.
 - [ ] Remediate promoted S1+ gaps.
