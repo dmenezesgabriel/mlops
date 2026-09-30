@@ -44,7 +44,6 @@ def main() -> None:
     collection_name = arguments.collection
     if arguments.command == "preview":
         validate_reload_interval(arguments.reload_interval)
-        build_site(config_path, output_path, collection_name)
         preview_site(
             config_path,
             output_path,
@@ -58,12 +57,7 @@ def main() -> None:
     build_site(config_path, output_path, collection_name)
 
 
-def build_site(
-    config_path: Path,
-    output_path: Path,
-    collection_name: str | None = None,
-    changed_paths: set[Path] | None = None,
-) -> None:
+def create_site_builder() -> StaticSiteBuilder:
     from ssg.infrastructure.html_article_outline_builder import (
         HtmlArticleOutlineBuilder,
     )
@@ -74,7 +68,7 @@ def build_site(
         SingleSiteVariantProvider,
     )
 
-    builder = StaticSiteBuilder(
+    return StaticSiteBuilder(
         site_repository=SiteConfigRepository(),
         content_renderers=load_content_renderers(),
         html_post_processors=load_html_post_processors(),
@@ -84,7 +78,17 @@ def build_site(
         article_outline_builder=HtmlArticleOutlineBuilder(),
         dependency_tracker=InMemoryDependencyTracker(),
     )
-    builder.build(config_path, output_path, collection_name, changed_paths)
+
+
+def build_site(
+    config_path: Path,
+    output_path: Path,
+    collection_name: str | None = None,
+    changed_paths: set[Path] | None = None,
+) -> None:
+    create_site_builder().build(
+        config_path, output_path, collection_name, changed_paths
+    )
 
 
 def preview_site(
@@ -95,6 +99,11 @@ def preview_site(
     port: int,
     reload_interval: float,
 ) -> None:
+    # One builder (and so one dependency tracker) must serve the initial
+    # build and every rebuild — a fresh tracker per on_change reports zero
+    # affected pages and skips every page.
+    builder = create_site_builder()
+    builder.build(config_path, output_path, collection_name)
     repository = SiteConfigRepository()
     site = repository.load(config_path)
     watched_paths = (config_path.parent,) + tuple(
@@ -110,7 +119,7 @@ def preview_site(
         host=host,
         port=port,
         reload_interval=reload_interval,
-        on_change=lambda changed_paths: build_site(
+        on_change=lambda changed_paths: builder.build(
             config_path, output_path, collection_name, changed_paths
         ),
         ignored_paths=(output_path,),
