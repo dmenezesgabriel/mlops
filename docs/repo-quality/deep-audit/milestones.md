@@ -45,8 +45,10 @@
   `--collection` nav leaks unbuilt collections; empty collection crashes;
   `trigger_reload` off-protocol; O(n²) nav+pager; dead `page_by_slug`/
   `aria_current`; wiring-seam test gap.
-- [ ] **AU-05** `ssg` infrastructure + CLI — includes the entry-point loading
-  contract every plugin in MA-4 implements; its verdicts are reused.
+- [x] **AU-05** `ssg` infrastructure + CLI. 15 gaps (S3×14, S4×1) — CLI
+  tracebacks on all error paths; Jinja-over-markdown evals/crashes on literal
+  `{{`; unvalidated entry-point contract; dead `PollingSiteReloader`;
+  coverage-invisible preview server.
 - [ ] Remediate promoted S1+ gaps.
 
 ## MA-4 — SSG plugins
