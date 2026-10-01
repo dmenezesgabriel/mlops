@@ -79,3 +79,31 @@ def test_process_leaves_unclassified_code_blocks_unchanged() -> None:
 
     # Assert
     assert processed_html == rendered_html
+
+
+def test_process_preserves_non_code_markup_verbatim() -> None:
+    # Arrange — a prose-only page still re-serializes when it mentions
+    # `language-`; non-code markup must round-trip byte-faithful
+    processor = create_pygments_html_post_processor()
+    rendered_html = "<p>Use language-python classes<br />here</p><!-- note -->"
+
+    # Act
+    processed_html = processor.process(rendered_html, empty_site())
+
+    # Assert
+    assert processed_html == rendered_html
+
+
+def test_process_preserves_authored_entities_in_code() -> None:
+    # Arrange — authored `&amp;amp;` displays `&amp;`; highlighted output must
+    # re-escape back to the same bytes (exactly one decode into the lexer)
+    processor = create_pygments_html_post_processor()
+    rendered_html = (
+        '<pre><code class="language-text">a &amp;amp; b</code></pre>'
+    )
+
+    # Act
+    processed_html = processor.process(rendered_html, empty_site())
+
+    # Assert
+    assert "a &amp;amp; b" in processed_html

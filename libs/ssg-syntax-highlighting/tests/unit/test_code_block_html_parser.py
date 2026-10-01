@@ -73,10 +73,9 @@ def test_entities_inside_script_pass_through_verbatim() -> None:
 
 
 def test_reference_callbacks_reemit_verbatim_when_not_converted() -> None:
-    # handle_entityref/handle_charref are dead paths under
-    # convert_charrefs=True; they exist so a future convert_charrefs=False
-    # parser keeps references verbatim instead of dropping them (the base
-    # class is a no-op). Pin that forwarding contract directly.
+    # convert_charrefs=False routes entity/char references through these
+    # callbacks; they re-emit verbatim so non-code references stay
+    # byte-faithful and captured code decodes exactly once via unescape.
     parser = CodeBlockHtmlParser(RecordingHighlighter())
 
     # Act
@@ -121,3 +120,145 @@ def test_closing_code_without_language_raises() -> None:
     # Act / Assert
     with pytest.raises(ValueError, match="Missing code block language"):
         parser.feed("</code>")
+
+
+def test_self_closing_tags_reemit_verbatim() -> None:
+    # Arrange — the default handle_startendtag splits into start+end events,
+    # emitting a phantom end tag (`<br/>`→`<br></br>`) that browsers reparse
+    # as real markup (a stray `</br>` renders as a second line break).
+    html_text = '<p>a<br/>b</p><hr/><img src="a.png"/><input/>'
+
+    # Act
+    rendered, _ = parse(html_text)
+
+    # Assert
+    assert rendered == html_text
+
+
+def test_self_closing_tag_inside_code_is_highlighted_source() -> None:
+    # Arrange — markup inside a code capture is source text (pinned contract);
+    # the authored `/>` form is kept verbatim.
+    html_text = '<pre><code class="language-html">a<br/>b</code></pre>'
+
+    # Act
+    rendered, highlighter = parse(html_text)
+
+    # Assert
+    assert highlighter.calls == [("a<br/>b", "html")]
+    assert rendered == (
+        '<pre><code class="language-html"><hl>a<br/>b</hl></code></pre>'
+    )
+
+
+def test_comment_reemits_verbatim() -> None:
+    # Arrange
+    html_text = "<!-- a note --><p>body</p>"
+
+    # Act
+    rendered, _ = parse(html_text)
+
+    # Assert
+    assert rendered == html_text
+
+
+def test_comment_inside_code_is_highlighted_source() -> None:
+    # Arrange — same nested-markup-is-source contract as tags
+    html_text = '<pre><code class="language-html">a<!-- c -->b</code></pre>'
+
+    # Act
+    rendered, highlighter = parse(html_text)
+
+    # Assert
+    assert highlighter.calls == [("a<!-- c -->b", "html")]
+
+
+def test_processing_instruction_reemits_verbatim() -> None:
+    # Arrange
+    html_text = '<?xml version="1.0"?><p>body</p>'
+
+    # Act
+    rendered, _ = parse(html_text)
+
+    # Assert
+    assert rendered == html_text
+
+
+def test_declaration_reemits_verbatim() -> None:
+    # Arrange — a declaration in author raw HTML must not silently vanish
+    html_text = "<!DOCTYPE note><p>body</p>"
+
+    # Act
+    rendered, _ = parse(html_text)
+
+    # Assert
+    assert rendered == html_text
+
+
+def test_unknown_declaration_reemits_verbatim() -> None:
+    # Arrange — CDATA is bogus markup in HTML5 but must round-trip, not drop
+    html_text = "<p>a</p><![CDATA[payload]]>"
+
+    # Act
+    rendered, _ = parse(html_text)
+
+    # Assert
+    assert rendered == html_text
+
+
+def test_authored_entity_in_code_is_decoded_once() -> None:
+    # Arrange — `&amp;amp;` renders as `&amp;` in a browser; the lexer must
+    # receive the authored `&amp;` (one decode), not `&`.
+    html_text = '<pre><code class="language-text">a &amp;amp; b</code></pre>'
+
+    # Act
+    rendered, highlighter = parse(html_text)
+
+    # Assert
+    assert highlighter.calls == [("a &amp; b", "text")]
+
+
+def test_charref_in_code_is_decoded_once() -> None:
+    # Arrange
+    html_text = '<pre><code class="language-text">a &#60; b</code></pre>'
+
+    # Act
+    rendered, highlighter = parse(html_text)
+
+    # Assert
+    assert highlighter.calls == [("a < b", "text")]
+
+
+def test_prose_entity_reference_reemits_verbatim() -> None:
+    # Arrange — entity references outside code stay byte-faithful rather
+    # than re-emitting the decoded character
+    html_text = "<p>a &copy; b</p>"
+
+    # Act
+    rendered, _ = parse(html_text)
+
+    # Assert
+    assert rendered == html_text
+
+
+def test_unclosed_code_capture_flushes_source_at_close() -> None:
+    # Arrange — malformed author raw HTML: <code> never closed; the buffered
+    # source must flush verbatim instead of dropping silently
+    html_text = '<pre><code class="language-python">unclosed'
+
+    # Act
+    rendered, highlighter = parse(html_text)
+
+    # Assert
+    assert rendered == html_text
+    assert highlighter.calls == []
+
+
+def test_startendtag_without_parse_context_raises() -> None:
+    # Arrange: get_starttag_text() is populated only mid-parse; a bare call
+    # has no raw tag text to re-emit, same shape as the language-invariant
+    # raise above.
+    parser = CodeBlockHtmlParser(RecordingHighlighter())
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="Missing start-tag text"):
+        parser.handle_startendtag("br", [])

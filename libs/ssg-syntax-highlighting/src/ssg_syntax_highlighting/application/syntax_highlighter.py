@@ -52,7 +52,10 @@ class CodeBlockSyntaxHighlightingProcessor(HtmlPostProcessor):
 
 class CodeBlockHtmlParser(HTMLParser):
     def __init__(self, syntax_highlighter: CodeSyntaxHighlighter) -> None:
-        super().__init__(convert_charrefs=True)
+        # convert_charrefs=False keeps entity/char references raw so captured
+        # code decodes exactly once (html.unescape in _append_highlighted_code)
+        # and non-code references re-emit byte-faithful via the ref callbacks.
+        super().__init__(convert_charrefs=False)
         self._syntax_highlighter = syntax_highlighter
         self._fragments: list[str] = []
         self._code_fragments: list[str] = []
@@ -82,6 +85,20 @@ class CodeBlockHtmlParser(HTMLParser):
             self._capturing_code = True
             self._code_fragments = []
 
+    def handle_startendtag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
+        # Re-emit the raw `/>` form verbatim: the default splits into
+        # start+end events, appending a phantom end tag that browsers reparse
+        # as real markup (`<br/>` → `<br></br>` renders as two line breaks).
+        start_tag_text = self.get_starttag_text()
+        if start_tag_text is None:
+            raise ValueError(
+                "Missing start-tag text: handle_startendtag requires the "
+                "parse loop to have populated raw tag text"
+            )
+        self.handle_data(start_tag_text)
+
     def handle_endtag(self, tag: str) -> None:
         if self._capturing_code and tag == "code":
             self._append_highlighted_code()
@@ -110,6 +127,32 @@ class CodeBlockHtmlParser(HTMLParser):
 
     def handle_charref(self, name: str) -> None:
         self.handle_data(f"&#{name};")
+
+    # The base class drops comments, declarations, processing instructions and
+    # unknown declarations entirely — this parser re-serializes full page
+    # bodies, so each must re-emit verbatim instead of losing content.
+
+    def handle_comment(self, data: str) -> None:
+        self.handle_data(f"<!--{data}-->")
+
+    def handle_decl(self, decl: str) -> None:
+        self.handle_data(f"<!{decl}>")
+
+    def handle_pi(self, data: str) -> None:
+        self.handle_data(f"<?{data}>")
+
+    def unknown_decl(self, data: str) -> None:
+        self.handle_data(f"<![{data}]]>")
+
+    def close(self) -> None:
+        super().close()
+        if self._capturing_code:
+            # EOF inside <code> (malformed author HTML): flush the buffered
+            # source verbatim rather than dropping it silently.
+            self._fragments.extend(self._code_fragments)
+            self._code_fragments = []
+            self._capturing_code = False
+            self._language = None
 
     def _append_highlighted_code(self) -> None:
         source = html.unescape("".join(self._code_fragments))
