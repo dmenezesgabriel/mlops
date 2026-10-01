@@ -47,6 +47,15 @@ class SiteConfigRepository(SiteRepository):
             self._required_string(collection_map, "source_root", config_path),
         )
         name = self._required_string(collection_map, "name", config_path)
+        page_entries = self._required_list(
+            collection_map, "pages", config_path
+        )
+        if not page_entries:
+            raise ValueError(
+                f"Empty collection {name} in {config_path}: "
+                "expected at least one page"
+            )
+
         return ContentCollection(
             name=name,
             title=self._required_string(collection_map, "title", config_path),
@@ -56,9 +65,7 @@ class SiteConfigRepository(SiteRepository):
             ),
             pages=tuple(
                 self._read_page(page, source_root, config_path)
-                for page in self._required_list(
-                    collection_map, "pages", config_path
-                )
+                for page in page_entries
             ),
             videos=self._read_videos(collection_map, config_path),
             images=self._read_images(collection_map, config_path),

@@ -215,7 +215,9 @@ class StaticSiteBuilder:
         rendered_index = RenderedIndex(
             site=site,
             collections=selected_collections,
-            navigation=site.navigation_for(None, None),
+            navigation=site.navigation_for(
+                None, None, collections=selected_collections
+            ),
             language_links=self._index_language_links(
                 site_variant, site_variants
             ),

@@ -50,8 +50,10 @@ class Site:
         self,
         current_collection: ContentCollection | None,
         current_page: Page | None,
+        collections: tuple[ContentCollection, ...] | None = None,
     ) -> SiteNavigation:
-        collections = self.collections
+        if collections is None:
+            collections = self.collections
         if current_collection is not None:
             collections = (current_collection,)
 

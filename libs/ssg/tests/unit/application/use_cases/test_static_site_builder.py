@@ -395,6 +395,62 @@ class TestStaticSiteBuilder:
             ("pt-BR", "overview.html", True),
         ]
 
+    def test_build_scopes_index_navigation_to_selected_collection(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange
+        config_path = tmp_path / "site" / "site.yaml"
+        output_path = tmp_path / "site" / "build"
+        first = ContentCollection(
+            name="coll_a",
+            title="Coll A",
+            source_root=tmp_path,
+            output_slug="coll-a",
+            pages=(
+                Page(
+                    slug="overview",
+                    title="Overview",
+                    source_path=tmp_path / "a.md",
+                ),
+            ),
+            videos={},
+        )
+        second = ContentCollection(
+            name="coll_b",
+            title="Coll B",
+            source_root=tmp_path,
+            output_slug="coll-b",
+            pages=(
+                Page(
+                    slug="overview",
+                    title="Overview",
+                    source_path=tmp_path / "b.md",
+                ),
+            ),
+            videos={},
+        )
+        site = Site(title="Site", description="", collections=(first, second))
+        page_renderer = SpyPageRenderer()
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=page_renderer,
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            site_variant_provider=SingleSiteVariantProvider(),
+            dependency_tracker=InMemoryDependencyTracker(),
+        )
+
+        # Act
+        builder.build(config_path, output_path, collection_name="coll_a")
+
+        # Assert
+        navigation = page_renderer.render_index_calls[0].navigation
+        assert [section.title for section in navigation.sections] == ["Coll A"]
+        assert [section.href for section in navigation.sections] == [
+            "coll-a/overview.html"
+        ]
+        assert not (output_path / "coll-b").exists()
+
     def test_build_skips_unaffected_pages_during_incremental_build(
         self, tmp_path: Path
     ) -> None:

@@ -91,6 +91,34 @@ def test_navigation_for_homepage_lists_projects_without_article_links(
     assert navigation.sections[1].links == ()
 
 
+def test_navigation_for_homepage_scopes_sections_to_given_collections(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    first_collection = _collection_with_pages(
+        tmp_path, "first_collection", "First Collection"
+    )
+    second_collection = _collection_with_pages(
+        tmp_path, "second_collection", "Second Collection"
+    )
+    site = Site(
+        title="Learning Site",
+        description="",
+        collections=(first_collection, second_collection),
+    )
+
+    # Act
+    navigation = site.navigation_for(
+        None, None, collections=(first_collection,)
+    )
+
+    # Assert
+    assert [section.title for section in navigation.sections] == [
+        "First Collection"
+    ]
+    assert navigation.sections[0].href == "first-collection/overview.html"
+
+
 def test_navigation_for_reuses_collection_links_across_pages(
     tmp_path: Path,
 ) -> None:

@@ -56,6 +56,25 @@ def test_load_reads_generic_site_manifest(tmp_path: Path) -> None:
     )
 
 
+def test_load_rejects_collection_with_no_pages(tmp_path: Path) -> None:
+    # Arrange
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "collections:\n"
+        "  - name: empty_collection\n"
+        "    title: Empty Collection\n"
+        "    source_root: ../content/empty_collection\n"
+        "    pages: []\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="expected at least one page"):
+        SiteConfigRepository().load(config_path)
+
+
 def test_load_rejects_non_mapping_config(tmp_path: Path) -> None:
     # Arrange
     config_path = tmp_path / "site.yaml"
