@@ -251,3 +251,229 @@ def test_load_rejects_non_string_extension_setting(tmp_path: Path) -> None:
         match="expected extension setting syntax_highlighting.style string",
     ):
         SiteConfigRepository().load(config_path)
+
+
+@pytest.mark.parametrize("asset_key", ["videos", "images"])
+def test_load_rejects_non_string_asset_names(
+    tmp_path: Path, asset_key: str
+) -> None:
+    # Arrange
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "collections:\n"
+        "  - name: sample_collection\n"
+        "    title: Sample Collection\n"
+        "    source_root: ../content/sample_collection\n"
+        "    pages:\n"
+        "      - slug: overview\n"
+        "        title: Overview\n"
+        "        source: README.md\n"
+        "    assets:\n"
+        f"      {asset_key}:\n"
+        "        1: first.mp4\n"
+        '        "1": second.mp4\n',
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="expected string key"):
+        SiteConfigRepository().load(config_path)
+
+
+@pytest.mark.parametrize("asset_key", ["videos", "images"])
+def test_load_rejects_non_string_asset_paths(
+    tmp_path: Path, asset_key: str
+) -> None:
+    # Arrange
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "collections:\n"
+        "  - name: sample_collection\n"
+        "    title: Sample Collection\n"
+        "    source_root: ../content/sample_collection\n"
+        "    pages:\n"
+        "      - slug: overview\n"
+        "        title: Overview\n"
+        "        source: README.md\n"
+        "    assets:\n"
+        f"      {asset_key}:\n"
+        "        demo: 42\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="expected demo path string"):
+        SiteConfigRepository().load(config_path)
+
+
+def test_load_rejects_non_string_description(tmp_path: Path) -> None:
+    # Arrange
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "  description: 42\n"
+        "collections:\n"
+        "  - name: sample_collection\n"
+        "    title: Sample Collection\n"
+        "    source_root: ../content/sample_collection\n"
+        "    pages:\n"
+        "      - slug: overview\n"
+        "        title: Overview\n"
+        "        source: README.md\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="expected description string"):
+        SiteConfigRepository().load(config_path)
+
+
+def test_load_rejects_non_string_collection_output_slug(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "collections:\n"
+        "  - name: sample_collection\n"
+        "    title: Sample Collection\n"
+        "    source_root: ../content/sample_collection\n"
+        "    output_slug: 123\n"
+        "    pages:\n"
+        "      - slug: overview\n"
+        "        title: Overview\n"
+        "        source: README.md\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="expected output_slug string"):
+        SiteConfigRepository().load(config_path)
+
+
+def test_load_rejects_non_string_extension_names(tmp_path: Path) -> None:
+    # Arrange — YAML-1.1 parses the bare key `on` as boolean True.
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "extensions:\n"
+        "  on:\n"
+        "    style: monokai\n"
+        "collections: []\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="expected string key"):
+        SiteConfigRepository().load(config_path)
+
+
+def test_load_rejects_non_string_extension_setting_names(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "extensions:\n"
+        "  syntax_highlighting:\n"
+        "    1: monokai\n"
+        "collections: []\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="expected string key"):
+        SiteConfigRepository().load(config_path)
+
+
+@pytest.mark.parametrize("source", ["../secret.md", "../../escaped.md"])
+def test_load_rejects_page_source_outside_source_root(
+    tmp_path: Path, source: str
+) -> None:
+    # Arrange
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "collections:\n"
+        "  - name: sample_collection\n"
+        "    title: Sample Collection\n"
+        "    source_root: content\n"
+        "    pages:\n"
+        "      - slug: overview\n"
+        "        title: Overview\n"
+        f'        source: "{source}"\n',
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="Invalid page source"):
+        SiteConfigRepository().load(config_path)
+
+
+def test_load_resolves_page_source_within_source_root(
+    tmp_path: Path,
+) -> None:
+    # Arrange — `..` segments that stay inside source_root are allowed and
+    # normalized, matching ContentCollection.source_file() semantics.
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "collections:\n"
+        "  - name: sample_collection\n"
+        "    title: Sample Collection\n"
+        "    source_root: content\n"
+        "    pages:\n"
+        "      - slug: overview\n"
+        "        title: Overview\n"
+        "        source: sub/../page.md\n",
+        encoding="utf-8",
+    )
+
+    # Act
+    site = SiteConfigRepository().load(config_path)
+
+    # Assert
+    page = site.collections[0].pages[0]
+    assert page.source_path == (tmp_path / "content" / "page.md").resolve()
+
+
+def test_load_resolves_absolute_configured_paths(tmp_path: Path) -> None:
+    # Arrange — absolute configured paths normalize `..` just like the
+    # config-relative branch.
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "collections:\n"
+        "  - name: sample_collection\n"
+        "    title: Sample Collection\n"
+        f"    source_root: {tmp_path}/a/../b\n"
+        "    pages:\n"
+        "      - slug: overview\n"
+        "        title: Overview\n"
+        "        source: README.md\n"
+        "    assets:\n"
+        "      videos:\n"
+        f"        demo: {tmp_path}/v/../w.mp4\n",
+        encoding="utf-8",
+    )
+
+    # Act
+    site = SiteConfigRepository().load(config_path)
+
+    # Assert
+    collection = site.collections[0]
+    assert collection.source_root == (tmp_path / "b").resolve()
+    assert collection.videos["demo"] == (tmp_path / "w.mp4").resolve()

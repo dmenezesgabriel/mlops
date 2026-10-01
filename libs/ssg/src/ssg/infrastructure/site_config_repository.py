@@ -29,7 +29,9 @@ class SiteConfigRepository(SiteRepository):
         self._reject_duplicate_collections(collections, config_path)
         return Site(
             title=self._required_string(site_config, "title", config_path),
-            description=str(site_config.get("description", "")),
+            description=self._optional_string(
+                site_config, "description", "", config_path
+            ),
             extensions=self._read_extensions(manifest, config_path),
             collections=collections,
         )
@@ -87,8 +89,8 @@ class SiteConfigRepository(SiteRepository):
                 "expected at least one page"
             )
 
-        output_slug = str(
-            collection_map.get("output_slug", name.replace("_", "-"))
+        output_slug = self._optional_string(
+            collection_map, "output_slug", name.replace("_", "-"), config_path
         )
         self._require_slug(output_slug, "collection output_slug", config_path)
         pages = tuple(
@@ -103,8 +105,8 @@ class SiteConfigRepository(SiteRepository):
             source_root=source_root,
             output_slug=output_slug,
             pages=pages,
-            videos=self._read_videos(collection_map, config_path),
-            images=self._read_images(collection_map, config_path),
+            videos=self._read_asset_map(collection_map, "videos", config_path),
+            images=self._read_asset_map(collection_map, "images", config_path),
         )
 
     def _reject_duplicate_page_slugs(
@@ -133,8 +135,26 @@ class SiteConfigRepository(SiteRepository):
         return Page(
             slug=slug,
             title=self._required_string(page_map, "title", config_path),
-            source_path=source_root
-            / self._required_string(page_map, "source", config_path),
+            source_path=self._page_source_path(
+                page_map, source_root, config_path
+            ),
+        )
+
+    def _page_source_path(
+        self,
+        page_map: Mapping[object, object],
+        source_root: Path,
+        config_path: Path,
+    ) -> Path:
+        source = self._required_string(page_map, "source", config_path)
+        resolved_source_root = source_root.resolve()
+        source_path = (resolved_source_root / source).resolve()
+        if source_path.is_relative_to(resolved_source_root):
+            return source_path
+
+        raise ValueError(
+            f"Invalid page source {source!r} in {config_path}: "
+            f"expected path under {resolved_source_root}"
         )
 
     def _require_slug(self, slug: str, field: str, config_path: Path) -> None:
@@ -155,49 +175,44 @@ class SiteConfigRepository(SiteRepository):
 
         return None
 
-    def _read_videos(
-        self, collection: Mapping[object, object], config_path: Path
+    def _read_asset_map(
+        self, collection: Mapping[object, object], key: str, config_path: Path
     ) -> dict[str, Path]:
         assets = collection.get("assets", {})
         if not isinstance(assets, dict):
             raise ValueError(
                 f"Invalid assets in {config_path}: expected mapping"
             )
-        assets_map = cast(dict[object, object], assets)
-
-        videos = assets_map.get("videos", {})
-        if not isinstance(videos, dict):
+        asset_entries = cast(dict[object, object], assets).get(key, {})
+        if not isinstance(asset_entries, dict):
             raise ValueError(
-                f"Invalid asset videos in {config_path}: expected mapping"
+                f"Invalid asset {key} in {config_path}: expected mapping"
             )
-        videos_map = cast(dict[object, object], videos)
 
-        return {
-            str(name): self._path_from_config(config_path, str(video_path))
-            for name, video_path in videos_map.items()
-        }
-
-    def _read_images(
-        self, collection: Mapping[object, object], config_path: Path
-    ) -> dict[str, Path]:
-        assets = collection.get("assets", {})
-        if not isinstance(assets, dict):
-            raise ValueError(
-                f"Invalid assets in {config_path}: expected mapping"
+        asset_paths: dict[str, Path] = {}
+        for name, asset_path in cast(
+            dict[object, object], asset_entries
+        ).items():
+            asset_name = self._require_string_key(name, config_path)
+            asset_paths[asset_name] = self._path_from_config(
+                config_path,
+                self._asset_path_string(
+                    key, asset_name, asset_path, config_path
+                ),
             )
-        assets_map = cast(dict[object, object], assets)
 
-        images = assets_map.get("images", {})
-        if not isinstance(images, dict):
-            raise ValueError(
-                f"Invalid asset images in {config_path}: expected mapping"
-            )
-        images_map = cast(dict[object, object], images)
+        return asset_paths
 
-        return {
-            str(name): self._path_from_config(config_path, str(image_path))
-            for name, image_path in images_map.items()
-        }
+    def _asset_path_string(
+        self, key: str, name: str, value: object, config_path: Path
+    ) -> str:
+        if isinstance(value, str):
+            return value
+
+        raise ValueError(
+            f"Invalid asset {key} in {config_path}: "
+            f"expected {name} path string, got {value!r}"
+        )
 
     def _read_extensions(
         self,
@@ -209,14 +224,16 @@ class SiteConfigRepository(SiteRepository):
             raise ValueError(
                 f"Invalid extensions in {config_path}: expected mapping"
             )
-        extensions_map = cast(dict[object, object], extensions)
-
-        return {
-            str(extension_name): self._read_extension_settings(
-                str(extension_name), extension_settings, config_path
+        settings_by_name: dict[str, dict[str, str]] = {}
+        for extension_name, extension_settings in cast(
+            dict[object, object], extensions
+        ).items():
+            name = self._require_string_key(extension_name, config_path)
+            settings_by_name[name] = self._read_extension_settings(
+                name, extension_settings, config_path
             )
-            for extension_name, extension_settings in extensions_map.items()
-        }
+
+        return settings_by_name
 
     def _read_extension_settings(
         self,
@@ -228,14 +245,16 @@ class SiteConfigRepository(SiteRepository):
             raise ValueError(
                 f"Invalid extension {extension_name} in {config_path}: expected mapping"
             )
-        settings_map = cast(dict[object, object], extension_settings)
-
-        return {
-            str(setting_name): self._extension_setting_string(
-                extension_name, str(setting_name), setting_value, config_path
+        settings: dict[str, str] = {}
+        for setting_name, setting_value in cast(
+            dict[object, object], extension_settings
+        ).items():
+            name = self._require_string_key(setting_name, config_path)
+            settings[name] = self._extension_setting_string(
+                extension_name, name, setting_value, config_path
             )
-            for setting_name, setting_value in settings_map.items()
-        }
+
+        return settings
 
     def _extension_setting_string(
         self,
@@ -255,11 +274,9 @@ class SiteConfigRepository(SiteRepository):
     def _path_from_config(
         self, config_path: Path, configured_path: str
     ) -> Path:
-        path = Path(configured_path)
-        if path.is_absolute():
-            return path
-
-        return (config_path.parent / path).resolve()
+        # An absolute right operand replaces the left side of the join, so one
+        # resolved join covers both configured-path shapes.
+        return (config_path.parent / configured_path).resolve()
 
     def _required_mapping(
         self,
@@ -301,4 +318,28 @@ class SiteConfigRepository(SiteRepository):
 
         raise ValueError(
             f"Invalid site config {config_path}: expected {key} string"
+        )
+
+    def _optional_string(
+        self,
+        config: Mapping[object, object],
+        key: str,
+        default: str,
+        config_path: Path,
+    ) -> str:
+        value = config.get(key, default)
+        if isinstance(value, str):
+            return value
+
+        raise ValueError(
+            f"Invalid site config {config_path}: expected {key} string"
+        )
+
+    def _require_string_key(self, key: object, config_path: Path) -> str:
+        if isinstance(key, str):
+            return key
+
+        raise ValueError(
+            f"Invalid site config {config_path}: expected string key, "
+            f"got {key!r} ({type(key).__name__})"
         )
