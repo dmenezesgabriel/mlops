@@ -1,7 +1,8 @@
 import argparse
-from importlib.metadata import entry_points
+from importlib.metadata import EntryPoint, entry_points
 from logging import getLogger
 from pathlib import Path
+from typing import TypeVar
 
 from ssg.application import StaticSiteBuilder, StaticSitePreview
 from ssg.application.ports import (
@@ -19,6 +20,8 @@ from ssg.infrastructure.site_config_repository import SiteConfigRepository
 from ssg.infrastructure.watchdog_site_reloader import WatchdogSiteReloader
 
 LOGGER = getLogger(__name__)
+
+_PluginT = TypeVar("_PluginT")
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -39,6 +42,19 @@ def create_parser() -> argparse.ArgumentParser:
 def main() -> None:
     StructuredLoggingConfigurator().configure()
     arguments = create_parser().parse_args()
+    try:
+        _dispatch(arguments)
+    except (
+        ValueError,
+        TypeError,
+        FileNotFoundError,
+        ImportError,
+        RuntimeError,
+    ) as exc:
+        raise SystemExit(str(exc)) from exc
+
+
+def _dispatch(arguments: argparse.Namespace) -> None:
     config_path = Path(arguments.config)
     output_path = Path(arguments.output)
     collection_name = arguments.collection
@@ -126,10 +142,31 @@ def preview_site(
     )
 
 
+def _load_plugin(
+    entry_point: EntryPoint, group: str, contract: type[_PluginT]
+) -> _PluginT:
+    """Instantiate one ssg.* entry point: name → zero-arg factory →
+    port-conforming instance. Failures name the entry point and group."""
+    try:
+        plugin = entry_point.load()()
+    except Exception as exc:
+        raise RuntimeError(
+            f"Failed to load entry point {entry_point.name!r} "
+            f"in group {group!r}: {exc}"
+        ) from exc
+    if not isinstance(plugin, contract):
+        raise TypeError(
+            f"Invalid {group} plugin {entry_point.name!r}: "
+            f"expected {contract.__name__} implementation, "
+            f"got {type(plugin).__name__}"
+        )
+    return plugin
+
+
 def load_content_renderers() -> tuple[ContentRenderer, ...]:
     plugin_renderers: list[ContentRenderer] = []
     for entry_point in entry_points(group="ssg.renderers"):
-        renderer = entry_point.load()()
+        renderer = _load_plugin(entry_point, "ssg.renderers", ContentRenderer)
         LOGGER.info(
             "content_renderer_loaded",
             extra={"context": {"renderer": entry_point.name}},
@@ -142,7 +179,9 @@ def load_content_renderers() -> tuple[ContentRenderer, ...]:
 def load_html_post_processors() -> tuple[HtmlPostProcessor, ...]:
     html_post_processors: list[HtmlPostProcessor] = []
     for entry_point in entry_points(group="ssg.html_post_processors"):
-        html_post_processor = entry_point.load()()
+        html_post_processor = _load_plugin(
+            entry_point, "ssg.html_post_processors", HtmlPostProcessor
+        )
         LOGGER.info(
             "html_post_processor_loaded",
             extra={"context": {"processor": entry_point.name}},
@@ -156,7 +195,11 @@ def load_site_variant_provider() -> SiteVariantProvider | None:
     providers: list[SiteVariantProvider] = []
     provider_names: list[str] = []
     for entry_point in entry_points(group="ssg.site_variant_providers"):
-        providers.append(entry_point.load()())
+        providers.append(
+            _load_plugin(
+                entry_point, "ssg.site_variant_providers", SiteVariantProvider
+            )
+        )
         provider_names.append(entry_point.name)
         LOGGER.info(
             "site_variant_provider_loaded",
