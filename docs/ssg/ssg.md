@@ -6,7 +6,7 @@
 
 - `ssg.domain`: generic site concepts such as `Site`, `ContentCollection`, and `Page`.
 - `ssg.application`: build and preview use cases plus stable ports.
-- `ssg.infrastructure`: filesystem manifests, Markdown rendering, semantic Jinja HTML rendering, local preview server, polling reload, and SSG-local logging.
+- `ssg.infrastructure`: filesystem manifests, Markdown rendering, semantic Jinja HTML rendering, local preview server, watchdog reload, and SSG-local logging.
 - `ssg_i18n`: optional site-variant plugin for locale-aware builds and translated generated sources.
 - `ssg_notebook_render`: optional `.ipynb` content renderer plugin installed separately.
 - `projects/*`: project-specific notebooks, markdown, scripts, charts, and data science code.
