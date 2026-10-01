@@ -88,6 +88,30 @@ class SpyHtmlPostProcessor:
         return rendered_html.replace("Rendered body", "Processed body")
 
 
+class DependencyRecordingRenderer:
+    """Registers a configurable dependency set per render so tests can
+    change a page's dependencies between builds."""
+
+    def __init__(self, dependency_paths: tuple[Path, ...]) -> None:
+        self.dependency_paths = dependency_paths
+
+    def can_render(self, source_path: Path) -> bool:
+        return source_path.suffix == ".md"
+
+    def render(
+        self, collection: ContentCollection, page: Page, context: BuildContext
+    ) -> str:
+        if context.dependency_tracker is not None:
+            context.dependency_tracker.register_dependency(
+                page, page.source_path
+            )
+            for dependency_path in self.dependency_paths:
+                context.dependency_tracker.register_dependency(
+                    page, dependency_path
+                )
+        return "<p>Rendered body</p>"
+
+
 class LocalizedSiteVariantProvider:
     def variants(
         self, site: Site, context: BuildContext
@@ -531,3 +555,100 @@ class TestStaticSiteBuilder:
         # Assert
         assert len(page_renderer.render_page_calls) == 1
         assert page_renderer.render_page_calls[0].page == page1
+
+    def test_incremental_rebuild_replaces_rendered_pages_dependency_set(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange
+        config_path = tmp_path / "site.yaml"
+        output_path = tmp_path / "build"
+        page = Page(
+            slug="page1", title="Page 1", source_path=tmp_path / "page1.md"
+        )
+        collection = ContentCollection(
+            name="sample",
+            title="Sample",
+            source_root=tmp_path,
+            output_slug="sample",
+            pages=(page,),
+            videos={},
+        )
+        site = Site(title="Site", description="", collections=(collection,))
+        dependency_tracker = InMemoryDependencyTracker()
+        content_renderer = DependencyRecordingRenderer(
+            dependency_paths=(tmp_path / "dep_a.md",)
+        )
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(content_renderer,),
+            page_renderer=SpyPageRenderer(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=dependency_tracker,
+            site_variant_provider=SingleSiteVariantProvider(),
+        )
+        builder.build(config_path, output_path)
+        content_renderer.dependency_paths = (tmp_path / "dep_b.md",)
+
+        # Act
+        builder.build(
+            config_path, output_path, changed_paths={page.source_path}
+        )
+
+        # Assert — a dependency dropped by the re-rendered page must stop
+        # invalidating it; keeping it means a stale Page object and a dead
+        # key are pinned in the persistent tracker.
+        assert (
+            dependency_tracker.affected_pages({tmp_path / "dep_a.md"}) == set()
+        )
+        assert dependency_tracker.affected_pages({tmp_path / "dep_b.md"}) == {
+            page
+        }
+
+    def test_rebuilds_keep_dependency_key_counts_flat(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange
+        config_path = tmp_path / "site.yaml"
+        output_path = tmp_path / "build"
+        page = Page(
+            slug="page1", title="Page 1", source_path=tmp_path / "page1.md"
+        )
+        collection = ContentCollection(
+            name="sample",
+            title="Sample",
+            source_root=tmp_path,
+            output_slug="sample",
+            pages=(page,),
+            videos={},
+        )
+        site = Site(title="Site", description="", collections=(collection,))
+        dependency_tracker = InMemoryDependencyTracker()
+        content_renderer = DependencyRecordingRenderer(dependency_paths=())
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(content_renderer,),
+            page_renderer=SpyPageRenderer(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=dependency_tracker,
+            site_variant_provider=SingleSiteVariantProvider(),
+        )
+        builder.build(config_path, output_path)
+
+        # Act — each rebuild swaps in a never-seen dependency path, the
+        # growth vector G-53 measured (dead keys pin a stale Page member).
+        for index in range(4):
+            content_renderer.dependency_paths = (tmp_path / f"dep_{index}.md",)
+            builder.build(
+                config_path, output_path, changed_paths={page.source_path}
+            )
+
+        # Assert — only the live dep set remains: the page's own source
+        # plus the current extra path.
+        assert len(dependency_tracker._dependencies) == 2
+        assert (
+            sum(
+                len(pages)
+                for pages in dependency_tracker._dependencies.values()
+            )
+            == 2
+        )

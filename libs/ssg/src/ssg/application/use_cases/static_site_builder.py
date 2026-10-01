@@ -180,6 +180,7 @@ class StaticSiteBuilder:
                 )
                 continue
 
+            self._dependency_tracker.clear_page_dependencies(page)
             body = self._render_body(site, collection, page, context)
             rendered_page = self._rendered_page(
                 site_variant, site_variants, collection, page, body
