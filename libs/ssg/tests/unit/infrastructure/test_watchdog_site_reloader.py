@@ -1,7 +1,12 @@
+import logging
 from pathlib import Path
 from threading import Event
 
-from ssg.infrastructure.watchdog_site_reloader import WatchdogSiteReloader
+import pytest
+from ssg.infrastructure.watchdog_site_reloader import (
+    DebouncedEventHandler,
+    WatchdogSiteReloader,
+)
 
 
 class TestWatchdogSiteReloader:
@@ -70,3 +75,46 @@ class TestWatchdogSiteReloader:
         # Should only have received the watched_file, not the ignored_file
         assert len(received_paths) == 1
         assert received_paths[0] == {watched_file}
+
+    def test_is_ignored_matches_across_mixed_path_bases(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Arrange — event paths carry the watch's base (resolved
+        # source_roots, as-passed config dir) while ignored paths keep the
+        # caller's spelling, so both relative/absolute directions must match.
+        monkeypatch.chdir(tmp_path)
+        relative_ignored = DebouncedEventHandler(
+            lambda paths: None, 0.1, ignored_paths=(Path("site/build"),)
+        )
+        absolute_ignored = DebouncedEventHandler(
+            lambda paths: None,
+            0.1,
+            ignored_paths=(tmp_path / "site" / "build",),
+        )
+
+        # Act / Assert
+        assert relative_ignored._is_ignored(
+            tmp_path / "site" / "build" / "index.html"
+        )
+        assert absolute_ignored._is_ignored(Path("site/build/index.html"))
+
+    def test_warns_when_watched_path_does_not_exist(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        # Arrange — a mistyped source_root used to vanish silently: no
+        # scheduled watch, no events, no log.
+        reloader = WatchdogSiteReloader()
+        missing_dir = tmp_path / "missing"
+
+        # Act
+        with caplog.at_level(logging.WARNING):
+            reloader.watch(
+                (missing_dir,), lambda paths: None, interval_seconds=0.1
+            )
+
+        # Assert
+        assert any(
+            record.getMessage() == "watched_path_missing"
+            and getattr(record, "context", {}).get("path") == str(missing_dir)
+            for record in caplog.records
+        )

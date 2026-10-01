@@ -21,7 +21,9 @@ class DebouncedEventHandler(FileSystemEventHandler):
         super().__init__()
         self._on_change = on_change
         self._interval_seconds = interval_seconds
-        self._ignored_paths = ignored_paths
+        self._ignored_paths = tuple(
+            ignored_path.resolve() for ignored_path in ignored_paths
+        )
         self._changed_paths: set[Path] = set()
         self._lock = threading.Lock()
         self._timer: threading.Timer | None = None
@@ -35,7 +37,7 @@ class DebouncedEventHandler(FileSystemEventHandler):
             if isinstance(src_path, bytes):
                 src_path = src_path.decode("utf-8")
 
-            path = Path(src_path)
+            path = Path(src_path).resolve()
             if self._is_ignored(path):
                 return
 
@@ -47,8 +49,13 @@ class DebouncedEventHandler(FileSystemEventHandler):
             self._timer.start()
 
     def _is_ignored(self, path: Path) -> bool:
+        # Event paths carry the watch's base while ignored paths arrive
+        # resolved; resolving here keeps the comparison correct for any
+        # caller's spelling (relative, absolute, or unnormalized).
+        resolved_path = path.resolve()
         return any(
-            path == ignored_path or ignored_path in path.parents
+            resolved_path == ignored_path
+            or ignored_path in resolved_path.parents
             for ignored_path in self._ignored_paths
         )
 
@@ -80,8 +87,13 @@ class WatchdogSiteReloader(SiteReloader):
         )
         observer = Observer()
         for path in watched_paths:
-            if path.exists():
-                observer.schedule(event_handler, str(path), recursive=True)
+            if not path.exists():
+                LOGGER.warning(
+                    "watched_path_missing",
+                    extra={"context": {"path": str(path)}},
+                )
+                continue
+            observer.schedule(event_handler, str(path), recursive=True)
 
         observer.daemon = True
         observer.start()
