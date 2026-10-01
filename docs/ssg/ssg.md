@@ -14,15 +14,24 @@
 
 The application and domain layers must not import infrastructure or CLI adapters. The core SSG package and notebook plugin must not import MLOps packages or project packages.
 
-## Notebook Directives
+## Content Directives
 
-Notebook markdown cells may use Jinja directives:
+Markdown pages and notebook markdown cells may use asset directives. A directive
+is exactly `{{ helper("arg") }}` — single- or double-quoted, optional inner
+whitespace; any other `{{ … }}`/`{% … %}` text is rendered literally, never
+evaluated:
 
 ```jinja2
 {{ include_source("src/nyc_taxi_demand_forecasting/pipelines/features.py") }}
+{{ embed_video("demo") }}
+{{ embed_image("diagram") }}
 ```
 
-Notebook markdown cells may use wikilinks:
+`include_source` embeds a source panel for a file under the collection's
+`source_root`; `embed_video`/`embed_image` copy a configured `assets.videos` /
+`assets.images` entry into the page output and embed a media frame.
+
+Markdown pages and notebook markdown cells may use wikilinks:
 
 ```text
 [[problem-framing|Problem Framing]]
@@ -61,7 +70,7 @@ Install machine translation support only when build-time model translation is ne
 uv pip install "ssg[i18n-transformers]"
 ```
 
-The i18n plugin translates generated Markdown and notebook markdown cells while preserving fenced code, inline code, Jinja directives, wikilink targets, URLs, and notebook code cells.
+The i18n plugin translates generated Markdown and notebook markdown cells while preserving fenced code, inline code, asset directives, wikilink targets, URLs, and notebook code cells.
 
 ## Commands
 

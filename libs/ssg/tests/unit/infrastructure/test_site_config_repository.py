@@ -477,3 +477,98 @@ def test_load_resolves_absolute_configured_paths(tmp_path: Path) -> None:
     collection = site.collections[0]
     assert collection.source_root == (tmp_path / "b").resolve()
     assert collection.videos["demo"] == (tmp_path / "w.mp4").resolve()
+
+
+@pytest.mark.parametrize("asset_key", ["videos", "images"])
+def test_load_rejects_duplicate_asset_basenames(
+    tmp_path: Path, asset_key: str
+) -> None:
+    # Arrange — configured assets flatten into one output dir per kind
+    # (assets/<kind>/demo.ext), so a shared basename silently overwrites at
+    # render; reject it at load instead.
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "collections:\n"
+        "  - name: sample_collection\n"
+        "    title: Sample Collection\n"
+        "    source_root: content\n"
+        "    pages:\n"
+        "      - slug: overview\n"
+        "        title: Overview\n"
+        "        source: README.md\n"
+        "    assets:\n"
+        f"      {asset_key}:\n"
+        "        first: va/demo.ext\n"
+        "        second: vb/demo.ext\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(
+        ValueError, match="duplicate asset filename 'demo.ext'"
+    ):
+        SiteConfigRepository().load(config_path)
+
+
+def test_load_rejects_case_folded_asset_basenames(tmp_path: Path) -> None:
+    # Arrange — `Demo.ext`/`demo.ext` write the same output path on
+    # case-insensitive filesystems, so the check compares case-folded.
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "collections:\n"
+        "  - name: sample_collection\n"
+        "    title: Sample Collection\n"
+        "    source_root: content\n"
+        "    pages:\n"
+        "      - slug: overview\n"
+        "        title: Overview\n"
+        "        source: README.md\n"
+        "    assets:\n"
+        "      videos:\n"
+        "        first: va/Demo.ext\n"
+        "        second: vb/demo.ext\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(
+        ValueError, match="duplicate asset filename 'demo.ext'"
+    ):
+        SiteConfigRepository().load(config_path)
+
+
+def test_load_allows_same_basename_across_asset_kinds(tmp_path: Path) -> None:
+    # Arrange — videos and images write to different output dirs
+    # (assets/videos/ vs assets/images/), so a shared basename is not a
+    # collision.
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "collections:\n"
+        "  - name: sample_collection\n"
+        "    title: Sample Collection\n"
+        "    source_root: content\n"
+        "    pages:\n"
+        "      - slug: overview\n"
+        "        title: Overview\n"
+        "        source: README.md\n"
+        "    assets:\n"
+        "      videos:\n"
+        "        clip: va/demo.ext\n"
+        "      images:\n"
+        "        diagram: vb/demo.ext\n",
+        encoding="utf-8",
+    )
+
+    # Act
+    site = SiteConfigRepository().load(config_path)
+
+    # Assert
+    collection = site.collections[0]
+    assert collection.videos["clip"].name == "demo.ext"
+    assert collection.images["diagram"].name == "demo.ext"

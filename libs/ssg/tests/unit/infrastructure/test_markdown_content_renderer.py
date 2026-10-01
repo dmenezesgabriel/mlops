@@ -1,9 +1,30 @@
 from pathlib import Path
 
+import pytest
 from ssg.domain import BuildContext, ContentCollection, Page
 from ssg.infrastructure.markdown_content_renderer import (
     MarkdownContentRenderer,
 )
+
+
+def _context(tmp_path: Path) -> BuildContext:
+    return BuildContext(
+        config_path=tmp_path / "site.yaml",
+        output_path=tmp_path / "build",
+        collection_name=None,
+        correlation_id="test",
+    )
+
+
+def _collection(source_root: Path) -> ContentCollection:
+    return ContentCollection(
+        name="sample_collection",
+        title="Sample Collection",
+        source_root=source_root,
+        output_slug="sample-collection",
+        pages=(),
+        videos={},
+    )
 
 
 def test_render_transcludes_source_and_copies_video(tmp_path: Path) -> None:
@@ -171,3 +192,147 @@ def test_render_gfm_table_to_html_table(tmp_path: Path) -> None:
     # Assert
     assert "<table" in rendered_content
     assert "<td" in rendered_content
+
+
+@pytest.mark.parametrize(
+    "literal",
+    [
+        "{{ 9 * 9 }}",
+        "{{ not_a_helper }}",
+        "{% set x = 5 %}",
+    ],
+)
+def test_render_leaves_non_directive_template_syntax_literal(
+    tmp_path: Path, literal: str
+) -> None:
+    # Arrange — only the `{{ helper("arg") }}` directives execute; every other
+    # template-looking fragment is author text and must survive verbatim
+    # (previously evaluated by Jinja: expressions silently, undefined names
+    # aborting the build).
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    page = Page(
+        slug="overview",
+        title="Overview",
+        source_path=source_root / "index.md",
+    )
+
+    # Act
+    rendered = MarkdownContentRenderer().render_markdown(
+        literal, _collection(source_root), _context(tmp_path), page
+    )
+
+    # Assert
+    assert literal in rendered
+    assert "81" not in rendered
+
+
+def test_render_does_not_execute_filtered_directive(tmp_path: Path) -> None:
+    # Arrange — a call that isn't exactly `{{ helper("arg") }}` (here a piped
+    # filter) is not a directive; it renders as text instead of invoking the
+    # helper with a transformed argument.
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    (source_root / "x.py").write_text("x = 1\n", encoding="utf-8")
+    page = Page(
+        slug="overview",
+        title="Overview",
+        source_path=source_root / "index.md",
+    )
+
+    # Act
+    rendered = MarkdownContentRenderer().render_markdown(
+        '{{ include_source("x.py" | upper) }}',
+        _collection(source_root),
+        _context(tmp_path),
+        page,
+    )
+
+    # Assert — markdown escapes the quotes, but the helper never ran
+    assert 'class="source-panel' not in rendered
+    assert "upper" in rendered
+
+
+def test_render_keeps_literal_transclusion_marker_text(
+    tmp_path: Path,
+) -> None:
+    # Arrange — marker-shaped author text must survive; only generated
+    # markers are substituted back with rendered fragments.
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    (source_root / "x.py").write_text("x = 1\n", encoding="utf-8")
+    page = Page(
+        slug="overview",
+        title="Overview",
+        source_path=source_root / "index.md",
+    )
+
+    # Act
+    rendered = MarkdownContentRenderer().render_markdown(
+        'Literal: SSG_TRANSCLUSION_0\n\n{{ include_source("x.py") }}',
+        _collection(source_root),
+        _context(tmp_path),
+        page,
+    )
+
+    # Assert
+    assert "SSG_TRANSCLUSION_0" in rendered
+    assert rendered.count('class="source-panel story-step"') == 1
+
+
+@pytest.mark.parametrize(
+    "directive",
+    [
+        '{{include_source("x.py")}}',
+        "{{ include_source('x.py') }}",
+        '{{  include_source(  "x.py"  )  }}',
+    ],
+)
+def test_render_accepts_directive_whitespace_and_quote_variants(
+    tmp_path: Path, directive: str
+) -> None:
+    # Arrange — pins the accepted directive grammar: helper name, one quoted
+    # string argument, optional inner whitespace.
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    (source_root / "x.py").write_text("x = 1\n", encoding="utf-8")
+    page = Page(
+        slug="overview",
+        title="Overview",
+        source_path=source_root / "index.md",
+    )
+
+    # Act
+    rendered = MarkdownContentRenderer().render_markdown(
+        directive, _collection(source_root), _context(tmp_path), page
+    )
+
+    # Assert
+    assert 'class="source-panel' in rendered
+    assert "x = 1" in rendered
+
+
+def test_render_inlines_transclusion_within_paragraph(tmp_path: Path) -> None:
+    # Arrange — a directive mid-sentence resolves to its marker inline, so the
+    # bare-marker replace arm (not just the `<p>{marker}</p>` arm) is live.
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    (source_root / "x.py").write_text("x = 1\n", encoding="utf-8")
+    page = Page(
+        slug="overview",
+        title="Overview",
+        source_path=source_root / "index.md",
+    )
+
+    # Act
+    rendered = MarkdownContentRenderer().render_markdown(
+        'before {{ include_source("x.py") }} after',
+        _collection(source_root),
+        _context(tmp_path),
+        page,
+    )
+
+    # Assert
+    assert 'class="source-panel' in rendered
+    assert "before" in rendered
+    assert "after" in rendered

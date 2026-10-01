@@ -201,6 +201,18 @@ class SiteConfigRepository(SiteRepository):
                 ),
             )
 
+        # Assets flatten into `assets/<key>/` at render, so basenames must be
+        # unique per kind; compare case-folded — Demo.ext/demo.ext collide on
+        # case-insensitive filesystems.
+        duplicate_filename = self._first_duplicate(
+            asset_path.name.lower() for asset_path in asset_paths.values()
+        )
+        if duplicate_filename is not None:
+            raise ValueError(
+                f"Invalid asset {key} in {config_path}: "
+                f"duplicate asset filename {duplicate_filename!r}"
+            )
+
         return asset_paths
 
     def _asset_path_string(
