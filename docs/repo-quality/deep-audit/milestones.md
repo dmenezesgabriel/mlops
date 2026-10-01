@@ -61,9 +61,13 @@
   drops comments/decls/PIs, double-decodes entities into the lexer, drops
   unclosed-code capture; per-page formatter ~60% of 1-block render cost;
   5/5 mutants survived at 100% line coverage.
-- [ ] **AU-07** latex → **AU-08**
+- [x] **AU-07** latex → **AU-08**
   notebook-render → **AU-09** i18n → **AU-10** i18n-machine-translation
   (dependency order: i18n-mt implements i18n's translator port).
+  AU-07: 10 gaps (S1×1, S2×1, S3×7, S4×1); AU-08: 9 (S3×8, S4×1);
+  AU-09: 22 (S1×2, S2×2, S3×17, S4×1); AU-10: 14 (S1×1, S2×1, S3×11, S4×1) —
+  evaluator false-green on missing/divergent input (S1); translator
+  locale-blind for non-nllb models; model load × locale × rebuild (S2).
 - [ ] Remediate promoted S1+ gaps.
 
 ## MA-5 — Media family
