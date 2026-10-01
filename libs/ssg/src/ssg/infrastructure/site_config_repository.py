@@ -1,4 +1,5 @@
-from collections.abc import Mapping
+import re
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import cast
 
@@ -7,21 +8,51 @@ import yaml
 from ssg.application.ports import SiteRepository
 from ssg.domain import ContentCollection, Page, Site
 
+# Slugs land verbatim in output paths (`output_path / slug.html`) and hrefs,
+# so path characters and case are both rejected — on case-insensitive
+# filesystems `Foo`/`foo` would pass a caseful uniqueness check yet collide
+# on the written file.
+_SLUG_PATTERN = re.compile(r"[a-z0-9_-]+")
+
 
 class SiteConfigRepository(SiteRepository):
     def load(self, config_path: Path) -> Site:
         manifest = self._load_yaml_mapping(config_path)
         site_config = self._required_mapping(manifest, "site", config_path)
-        collections = self._required_list(manifest, "collections", config_path)
+        collection_entries = self._required_list(
+            manifest, "collections", config_path
+        )
+        collections = tuple(
+            self._read_collection(collection, config_path)
+            for collection in collection_entries
+        )
+        self._reject_duplicate_collections(collections, config_path)
         return Site(
             title=self._required_string(site_config, "title", config_path),
             description=str(site_config.get("description", "")),
             extensions=self._read_extensions(manifest, config_path),
-            collections=tuple(
-                self._read_collection(collection, config_path)
-                for collection in collections
-            ),
+            collections=collections,
         )
+
+    def _reject_duplicate_collections(
+        self,
+        collections: tuple[ContentCollection, ...],
+        config_path: Path,
+    ) -> None:
+        fields: dict[str, Iterable[str]] = {
+            "name": (collection.name for collection in collections),
+            "output_slug": (
+                collection.output_slug for collection in collections
+            ),
+        }
+        for field, values in fields.items():
+            duplicate = self._first_duplicate(values)
+            if duplicate is None:
+                continue
+            raise ValueError(
+                f"Invalid site config {config_path}: "
+                f"duplicate collection {field} {duplicate!r}"
+            )
 
     def _load_yaml_mapping(self, config_path: Path) -> dict[object, object]:
         parsed_yaml = yaml.safe_load(config_path.read_text(encoding="utf-8"))
@@ -56,19 +87,36 @@ class SiteConfigRepository(SiteRepository):
                 "expected at least one page"
             )
 
+        output_slug = str(
+            collection_map.get("output_slug", name.replace("_", "-"))
+        )
+        self._require_slug(output_slug, "collection output_slug", config_path)
+        pages = tuple(
+            self._read_page(page, source_root, config_path)
+            for page in page_entries
+        )
+        self._reject_duplicate_page_slugs(pages, name, config_path)
+
         return ContentCollection(
             name=name,
             title=self._required_string(collection_map, "title", config_path),
             source_root=source_root,
-            output_slug=str(
-                collection_map.get("output_slug", name.replace("_", "-"))
-            ),
-            pages=tuple(
-                self._read_page(page, source_root, config_path)
-                for page in page_entries
-            ),
+            output_slug=output_slug,
+            pages=pages,
             videos=self._read_videos(collection_map, config_path),
             images=self._read_images(collection_map, config_path),
+        )
+
+    def _reject_duplicate_page_slugs(
+        self, pages: tuple[Page, ...], name: str, config_path: Path
+    ) -> None:
+        duplicate_slug = self._first_duplicate(page.slug for page in pages)
+        if duplicate_slug is None:
+            return
+
+        raise ValueError(
+            f"Invalid collection {name} in {config_path}: "
+            f"duplicate page slug {duplicate_slug!r}"
         )
 
     def _read_page(
@@ -80,12 +128,32 @@ class SiteConfigRepository(SiteRepository):
             )
         page_map = cast(dict[object, object], page)
 
+        slug = self._required_string(page_map, "slug", config_path)
+        self._require_slug(slug, "page slug", config_path)
         return Page(
-            slug=self._required_string(page_map, "slug", config_path),
+            slug=slug,
             title=self._required_string(page_map, "title", config_path),
             source_path=source_root
             / self._required_string(page_map, "source", config_path),
         )
+
+    def _require_slug(self, slug: str, field: str, config_path: Path) -> None:
+        if _SLUG_PATTERN.fullmatch(slug):
+            return
+
+        raise ValueError(
+            f"Invalid {field} {slug!r} in {config_path}: "
+            f"expected slug matching {_SLUG_PATTERN.pattern}"
+        )
+
+    def _first_duplicate(self, values: Iterable[str]) -> str | None:
+        seen: set[str] = set()
+        for value in values:
+            if value in seen:
+                return value
+            seen.add(value)
+
+        return None
 
     def _read_videos(
         self, collection: Mapping[object, object], config_path: Path
