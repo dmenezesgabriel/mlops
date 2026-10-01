@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from ssg_i18n.application.translation import InMemoryTextTranslator
 from ssg_i18n.domain.locale import Locale
 from ssg_i18n_machine_translation.application.evaluator import (
@@ -194,7 +195,56 @@ def test_evaluator_calculates_bleu_score_and_enforces_threshold(
     assert _failures_contain(report_low, "is below threshold 90.00")
 
 
-def test_evaluator_handles_node_count_mismatches_gracefully(
+def test_evaluator_fails_when_source_dir_missing(tmp_path: Path) -> None:
+    # Arrange
+    translated_dir = tmp_path / "translated"
+    translated_dir.mkdir()
+    evaluator = MachineTranslationEvaluator(
+        translator=InMemoryTextTranslator({})
+    )
+
+    # Act / Assert — a gate must not pass on input it cannot read
+    with pytest.raises(FileNotFoundError, match="source_dir"):
+        evaluator.evaluate(tmp_path / "missing", translated_dir)
+
+
+def test_evaluator_fails_when_translated_dir_missing(tmp_path: Path) -> None:
+    # Arrange
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    (source_dir / "doc1.md").write_text("Hello world.", encoding="utf-8")
+    evaluator = MachineTranslationEvaluator(
+        translator=InMemoryTextTranslator({})
+    )
+
+    # Act / Assert
+    with pytest.raises(FileNotFoundError, match="translated_dir"):
+        evaluator.evaluate(source_dir, tmp_path / "missing")
+
+
+def test_evaluator_fails_on_missing_translated_file(tmp_path: Path) -> None:
+    # Arrange — two source files, only one translated
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    (source_dir / "doc1.md").write_text("Hello world.", encoding="utf-8")
+    (source_dir / "doc2.md").write_text("Second page.", encoding="utf-8")
+    translated_dir = tmp_path / "translated"
+    translated_dir.mkdir()
+    (translated_dir / "doc1.md").write_text("Olá mundo.", encoding="utf-8")
+    evaluator = MachineTranslationEvaluator(
+        translator=InMemoryTextTranslator({})
+    )
+
+    # Act
+    report = evaluator.evaluate(source_dir, translated_dir)
+
+    # Assert — the present pair is still evaluated, but the gate fails
+    assert not report.passed
+    assert report.total_lines_evaluated == 1
+    assert _failures_contain(report, "Missing translated file: 'doc2.md'")
+
+
+def test_evaluator_fails_on_node_count_mismatch(
     tmp_path: Path,
 ) -> None:
     # Arrange
@@ -206,9 +256,10 @@ def test_evaluator_handles_node_count_mismatches_gracefully(
     # Act
     report = evaluator.evaluate(source_dir, translated_dir)
 
-    # Assert
-    assert report.passed  # Since zip length will just evaluate matched nodes, but structure mismatch log is generated
-    assert _logs_contain(
+    # Assert — divergent structure is a failure; matched pairs still evaluate
+    assert not report.passed
+    assert report.total_lines_evaluated == 1
+    assert _failures_contain(
         report,
         "[STRUCTURE MISMATCH] File 'doc1.md' has 2 source nodes, but 'doc1.md' has 1 translated nodes.",
     )

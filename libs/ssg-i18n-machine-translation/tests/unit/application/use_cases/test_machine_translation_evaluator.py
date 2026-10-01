@@ -9,7 +9,7 @@ from ssg_i18n_machine_translation.application.use_cases.machine_translation_eval
 
 
 class TestMachineTranslationEvaluator:
-    def test_evaluate_empty_dirs_returns_zero_total(
+    def test_evaluate_empty_dirs_fails_with_no_source_files(
         self, tmp_path: Path
     ) -> None:
         source_dir = tmp_path / "source"
@@ -23,7 +23,11 @@ class TestMachineTranslationEvaluator:
         report = evaluator.evaluate(source_dir, translated_dir)
 
         assert report.total_lines_evaluated == 0
-        assert report.passed is True
+        assert report.passed is False
+        assert any(
+            "No '*.md' source files found" in failure
+            for failure in report.failures
+        )
 
     def test_evaluate_identical_files_reports_fallback(
         self, tmp_path: Path

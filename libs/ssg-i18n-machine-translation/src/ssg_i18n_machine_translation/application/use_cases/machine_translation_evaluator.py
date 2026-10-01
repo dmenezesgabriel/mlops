@@ -38,6 +38,13 @@ def is_horizontal_rule(line: str) -> bool:
     return bool(re.fullmatch(r"\s*-{3,}\s*", line.strip()))
 
 
+def _require_directory(path: Path, name: str) -> None:
+    if not path.is_dir():
+        raise FileNotFoundError(
+            f"{name} must be an existing directory, got: '{path}'"
+        )
+
+
 def clean_line_for_comparison(line: str) -> str:
     line = line.strip().removesuffix("\n")
     line = re.sub(r"^(\s*(?:[*\-+]|\d+\.)\s+)", "", line)
@@ -132,18 +139,26 @@ class MachineTranslationEvaluator:
         self._min_bleu_score = min_bleu_score
 
     def _find_file_pairs(
-        self, source_dir: Path, translated_dir: Path
+        self,
+        source_dir: Path,
+        translated_dir: Path,
+        failures: list[str],
     ) -> list[tuple[Path, Path]]:
+        source_files = list(source_dir.rglob("*.md"))
+        if not source_files:
+            failures.append(f"No '*.md' source files found in '{source_dir}'")
         pairs: list[tuple[Path, Path]] = []
-        for src_file in source_dir.rglob("*.md"):
+        for src_file in source_files:
             rel_path = src_file.relative_to(source_dir)
             trans_file = translated_dir / rel_path
-            if trans_file.exists():
-                pairs.append((src_file, trans_file))
+            if not trans_file.exists():
+                failures.append(f"Missing translated file: '{rel_path}'")
+                continue
+            pairs.append((src_file, trans_file))
         return pairs
 
     def _get_matched_nodes(
-        self, src_file: Path, trans_file: Path, logs: list[str]
+        self, src_file: Path, trans_file: Path, failures: list[str]
     ) -> list[tuple[object, object]]:
         src_doc = Document(src_file.read_text(encoding="utf-8"))
         trans_doc = Document(trans_file.read_text(encoding="utf-8"))
@@ -155,7 +170,7 @@ class MachineTranslationEvaluator:
                 f"{len(src_nodes)} source nodes, but '{trans_file.name}' "
                 f"has {len(trans_nodes)} translated nodes."
             )
-            logs.append(msg)
+            failures.append(msg)
         return list(zip(src_nodes, trans_nodes, strict=False))
 
     def _evaluate_node_list(
@@ -256,11 +271,18 @@ class MachineTranslationEvaluator:
         target_locale: Locale | None = None,
     ) -> TranslationEvaluationReport:
         locale = target_locale or Locale("pt-BR")
+        _require_directory(source_dir, "source_dir")
+        _require_directory(translated_dir, "translated_dir")
         logs: list[str] = []
-        pairs = self._find_file_pairs(source_dir, translated_dir)
+        structural_failures: list[str] = []
+        pairs = self._find_file_pairs(
+            source_dir, translated_dir, structural_failures
+        )
         total, fallback, wiki, table = 0, 0, 0, 0
         for src_file, trans_file in pairs:
-            node_pairs = self._get_matched_nodes(src_file, trans_file, logs)
+            node_pairs = self._get_matched_nodes(
+                src_file, trans_file, structural_failures
+            )
             pair_total, pair_fallback, pair_wiki, pair_table = (
                 self._evaluate_node_list(node_pairs, src_file.name, logs)
             )
@@ -273,7 +295,9 @@ class MachineTranslationEvaluator:
         if catalog_path is not None and catalog_path.exists():
             bleu = self._calculate_bleu_score(catalog_path, locale)
 
-        return self._build_report(total, fallback, wiki, table, bleu, logs)
+        return self._build_report(
+            total, fallback, wiki, table, bleu, logs, structural_failures
+        )
 
     def _check_thresholds(
         self,
@@ -309,9 +333,12 @@ class MachineTranslationEvaluator:
         table: int,
         bleu: float | None,
         logs: list[str],
+        structural_failures: list[str],
     ) -> TranslationEvaluationReport:
         fallback_rate = (fallback / total * 100) if total > 0 else 0.0
-        failures = self._check_thresholds(fallback_rate, wiki, table, bleu)
+        failures = structural_failures + self._check_thresholds(
+            fallback_rate, wiki, table, bleu
+        )
         return TranslationEvaluationReport(
             total_lines_evaluated=total,
             english_fallback_lines=fallback,

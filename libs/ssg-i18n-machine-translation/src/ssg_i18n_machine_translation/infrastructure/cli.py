@@ -40,10 +40,17 @@ def print_report_summary(report: TranslationEvaluationReport) -> None:
         print(f"BLEU score: {report.bleu_score_against_catalog}")
 
 
-def print_failures_and_logs(report: TranslationEvaluationReport) -> None:
+def print_failures(report: TranslationEvaluationReport) -> None:
+    if not report.failures:
+        return
     print("\nFAILURES:")
     for failure in report.failures:
         print(f"- {failure}")
+
+
+def print_logs(report: TranslationEvaluationReport) -> None:
+    if not report.logs:
+        return
     print("\nLOGS / JUSTIFICATIONS:")
     for log in report.logs:
         print(log)
@@ -64,8 +71,9 @@ def main() -> None:
         target_locale=Locale(args.locale),
     )
     print_report_summary(report)
+    print_failures(report)
+    print_logs(report)
     if not report.passed:
-        print_failures_and_logs(report)
         sys.exit(1)
     print("\nEvaluation PASSED!")
     sys.exit(0)
