@@ -20,9 +20,15 @@ LOGGER = getLogger(__name__)
 class PygmentsCodeSyntaxHighlighter(CodeSyntaxHighlighter):
     def __init__(self, style_name: str) -> None:
         self._style_name = style_name
-        self._formatter: HtmlFormatter[str] = HtmlFormatter(
-            nowrap=True, noclasses=True, style=style_name
-        )
+        try:
+            self._formatter: HtmlFormatter[str] = HtmlFormatter(
+                nowrap=True, noclasses=True, style=style_name
+            )
+        except ClassNotFound as exc:
+            raise ValueError(
+                f"Invalid syntax_highlighting.style {style_name!r}: "
+                f"expected a Pygments style name ({exc})"
+            ) from exc
 
     def highlight(self, source: str, language: str) -> str:
         lexer = self._lexer_for_language(language)

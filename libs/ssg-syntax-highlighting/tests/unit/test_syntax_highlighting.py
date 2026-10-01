@@ -1,7 +1,26 @@
 from ssg.domain import Site
+from ssg_syntax_highlighting.application.syntax_highlighter import (
+    CodeBlockSyntaxHighlightingProcessor,
+)
 from ssg_syntax_highlighting.infrastructure.plugin import (
     create_pygments_html_post_processor,
 )
+
+CODE_BLOCK = '<pre><code class="language-python">x = 1</code></pre>'
+
+
+class PassThroughHighlighter:
+    def highlight(self, source: str, language: str) -> str:
+        return source
+
+
+class RecordingHighlighterFactory:
+    def __init__(self) -> None:
+        self.created_style_names: list[str] = []
+
+    def create(self, style_name: str) -> PassThroughHighlighter:
+        self.created_style_names.append(style_name)
+        return PassThroughHighlighter()
 
 
 def empty_site(extensions: dict[str, dict[str, str]] | None = None) -> Site:
@@ -107,3 +126,48 @@ def test_process_preserves_authored_entities_in_code() -> None:
 
     # Assert
     assert "a &amp;amp; b" in processed_html
+
+
+def test_process_creates_one_highlighter_per_style() -> None:
+    # Arrange — the style is build-invariant; rebuilding the formatter per
+    # page was ~60% of a one-block page's render cost
+    factory = RecordingHighlighterFactory()
+    processor = CodeBlockSyntaxHighlightingProcessor(factory)
+
+    # Act
+    processor.process(CODE_BLOCK, empty_site())
+    processor.process(CODE_BLOCK, empty_site())
+
+    # Assert
+    assert factory.created_style_names == ["gruvbox-dark"]
+
+
+def test_process_creates_a_highlighter_per_configured_style() -> None:
+    # Arrange
+    factory = RecordingHighlighterFactory()
+    processor = CodeBlockSyntaxHighlightingProcessor(factory)
+
+    # Act
+    processor.process(
+        CODE_BLOCK, empty_site({"syntax_highlighting": {"style": "monokai"}})
+    )
+    processor.process(CODE_BLOCK, empty_site())
+    processor.process(
+        CODE_BLOCK, empty_site({"syntax_highlighting": {"style": "monokai"}})
+    )
+
+    # Assert
+    assert factory.created_style_names == ["monokai", "gruvbox-dark"]
+
+
+def test_process_skips_the_factory_without_code_blocks() -> None:
+    # Arrange
+    factory = RecordingHighlighterFactory()
+    processor = CodeBlockSyntaxHighlightingProcessor(factory)
+
+    # Act
+    processed_html = processor.process("<p>no code</p>", empty_site())
+
+    # Assert
+    assert processed_html == "<p>no code</p>"
+    assert factory.created_style_names == []

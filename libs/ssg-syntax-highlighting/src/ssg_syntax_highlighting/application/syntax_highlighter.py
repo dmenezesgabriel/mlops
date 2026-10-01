@@ -25,6 +25,7 @@ class CodeBlockSyntaxHighlightingProcessor(HtmlPostProcessor):
     ) -> None:
         self._syntax_highlighter_factory = syntax_highlighter_factory
         self._default_style_name = default_style_name
+        self._highlighters: dict[str, CodeSyntaxHighlighter] = {}
 
     def process(self, rendered_html: str, site: Site) -> str:
         if "language-" not in rendered_html:
@@ -33,9 +34,7 @@ class CodeBlockSyntaxHighlightingProcessor(HtmlPostProcessor):
         style_name = site.extension_setting(
             "syntax_highlighting", "style", self._default_style_name
         )
-        parser = CodeBlockHtmlParser(
-            self._syntax_highlighter_factory.create(style_name)
-        )
+        parser = CodeBlockHtmlParser(self._highlighter_for(style_name))
         parser.feed(rendered_html)
         parser.close()
         LOGGER.info(
@@ -48,6 +47,15 @@ class CodeBlockSyntaxHighlightingProcessor(HtmlPostProcessor):
             },
         )
         return parser.rendered_html()
+
+    # Highlighters are built once per style: constructing the pygments
+    # formatter per page cost ~60% of a one-block page's render time.
+    def _highlighter_for(self, style_name: str) -> CodeSyntaxHighlighter:
+        if style_name not in self._highlighters:
+            self._highlighters[style_name] = (
+                self._syntax_highlighter_factory.create(style_name)
+            )
+        return self._highlighters[style_name]
 
 
 class CodeBlockHtmlParser(HTMLParser):
