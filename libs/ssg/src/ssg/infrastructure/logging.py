@@ -1,7 +1,9 @@
 import json
 import logging
 from datetime import UTC, datetime
-from typing import cast
+from typing import TypeAlias, TypeGuard, cast
+
+JsonValue: TypeAlias = str | int | float | bool | None
 
 
 class JsonLogFormatter(logging.Formatter):
@@ -21,13 +23,24 @@ class JsonLogFormatter(logging.Formatter):
 
         return json.dumps(payload, sort_keys=True)
 
-    def _context(self, record: logging.LogRecord) -> dict[str, object]:
+    def _context(self, record: logging.LogRecord) -> dict[str, JsonValue]:
         context = getattr(record, "context", {})
         if isinstance(context, dict):
             context_map = cast(dict[object, object], context)
-            return {str(key): value for key, value in context_map.items()}
+            return {
+                str(key): self._json_safe(value)
+                for key, value in context_map.items()
+            }
 
         return {"value": str(context)}
+
+    def _json_safe(self, value: object) -> JsonValue:
+        if self._is_json_scalar(value):
+            return value
+        return str(value)
+
+    def _is_json_scalar(self, value: object) -> TypeGuard[JsonValue]:
+        return isinstance(value, str | int | float | bool) or value is None
 
 
 class StructuredLoggingConfigurator:
