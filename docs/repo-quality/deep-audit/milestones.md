@@ -55,7 +55,13 @@
 
 ## MA-4 — SSG plugins
 
-- [ ] **AU-06** syntax-highlighting → **AU-07** latex → **AU-08**
+- [x] **AU-06** syntax-highlighting — 7 gaps (S3×6, S4×1): HTMLParser
+  re-serialization emits phantom end tags (`<br/>`→`<br></br>` doubles line
+  breaks, reachable via markdown hard breaks and prose-`language-` pages),
+  drops comments/decls/PIs, double-decodes entities into the lexer, drops
+  unclosed-code capture; per-page formatter ~60% of 1-block render cost;
+  5/5 mutants survived at 100% line coverage.
+- [ ] **AU-07** latex → **AU-08**
   notebook-render → **AU-09** i18n → **AU-10** i18n-machine-translation
   (dependency order: i18n-mt implements i18n's translator port).
 - [ ] Remediate promoted S1+ gaps.
