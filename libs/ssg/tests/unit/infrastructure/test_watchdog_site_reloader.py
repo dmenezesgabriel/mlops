@@ -7,6 +7,7 @@ from ssg.infrastructure.watchdog_site_reloader import (
     DebouncedEventHandler,
     WatchdogSiteReloader,
 )
+from watchdog.events import FileSystemEvent
 
 
 class TestWatchdogSiteReloader:
@@ -97,6 +98,42 @@ class TestWatchdogSiteReloader:
             tmp_path / "site" / "build" / "index.html"
         )
         assert absolute_ignored._is_ignored(Path("site/build/index.html"))
+
+    def test_on_any_event_decodes_bytes_src_path(self, tmp_path: Path) -> None:
+        # Arrange — watchdog can report src_path as bytes on some backends;
+        # the handler must decode before resolving/ignoring.
+        handler = DebouncedEventHandler(
+            lambda paths: None, interval_seconds=60
+        )
+        event = FileSystemEvent(str(tmp_path / "page.md").encode("utf-8"))
+
+        # Act
+        handler.on_any_event(event)
+
+        # Assert
+        assert handler._changed_paths == {(tmp_path / "page.md").resolve()}
+
+    def test_execute_safely_logs_and_swallows_on_change_failure(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        # Arrange — an on_change exception must not kill the observer timer
+        # thread; it is logged and dropped.
+        def exploding_on_change(paths: set[Path]) -> None:
+            raise RuntimeError("rebuild blew up")
+
+        handler = DebouncedEventHandler(
+            exploding_on_change, interval_seconds=60
+        )
+
+        # Act
+        with caplog.at_level(logging.ERROR):
+            handler._execute_safely({tmp_path / "page.md"})
+
+        # Assert
+        assert any(
+            record.getMessage() == "site_reload_failed"
+            for record in caplog.records
+        )
 
     def test_warns_when_watched_path_does_not_exist(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture

@@ -123,6 +123,23 @@ def test_page_href_rejects_unknown_slug(tmp_path: Path) -> None:
         collection.page_href("missing")
 
 
+def test_first_page_rejects_empty_collection(tmp_path: Path) -> None:
+    # Arrange — config load rejects empty collections, but a directly
+    # constructed one can still reach root_href() (index nav card).
+    collection = ContentCollection(
+        name="sample_collection",
+        title="Sample Collection",
+        source_root=tmp_path,
+        output_slug="sample-collection",
+        pages=(),
+        videos={},
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="expected at least one page"):
+        collection.first_page()
+
+
 def test_page_index_rejects_unknown_slug(tmp_path: Path) -> None:
     # Arrange
     collection = ContentCollection(

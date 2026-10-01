@@ -1,5 +1,6 @@
 import json
 import logging
+import sys
 
 from ssg.infrastructure.logging import JsonLogFormatter
 
@@ -64,3 +65,19 @@ def test_json_log_formatter_stringifies_non_dict_context() -> None:
 
     # Assert
     assert payload["context"] == {"value": "plain"}
+
+
+def test_json_log_formatter_includes_exception_traceback() -> None:
+    # Arrange
+    record = _record()
+    try:
+        _ = 1 / 0
+    except ZeroDivisionError:
+        record.exc_info = sys.exc_info()
+
+    # Act
+    payload = json.loads(JsonLogFormatter().format(record))
+
+    # Assert
+    assert "ZeroDivisionError" in payload["exception"]
+    assert "division by zero" in payload["exception"]

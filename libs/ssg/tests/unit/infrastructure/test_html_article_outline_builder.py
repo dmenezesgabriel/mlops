@@ -87,3 +87,46 @@ def test_article_outline_builder_adds_stable_heading_anchors() -> None:
     assert article.headings[1].label == "Metric & Target"
     assert article.headings[1].href == "#metric-target"
     assert article.headings[1].level == 3
+
+
+def test_article_outline_builder_dedupes_duplicate_heading_labels() -> None:
+    # Arrange — repeated labels need distinct anchors: the first keeps the
+    # bare slug, later occurrences get a `-N` suffix.
+    rendered_html = "<h2>Overview</h2><p>Body</p><h2>Overview</h2>"
+
+    # Act
+    article = HtmlArticleOutlineBuilder().build("T", rendered_html)
+
+    # Assert
+    assert 'id="overview"' in article.body
+    assert 'id="overview-2"' in article.body
+    assert [heading.href for heading in article.headings] == [
+        "#overview",
+        "#overview-2",
+    ]
+
+
+def test_article_outline_builder_skips_heading_without_label() -> None:
+    # Arrange — a heading whose body has no text gets no generated id and no
+    # TOC entry; the markup passes through untouched.
+    rendered_html = "<h2>   </h2><p>Body</p>"
+
+    # Act
+    article = HtmlArticleOutlineBuilder().build("T", rendered_html)
+
+    # Assert
+    assert article.body == rendered_html
+    assert article.headings == ()
+
+
+def test_article_outline_builder_falls_back_to_section_slug() -> None:
+    # Arrange — a label with no slug characters ("!!!") slugifies to empty;
+    # the fallback id is "section".
+    rendered_html = "<h2>!!!</h2>"
+
+    # Act
+    article = HtmlArticleOutlineBuilder().build("T", rendered_html)
+
+    # Assert
+    assert article.body == '<h2 id="section">!!!</h2>'
+    assert article.headings[0].href == "#section"

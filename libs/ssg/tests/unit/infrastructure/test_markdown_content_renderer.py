@@ -2,6 +2,9 @@ from pathlib import Path
 
 import pytest
 from ssg.domain import BuildContext, ContentCollection, Page
+from ssg.infrastructure.in_memory_dependency_tracker import (
+    InMemoryDependencyTracker,
+)
 from ssg.infrastructure.markdown_content_renderer import (
     MarkdownContentRenderer,
 )
@@ -336,3 +339,133 @@ def test_render_inlines_transclusion_within_paragraph(tmp_path: Path) -> None:
     assert 'class="source-panel' in rendered
     assert "before" in rendered
     assert "after" in rendered
+
+
+def test_render_registers_every_source_path_with_dependency_tracker(
+    tmp_path: Path,
+) -> None:
+    # Arrange — incremental preview rebuilds reuse one tracker across builds,
+    # so every file a page reads (its own source, transclusions, embedded
+    # assets) must land in the tracker's page→paths map.
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    included_path = source_root / "x.py"
+    included_path.write_text("x = 1\n", encoding="utf-8")
+    markdown_path = source_root / "index.md"
+    markdown_path.write_text(
+        '{{ include_source("x.py") }}\n\n'
+        '{{ embed_video("clip") }}\n\n'
+        '{{ embed_image("diagram") }}',
+        encoding="utf-8",
+    )
+    video_path = tmp_path / "videos" / "demo.mp4"
+    video_path.parent.mkdir()
+    video_path.write_bytes(b"mp4")
+    image_path = tmp_path / "images" / "diagram.png"
+    image_path.parent.mkdir()
+    image_path.write_bytes(b"png")
+    collection = ContentCollection(
+        name="sample_collection",
+        title="Sample Collection",
+        source_root=source_root,
+        output_slug="sample-collection",
+        pages=(),
+        videos={"clip": video_path},
+        images={"diagram": image_path},
+    )
+    page = Page(slug="overview", title="Overview", source_path=markdown_path)
+    dependency_tracker = InMemoryDependencyTracker()
+    context = BuildContext(
+        config_path=tmp_path / "site.yaml",
+        output_path=tmp_path / "build",
+        collection_name=None,
+        correlation_id="test",
+        dependency_tracker=dependency_tracker,
+    )
+
+    # Act
+    MarkdownContentRenderer().render(collection, page, context)
+
+    # Assert
+    for changed_path in (
+        markdown_path,
+        included_path,
+        video_path,
+        image_path,
+    ):
+        assert dependency_tracker.affected_pages({changed_path}) == {page}
+
+
+@pytest.mark.parametrize(
+    ("directive", "match"),
+    [
+        ('{{ embed_video("bogus") }}', "Unknown collection video"),
+        ('{{ embed_image("bogus") }}', "Unknown collection image"),
+    ],
+    ids=["video", "image"],
+)
+def test_render_rejects_unknown_asset_name(
+    tmp_path: Path, directive: str, match: str
+) -> None:
+    # Arrange
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    markdown_path = source_root / "index.md"
+    markdown_path.write_text(directive, encoding="utf-8")
+    page = Page(slug="overview", title="Overview", source_path=markdown_path)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match=match):
+        MarkdownContentRenderer().render(
+            _collection(source_root), page, _context(tmp_path)
+        )
+
+
+@pytest.mark.parametrize(
+    ("directive", "assets", "match"),
+    [
+        (
+            '{{ embed_video("clip") }}',
+            {"videos": {"clip": "missing.mp4"}},
+            "Missing rendered site video",
+        ),
+        (
+            '{{ embed_image("diagram") }}',
+            {"images": {"diagram": "missing.png"}},
+            "Missing rendered site image",
+        ),
+    ],
+    ids=["video", "image"],
+)
+def test_render_rejects_missing_asset_file(
+    tmp_path: Path,
+    directive: str,
+    assets: dict[str, dict[str, str]],
+    match: str,
+) -> None:
+    # Arrange — the asset is configured but the file is absent; the build must
+    # fail naming the resolved path rather than copy a ghost.
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    markdown_path = source_root / "index.md"
+    markdown_path.write_text(directive, encoding="utf-8")
+    collection = ContentCollection(
+        name="sample_collection",
+        title="Sample Collection",
+        source_root=source_root,
+        output_slug="sample-collection",
+        pages=(),
+        videos={
+            name: tmp_path / path
+            for name, path in assets.get("videos", {}).items()
+        },
+        images={
+            name: tmp_path / path
+            for name, path in assets.get("images", {}).items()
+        },
+    )
+    page = Page(slug="overview", title="Overview", source_path=markdown_path)
+
+    # Act / Assert
+    with pytest.raises(FileNotFoundError, match=match):
+        MarkdownContentRenderer().render(collection, page, _context(tmp_path))

@@ -70,6 +70,13 @@ class FakeSiteVariantEntryPoint:
         return FakeSiteVariantProvider
 
 
+class AnotherSiteVariantEntryPoint:
+    name = "another-site-variant-provider"
+
+    def load(self) -> type[FakeSiteVariantProvider]:
+        return FakeSiteVariantProvider
+
+
 class FakeSiteReloader:
     def __init__(self) -> None:
         self.on_change: Callable[[set[Path]], None] | None = None
@@ -282,6 +289,24 @@ def test_load_site_variant_provider_uses_site_variant_entry_point(
     # Assert
     assert requested_groups == ["ssg.site_variant_providers"]
     assert isinstance(provider, FakeSiteVariantProvider)
+
+
+def test_load_site_variant_provider_rejects_multiple_providers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange — the contract admits at most one provider: two competing
+    # variant sources would silently pick a winner, so loading must fail
+    # loudly naming both.
+    def fake_entry_points(
+        group: str,
+    ) -> tuple[FakeSiteVariantEntryPoint, AnotherSiteVariantEntryPoint]:
+        return (FakeSiteVariantEntryPoint(), AnotherSiteVariantEntryPoint())
+
+    monkeypatch.setattr(cli, "entry_points", fake_entry_points)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="Multiple site variant providers"):
+        load_site_variant_provider()
 
 
 def test_load_content_renderers_returns_markdown_plus_plugins(

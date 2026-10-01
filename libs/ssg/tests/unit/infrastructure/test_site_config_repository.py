@@ -232,6 +232,109 @@ def test_load_rejects_non_mapping_config(tmp_path: Path) -> None:
         SiteConfigRepository().load(config_path)
 
 
+_SITE = "site:\n  title: Learning Site\n"
+_COLLECTION_HEAD = (
+    "collections:\n"
+    "  - name: sample_collection\n"
+    "    title: Sample Collection\n"
+    "    source_root: ../content/sample_collection\n"
+)
+_VALID_PAGES = (
+    "    pages:\n"
+    "      - slug: overview\n"
+    "        title: Overview\n"
+    "        source: README.md\n"
+)
+_COLLECTION = _COLLECTION_HEAD + _VALID_PAGES
+
+
+@pytest.mark.parametrize(
+    ("config_text", "match"),
+    [
+        (
+            "site: 42\n" + _COLLECTION,
+            "expected site mapping",
+        ),
+        (
+            "collections: []\n",
+            "expected site mapping",
+        ),
+        (
+            _SITE + "collections: 42\n",
+            "expected collections list",
+        ),
+        (
+            _SITE + "collections:\n  - bogus\n",
+            "Invalid collection",
+        ),
+        (
+            _SITE + _COLLECTION_HEAD + "    pages: bogus\n",
+            "expected pages list",
+        ),
+        (
+            _SITE + _COLLECTION_HEAD + "    pages:\n      - bogus\n",
+            "Invalid page",
+        ),
+        (
+            _SITE + _COLLECTION + "    assets: 42\n",
+            "Invalid assets",
+        ),
+        (
+            _SITE + _COLLECTION + "    assets:\n      videos: 42\n",
+            "Invalid asset videos",
+        ),
+        (
+            _SITE + "collections: []\nextensions: 42\n",
+            "Invalid extensions",
+        ),
+        (
+            _SITE + "collections: []\nextensions:\n  plug: 42\n",
+            "Invalid extension plug",
+        ),
+        (
+            "site:\n  description: no title\n" + _COLLECTION,
+            "expected title string",
+        ),
+        (
+            _SITE + "collections:\n  - title: No Name\n"
+            "    source_root: ../content/c\n" + _VALID_PAGES,
+            "expected name string",
+        ),
+        (
+            _SITE + "collections:\n  - name: c\n    title: T\n"
+            "    source_root: ../content/c\n"
+            "    pages:\n      - slug: overview\n        title: Overview\n",
+            "expected source string",
+        ),
+    ],
+    ids=[
+        "site_not_mapping",
+        "site_missing",
+        "collections_not_list",
+        "collection_not_mapping",
+        "pages_not_list",
+        "page_not_mapping",
+        "assets_not_mapping",
+        "asset_kind_not_mapping",
+        "extensions_not_mapping",
+        "extension_settings_not_mapping",
+        "site_title_missing",
+        "collection_name_missing",
+        "page_source_missing",
+    ],
+)
+def test_load_rejects_malformed_config_sections(
+    tmp_path: Path, config_text: str, match: str
+) -> None:
+    # Arrange
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(config_text, encoding="utf-8")
+
+    # Act / Assert
+    with pytest.raises(ValueError, match=match):
+        SiteConfigRepository().load(config_path)
+
+
 def test_load_rejects_non_string_extension_setting(tmp_path: Path) -> None:
     # Arrange
     config_path = tmp_path / "site.yaml"

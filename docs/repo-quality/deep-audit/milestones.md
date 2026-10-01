@@ -49,7 +49,9 @@
   tracebacks on all error paths; Jinja-over-markdown evals/crashes on literal
   `{{`; unvalidated entry-point contract; dead `PollingSiteReloader`;
   coverage-invisible preview server.
-- [ ] Remediate promoted S1+ gaps.
+- [x] Remediate promoted S1+ gaps. (AF-20…AF-35 all shipped — every AU-04/AU-05
+  gap dispositioned; G-39's `build`/`preview`/`--collection` surfaces tagged
+  for AX-2; G-54 closed with the coverage-visible preview server.)
 
 ## MA-4 — SSG plugins
 
