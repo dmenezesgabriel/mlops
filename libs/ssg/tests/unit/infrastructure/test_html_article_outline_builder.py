@@ -1,3 +1,4 @@
+import pytest
 from ssg.domain import demote_top_level_headings
 from ssg.infrastructure.html_article_outline_builder import (
     HtmlArticleOutlineBuilder,
@@ -13,6 +14,27 @@ def test_demote_top_level_headings_preserves_heading_attributes() -> None:
 
     # Assert
     assert demoted_html == '<h2 id="overview">Overview</h2><p>Body</p>'
+
+
+@pytest.mark.parametrize(
+    ("rendered_html", "expected"),
+    [
+        ("<h1>a</h1 >", "<h2>a</h2>"),
+        ("<h1>a</H1>", "<h2>a</h2>"),
+        ("<H1>a</H1>", "<h2>a</h2>"),
+        ("<h1>a</h1 foo>", "<h2>a</h2>"),
+        ("<h1foo>a</h1foo>", "<h1foo>a</h1foo>"),
+        ("<h1>a</h1><h1>b</H1 >", "<h2>a</h2><h2>b</h2>"),
+    ],
+)
+def test_demote_top_level_headings_demotes_noncanonical_tags(
+    rendered_html: str, expected: str
+) -> None:
+    # Act
+    demoted_html = demote_top_level_headings(rendered_html)
+
+    # Assert
+    assert demoted_html == expected
 
 
 def test_article_outline_builder_adds_stable_heading_anchors() -> None:
