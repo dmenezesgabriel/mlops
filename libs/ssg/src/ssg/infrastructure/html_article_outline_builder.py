@@ -46,10 +46,23 @@ def _heading_label(heading_html: str) -> str:
     return " ".join(unescape(text).split())
 
 
+_ATTRIBUTE_PATTERN = re.compile(
+    r"(?P<name>[^\s=/>]+)"
+    r"(?:\s*=\s*(?:\"(?P<double>[^\"]*)\"|'(?P<single>[^']*)'|(?P<bare>[^\s>]*)))?"
+)
+
+
 def _attribute_value(attributes: str, name: str) -> str | None:
-    match = re.search(rf'\s{name}="([^"]+)"', attributes)
-    if match:
-        return unescape(match.group(1))
+    for match in _ATTRIBUTE_PATTERN.finditer(attributes):
+        if match.group("name").lower() != name:
+            continue
+        value = (
+            match.group("double")
+            or match.group("single")
+            or match.group("bare")
+            or ""
+        )
+        return unescape(value)
 
     return None
 

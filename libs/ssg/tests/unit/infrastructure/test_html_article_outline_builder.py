@@ -37,6 +37,40 @@ def test_demote_top_level_headings_demotes_noncanonical_tags(
     assert demoted_html == expected
 
 
+@pytest.mark.parametrize(
+    "rendered_html",
+    [
+        "<h2 id='keep'>Title</h2>",
+        "<h2 id=keep>Title</h2>",
+        '<h2 ID="keep">Title</h2>',
+        '<h2 id = "keep">Title</h2>',
+    ],
+)
+def test_article_outline_builder_keeps_existing_heading_id(
+    rendered_html: str,
+) -> None:
+    # Act
+    article = HtmlArticleOutlineBuilder().build("T", rendered_html)
+
+    # Assert
+    assert article.body == rendered_html
+    assert article.headings[0].href == "#keep"
+
+
+def test_article_outline_builder_ignores_id_inside_other_attribute_value() -> (
+    None
+):
+    # Arrange
+    rendered_html = '<h2 data-x="a id=5">T</h2>'
+
+    # Act
+    article = HtmlArticleOutlineBuilder().build("T", rendered_html)
+
+    # Assert
+    assert article.body == '<h2 id="t" data-x="a id=5">T</h2>'
+    assert article.headings[0].href == "#t"
+
+
 def test_article_outline_builder_adds_stable_heading_anchors() -> None:
     # Arrange
     rendered_html = (
