@@ -1,3 +1,4 @@
+import pytest
 from ssg.domain import Site
 from ssg_latex.application.latex_processor import (
     LatexHtmlPostProcessor,
@@ -8,9 +9,11 @@ from ssg_latex.application.latex_processor import (
 class FakeLatexRenderer(LatexRenderer):
     def __init__(self) -> None:
         self.call_count = 0
+        self.calls: list[tuple[str, bool]] = []
 
     def render(self, expression: str, display_mode: bool) -> str:
         self.call_count += 1
+        self.calls.append((expression, display_mode))
         mode = "display" if display_mode else "inline"
         return f"<math mode={mode}>{expression}</math>"
 
@@ -160,3 +163,70 @@ def test_post_processor_escapes_underscores_in_text_blocks() -> None:
 
     # Assert
     assert "hour\\_sin" in processed_html
+
+
+@pytest.mark.parametrize(
+    ("entity", "decoded"),
+    [("&lt;", "<"), ("&gt;", ">"), ("&amp;", "&")],
+)
+def test_post_processor_renders_math_spanning_entity_ref(
+    entity: str, decoded: str
+) -> None:
+    # Arrange — markdown emits < > & as entities inside text nodes; the
+    # entity event must not split the math span before MATH_PATTERN sees it.
+    renderer = FakeLatexRenderer()
+    processor = LatexHtmlPostProcessor(renderer)
+    rendered_html = f"<p>When $a {entity} b$ holds</p>"
+
+    # Act
+    processed_html = processor.process(rendered_html, empty_site())
+
+    # Assert
+    assert renderer.calls == [(f"a {decoded} b", False)]
+    assert "<math mode=inline>" in processed_html
+    assert "katex.min.css" in processed_html
+
+
+def test_post_processor_does_not_render_charref_dollar() -> None:
+    # Arrange — &#36; is a literal $ in the text; splitting the verbatim run
+    # keeps it from opening math (decode-then-split would match "$y$").
+    renderer = FakeLatexRenderer()
+    processor = LatexHtmlPostProcessor(renderer)
+    rendered_html = "<p>&#36;y$</p>"
+
+    # Act
+    processed_html = processor.process(rendered_html, empty_site())
+
+    # Assert
+    assert renderer.calls == []
+    assert processed_html == "<p>&#36;y$</p>"
+
+
+def test_post_processor_keeps_entities_verbatim_outside_math() -> None:
+    # Arrange — only the extracted math expression is decoded; entity text
+    # outside math must be re-emitted byte-for-byte.
+    renderer = FakeLatexRenderer()
+    processor = LatexHtmlPostProcessor(renderer)
+    rendered_html = "<p>Fish &amp; Chips</p>"
+
+    # Act
+    processed_html = processor.process(rendered_html, empty_site())
+
+    # Assert
+    assert renderer.calls == []
+    assert processed_html == "<p>Fish &amp; Chips</p>"
+
+
+def test_post_processor_keeps_entities_verbatim_in_pre_tag() -> None:
+    # Arrange — the ignored-tag check applies at flush time, so entities
+    # inside <pre>/<code> stay verbatim and never reach the math split.
+    renderer = FakeLatexRenderer()
+    processor = LatexHtmlPostProcessor(renderer)
+    rendered_html = "<pre>&lt;$x$&gt;</pre>"
+
+    # Act
+    processed_html = processor.process(rendered_html, empty_site())
+
+    # Assert
+    assert renderer.calls == []
+    assert processed_html == "<pre>&lt;$x$&gt;</pre>"

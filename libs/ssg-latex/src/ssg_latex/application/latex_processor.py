@@ -1,5 +1,6 @@
 import re
 from collections.abc import Callable
+from html import unescape
 from html.parser import HTMLParser
 from typing import Protocol
 
@@ -65,6 +66,7 @@ class LatexHtmlParser(HTMLParser):
         self._render_fn = render_fn
         self._fragments: list[str] = []
         self._tag_stack: list[str] = []
+        self._pending_text: list[str] = []
         self.math_rendered = False
 
     def rendered_html(self) -> str:
@@ -73,12 +75,16 @@ class LatexHtmlParser(HTMLParser):
     def handle_starttag(
         self, tag: str, attrs: list[tuple[str, str | None]]
     ) -> None:
+        self._flush_text()
         tag_lower = tag.lower()
         if tag_lower not in SELF_CLOSING_TAGS:
             self._tag_stack.append(tag_lower)
         self._fragments.append(self.get_starttag_text() or f"<{tag}>")
 
     def handle_endtag(self, tag: str) -> None:
+        # Flush before popping so enclosed text is classified with the
+        # enclosing tag still on the stack.
+        self._flush_text()
         tag_lower = tag.lower()
         if tag_lower in self._tag_stack:
             while self._tag_stack:
@@ -88,6 +94,44 @@ class LatexHtmlParser(HTMLParser):
         self._fragments.append(f"</{tag}>")
 
     def handle_data(self, data: str) -> None:
+        self._pending_text.append(data)
+
+    def handle_comment(self, data: str) -> None:
+        self._flush_text()
+        self._fragments.append(f"<!--{data}-->")
+
+    def handle_decl(self, decl: str) -> None:
+        self._flush_text()
+        self._fragments.append(f"<!{decl}>")
+
+    def handle_pi(self, data: str) -> None:
+        self._flush_text()
+        self._fragments.append(f"<?{data}>")
+
+    def handle_entityref(self, name: str) -> None:
+        self._pending_text.append(f"&{name};")
+
+    def handle_charref(self, name: str) -> None:
+        self._pending_text.append(f"&#{name};")
+
+    def close(self) -> None:
+        super().close()
+        self._flush_text()
+
+    def _flush_text(self) -> None:
+        """Split one contiguous text run for math, then emit it.
+
+        convert_charrefs=False fires entityref/charref between data chunks,
+        so a formula like ``$a &lt; b$`` arrives split across events. Buffering
+        the verbatim bytes rejoins the run for MATH_PATTERN while keeping
+        non-math entities (and ``&#36;``) byte-for-byte; only the extracted
+        expression is unescaped for KaTeX.
+        """
+        if not self._pending_text:
+            return
+        data = "".join(self._pending_text)
+        self._pending_text.clear()
+
         ignored_tags = {"pre", "code", "script", "style", "textarea"}
         if any(t in ignored_tags for t in self._tag_stack):
             self._fragments.append(data)
@@ -100,29 +144,14 @@ class LatexHtmlParser(HTMLParser):
                 self.math_rendered = True
                 match = parts[i]
                 if match.startswith("$$") and match.endswith("$$"):
-                    expr = match[2:-2].strip()
+                    expr = unescape(match[2:-2]).strip()
                     expr = _escape_text_underscores(expr)
                     parts[i] = self._render_fn(expr, True)
                 else:
-                    expr = match[1:-1].strip()
+                    expr = unescape(match[1:-1]).strip()
                     expr = _escape_text_underscores(expr)
                     parts[i] = self._render_fn(expr, False)
         self._fragments.append("".join(parts))
-
-    def handle_comment(self, data: str) -> None:
-        self._fragments.append(f"<!--{data}-->")
-
-    def handle_decl(self, decl: str) -> None:
-        self._fragments.append(f"<!{decl}>")
-
-    def handle_pi(self, data: str) -> None:
-        self._fragments.append(f"<?{data}>")
-
-    def handle_entityref(self, name: str) -> None:
-        self._fragments.append(f"&{name};")
-
-    def handle_charref(self, name: str) -> None:
-        self._fragments.append(f"&#{name};")
 
 
 class LatexHtmlPostProcessor(HtmlPostProcessor):
