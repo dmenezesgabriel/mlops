@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import mistletoe
-from mistletoe import block_token, span_token
+from mistletoe import block_token, span_token, token
 from mistletoe.markdown_renderer import MarkdownRenderer
 
 from ssg_i18n.application.ports.text_translator import TextTranslator
@@ -43,10 +43,10 @@ class _CustomMarkdownRenderer(MarkdownRenderer):
         self, tokens: Iterable[block_token.BlockToken], max_line_length: int
     ) -> Iterable[str]:
         first = True
-        for token in tokens:
+        for block in tokens:
             if not first:
                 if (
-                    token.__class__.__name__ in ("ListItem", "List")
+                    block.__class__.__name__ in ("ListItem", "List")
                     and self.in_list_loose is False
                 ):
                     pass
@@ -55,8 +55,8 @@ class _CustomMarkdownRenderer(MarkdownRenderer):
             first = False
             # mistletoe's own render() passes max_line_length the same way;
             # its untyped stubs just don't model the render_map signatures.
-            yield from self.render_map[token.__class__.__name__](
-                token,
+            yield from self.render_map[block.__class__.__name__](
+                block,
                 max_line_length=max_line_length,  # pyright: ignore[reportCallIssue]
             )
 
@@ -79,6 +79,34 @@ _PROTECTED_PATTERN = re.compile(
     re.DOTALL,
 )
 _WIKILINK_PATTERN = re.compile(r"\[\[([a-zA-Z0-9_-]+)(?:\|([^\]]+))?\]\]")
+
+# mistletoe block names: containers hold block children (walked), leaves
+# hold span children (translated as one unit). Any unlisted block with
+# children still gets walked — an unlisted container must not silently
+# skip its subtree (span children no-op on their own missing `children`).
+_CONTAINER_BLOCK_NAMES = (
+    "Document",
+    "List",
+    "ListItem",
+    "Table",
+    "TableRow",
+    "Quote",
+)
+_LEAF_BLOCK_NAMES = (
+    "Paragraph",
+    "Heading",
+    "TableCell",
+    "SetextHeading",
+)
+
+
+def _reference_definition_lines(
+    footnotes: dict[str, tuple[str, str]],
+) -> list[str]:
+    return [
+        f"[{label}]: {dest}" + (f' "{title}"' if title else "")
+        for label, (dest, title) in footnotes.items()
+    ]
 
 
 @dataclass(frozen=True)
@@ -175,13 +203,26 @@ class DocumentTranslator:
 
         doc = mistletoe.Document(source_protected)  # type: ignore
         with _CustomMarkdownRenderer() as renderer:
-            self._translate_block(doc, target_locale, renderer)
-            translated = renderer.render(doc)
+            # tokenize_inner resolves `[label][ref]` via
+            # token._root_node.footnotes, which Document clears after
+            # parsing (block_token.py:158-160) — re-point it at this doc.
+            token._root_node = doc
+            try:
+                self._translate_block(doc, target_locale, renderer)
+                translated = renderer.render(doc)
+            finally:
+                token._root_node = None
 
         translated_str = str(translated)
         for i, expr in reversed(list(enumerate(math_expressions))):
             placeholder = f"MATHEXPR{i}"
             translated_str = translated_str.replace(placeholder, expr)
+
+        # Reference definitions parse into doc.footnotes, not the AST, so
+        # the render drops them — re-emit or the output's `[x][r]` dangles.
+        definitions = _reference_definition_lines(doc.footnotes)
+        if definitions:
+            translated_str += "\n" + "\n".join(definitions) + "\n"
 
         # Preserve trailing newline behavior
         if not source.endswith("\n") and translated_str.endswith("\n"):
@@ -198,14 +239,16 @@ class DocumentTranslator:
         children = getattr(node, "children", None)
         if not children:
             return
-        if class_name in ("Document", "List", "ListItem", "Table", "TableRow"):
+        if class_name in _CONTAINER_BLOCK_NAMES:
             header = getattr(node, "header", None)
             if class_name == "Table" and header is not None:
                 self._translate_block(header, target_locale, renderer)
             self._translate_children(children, target_locale, renderer)
             return
-        if class_name in ("Paragraph", "Heading", "TableCell"):
+        if class_name in _LEAF_BLOCK_NAMES:
             self._translate_container(node, children, target_locale, renderer)
+            return
+        self._translate_children(children, target_locale, renderer)
 
     def _translate_children(
         self,

@@ -147,3 +147,35 @@ def test_translate_table_header_cells() -> None:
         result
         == "| Cabeçalho A | Cabeçalho B |\n| ----------- | ----------- |\n| Célula A    | Célula B    |\n"
     )
+
+
+def test_translate_preserves_reference_style_link() -> None:
+    source = "See [x][r] now.\n\n[r]: /dest\n"
+    translator = _make_translator({"See TR0 now.": "Veja TR0 agora."})
+    result = translator.translate_markdown_source(source, PT_BR)
+    assert result == "Veja [x][r] agora.\n\n[r]: /dest\n"
+
+
+def test_translate_leaves_undefined_bracket_pair_literal() -> None:
+    source = "Use [a][b] here.\n"
+    translator = _make_translator({"Use [a][b] here.": "Use [a][b] aqui."})
+    result = translator.translate_markdown_source(source, PT_BR)
+    assert result == "Use [a][b] aqui.\n"
+
+
+def test_translate_blockquote_paragraph() -> None:
+    translator = _make_translator({"Quoted text.": "Texto citado."})
+    result = translator.translate_markdown_source("> Quoted text.\n", PT_BR)
+    assert result == "> Texto citado.\n"
+
+
+def test_translate_setext_heading() -> None:
+    translator = _make_translator({"My Section": "Minha Secao"})
+    result = translator.translate_markdown_source("My Section\n---\n", PT_BR)
+    assert result == "Minha Secao\n---\n"
+
+
+def test_translate_quoted_list_item() -> None:
+    translator = _make_translator({"item one": "item um"})
+    result = translator.translate_markdown_source("> - item one\n", PT_BR)
+    assert result == "> - item um\n"
