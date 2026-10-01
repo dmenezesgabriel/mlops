@@ -73,13 +73,7 @@ class ContentCollection:
         )
 
     def page_href(self, page_slug: str) -> str:
-        if page_slug in self._slug_to_index:
-            return f"{page_slug}.html"
-
-        expected_slugs = sorted(self._slug_to_index)
-        raise ValueError(
-            f"Unknown collection page {page_slug}: expected one of {expected_slugs}"
-        )
+        return self.pages[self.page_index(page_slug)].file_name()
 
     def page_index(self, page_slug: str) -> int:
         if page_slug in self._slug_to_index:
@@ -100,16 +94,6 @@ class ContentCollection:
 
     def root_href(self) -> str:
         return f"{self.output_slug}/{self.first_page().file_name()}"
-
-    def page_by_slug(self, page_slug: str) -> Page:
-        for page in self.pages:
-            if page.slug == page_slug:
-                return page
-
-        expected_slugs = sorted(page.slug for page in self.pages)
-        raise ValueError(
-            f"Unknown collection page {page_slug}: expected one of {expected_slugs}"
-        )
 
     def previous_page(self, current_page: Page) -> Page | None:
         page_index = self.page_index(current_page.slug)

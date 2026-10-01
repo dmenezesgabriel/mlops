@@ -101,6 +101,28 @@ def test_page_index_returns_position_for_known_slug(tmp_path: Path) -> None:
     assert collection.page_index("details") == 1
 
 
+def test_page_href_rejects_unknown_slug(tmp_path: Path) -> None:
+    # Arrange
+    collection = ContentCollection(
+        name="sample_collection",
+        title="Sample Collection",
+        source_root=tmp_path,
+        output_slug="sample-collection",
+        pages=(
+            Page(
+                slug="overview",
+                title="Overview",
+                source_path=tmp_path / "README.md",
+            ),
+        ),
+        videos={},
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="expected one of"):
+        collection.page_href("missing")
+
+
 def test_page_index_rejects_unknown_slug(tmp_path: Path) -> None:
     # Arrange
     collection = ContentCollection(
