@@ -1,6 +1,8 @@
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+from ssg.application.ports.preview_server import PreviewServer
 from ssg.application.use_cases.site_preview import StaticSitePreview
 
 
@@ -37,6 +39,44 @@ class SpyPreviewServer:
 
     def trigger_reload(self) -> None:
         self.trigger_reload_calls += 1
+
+
+class ServeOnlyPreviewServer:
+    def __init__(self) -> None:
+        self.serve_calls: list[tuple[Path, str, int]] = []
+
+    def serve(self, directory: Path, host: str, port: int) -> None:
+        self.serve_calls.append((directory, host, port))
+
+
+def test_preview_server_port_requires_reload_support() -> None:
+    assert not isinstance(ServeOnlyPreviewServer(), PreviewServer)
+    assert isinstance(SpyPreviewServer(), PreviewServer)
+
+
+def test_preview_fails_loudly_when_server_cannot_reload(
+    tmp_path: Path,
+) -> None:
+    # Arrange — a serve-only server satisfied the port before; the getattr
+    # fallback then skipped every reload without an error (G-31 probe).
+    site_reloader = SpySiteReloader()
+    preview = StaticSitePreview(
+        site_reloader=site_reloader,
+        preview_server=ServeOnlyPreviewServer(),
+    )
+    preview.preview(
+        watched_paths=(tmp_path / "site",),
+        output_path=tmp_path / "build",
+        host="127.0.0.1",
+        port=8000,
+        reload_interval=1.5,
+        on_change=lambda _changed_paths: None,
+    )
+    on_change = site_reloader.watch_calls[0][1]
+
+    # Act / Assert
+    with pytest.raises(AttributeError):
+        on_change({tmp_path / "site.yaml"})
 
 
 def test_preview_starts_reloader_before_server(tmp_path: Path) -> None:

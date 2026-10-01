@@ -26,11 +26,7 @@ class StaticSitePreview:
     ) -> None:
         def rebuild_and_reload(changed_paths: set[Path]) -> None:
             on_change(changed_paths)
-            trigger_reload = getattr(
-                self._preview_server, "trigger_reload", None
-            )
-            if trigger_reload is not None:
-                trigger_reload()
+            self._preview_server.trigger_reload()
 
         self._site_reloader.watch(
             watched_paths,
