@@ -75,6 +75,13 @@ class NotebookFragmentRenderer:
             html_content=html_markup,
         )
 
+    def render_svg_output(self, svg_content: str) -> str:
+        # SVG is author-trusted markup, embedded verbatim like HTML
+        return self.render_html_output(svg_content)
+
+    def render_error_output(self, detail: str) -> str:
+        return self._render_output("Error", detail)
+
     def render_widget_view_output(self, widget_view_json: str) -> str:
         # widget views are nbconvert-rendered HTML, embedded verbatim
         widget_markup = Markup(widget_view_json)  # nosec B704

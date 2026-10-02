@@ -364,3 +364,254 @@ def test_render_markdown_inlines_transclusion_within_paragraph(
     assert 'class="source-panel' in rendered
     assert "before" in rendered
     assert "after" in rendered
+
+
+def test_render_includes_error_output_ename_evalue_and_traceback(
+    tmp_path: Path,
+) -> None:
+    # Arrange — a cell whose run raised must render the error; dropping it
+    # leaves the page indistinguishable from a clean run.
+    notebook_path = tmp_path / "feature_engineering.ipynb"
+    _write_notebook(
+        notebook_path,
+        [
+            nbformat.v4.new_code_cell(
+                "1/0",
+                outputs=[
+                    nbformat.v4.new_output(
+                        "error",
+                        ename="ZeroDivisionError",
+                        evalue="division by zero",
+                        traceback=[
+                            "Traceback (most recent call last):",
+                            "ZeroDivisionError: division by zero",
+                        ],
+                    )
+                ],
+            ),
+        ],
+    )
+
+    # Act
+    rendered_content = NotebookContentRenderer().render(
+        _collection(tmp_path), _page(notebook_path), _context(tmp_path)
+    )
+
+    # Assert
+    assert "ZeroDivisionError" in rendered_content
+    assert "division by zero" in rendered_content
+    assert "Traceback (most recent call last):" in rendered_content
+
+
+def test_render_strips_ansi_escapes_from_error_traceback(
+    tmp_path: Path,
+) -> None:
+    # Arrange — real Jupyter tracebacks carry ANSI color codes; they must not
+    # reach the page as literal escape bytes.
+    notebook_path = tmp_path / "feature_engineering.ipynb"
+    _write_notebook(
+        notebook_path,
+        [
+            nbformat.v4.new_code_cell(
+                "1/0",
+                outputs=[
+                    nbformat.v4.new_output(
+                        "error",
+                        ename="ZeroDivisionError",
+                        evalue="division by zero",
+                        traceback=[
+                            "\x1b[0;31mZeroDivisionError\x1b[0m: division by zero"
+                        ],
+                    )
+                ],
+            ),
+        ],
+    )
+
+    # Act
+    rendered_content = NotebookContentRenderer().render(
+        _collection(tmp_path), _page(notebook_path), _context(tmp_path)
+    )
+
+    # Assert
+    assert "\x1b" not in rendered_content
+    assert "ZeroDivisionError" in rendered_content
+
+
+def test_render_embeds_svg_output_verbatim(tmp_path: Path) -> None:
+    # Arrange — a sole-MIME svg output is author-trusted markup (same boundary
+    # as the verbatim text/html arm); list-form joins like the other arms.
+    notebook_path = tmp_path / "feature_engineering.ipynb"
+    _write_notebook(
+        notebook_path,
+        [
+            nbformat.v4.new_code_cell(
+                "draw()",
+                outputs=[
+                    nbformat.v4.new_output(
+                        "display_data",
+                        data={
+                            "image/svg+xml": [
+                                '<svg xmlns="http://www.w3.org/2000/svg">',
+                                '<rect width="4"/></svg>',
+                            ]
+                        },
+                    )
+                ],
+            ),
+        ],
+    )
+
+    # Act
+    rendered_content = NotebookContentRenderer().render(
+        _collection(tmp_path), _page(notebook_path), _context(tmp_path)
+    )
+
+    # Assert
+    assert '<svg xmlns="http://www.w3.org/2000/svg">' in rendered_content
+    assert '<rect width="4"/>' in rendered_content
+
+
+def test_render_shows_json_output_when_no_text_fallback(
+    tmp_path: Path,
+) -> None:
+    # Arrange — a sole application/json output must render rather than drop
+    # silently.
+    notebook_path = tmp_path / "feature_engineering.ipynb"
+    _write_notebook(
+        notebook_path,
+        [
+            nbformat.v4.new_code_cell(
+                "payload()",
+                outputs=[
+                    nbformat.v4.new_output(
+                        "execute_result",
+                        data={"application/json": {"rows": 3}},
+                    )
+                ],
+            ),
+        ],
+    )
+
+    # Act
+    rendered_content = NotebookContentRenderer().render(
+        _collection(tmp_path), _page(notebook_path), _context(tmp_path)
+    )
+
+    # Assert
+    assert "&quot;rows&quot;: 3" in rendered_content
+
+
+def test_render_prefers_text_plain_over_application_json(
+    tmp_path: Path,
+) -> None:
+    # Arrange — with a text/plain sibling present, the curated plain repr wins
+    # over the machine JSON (nbconvert-style richer-MIME priority).
+    notebook_path = tmp_path / "feature_engineering.ipynb"
+    _write_notebook(
+        notebook_path,
+        [
+            nbformat.v4.new_code_cell(
+                "payload()",
+                outputs=[
+                    nbformat.v4.new_output(
+                        "execute_result",
+                        data={
+                            "application/json": {"rows": 3},
+                            "text/plain": "curated plain repr",
+                        },
+                    )
+                ],
+            ),
+        ],
+    )
+
+    # Act
+    rendered_content = NotebookContentRenderer().render(
+        _collection(tmp_path), _page(notebook_path), _context(tmp_path)
+    )
+
+    # Assert
+    assert "curated plain repr" in rendered_content
+    assert "&quot;rows&quot;" not in rendered_content
+
+
+def test_render_escapes_script_close_tag_in_widget_state(
+    tmp_path: Path,
+) -> None:
+    # Arrange — a `</script>` inside the serialized widget state would end the
+    # script element early and leak markup into the DOM; `</` must be escaped
+    # to the JSON-safe `<\/` form.
+    notebook_path = tmp_path / "feature_engineering.ipynb"
+    notebook = nbformat.v4.new_notebook(
+        cells=[nbformat.v4.new_markdown_cell("text")],
+    )
+    notebook.metadata.widgets = {
+        "application/vnd.jupyter.widget-state+json": {
+            "state": {"m1": "</script><b>INJECTED</b>"}
+        }
+    }
+    nbformat.write(notebook, notebook_path)
+
+    # Act
+    rendered_content = NotebookContentRenderer().render(
+        _collection(tmp_path), _page(notebook_path), _context(tmp_path)
+    )
+
+    # Assert
+    assert rendered_content.count("</script>") == 1
+    assert "INJECTED" in rendered_content
+
+
+def test_render_escapes_script_close_tag_in_widget_view_output(
+    tmp_path: Path,
+) -> None:
+    # Arrange — the widget-view embed is the same `json.dumps`-into-`<script>`
+    # surface as the widget state and gets the same `</` escaping.
+    notebook_path = tmp_path / "feature_engineering.ipynb"
+    _write_notebook(
+        notebook_path,
+        [
+            nbformat.v4.new_code_cell(
+                "display(w)",
+                outputs=[
+                    nbformat.v4.new_output(
+                        "display_data",
+                        data={
+                            "application/vnd.jupyter.widget-view+json": {
+                                "model_id": "</script><b>INJECTED</b>"
+                            }
+                        },
+                    )
+                ],
+            ),
+        ],
+    )
+
+    # Act
+    rendered_content = NotebookContentRenderer().render(
+        _collection(tmp_path), _page(notebook_path), _context(tmp_path)
+    )
+
+    # Assert
+    assert rendered_content.count("</script>") == 1
+    assert "INJECTED" in rendered_content
+
+
+def test_render_rejects_schema_invalid_notebook_naming_path(
+    tmp_path: Path,
+) -> None:
+    # Arrange — nbformat raises jsonschema.ValidationError (an Exception, not
+    # a ValueError) on schema-invalid notebooks; it must become a named
+    # ValueError so the CLI reports it instead of tracing back.
+    notebook_path = tmp_path / "broken.ipynb"
+    notebook_path.write_text(
+        '{"nbformat": 4, "nbformat_minor": 5, "cells": "x", "metadata": {}}',
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="broken.ipynb"):
+        NotebookContentRenderer().render(
+            _collection(tmp_path), _page(notebook_path), _context(tmp_path)
+        )

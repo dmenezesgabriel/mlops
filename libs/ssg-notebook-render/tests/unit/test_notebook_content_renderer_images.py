@@ -165,3 +165,64 @@ class TestNotebookContentRendererImages:
         )
         assert expected_image_path.exists()
         assert expected_image_path.read_bytes() == b"fake_png"
+
+    def test_should_render_notebook_code_cell_output_jpeg_image(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — image/jpeg outputs get the same write-to-assets treatment
+        # as image/png instead of dropping when no text/plain sibling exists.
+        source_root = tmp_path / "content"
+        source_root.mkdir()
+        notebook_path = source_root / "overview.ipynb"
+
+        import base64
+
+        fake_jpeg_data = base64.b64encode(b"fake_jpeg").decode("utf-8")
+        notebook_data = nbformat.v4.new_notebook(
+            cells=[
+                nbformat.v4.new_code_cell(
+                    source="render_photo()",
+                    outputs=[
+                        nbformat.v4.new_output(
+                            output_type="display_data",
+                            data={"image/jpeg": fake_jpeg_data},
+                        )
+                    ],
+                )
+            ]
+        )
+        nbformat.write(notebook_data, notebook_path)
+
+        collection = ContentCollection(
+            name="col",
+            title="Col",
+            source_root=source_root,
+            output_slug="col-slug",
+            pages=(),
+            videos={},
+        )
+        page = Page(
+            slug="overview", title="Overview", source_path=notebook_path
+        )
+        context = BuildContext(
+            config_path=tmp_path / "site.yaml",
+            output_path=tmp_path / "build",
+            collection_name=None,
+            correlation_id="test",
+        )
+
+        # Act
+        rendered = NotebookContentRenderer().render(collection, page, context)
+
+        # Assert
+        assert "overview-cell-0-output-0.jpeg" in rendered
+        expected_image_path = (
+            tmp_path
+            / "build"
+            / "col-slug"
+            / "assets"
+            / "images"
+            / "overview-cell-0-output-0.jpeg"
+        )
+        assert expected_image_path.exists()
+        assert expected_image_path.read_bytes() == b"fake_jpeg"

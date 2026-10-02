@@ -1,5 +1,6 @@
 import base64
 import html
+import json
 import re
 import secrets
 import shutil
@@ -30,6 +31,24 @@ _DIRECTIVE_PATTERN = re.compile(
     r"\{\{\s*(include_source|embed_video|embed_image)"
     r'\s*\(\s*(["\'])(.*?)\2\s*\)\s*\}\}'
 )
+
+# Jupyter tracebacks carry ANSI SGR color codes; strip them before the text
+# reaches the page or it renders as literal escape bytes.
+_ANSI_PATTERN = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _joined_text(value: object) -> str:
+    # nbformat stores multi-line output strings as lists of lines
+    if isinstance(value, list):
+        return "".join(cast(list[str], value))
+    return str(value)
+
+
+def _script_safe_json(payload: object) -> str:
+    # A literal "</" inside a JSON string ends the enclosing script element
+    # early (payload markup leaks into the DOM); "<\/" is the JSON-legal
+    # escape Jupyter/nbconvert embeds use.
+    return json.dumps(payload).replace("</", "<\\/")
 
 
 class NotebookMarkdownRenderer(MarkdownRenderer):
@@ -232,12 +251,19 @@ class NotebookContentRenderer(ContentRenderer):
 
         # nbformat's NotebookNode tree is untyped JSON; treating it as Any
         # keeps every downstream cell/metadata access honest about that.
-        notebook = cast(
-            Any,
-            nbformat.read(  # pyright: ignore[reportUnknownMemberType]
-                page.source_path, as_version=4
-            ),
-        )
+        try:
+            notebook = cast(
+                Any,
+                nbformat.read(  # pyright: ignore[reportUnknownMemberType]
+                    page.source_path, as_version=4
+                ),
+            )
+        except nbformat.ValidationError as exc:
+            # ValidationError is a plain Exception — without the wrap it
+            # escapes the CLI's user-facing error catch as a traceback.
+            raise ValueError(
+                f"Invalid notebook {page.source_path}: {exc}"
+            ) from exc
         rendered_cells = [
             self._render_cell(cell, collection, page, context, index)
             for index, cell in enumerate(notebook.cells)
@@ -249,9 +275,7 @@ class NotebookContentRenderer(ContentRenderer):
             "application/vnd.jupyter.widget-state+json", None
         )
         if widget_state:
-            import json
-
-            state_json = json.dumps(widget_state)
+            state_json = _script_safe_json(widget_state)
             widget_state_html = f'<script type="application/vnd.jupyter.widget-state+json">{state_json}</script>'
             html_content = widget_state_html + "\n" + html_content
 
@@ -311,37 +335,68 @@ class NotebookContentRenderer(ContentRenderer):
     ) -> str:
         output_type = getattr(output, "output_type", "")
         if output_type == "stream":
-            stream_text = getattr(output, "text", "")
-            if isinstance(stream_text, list):
-                stream_text = "".join(cast(list[str], stream_text))
             return self._fragment_renderer.render_stream_output(
-                str(stream_text)
+                _joined_text(getattr(output, "text", ""))
             )
+        if output_type == "error":
+            return self._render_error_output(output)
 
         data = getattr(output, "data", {})
         if not isinstance(data, dict):
             return ""
-        data_map = cast(dict[str, Any], data)
+        return self._render_data_output(
+            cast(dict[str, Any], data),
+            page,
+            output_path,
+            cell_index,
+            output_index,
+        )
 
+    def _render_error_output(self, output: object) -> str:
+        ename = str(getattr(output, "ename", ""))
+        evalue = str(getattr(output, "evalue", ""))
+        traceback_text = _joined_text(getattr(output, "traceback", ""))
+        detail = _ANSI_PATTERN.sub("", f"{ename}: {evalue}\n{traceback_text}")
+        return self._fragment_renderer.render_error_output(detail)
+
+    def _render_data_output(
+        self,
+        data_map: dict[str, Any],
+        page: Page,
+        output_path: Path,
+        cell_index: int,
+        output_index: int,
+    ) -> str:
         if "application/vnd.jupyter.widget-view+json" in data_map:
-            import json
-
             widget_view = data_map["application/vnd.jupyter.widget-view+json"]
             return self._fragment_renderer.render_widget_view_output(
-                json.dumps(widget_view)
+                _script_safe_json(widget_view)
             )
 
         if "text/html" in data_map:
-            html_content = data_map["text/html"]
-            if isinstance(html_content, list):
-                html_content = "".join(cast(list[str], html_content))
             return self._fragment_renderer.render_html_output(
-                str(html_content)
+                _joined_text(data_map["text/html"])
+            )
+
+        if "image/svg+xml" in data_map:
+            return self._fragment_renderer.render_svg_output(
+                _joined_text(data_map["image/svg+xml"])
             )
 
         if "image/png" in data_map:
-            return self._write_png_output(
+            return self._write_image_output(
                 data_map["image/png"],
+                "png",
+                page,
+                output_path,
+                cell_index,
+                output_index,
+            )
+
+        if "image/jpeg" in data_map:
+            return self._write_image_output(
+                data_map["image/jpeg"],
+                "jpeg",
                 page,
                 output_path,
                 cell_index,
@@ -349,25 +404,34 @@ class NotebookContentRenderer(ContentRenderer):
             )
 
         if "text/plain" in data_map:
-            plain_text = data_map["text/plain"]
-            if isinstance(plain_text, list):
-                plain_text = "".join(cast(list[str], plain_text))
-            return self._fragment_renderer.render_text_output(str(plain_text))
+            return self._fragment_renderer.render_text_output(
+                _joined_text(data_map["text/plain"])
+            )
+
+        # Sole-MIME JSON outputs render as text rather than dropping; a
+        # text/plain sibling stays the preferred representation.
+        if "application/json" in data_map:
+            return self._fragment_renderer.render_text_output(
+                json.dumps(data_map["application/json"], indent=2, default=str)
+            )
 
         return ""
 
-    def _write_png_output(
+    def _write_image_output(
         self,
-        encoded_png: object,
+        encoded_image: object,
+        extension: str,
         page: Page,
         output_path: Path,
         cell_index: int,
         output_index: int,
     ) -> str:
-        image_name = f"{page.slug}-cell-{cell_index}-output-{output_index}.png"
+        image_name = (
+            f"{page.slug}-cell-{cell_index}-output-{output_index}.{extension}"
+        )
         image_path = output_path / "assets" / "images" / image_name
         image_path.parent.mkdir(parents=True, exist_ok=True)
-        image_path.write_bytes(base64.b64decode(str(encoded_png)))
+        image_path.write_bytes(base64.b64decode(str(encoded_image)))
         return self._fragment_renderer.render_image_output(image_name)
 
 
