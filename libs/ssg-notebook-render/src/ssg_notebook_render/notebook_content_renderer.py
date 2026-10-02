@@ -1,12 +1,12 @@
 import base64
 import html
 import re
+import secrets
 import shutil
 from pathlib import Path
 from typing import Any, cast
 
 import nbformat
-from jinja2 import Environment, StrictUndefined
 from markdown_it import MarkdownIt
 from markupsafe import Markup
 from ssg.application.ports import ContentRenderer, MarkdownRenderer
@@ -19,6 +19,16 @@ from ssg.domain import (
 
 from ssg_notebook_render.notebook_fragment_renderer import (
     NotebookFragmentRenderer,
+)
+
+# Directives are the only template surface (docs/ssg/ssg.md): calls shaped
+# `{{ helper("arg") }}` are extracted and run; every other `{{ … }}`/`{% … %}`
+# is author text and must reach the Markdown pass verbatim — rendering the
+# cell source as a Jinja program evaluated arbitrary expressions and aborted
+# the build on undefined names.
+_DIRECTIVE_PATTERN = re.compile(
+    r"\{\{\s*(include_source|embed_video|embed_image)"
+    r'\s*\(\s*(["\'])(.*?)\2\s*\)\s*\}\}'
 )
 
 
@@ -56,29 +66,21 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
         page: Page,
         transclusions: dict[str, Markup],
     ) -> str:
-        environment = Environment(autoescape=True, undefined=StrictUndefined)
-        template = environment.from_string(source)
-
-        def include_source(source_path: str) -> Markup:
-            return self._include_source(
-                collection, source_path, context, page, transclusions
-            )
-
-        def embed_video(video_name: str) -> Markup:
-            return self._embed_video(
-                collection, context, page, video_name, transclusions
-            )
-
-        def embed_image(image_name: str) -> Markup:
+        def replace(match: re.Match[str]) -> str:
+            directive, argument = match.group(1), match.group(3)
+            if directive == "include_source":
+                return self._include_source(
+                    collection, argument, context, page, transclusions
+                )
+            if directive == "embed_video":
+                return self._embed_video(
+                    collection, context, page, argument, transclusions
+                )
             return self._embed_image(
-                collection, context, page, image_name, transclusions
+                collection, context, page, argument, transclusions
             )
 
-        return template.render(
-            include_source=include_source,
-            embed_video=embed_video,
-            embed_image=embed_image,
-        )
+        return _DIRECTIVE_PATTERN.sub(replace, source)
 
     def _include_source(
         self,
@@ -87,7 +89,7 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
         context: BuildContext,
         page: Page,
         transclusions: dict[str, Markup],
-    ) -> Markup:
+    ) -> str:
         resolved_source_path = collection.source_file(source_path)
         if context.dependency_tracker is not None:
             context.dependency_tracker.register_dependency(
@@ -107,7 +109,7 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
         page: Page,
         video_name: str,
         transclusions: dict[str, Markup],
-    ) -> Markup:
+    ) -> str:
         source_path = collection.video_path(video_name).resolve()
         if context.dependency_tracker is not None:
             context.dependency_tracker.register_dependency(page, source_path)
@@ -140,7 +142,7 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
         page: Page,
         image_name: str,
         transclusions: dict[str, Markup],
-    ) -> Markup:
+    ) -> str:
         source_path = collection.image_path(image_name).resolve()
         if context.dependency_tracker is not None:
             context.dependency_tracker.register_dependency(page, source_path)
@@ -168,11 +170,12 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
 
     def _store_transclusion(
         self, transclusions: dict[str, Markup], rendered_html: Markup
-    ) -> Markup:
-        marker = f"SSG_TRANSCLUSION_{len(transclusions)}"
+    ) -> str:
+        # A random marker id keeps literal "SSG_TRANSCLUSION_…" author text
+        # from colliding with a generated marker during _replace_transclusions.
+        marker = f"SSG_TRANSCLUSION_{secrets.token_hex(8)}"
         transclusions[marker] = rendered_html
-        # marker is a self-generated constant, never user input
-        return Markup(marker)  # nosec B704
+        return marker
 
     def _replace_transclusions(
         self, rendered_html: str, transclusions: dict[str, Markup]

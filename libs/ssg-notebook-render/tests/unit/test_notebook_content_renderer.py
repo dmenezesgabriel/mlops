@@ -2,9 +2,11 @@ from importlib.resources import files
 from pathlib import Path
 
 import nbformat
+import pytest
 from ssg.domain import BuildContext, ContentCollection, Page
 from ssg_notebook_render.notebook_content_renderer import (
     NotebookContentRenderer,
+    NotebookMarkdownRenderer,
 )
 from ssg_notebook_render.notebook_fragment_renderer import (
     NotebookFragmentRenderer,
@@ -233,3 +235,132 @@ def test_render_includes_code_cell_and_html_and_widget_output(
         in rendered_content
     )
     assert '"model_id": "widget-123"' in rendered_content
+
+
+@pytest.mark.parametrize(
+    "literal",
+    [
+        "{{ 9 * 9 }}",
+        "{{ not_a_helper }}",
+        "{% set x = 5 %}",
+    ],
+)
+def test_render_markdown_leaves_non_directive_template_syntax_literal(
+    tmp_path: Path, literal: str
+) -> None:
+    # Arrange — only the `{{ helper("arg") }}` directives execute; every other
+    # template-looking fragment is author text and must survive verbatim
+    # (previously evaluated by Jinja: expressions silently, undefined names
+    # aborting the build).
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+
+    # Act
+    rendered = NotebookMarkdownRenderer().render_markdown(
+        literal,
+        _collection(source_root),
+        _context(tmp_path),
+        _page(source_root / "cell.ipynb"),
+    )
+
+    # Assert
+    assert literal in rendered
+    assert "81" not in rendered
+
+
+def test_render_markdown_does_not_execute_filtered_directive(
+    tmp_path: Path,
+) -> None:
+    # Arrange — a call that isn't exactly `{{ helper("arg") }}` (here a piped
+    # filter) is not a directive; it renders as text instead of invoking the
+    # helper with a transformed argument.
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    (source_root / "x.py").write_text("x = 1\n", encoding="utf-8")
+
+    # Act
+    rendered = NotebookMarkdownRenderer().render_markdown(
+        '{{ include_source("x.py" | upper) }}',
+        _collection(source_root),
+        _context(tmp_path),
+        _page(source_root / "cell.ipynb"),
+    )
+
+    # Assert — markdown escapes the quotes, but the helper never ran
+    assert 'class="source-panel' not in rendered
+    assert "upper" in rendered
+
+
+def test_render_markdown_keeps_literal_transclusion_marker_text(
+    tmp_path: Path,
+) -> None:
+    # Arrange — marker-shaped author text must survive; only generated
+    # markers are substituted back with rendered fragments.
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    (source_root / "x.py").write_text("x = 1\n", encoding="utf-8")
+
+    # Act
+    rendered = NotebookMarkdownRenderer().render_markdown(
+        'Literal: SSG_TRANSCLUSION_0\n\n{{ include_source("x.py") }}',
+        _collection(source_root),
+        _context(tmp_path),
+        _page(source_root / "cell.ipynb"),
+    )
+
+    # Assert
+    assert "SSG_TRANSCLUSION_0" in rendered
+    assert rendered.count('class="source-panel story-step"') == 1
+
+
+@pytest.mark.parametrize(
+    "directive",
+    [
+        '{{include_source("x.py")}}',
+        "{{ include_source('x.py') }}",
+        '{{  include_source(  "x.py"  )  }}',
+    ],
+)
+def test_render_markdown_accepts_directive_whitespace_and_quote_variants(
+    tmp_path: Path, directive: str
+) -> None:
+    # Arrange — pins the accepted directive grammar: helper name, one quoted
+    # string argument, optional inner whitespace.
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    (source_root / "x.py").write_text("x = 1\n", encoding="utf-8")
+
+    # Act
+    rendered = NotebookMarkdownRenderer().render_markdown(
+        directive,
+        _collection(source_root),
+        _context(tmp_path),
+        _page(source_root / "cell.ipynb"),
+    )
+
+    # Assert
+    assert 'class="source-panel' in rendered
+    assert "x = 1" in rendered
+
+
+def test_render_markdown_inlines_transclusion_within_paragraph(
+    tmp_path: Path,
+) -> None:
+    # Arrange — a directive mid-sentence resolves to its marker inline, so the
+    # bare-marker replace arm (not just the `<p>{marker}</p>` arm) is live.
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    (source_root / "x.py").write_text("x = 1\n", encoding="utf-8")
+
+    # Act
+    rendered = NotebookMarkdownRenderer().render_markdown(
+        'before {{ include_source("x.py") }} after',
+        _collection(source_root),
+        _context(tmp_path),
+        _page(source_root / "cell.ipynb"),
+    )
+
+    # Assert
+    assert 'class="source-panel' in rendered
+    assert "before" in rendered
+    assert "after" in rendered
