@@ -1,3 +1,4 @@
+from markdown_it import MarkdownIt
 from ssg.domain import Site
 from ssg_syntax_highlighting.application.syntax_highlighter import (
     CodeBlockSyntaxHighlightingProcessor,
@@ -171,3 +172,18 @@ def test_process_skips_the_factory_without_code_blocks() -> None:
     # Assert
     assert processed_html == "<p>no code</p>"
     assert factory.created_style_names == []
+
+
+def test_process_highlights_real_markdownit_fence_output() -> None:
+    # Arrange — ssg renders pages with markdown-it; driving its real commonmark
+    # fence output through process() pins the `language-*` contract against
+    # upstream drift (a shape change would silently no-op otherwise).
+    rendered_html = MarkdownIt("commonmark").render("```python\nx = 1\n```")
+    processor = create_pygments_html_post_processor()
+
+    # Act
+    processed_html = processor.process(rendered_html, empty_site())
+
+    # Assert
+    assert '<code class="language-python">' in processed_html
+    assert "highlight-token" in processed_html

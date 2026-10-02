@@ -10,6 +10,11 @@ dependencies = [
 [project.entry-points."ssg.html_post_processors"]
 pygments = "ssg_syntax_highlighting.infrastructure.plugin:create_pygments_html_post_processor"
 
+[dependency-groups]
+# Tests drive ssg's real renderer (markdown-it) through process() to pin the
+# `language-*` contract against upstream drift.
+dev = ["markdown-it-py==4.2.0"]
+
 [tool.uv.sources]
 ssg = { workspace = true }
 

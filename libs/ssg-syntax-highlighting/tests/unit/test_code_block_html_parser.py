@@ -98,6 +98,45 @@ def test_code_without_language_class_passes_through() -> None:
     assert highlighter.calls == []
 
 
+def test_code_with_bare_language_class_passes_through() -> None:
+    # Arrange — `language-` with no suffix yields no lexer name; accepting it
+    # would pass "" to the highlighter (guards `len > len("language-")`).
+    html_text = '<pre><code class="language-">x</code></pre>'
+
+    # Act
+    rendered, highlighter = parse(html_text)
+
+    # Assert
+    assert rendered == html_text
+    assert highlighter.calls == []
+
+
+def test_code_outside_pre_passes_through() -> None:
+    # Arrange — the renderer emits `language-*` only on `<pre><code>` blocks;
+    # a bare `<code>` carrying the class is prose markup, not a block.
+    html_text = '<p><code class="language-python">x = 1</code></p>'
+
+    # Act
+    rendered, highlighter = parse(html_text)
+
+    # Assert
+    assert rendered == html_text
+    assert highlighter.calls == []
+
+
+def test_highlighted_blocks_counts_captures() -> None:
+    # Arrange — the counter feeds process()'s "syntax_highlighting_finished"
+    # log context; an unincremented counter would under-report silently.
+    parser = CodeBlockHtmlParser(RecordingHighlighter())
+
+    # Act
+    parser.feed('<pre><code class="language-python">x</code></pre>')
+    parser.close()
+
+    # Assert
+    assert parser.highlighted_blocks == 1
+
+
 def test_valueless_attribute_is_reemitted_bare() -> None:
     # Arrange
     html_text = (
