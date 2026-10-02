@@ -378,10 +378,12 @@ def test_find_reusable_miss_scan_scales() -> None:
     # A miss over a 20k-execution history was O(executions × query-len)
     # (~40 ms at ~180-char queries) because every candidate re-normalized
     # its stored query; with the cached key the scan is ~4 ms of attribute
-    # checks. The bound is generous because `make coverage`'s line tracing
-    # inflates the pure-Python loop ~10x (~39 ms observed); the precise
-    # per-candidate-normalize guard is the counting test above. The store
-    # is sized past the fixture count so retention never fires mid-test.
+    # checks. `make coverage` line tracing inflates the pure-Python loop ~10x
+    # (~39 ms observed; ~145 ms observed under tracing plus host load), so
+    # the bound tolerates that while still catching a per-candidate
+    # normalization regression (~1.3 s traced). The precise per-candidate
+    # guard is the counting test above. The store is sized past the fixture
+    # count so retention never fires mid-test.
     store = ExecutionStore(max_retained_executions=25_000)
     for index in range(20_000):
         columns = ", ".join(f"c{index}_{number}" for number in range(25))
@@ -404,7 +406,7 @@ def test_find_reusable_miss_scan_scales() -> None:
     elapsed_ms = (monotonic() - started) * 1000
 
     assert found is None
-    assert elapsed_ms < 100
+    assert elapsed_ms < 500
 
 
 def test_reuse_results_from_copies_the_result_surface(

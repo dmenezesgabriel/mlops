@@ -6,14 +6,24 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "boto3==1.42.82",
+  "botocore==1.42.97",
   "pyyaml==6.0.3",
   "sagemaker==2.257.1",
 ]
 
-[project.optional-dependencies]
-test = [
+[dependency-groups]
+dev = [
+  # joblib is imported by docker/serve_app.py, which the fallback tests load;
+  # the container runtime pins its own copy in docker/Dockerfile.
+  "joblib==1.4.2",
   "moto[server]==5.1.16",
 ]
+
+[tool.deptry]
+known_first_party = ["sagemaker_local"]
+# docker/serve_app.py is the SageMaker hosting runtime baked into the image;
+# its imports are pinned inside docker/Dockerfile, not declared by the lib.
+extend_exclude = ["docker"]
 
 [tool.deptry.package_module_name_map]
 sagemaker-local = "sagemaker_local"

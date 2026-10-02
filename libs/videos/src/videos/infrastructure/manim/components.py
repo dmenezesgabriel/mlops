@@ -86,8 +86,12 @@ def create_target(
 
 class TitleComponent:
     def build(self, spec: ComponentSpec, scene: object) -> Any:
-        from manim import (  # pyright: ignore[reportUnusedImport]
-            Scene,
+        # Local import is load-bearing at runtime: cast() evaluates its first
+        # argument, and the module-level Scene exists only under TYPE_CHECKING.
+        # Pyright attributes the cast() usage to that symbol, so the diagnostic
+        # lands on the symbol line rather than the `from` line.
+        from manim import (
+            Scene,  # pyright: ignore[reportUnusedImport]
             Text,
             Write,
         )
@@ -105,8 +109,11 @@ class TitleComponent:
 
 class TextComponent:
     def build(self, spec: ComponentSpec, scene: object) -> Any:
-        from manim import (  # pyright: ignore[reportUnusedImport]
-            Scene,
+        # Same pattern as TitleComponent.build: the local Scene import is
+        # runtime load-bearing for cast(); the ignore sits on the symbol line
+        # because that is where pyright reports the diagnostic.
+        from manim import (
+            Scene,  # pyright: ignore[reportUnusedImport]
             Text,
             Write,
         )

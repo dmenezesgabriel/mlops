@@ -6839,23 +6839,30 @@ version = "0.1.0"
 source = { editable = "libs/sagemaker-local" }
 dependencies = [
     { name = "boto3" },
+    { name = "botocore" },
     { name = "pyyaml" },
     { name = "sagemaker" },
 ]
 
-[package.optional-dependencies]
-test = [
+[package.dev-dependencies]
+dev = [
+    { name = "joblib" },
     { name = "moto", extra = ["server"] },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "boto3", specifier = "==1.42.82" },
-    { name = "moto", extras = ["server"], marker = "extra == 'test'", specifier = "==5.1.16" },
+    { name = "botocore", specifier = "==1.42.97" },
     { name = "pyyaml", specifier = "==6.0.3" },
     { name = "sagemaker", specifier = "==2.257.1" },
 ]
-provides-extras = ["test"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "joblib", specifier = "==1.4.2" },
+    { name = "moto", extras = ["server"], specifier = "==5.1.16" },
+]
 
 [[package]]
 name = "sagemaker-scikit-learn"
@@ -8104,17 +8111,23 @@ source = { editable = "libs/videos-linter" }
 dependencies = [
     { name = "numpy" },
     { name = "opencv-python" },
-    { name = "pillow" },
     { name = "videos" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pillow" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "numpy" },
     { name = "opencv-python" },
-    { name = "pillow", specifier = ">=10.0" },
     { name = "videos", editable = "libs/videos" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pillow", specifier = ">=10.0" }]
 
 [[package]]
 name = "virtualenv"

@@ -7,15 +7,20 @@ dependencies = [
     "videos",
     "numpy",
     "opencv-python",
-    "Pillow>=10.0",
 ]
+
+[dependency-groups]
+# Pillow is only imported by tests to generate synthetic frames.
+dev = ["Pillow>=10.0"]
 
 [tool.uv.sources]
 videos = { workspace = true }
 
 [tool.deptry]
 known_first_party = ["videos_linter"]
-package_module_name_map = {videos-linter = "videos_linter"}
+# Pillow's importable module is PIL; without the map deptry cannot attribute
+# the tests' `from PIL import ...` usage to the Pillow dev dependency.
+package_module_name_map = {videos-linter = "videos_linter", Pillow = "PIL"}
 
 [build-system]
 requires = ["hatchling==1.27.0"]

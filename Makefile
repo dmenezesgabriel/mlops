@@ -25,22 +25,22 @@ PACKAGES = libs/mlops-shared libs/data-science-scaffold libs/ssg libs/ssg-i18n l
 
 format:
 	for package in $(PACKAGES); do \
-		$(MAKE) -C $$package format; \
+		$(MAKE) -C $$package format || exit 1; \
 	done
 
 lint:
 	for package in $(PACKAGES); do \
-		$(MAKE) -C $$package lint; \
+		$(MAKE) -C $$package lint || exit 1; \
 	done
 
 type-check:
 	for package in $(PACKAGES); do \
-		$(MAKE) -C $$package type-check; \
+		$(MAKE) -C $$package type-check || exit 1; \
 	done
 
 test:
 	for package in $(PACKAGES); do \
-		$(MAKE) -C $$package test; \
+		$(MAKE) -C $$package test || exit 1; \
 	done
 
 test-videos-docker: libs/videos/Dockerfile
@@ -61,17 +61,17 @@ test-e2e:
 
 coverage:
 	for package in $(PACKAGES); do \
-		$(MAKE) -C $$package coverage; \
+		$(MAKE) -C $$package coverage || exit 1; \
 	done
 
 complexity:
 	for package in $(PACKAGES); do \
-		$(MAKE) -C $$package complexity; \
+		$(MAKE) -C $$package complexity || exit 1; \
 	done
 
 dependencies:
 	for package in $(PACKAGES); do \
-		$(MAKE) -C $$package dependencies; \
+		$(MAKE) -C $$package dependencies || exit 1; \
 	done
 
 architecture:
@@ -81,12 +81,12 @@ architecture:
 
 security:
 	for package in $(PACKAGES); do \
-		$(MAKE) -C $$package security; \
+		$(MAKE) -C $$package security || exit 1; \
 	done
 
 maintainability:
 	for package in $(PACKAGES); do \
-		$(MAKE) -C $$package maintainability; \
+		$(MAKE) -C $$package maintainability || exit 1; \
 	done
 
 quality: lint type-check test coverage complexity dependencies architecture security maintainability
@@ -126,7 +126,7 @@ check-videos:
 	@echo "=== Rendering all videos ==="
 	for yaml in videos/definition/*.yaml; do \
 	  concept=$$(basename $$yaml .yaml); \
-	  $(MAKE) render-video CONCEPT_ID=$$concept; \
+	  $(MAKE) render-video CONCEPT_ID=$$concept || exit 1; \
 	done
 	@echo "=== Linting video source ==="
 	uv run ruff format --check --quiet libs/videos/src/videos/

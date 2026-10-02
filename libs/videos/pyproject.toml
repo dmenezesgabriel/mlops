@@ -20,6 +20,9 @@ videos = "videos.infrastructure.cli:main"
 [tool.deptry]
 known_first_party = ["videos"]
 package_module_name_map = {videos = "videos"}
+# cli.py imports videos_linter inside try/ImportError: it is an optional
+# runtime enhancement, deliberately not a declared dependency.
+per_rule_ignores = {DEP003 = ["videos_linter"]}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
