@@ -81,6 +81,22 @@ class LatexHtmlParser(HTMLParser):
             self._tag_stack.append(tag_lower)
         self._fragments.append(self.get_starttag_text() or f"<{tag}>")
 
+    def handle_startendtag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
+        # Re-emit the raw `/>` form verbatim: the default splits into
+        # start+end events, and handle_endtag appends a phantom `</tag>`
+        # browsers reparse as real markup (`<br/>` -> `<br></br>` doubles
+        # a line break). Self-closed tags enclose nothing, so no stack push.
+        self._flush_text()
+        start_tag_text = self.get_starttag_text()
+        if start_tag_text is None:
+            raise ValueError(
+                "Missing start-tag text: handle_startendtag requires the "
+                "parse loop to have populated raw tag text"
+            )
+        self._fragments.append(start_tag_text)
+
     def handle_endtag(self, tag: str) -> None:
         # Flush before popping so enclosed text is classified with the
         # enclosing tag still on the stack.
@@ -107,6 +123,12 @@ class LatexHtmlParser(HTMLParser):
     def handle_pi(self, data: str) -> None:
         self._flush_text()
         self._fragments.append(f"<?{data}>")
+
+    def unknown_decl(self, data: str) -> None:
+        # The base class drops `<![...]]>` sections (e.g. CDATA) entirely;
+        # this parser re-serializes page bodies, so re-emit verbatim.
+        self._flush_text()
+        self._fragments.append(f"<![{data}]]>")
 
     def handle_entityref(self, name: str) -> None:
         self._pending_text.append(f"&{name};")

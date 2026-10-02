@@ -1,6 +1,7 @@
 import pytest
 from ssg.domain import Site
 from ssg_latex.application.latex_processor import (
+    LatexHtmlParser,
     LatexHtmlPostProcessor,
     LatexRenderer,
 )
@@ -230,3 +231,95 @@ def test_post_processor_keeps_entities_verbatim_in_pre_tag() -> None:
     # Assert
     assert renderer.calls == []
     assert processed_html == "<pre>&lt;$x$&gt;</pre>"
+
+
+@pytest.mark.parametrize(
+    "void_tag",
+    ["<br/>", "<hr/>", '<img src="x.png"/>', "<input/>"],
+)
+def test_post_processor_keeps_self_closing_tags_verbatim(
+    void_tag: str,
+) -> None:
+    # Arrange — without a handle_startendtag override the base class fires
+    # start+end events, appending a phantom `</tag>` that browsers reparse
+    # as real markup (`<br/>` -> `<br></br>` renders as two line breaks).
+    renderer = FakeLatexRenderer()
+    processor = LatexHtmlPostProcessor(renderer)
+    rendered_html = f"<p>a{void_tag}b</p>"
+
+    # Act
+    processed_html = processor.process(rendered_html, empty_site())
+
+    # Assert
+    assert renderer.calls == []
+    assert processed_html == rendered_html
+
+
+def test_post_processor_keeps_self_closing_non_void_tag_verbatim() -> None:
+    # Arrange — the phantom `</div>` emitted for `<div/>` closes the div
+    # early in the browser, moving trailing content outside it.
+    renderer = FakeLatexRenderer()
+    processor = LatexHtmlPostProcessor(renderer)
+    rendered_html = "<div/>tail"
+
+    # Act
+    processed_html = processor.process(rendered_html, empty_site())
+
+    # Assert
+    assert processed_html == "<div/>tail"
+
+
+def test_post_processor_keeps_self_closing_tag_verbatim_in_pre() -> None:
+    # Arrange — fidelity inside <pre>: the phantom `</br>` must not appear
+    # there either; the verbatim emit is independent of the tag stack.
+    renderer = FakeLatexRenderer()
+    processor = LatexHtmlPostProcessor(renderer)
+    rendered_html = "<pre><br/></pre>"
+
+    # Act
+    processed_html = processor.process(rendered_html, empty_site())
+
+    # Assert
+    assert renderer.calls == []
+    assert processed_html == "<pre><br/></pre>"
+
+
+def test_post_processor_preserves_cdata_section() -> None:
+    # Arrange — the base class drops `<![...]]>` (e.g. CDATA) entirely when
+    # unknown_decl is not overridden; this parser re-serializes full page
+    # bodies, so the section must re-emit verbatim instead of losing content.
+    renderer = FakeLatexRenderer()
+    processor = LatexHtmlPostProcessor(renderer)
+    rendered_html = "<p>a</p><![CDATA[payload]]><p>b</p>"
+
+    # Act
+    processed_html = processor.process(rendered_html, empty_site())
+
+    # Assert
+    assert processed_html == rendered_html
+
+
+def test_post_processor_emits_canonical_end_tag() -> None:
+    # Pin a documented residual: Python 3.11's parse_endtag strips end-tag
+    # attributes before handle_endtag runs (no public seam exposes the raw
+    # text), so `</div foo>` re-emits canonically. HTML5 treats end-tag
+    # attributes as void, so there is no browser-visible harm.
+    renderer = FakeLatexRenderer()
+    processor = LatexHtmlPostProcessor(renderer)
+    rendered_html = "<div>x</div foo>"
+
+    # Act
+    processed_html = processor.process(rendered_html, empty_site())
+
+    # Assert
+    assert processed_html == "<div>x</div>"
+
+
+def test_parser_startendtag_requires_raw_tag_text() -> None:
+    # Arrange — get_starttag_text() is None outside the parse loop; the
+    # verbatim emit raises a named invariant instead of writing `None`.
+    parser = LatexHtmlParser(lambda expr, display: expr)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="Missing start-tag text"):
+        parser.handle_startendtag("br", [])
