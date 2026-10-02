@@ -40,7 +40,7 @@ def test_post_processor_renders_inline_math() -> None:
     # Assert
     assert (
         processed_html
-        == '<p>Given a TLC zone ID <math mode=inline>z</math> and hour <math mode=inline>t+1</math>.</p><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.17.0/dist/katex.min.css">'
+        == '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.17.0/dist/katex.min.css"><p>Given a TLC zone ID <math mode=inline>z</math> and hour <math mode=inline>t+1</math>.</p>'
     )
 
 
@@ -56,7 +56,7 @@ def test_post_processor_renders_display_math() -> None:
     # Assert
     assert (
         processed_html
-        == '<p><math mode=display>y = x^2</math></p><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.17.0/dist/katex.min.css">'
+        == '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.17.0/dist/katex.min.css"><p><math mode=display>y = x^2</math></p>'
     )
 
 
@@ -98,21 +98,26 @@ def test_post_processor_caches_render_calls() -> None:
     assert renderer.call_count == 2
 
 
-def test_post_processor_injects_css_before_head_tag_if_present() -> None:
-    # Arrange
+def test_post_processor_prepends_css_link_to_body_fragment() -> None:
+    # Arrange — process() only ever sees a page-body fragment
+    # (static_site_builder._process_rendered_html runs before the page
+    # template wraps it), so the link goes first in the fragment: a
+    # body-ok <link> at the head of .article-body is fetched at body-parse
+    # start instead of after the article tail.
     renderer = FakeLatexRenderer()
     processor = LatexHtmlPostProcessor(renderer)
-    rendered_html = (
-        "<html><head><title>Test</title></head><body>$z$</body></html>"
-    )
+    rendered_html = "<p>$z$</p>"
 
     # Act
     processed_html = processor.process(rendered_html, empty_site())
 
     # Assert
+    assert processed_html.startswith(
+        '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.17.0/dist/katex.min.css">'
+    )
     assert (
         processed_html
-        == '<html><head><title>Test</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.17.0/dist/katex.min.css"></head><body><math mode=inline>z</math></body></html>'
+        == '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.17.0/dist/katex.min.css"><p><math mode=inline>z</math></p>'
     )
 
 
@@ -139,9 +144,7 @@ def test_post_processor_uses_site_configured_css_url() -> None:
     site = empty_site(
         {"latex": {"katex_css_url": "https://example.com/custom.css"}}
     )
-    rendered_html = (
-        "<html><head><title>Test</title></head><body>$z$</body></html>"
-    )
+    rendered_html = "<p>$z$</p>"
 
     # Act
     processed_html = processor.process(rendered_html, site)
@@ -149,7 +152,7 @@ def test_post_processor_uses_site_configured_css_url() -> None:
     # Assert
     assert (
         processed_html
-        == '<html><head><title>Test</title><link rel="stylesheet" href="https://example.com/custom.css"></head><body><math mode=inline>z</math></body></html>'
+        == '<link rel="stylesheet" href="https://example.com/custom.css"><p><math mode=inline>z</math></p>'
     )
 
 

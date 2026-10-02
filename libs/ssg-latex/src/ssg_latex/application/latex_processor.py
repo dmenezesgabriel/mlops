@@ -197,14 +197,12 @@ class LatexHtmlPostProcessor(HtmlPostProcessor):
                 "https://cdn.jsdelivr.net/npm/katex@0.17.0/dist/katex.min.css",
             )
             css_link = f'<link rel="stylesheet" href="{css_url}">'
-            head_pattern = re.compile(r"</head>", re.IGNORECASE)
-            match = head_pattern.search(processed_html)
-            if match:
-                start, _ = match.span()
-                processed_html = f"{processed_html[:start]}{css_link}{processed_html[start:]}"
-            else:
-                # Fallback: append css_link if no head tag is found
-                processed_html = f"{processed_html}{css_link}"
+            # process() only ever sees a page-body fragment — the page
+            # template adds <head> later, so there is no head seam to
+            # inject into. Prepending puts the body-ok link at the head of
+            # the article body: the browser fetches the stylesheet at the
+            # start of body parse instead of after the article tail.
+            processed_html = f"{css_link}{processed_html}"
 
         return processed_html
 
