@@ -206,6 +206,57 @@ def test_latex_rendering_error_is_a_runtime_error() -> None:
 
 
 @pytest.mark.parametrize(
+    "markup",
+    ["<!-- note -->", "<!DOCTYPE html>", "<?xml version='1.0'?>"],
+)
+def test_post_processor_keeps_non_tag_markup_verbatim(markup: str) -> None:
+    # Arrange — comments, declarations and processing instructions re-emit
+    # verbatim between text runs; dropping them would silently lose authored
+    # content from page bodies this parser re-serializes.
+    renderer = FakeLatexRenderer()
+    processor = LatexHtmlPostProcessor(renderer)
+    rendered_html = f"<p>$a$</p>{markup}<p>$b$</p>"
+
+    # Act
+    processed_html = processor.process(rendered_html, empty_site())
+
+    # Assert
+    assert renderer.calls == [("a", False), ("b", False)]
+    assert markup in processed_html
+
+
+def test_post_processor_does_not_render_currency_range() -> None:
+    # Arrange — `$10-$20` is prose, not math: the `(?!\d)` lookahead keeps a
+    # closing `$` glued to a digit from terminating an expression.
+    renderer = FakeLatexRenderer()
+    processor = LatexHtmlPostProcessor(renderer)
+    rendered_html = "<p>Costs $10-$20 today</p>"
+
+    # Act
+    processed_html = processor.process(rendered_html, empty_site())
+
+    # Assert
+    assert renderer.calls == []
+    assert processed_html == rendered_html
+
+
+def test_post_processor_keeps_math_in_pre_after_foreign_end_tag() -> None:
+    # Arrange — `</b>` matches nothing on the tag stack; the `in` guard must
+    # stop the pop loop from unwinding `<pre>` (without it, `$m$` leaves the
+    # ignored-tag context and renders).
+    renderer = FakeLatexRenderer()
+    processor = LatexHtmlPostProcessor(renderer)
+    rendered_html = "<pre>x</b>$m$</pre>"
+
+    # Act
+    processed_html = processor.process(rendered_html, empty_site())
+
+    # Assert
+    assert renderer.calls == []
+    assert processed_html == rendered_html
+
+
+@pytest.mark.parametrize(
     ("entity", "decoded"),
     [("&lt;", "<"), ("&gt;", ">"), ("&amp;", "&")],
 )

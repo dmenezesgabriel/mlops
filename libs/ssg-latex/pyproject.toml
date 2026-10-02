@@ -15,6 +15,11 @@ ssg = { workspace = true }
 [tool.deptry]
 exclude = ["node_modules", "src/ssg_latex/node_modules"]
 
+[tool.coverage.run]
+# bare `--cov` traces the editable `ssg` workspace dependency; those modules
+# are covered by ssg's own suite, so measure only this package's code.
+source = ["src", "tests"]
+
 [tool.deptry.package_module_name_map]
 ssg = "ssg"
 ssg-latex = "ssg_latex"

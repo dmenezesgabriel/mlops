@@ -1,7 +1,9 @@
 import shutil
 import subprocess
+from collections.abc import Callable
 from logging import getLogger
 from pathlib import Path
+from typing import Protocol
 
 from ssg_latex.application.latex_processor import (
     LatexRenderer,
@@ -9,6 +11,32 @@ from ssg_latex.application.latex_processor import (
 )
 
 LOGGER = getLogger(__name__)
+
+
+class CommandRunner(Protocol):
+    """The `subprocess.run` surface this renderer uses — injectable so tests
+    fake the boundary with named fakes instead of patching the module."""
+
+    def __call__(
+        self,
+        args: list[str],
+        *,
+        input: str | None = None,
+        text: bool = False,
+        capture_output: bool = False,
+        check: bool = False,
+        cwd: Path | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        # The protocol documents the kwarg surface implementers must accept;
+        # this body is the reference forward onto subprocess.run.
+        return subprocess.run(
+            args,
+            input=input,
+            text=text,
+            capture_output=capture_output,
+            check=check,
+            cwd=cwd,
+        )
 
 
 def _katex_error_detail(stderr: str) -> str:
@@ -27,8 +55,15 @@ def _katex_error_detail(stderr: str) -> str:
 class SubprocessLatexRenderer(LatexRenderer):
     """Renderer that executes KaTeX via an external Node subprocess."""
 
-    def __init__(self, package_dir: Path) -> None:
-        self._package_dir = package_dir
+    def __init__(
+        self,
+        package_dir: Path,
+        run_command: CommandRunner = subprocess.run,
+        which: Callable[[str], str | None] = shutil.which,
+    ) -> None:
+        self.package_dir = package_dir
+        self._run_command = run_command
+        self._which = which
         self._katex_cli = package_dir / "node_modules" / "katex" / "cli.js"
         self._verified = False
 
@@ -51,7 +86,7 @@ class SubprocessLatexRenderer(LatexRenderer):
             },
         )
 
-        result = subprocess.run(
+        result = self._run_command(
             cmd,
             input=expression,
             text=True,
@@ -72,7 +107,7 @@ class SubprocessLatexRenderer(LatexRenderer):
             return
 
         # Check if node is available
-        if not shutil.which("node"):
+        if not self._which("node"):
             raise RuntimeError(
                 "Node.js is required to build LaTeX math expressions, but 'node' was not found on the system path. "
                 "Please install Node.js (https://nodejs.org/) to proceed."
@@ -85,7 +120,7 @@ class SubprocessLatexRenderer(LatexRenderer):
             self._verified = True
             return
 
-        if not shutil.which("npm"):
+        if not self._which("npm"):
             raise RuntimeError(
                 "npm is required to install LaTeX rendering dependencies, but 'npm' was not found on the system path. "
                 "Please install Node.js (which includes npm) to proceed."
@@ -93,21 +128,21 @@ class SubprocessLatexRenderer(LatexRenderer):
 
         LOGGER.info(
             "subprocess_latex_renderer_installing_katex",
-            extra={"context": {"package_dir": str(self._package_dir)}},
+            extra={"context": {"package_dir": str(self.package_dir)}},
         )
         # `ci` honors the committed package-lock.json; --ignore-scripts keeps
         # dependency lifecycle hooks from executing inside the installed
         # package tree.
         try:
-            subprocess.run(
+            self._run_command(
                 ["npm", "ci", "--ignore-scripts"],
-                cwd=self._package_dir,
+                cwd=self.package_dir,
                 check=True,
                 capture_output=True,
             )
         except subprocess.CalledProcessError as e:
             raise RuntimeError(
-                f"Failed to install KaTeX Node.js dependencies via `npm ci` inside {self._package_dir}. "
+                f"Failed to install KaTeX Node.js dependencies via `npm ci` inside {self.package_dir}. "
                 f"Error: {e.stderr.decode('utf-8').strip()}"
             ) from e
 

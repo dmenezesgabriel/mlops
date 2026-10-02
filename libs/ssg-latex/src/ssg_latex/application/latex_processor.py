@@ -185,7 +185,7 @@ class LatexHtmlPostProcessor(HtmlPostProcessor):
     """Post processor that translates LaTeX formulas in pages into KaTeX elements."""
 
     def __init__(self, renderer: LatexRenderer) -> None:
-        self._renderer = renderer
+        self.renderer = renderer
         self._cache: dict[tuple[str, bool], str] = {}
 
     def process(self, rendered_html: str, site: Site) -> str:
@@ -216,6 +216,6 @@ class LatexHtmlPostProcessor(HtmlPostProcessor):
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        rendered = self._renderer.render(expression, display_mode)
+        rendered = self.renderer.render(expression, display_mode)
         self._cache[cache_key] = rendered
         return rendered
