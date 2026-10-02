@@ -11,6 +11,19 @@ from ssg_latex.application.latex_processor import (
 LOGGER = getLogger(__name__)
 
 
+def _katex_error_detail(stderr: str) -> str:
+    # katex's uncaught ParseError dumps the throwing file location, the
+    # message line, `    at …` stack frames, then a `{ position, … }`
+    # object dump — only the `…Error:` line is a user-facing diagnostic.
+    for line in stderr.splitlines():
+        if "Error:" in line:
+            return line
+    return next(
+        (line for line in stderr.splitlines() if line.strip()),
+        "unknown error",
+    )
+
+
 class SubprocessLatexRenderer(LatexRenderer):
     """Renderer that executes KaTeX via an external Node subprocess."""
 
@@ -49,7 +62,7 @@ class SubprocessLatexRenderer(LatexRenderer):
         if result.returncode != 0:
             raise LatexRenderingError(
                 f"Failed to render LaTeX expression {expression!r}. "
-                f"Error: {result.stderr.strip()}"
+                f"Error: {_katex_error_detail(result.stderr)}"
             )
 
         return result.stdout.strip()

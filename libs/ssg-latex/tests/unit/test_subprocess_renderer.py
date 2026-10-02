@@ -156,3 +156,47 @@ def test_renderer_raises_latex_rendering_error_on_subprocess_failure() -> None:
 
         assert "Failed to render LaTeX" in str(exc_info.value)
         assert "Invalid math expression" in str(exc_info.value)
+
+
+def test_renderer_error_message_drops_node_stack_frames() -> None:
+    # Arrange — katex's uncaught ParseError prints the throwing file
+    # location, the message line, `    at …` stack frames, then a
+    # `{ position, rawMessage }` object dump. Only the message line is a
+    # useful diagnostic in the user-facing error.
+    package_dir = Path("/mock/dir")
+    renderer = SubprocessLatexRenderer(package_dir)
+    katex_stderr = (
+        "/pkg/node_modules/katex/dist/katex.js:17688\n"
+        "    throw error;\n"
+        "    ^\n"
+        "\n"
+        "ParseError: KaTeX parse error: Expected 'EOF', got '_' "
+        "at position 8: \\text{a_{b}}\n"
+        "    at Parser.expect (/pkg/node_modules/katex/dist/katex.js:16649:13)\n"
+        "    at Parser.parseGroup (/pkg/node_modules/katex/dist/katex.js:17347:10) {\n"
+        "  position: 8,\n"
+        "  length: 1,\n"
+        "  rawMessage: \"Expected 'EOF', got '_'\"\n"
+        "}"
+    )
+    mock_run = MagicMock()
+    mock_run.return_value = MagicMock(returncode=1, stderr=katex_stderr)
+
+    # Act & Assert
+    with (
+        patch("shutil.which") as mock_which,
+        patch.object(Path, "exists") as mock_exists,
+        patch("subprocess.run", mock_run),
+    ):
+        mock_which.return_value = "/usr/bin/somepath"
+        mock_exists.return_value = True
+
+        with pytest.raises(LatexRenderingError) as exc_info:
+            renderer.render("\\text{a_{b}}", display_mode=False)
+
+        message = str(exc_info.value)
+        assert "ParseError: KaTeX parse error" in message
+        assert "Expected 'EOF', got '_'" in message
+        assert "at Parser" not in message
+        assert "rawMessage" not in message
+        assert "katex.js" not in message

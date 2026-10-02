@@ -43,10 +43,15 @@ def _escape_text_underscores(expression: str) -> str:
         escaped_content = re.sub(r"(?<!\\)_", r"\\_", content)
         return f"\\text{{{escaped_content}}}"
 
-    return re.sub(r"\\text\{([^{}]*)\}", replace_match, expression)
+    # \text{} bodies can nest one brace level (a_{b}); the inner-group
+    # alternative keeps them matchable. Two-plus levels stay unmatched and
+    # reach KaTeX raw — it reports a named ParseError for those.
+    return re.sub(
+        r"\\text\{((?:[^{}]|\{[^{}]*\})*)\}", replace_match, expression
+    )
 
 
-class LatexRenderingError(Exception):
+class LatexRenderingError(RuntimeError):
     """Raised when KaTeX/LaTeX compilation fails."""
 
 

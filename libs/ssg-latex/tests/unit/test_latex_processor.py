@@ -4,6 +4,7 @@ from ssg_latex.application.latex_processor import (
     LatexHtmlParser,
     LatexHtmlPostProcessor,
     LatexRenderer,
+    LatexRenderingError,
 )
 
 
@@ -167,6 +168,41 @@ def test_post_processor_escapes_underscores_in_text_blocks() -> None:
 
     # Assert
     assert "hour\\_sin" in processed_html
+
+
+@pytest.mark.parametrize(
+    ("math_block", "expected_expr", "display_mode"),
+    [
+        ("$$\\text{a_{b}}$$", "\\text{a\\_{b}}", True),
+        ("$\\text{a_{b}}$", "\\text{a\\_{b}}", False),
+        ("$\\text{a_{b}c_d}$", "\\text{a\\_{b}c\\_d}", False),
+        ("$\\text{a\\_{b}}$", "\\text{a\\_{b}}", False),
+    ],
+)
+def test_post_processor_escapes_underscores_in_nested_text_blocks(
+    math_block: str, expected_expr: str, display_mode: bool
+) -> None:
+    # Arrange — a \text{} body can nest one brace level (a_{b}); a flat
+    # [^{}]* pattern can't match it, so the raw `_` would reach KaTeX and
+    # fail with `Expected 'EOF', got '_'`. An already-escaped `\_` must
+    # stay untouched.
+    renderer = FakeLatexRenderer()
+    processor = LatexHtmlPostProcessor(renderer)
+    rendered_html = f"<p>{math_block}</p>"
+
+    # Act
+    processor.process(rendered_html, empty_site())
+
+    # Assert
+    assert renderer.calls == [(expected_expr, display_mode)]
+
+
+def test_latex_rendering_error_is_a_runtime_error() -> None:
+    # ssg's main() catches (ValueError, TypeError, FileNotFoundError,
+    # ImportError, RuntimeError) -> SystemExit; a plain Exception escapes
+    # that tuple and surfaces as a traceback mid-build. RuntimeError joins
+    # the user-error contract with zero cli change.
+    assert issubclass(LatexRenderingError, RuntimeError)
 
 
 @pytest.mark.parametrize(
