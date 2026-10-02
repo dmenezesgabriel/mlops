@@ -5,6 +5,7 @@ requires-python = ">=3.11"
 dependencies = [
   "jinja2==3.1.6",
   "markdown-it-py==4.2.0",
+  "mdit-py-plugins>=0.3.3",
   "markupsafe==3.0.3",
   "nbformat==5.10.4",
   "ssg",
@@ -19,6 +20,7 @@ ssg = { workspace = true }
 [tool.deptry.package_module_name_map]
 ssg = "ssg"
 ssg-notebook-render = "ssg_notebook_render"
+mdit-py-plugins = "mdit_py_plugins"
 
 [tool.deptry.per_rule_ignores]
 DEP003 = ["ssg_notebook_render"]

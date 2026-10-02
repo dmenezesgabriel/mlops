@@ -1,9 +1,11 @@
 import base64
 import html
+import importlib
 import json
 import re
 import secrets
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
@@ -21,6 +23,35 @@ from ssg.domain import (
 from ssg_notebook_render.notebook_fragment_renderer import (
     NotebookFragmentRenderer,
 )
+
+# mdit_py_plugins.table exists only in some releases (absent in 0.6.1); the
+# GFM plugin below provides table parsing there. Bindings are declared first
+# so the optional import never leaves an Unknown-typed symbol.
+table_plugin: Callable[[MarkdownIt], None] | None = None
+gfm_plugin: Callable[[MarkdownIt], None] | None = None
+try:
+    # Prefer the explicit table plugin when available; import_module keeps
+    # the optional boundary typed since the submodule may not exist.
+    table_plugin = cast(
+        Callable[[MarkdownIt], None],
+        getattr(
+            importlib.import_module("mdit_py_plugins.table"),
+            "table_plugin",
+            None,
+        ),
+    )
+except (
+    Exception
+):  # pragma: no cover - optional runtime dependency during tests
+    pass
+try:
+    from mdit_py_plugins.gfm import gfm_plugin as _gfm_plugin
+except (
+    Exception
+):  # pragma: no cover - optional runtime dependency during tests
+    pass
+else:
+    gfm_plugin = _gfm_plugin
 
 # Directives are the only template surface (docs/ssg/ssg.md): calls shaped
 # `{{ helper("arg") }}` are extracted and run; every other `{{ … }}`/`{% … %}`
@@ -55,7 +86,15 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
     def __init__(
         self, fragment_renderer: NotebookFragmentRenderer | None = None
     ) -> None:
-        self._markdown = MarkdownIt("commonmark")
+        md = MarkdownIt("commonmark")
+        # Enable GFM-style table parsing by preferring the dedicated table
+        # plugin, otherwise fall back to the bundled GFM plugin which also
+        # provides table parsing.
+        if table_plugin is not None:
+            md.use(table_plugin)
+        elif gfm_plugin is not None:
+            md.use(gfm_plugin)
+        self._markdown = md
         self._fragment_renderer = (
             fragment_renderer or NotebookFragmentRenderer()
         )

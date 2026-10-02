@@ -366,6 +366,31 @@ def test_render_markdown_inlines_transclusion_within_paragraph(
     assert "after" in rendered
 
 
+def test_render_renders_gfm_table_in_markdown_cell(tmp_path: Path) -> None:
+    # Arrange — notebook cell markdown shares the page grammar
+    # (docs/ssg/ssg.md): a pipe table must reach `<table>`, not literal
+    # pipes. ssg's page renderer enables the GFM/table plugin; the cell
+    # renderer must load the same.
+    notebook_path = tmp_path / "feature_engineering.ipynb"
+    _write_notebook(
+        notebook_path,
+        [
+            nbformat.v4.new_markdown_cell(
+                "| Algorithm | Pros |\n| :--- | :--- |\n| Ridge | Good |"
+            )
+        ],
+    )
+
+    # Act
+    rendered_content = NotebookContentRenderer().render(
+        _collection(tmp_path), _page(notebook_path), _context(tmp_path)
+    )
+
+    # Assert
+    assert "<table" in rendered_content
+    assert "<td" in rendered_content
+
+
 def test_render_includes_error_output_ename_evalue_and_traceback(
     tmp_path: Path,
 ) -> None:
