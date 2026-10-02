@@ -16,18 +16,15 @@ class SubprocessLatexRenderer(LatexRenderer):
 
     def __init__(self, package_dir: Path) -> None:
         self._package_dir = package_dir
+        self._katex_cli = package_dir / "node_modules" / "katex" / "cli.js"
         self._verified = False
 
     def render(self, expression: str, display_mode: bool) -> str:
         self._ensure_setup()
 
-        cmd = [
-            "npx",
-            "--prefix",
-            str(self._package_dir),
-            "--no-install",
-            "katex",
-        ]
+        # Direct `node` on the vendored CLI: npx wraps every call in ~850 ms
+        # of npm machinery (1050-1374 ms vs 200-225 ms measured, Node 24).
+        cmd = ["node", str(self._katex_cli)]
         if display_mode:
             cmd.append("-d")
 
@@ -68,31 +65,37 @@ class SubprocessLatexRenderer(LatexRenderer):
                 "Please install Node.js (https://nodejs.org/) to proceed."
             )
 
-        # Check if npm is available
+        # Provision only when the vendored CLI itself is missing; npm is
+        # needed solely for that install, so a node-only host with an
+        # existing node_modules renders without it.
+        if self._katex_cli.exists():
+            self._verified = True
+            return
+
         if not shutil.which("npm"):
             raise RuntimeError(
                 "npm is required to install LaTeX rendering dependencies, but 'npm' was not found on the system path. "
                 "Please install Node.js (which includes npm) to proceed."
             )
 
-        # Ensure dependencies are installed
-        node_modules_dir = self._package_dir / "node_modules"
-        if not node_modules_dir.exists():
-            LOGGER.info(
-                "subprocess_latex_renderer_installing_katex",
-                extra={"context": {"package_dir": str(self._package_dir)}},
+        LOGGER.info(
+            "subprocess_latex_renderer_installing_katex",
+            extra={"context": {"package_dir": str(self._package_dir)}},
+        )
+        # `ci` honors the committed package-lock.json; --ignore-scripts keeps
+        # dependency lifecycle hooks from executing inside the installed
+        # package tree.
+        try:
+            subprocess.run(
+                ["npm", "ci", "--ignore-scripts"],
+                cwd=self._package_dir,
+                check=True,
+                capture_output=True,
             )
-            try:
-                subprocess.run(
-                    ["npm", "install"],
-                    cwd=self._package_dir,
-                    check=True,
-                    capture_output=True,
-                )
-            except subprocess.CalledProcessError as e:
-                raise RuntimeError(
-                    f"Failed to install KaTeX Node.js dependencies via npm inside {self._package_dir}. "
-                    f"Error: {e.stderr.decode('utf-8').strip()}"
-                ) from e
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(
+                f"Failed to install KaTeX Node.js dependencies via `npm ci` inside {self._package_dir}. "
+                f"Error: {e.stderr.decode('utf-8').strip()}"
+            ) from e
 
         self._verified = True
