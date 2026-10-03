@@ -55,6 +55,9 @@ class _TranslationSession:
     string_cache: dict[str, str]
     resolver: Callable[[], TextTranslator]
     _translator: TextTranslator | None = field(default=None, init=False)
+    _document_translator: DocumentTranslator | None = field(
+        default=None, init=False
+    )
 
     def translate(self, source_text: str) -> str:
         if not source_text:
@@ -69,6 +72,11 @@ class _TranslationSession:
         if self._translator is None:
             self._translator = self.resolver()
         return self._translator
+
+    def document_translator(self) -> DocumentTranslator:
+        if self._document_translator is None:
+            self._document_translator = DocumentTranslator(self.translator())
+        return self._document_translator
 
 
 class I18nSiteVariantProvider(SiteVariantProvider):
@@ -260,7 +268,7 @@ class I18nSiteVariantProvider(SiteVariantProvider):
             and output_path.exists()
         ):
             return
-        DocumentTranslator(session.translator()).translate_file(
+        session.document_translator().translate_file(
             source_path, output_path, session.locale
         )
         self._translated_files[cache_key] = fingerprint

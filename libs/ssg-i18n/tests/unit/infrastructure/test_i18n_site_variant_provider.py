@@ -1,5 +1,7 @@
+import re
 from pathlib import Path
 
+import pytest
 from ssg.domain import BuildContext, ContentCollection, Page, Site
 from ssg_i18n.application.ports.text_translator import TextTranslator
 from ssg_i18n.domain.value_objects.locale import Locale
@@ -253,6 +255,39 @@ def test_variants_retranslates_when_the_catalog_changes(
     # Assert
     assert "Novas palavras." in generated.read_text(encoding="utf-8")
     assert second[1].site.title == "Sitio v2"
+
+
+def test_variants_compiles_the_glossary_pattern_once_per_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The glossary alternation is one compiled pattern per session,
+    # not re.compile'd per term per page.
+    collection = _write_collection(
+        tmp_path / "content",
+        "coll0",
+        (("a", "Use zebraterm here.\n"), ("b", "More zebraterm text.\n")),
+    )
+    catalog_path = tmp_path / "site" / "i18n" / "pt-BR.yaml"
+    catalog_path.parent.mkdir(parents=True)
+    catalog_path.write_text(
+        "glossary:\n  zebraterm: termo zebra\n", encoding="utf-8"
+    )
+    glossary_compiles: list[str] = []
+    real_compile = re.compile
+
+    def recording_compile(pattern: object, flags: int = 0) -> re.Pattern[str]:
+        if "zebraterm" in str(pattern):
+            glossary_compiles.append(str(pattern))
+        return real_compile(str(pattern), flags)  # type: ignore[call-overload]
+
+    monkeypatch.setattr(re, "compile", recording_compile)
+    provider = I18nSiteVariantProvider(
+        RecordingTextTranslator({}),
+        catalog_repository=YamlTranslationCatalogRepository(),
+    )
+    provider.variants(_make_site(collection), _make_context(tmp_path))
+
+    assert len(glossary_compiles) == 1
 
 
 def test_variants_regenerates_a_deleted_output(tmp_path: Path) -> None:

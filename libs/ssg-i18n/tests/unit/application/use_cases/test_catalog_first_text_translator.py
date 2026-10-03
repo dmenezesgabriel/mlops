@@ -36,3 +36,13 @@ class TestCatalogFirstTextTranslator:
             fallback_translator=InMemoryTextTranslator({}),
         )
         assert translator.translate("unknown", Locale("pt-BR")) == "unknown"
+
+    def test_glossary_terms_delegates_to_catalog(self) -> None:
+        catalog = TranslationCatalog(
+            translations={}, glossary_terms={"Deploy": "Implantar"}
+        )
+        translator = CatalogFirstTextTranslator(
+            catalog=catalog,
+            fallback_translator=InMemoryTextTranslator({}),
+        )
+        assert translator.glossary_terms == {"Deploy": "Implantar"}

@@ -8,14 +8,17 @@
 import json
 import re
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import mistletoe
 from mistletoe import block_token, span_token, token
 from mistletoe.markdown_renderer import MarkdownRenderer
 
-from ssg_i18n.application.ports.text_translator import TextTranslator
+from ssg_i18n.application.ports.text_translator import (
+    CatalogAwareTextTranslator,
+    TextTranslator,
+)
 from ssg_i18n.application.use_cases.terminology_mapper import TerminologyMapper
 from ssg_i18n.domain.value_objects.locale import Locale
 
@@ -110,6 +113,35 @@ def _reference_definition_lines(
 
 
 @dataclass(frozen=True)
+class _GlossaryProtection:
+    pattern: re.Pattern[str]
+    replacements: dict[str, str]
+
+
+def _glossary_protection_for(
+    terms: dict[str, str],
+) -> _GlossaryProtection | None:
+    # Longest terms first so "machine learning" wins over "machine" inside
+    # the single combined pass; one alternation compiled once per catalog.
+    ordered = sorted(
+        terms.items(), key=lambda item: len(item[0]), reverse=True
+    )
+    alternatives: list[str] = []
+    replacements: dict[str, str] = {}
+    for term, replacement in ordered:
+        if not term:
+            continue
+        alternatives.append(re.escape(term))
+        replacements.setdefault(term.lower(), replacement)
+    if not alternatives:
+        return None
+    return _GlossaryProtection(
+        pattern=re.compile(rf"\b({'|'.join(alternatives)})\b", re.IGNORECASE),
+        replacements=replacements,
+    )
+
+
+@dataclass(frozen=True)
 class DocumentTranslator:
     """Translates markdown and notebook files sentence by sentence.
 
@@ -119,6 +151,16 @@ class DocumentTranslator:
 
     text_translator: TextTranslator
     terminology_mapper: TerminologyMapper = TerminologyMapper()
+    _glossary_protection: _GlossaryProtection | None = field(
+        init=False, default=None, repr=False, compare=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "_glossary_protection",
+            _glossary_protection_for(self._get_glossary_terms()),
+        )
 
     def translate_file(
         self, source_path: Path, output_path: Path, target_locale: Locale
@@ -291,38 +333,33 @@ class DocumentTranslator:
         translated = self.text_translator.translate(english, target_locale)
         translated = self._normalize_and_heal_markers(translated, english)
         finalized = self._restore_and_postprocess(
-            translated, english, protected_parts
+            translated, english, protected_parts, target_locale
         )
         return list(span_token.tokenize_inner(finalized))
 
     def _get_glossary_terms(self) -> dict[str, str]:
-        from ssg_i18n.application.use_cases.catalog_first_text_translator import (
-            CatalogFirstTextTranslator,
-        )
-
-        if not isinstance(self.text_translator, CatalogFirstTextTranslator):
+        if not isinstance(self.text_translator, CatalogAwareTextTranslator):
             return {}
-        return self.text_translator.catalog.glossary_terms
+        return self.text_translator.glossary_terms
 
     def _protect_glossary_terms(
         self, sentence: str, protected_parts: dict[str, str]
     ) -> str:
-        terms = self._get_glossary_terms()
-        sorted_terms = sorted(
-            terms.items(), key=lambda x: len(x[0]), reverse=True
-        )
-        for term, translated_term in sorted_terms:
-            pattern = re.compile(rf"\b{re.escape(term)}\b", re.IGNORECASE)
+        protection = self._glossary_protection
+        if protection is None:
+            return sentence
 
-            def replace_term(
-                match: re.Match[str], t_term: str = translated_term
-            ) -> str:
-                marker = f"TR{len(protected_parts)}"
-                protected_parts[marker] = t_term
-                return marker
+        def replace_term(match: re.Match[str]) -> str:
+            # re.IGNORECASE can fold exotic chars the .lower() key map
+            # misses — leave such text unprotected rather than crash.
+            replacement = protection.replacements.get(match.group(0).lower())
+            if replacement is None:
+                return match.group(0)
+            marker = f"TR{len(protected_parts)}"
+            protected_parts[marker] = replacement
+            return marker
 
-            sentence = pattern.sub(replace_term, sentence)
-        return sentence
+        return protection.pattern.sub(replace_term, sentence)
 
     def _normalize_and_heal_markers(
         self,
@@ -348,11 +385,14 @@ class DocumentTranslator:
         translated: str,
         original: str,
         protected_parts: dict[str, str],
+        target_locale: Locale,
     ) -> str:
         if not all(marker in translated for marker in protected_parts):
             translated = original
         else:
-            translated = self.terminology_mapper.map_text(translated)
+            translated = self.terminology_mapper.map_text(
+                translated, target_locale
+            )
         for marker, text in reversed(list(protected_parts.items())):
             translated = translated.replace(marker, text)
         return translated

@@ -371,8 +371,8 @@ def test_variants_uses_catalog_glossary_to_protect_and_translate_technical_terms
     # The fallback translator expects the protected markers:
     fallback_translator = InMemoryTextTranslator(
         {
-            "We use TR1 for features and a TR0 for tracking.": (
-                "Usamos TR1 para features e um TR0 para rastreamento."
+            "We use TR0 for features and a TR1 for tracking.": (
+                "Usamos TR0 para features e um TR1 para rastreamento."
             )
         }
     )

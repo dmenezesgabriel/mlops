@@ -1,14 +1,21 @@
 import re
 
+from ssg_i18n.domain.value_objects.locale import Locale
+
 
 class TerminologyMapper:
-    """Post-translates text by applying domain-specific terminology rules.
+    """Post-translates text by applying locale-specific terminology rules.
 
     Example:
-        TerminologyMapper().map_text("deploy")  # "implantação"
+        TerminologyMapper().map_text("deploy", Locale("pt-BR"))  # "implantação"
     """
 
-    def map_text(self, text: str) -> str:
+    def map_text(self, text: str, target_locale: Locale) -> str:
+        if target_locale.tag != "pt-BR":
+            return text
+        return self._apply_pt_br_rules(text)
+
+    def _apply_pt_br_rules(self, text: str) -> str:
         # 1. Alias rules
         # Matches: [Oo] name/TR0/champion Alias -> [Aa] Tag name/TR0/champion
         def replace_alias_with_o(match: re.Match[str]) -> str:
