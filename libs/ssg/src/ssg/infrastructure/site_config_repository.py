@@ -80,6 +80,7 @@ class SiteConfigRepository(SiteRepository):
             self._required_string(collection_map, "source_root", config_path),
         )
         name = self._required_string(collection_map, "name", config_path)
+        self._require_slug(name, "collection name", config_path)
         page_entries = self._required_list(
             collection_map, "pages", config_path
         )

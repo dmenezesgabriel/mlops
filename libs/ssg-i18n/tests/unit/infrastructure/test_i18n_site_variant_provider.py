@@ -70,18 +70,19 @@ def _write(source_root: Path, slug: str, text: str) -> Path:
 def _make_site(
     *collections: ContentCollection,
     translation_mode: str = "manual",
+    i18n_settings: dict[str, str] | None = None,
 ) -> Site:
+    settings = {
+        "default_locale": "en",
+        "locales": "en,pt-BR",
+        "translation_mode": translation_mode,
+    }
+    settings.update(i18n_settings or {})
     return Site(
         title="Learning Site",
         description="",
         collections=collections,
-        extensions={
-            "i18n": {
-                "default_locale": "en",
-                "locales": "en,pt-BR",
-                "translation_mode": translation_mode,
-            }
-        },
+        extensions={"i18n": settings},
     )
 
 
@@ -340,3 +341,84 @@ def test_variants_regenerates_a_deleted_output(tmp_path: Path) -> None:
 
     # Assert
     assert generated.exists()
+
+
+def test_variants_keeps_author_i18n_label_overrides(tmp_path: Path) -> None:
+    # Arrange
+    collection = _write_collection(
+        tmp_path / "content", "coll0", (("a", "First words.\n"),)
+    )
+    translator = RecordingTextTranslator({"Menu": "Menu-pt"})
+    provider = I18nSiteVariantProvider(translator)
+    site = _make_site(collection, i18n_settings={"label_language": "Idioma!"})
+
+    # Act
+    variants = provider.variants(site, _make_context(tmp_path))
+
+    # Assert
+    portuguese_i18n = variants[1].site.extensions["i18n"]
+    assert portuguese_i18n["label_language"] == "Idioma!"
+    assert portuguese_i18n["label_menu"] == "Menu-pt"
+    called_texts = {text for text, _ in translator.calls}
+    assert "Language" not in called_texts
+
+
+def test_variants_rejects_unknown_translation_mode(tmp_path: Path) -> None:
+    # Arrange
+    collection = _write_collection(
+        tmp_path / "content", "coll0", (("a", "First words.\n"),)
+    )
+    provider = I18nSiteVariantProvider(RecordingTextTranslator({}))
+    site = _make_site(collection, translation_mode="machien")
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="machien"):
+        provider.variants(site, _make_context(tmp_path))
+
+
+def test_variants_rejects_duplicate_locale_tags(tmp_path: Path) -> None:
+    # Arrange
+    collection = _write_collection(
+        tmp_path / "content", "coll0", (("a", "First words.\n"),)
+    )
+    provider = I18nSiteVariantProvider(RecordingTextTranslator({}))
+    site = _make_site(collection, i18n_settings={"locales": "en,en"})
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="duplicate locale"):
+        provider.variants(site, _make_context(tmp_path))
+
+
+def test_variants_rejects_generated_path_outside_config_root(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    collection = _write_collection(
+        tmp_path / "content", "coll0", (("a", "First words.\n"),)
+    )
+    provider = I18nSiteVariantProvider(RecordingTextTranslator({}))
+    site = _make_site(
+        collection, i18n_settings={"generated_path": "../escape-out"}
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="generated_path"):
+        provider.variants(site, _make_context(tmp_path))
+    assert not (tmp_path / "escape-out").exists()
+
+
+def test_variants_rejects_translations_path_outside_config_root(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    collection = _write_collection(
+        tmp_path / "content", "coll0", (("a", "First words.\n"),)
+    )
+    provider = I18nSiteVariantProvider(RecordingTextTranslator({}))
+    site = _make_site(
+        collection, i18n_settings={"translations_path": "../outside-catalogs"}
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="translations_path"):
+        provider.variants(site, _make_context(tmp_path))

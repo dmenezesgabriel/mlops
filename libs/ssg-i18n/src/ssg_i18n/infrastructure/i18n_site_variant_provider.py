@@ -204,6 +204,8 @@ class I18nSiteVariantProvider(SiteVariantProvider):
         }
         i18n_settings = dict(extensions.get("i18n", {}))
         for setting_name, source_text in self._ui_label_sources().items():
+            if setting_name in i18n_settings:
+                continue
             i18n_settings[setting_name] = session.translate(source_text)
 
         extensions["i18n"] = i18n_settings
@@ -313,11 +315,29 @@ class I18nSiteVariantProvider(SiteVariantProvider):
         configured_path = site.extension_setting(
             "i18n", "generated_path", ".ssg/generated-i18n"
         )
-        return (
-            context.config_path.parent
-            / configured_path
-            / locale.tag
-            / collection.name
+        return self._path_under_config_root(
+            context.config_path,
+            "generated_path",
+            configured_path,
+            locale.tag,
+            collection.name,
+        )
+
+    def _path_under_config_root(
+        self,
+        config_path: Path,
+        setting_name: str,
+        configured_path: str,
+        *parts: str,
+    ) -> Path:
+        config_root = config_path.parent.resolve()
+        path = (config_root / configured_path).joinpath(*parts).resolve()
+        if path.is_relative_to(config_root):
+            return path
+
+        raise ValueError(
+            f"Invalid i18n {setting_name} {configured_path!r}: "
+            f"expected a path under {config_root}"
         )
 
     def _locale_set(self, site: Site) -> LocaleSet:
@@ -337,8 +357,17 @@ class I18nSiteVariantProvider(SiteVariantProvider):
         translation_mode = site.extension_setting(
             "i18n", "translation_mode", "manual"
         )
-        if translation_mode not in {"machine", "manual_with_machine_fallback"}:
+        if translation_mode == "manual":
             return self._text_translator
+        if translation_mode not in {
+            "machine",
+            "manual_with_machine_fallback",
+        }:
+            raise ValueError(
+                f"Invalid i18n translation_mode {translation_mode!r}: "
+                "expected one of manual, machine, "
+                "manual_with_machine_fallback"
+            )
 
         if self._machine_text_translator_factory is None:
             return self._text_translator
@@ -351,10 +380,11 @@ class I18nSiteVariantProvider(SiteVariantProvider):
         translations_path = site.extension_setting(
             "i18n", "translations_path", "i18n"
         )
-        catalog_path = (
-            context.config_path.parent
-            / translations_path
-            / f"{target_locale.tag}.yaml"
+        catalog_path = self._path_under_config_root(
+            context.config_path,
+            "translations_path",
+            translations_path,
+            f"{target_locale.tag}.yaml",
         )
         if catalog_path.exists() and self._catalog_repository is not None:
             return self._catalog_repository.load(catalog_path)

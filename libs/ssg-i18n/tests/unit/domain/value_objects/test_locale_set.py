@@ -18,3 +18,10 @@ class TestLocaleSet:
                 default_locale=Locale("fr"),
                 locales=(Locale("en"), Locale("pt-BR")),
             )
+
+    def test_raises_on_duplicate_locale_tags(self) -> None:
+        with pytest.raises(ValueError, match="duplicate locale 'en'"):
+            LocaleSet(
+                default_locale=Locale("en"),
+                locales=(Locale("en"), Locale("en")),
+            )

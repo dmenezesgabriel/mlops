@@ -177,6 +177,36 @@ def test_load_rejects_duplicate_collection_output_slugs(
         SiteConfigRepository().load(config_path)
 
 
+@pytest.mark.parametrize(
+    "name",
+    ["../escaped", "..", "a/b", "dot.name", "has space", "Upper", ""],
+)
+def test_load_rejects_collection_names_outside_charset(
+    tmp_path: Path, name: str
+) -> None:
+    # Arrange — a bad name only reaches the generated-path join when
+    # output_slug is explicitly valid; otherwise the derived slug fails first.
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "collections:\n"
+        f'  - name: "{name}"\n'
+        "    title: Sample Collection\n"
+        "    source_root: ../content/sample_collection\n"
+        "    output_slug: sample\n"
+        "    pages:\n"
+        "      - slug: overview\n"
+        "        title: Overview\n"
+        "        source: overview.md\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="Invalid collection name"):
+        SiteConfigRepository().load(config_path)
+
+
 @pytest.mark.parametrize("output_slug", ["../escaped", "a/b", "Upper"])
 def test_load_rejects_collection_output_slugs_outside_charset(
     tmp_path: Path, output_slug: str
