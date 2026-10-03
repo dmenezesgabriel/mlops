@@ -22,24 +22,20 @@ from ssg_i18n_machine_translation.domain.value_objects.translation_evaluation_re
     TranslationEvaluationReport,
 )
 
+# mistletoe block names whose children are translated as one unit — kept in
+# parity with document_translator._LEAF_BLOCK_NAMES: every block the
+# translator can translate must be visible to the evaluator.
+_LEAF_BLOCK_NAMES = (
+    "Paragraph",
+    "Heading",
+    "TableCell",
+    "SetextHeading",
+)
 
-def is_code_fence(line: str) -> bool:
-    return line.strip().startswith("```")
-
-
-def is_empty_or_whitespace(line: str) -> bool:
-    return not line.strip()
-
-
-def is_math_block(line: str) -> bool:
-    stripped = line.strip()
-    return stripped.startswith("$$") or (
-        stripped.startswith("$") and stripped.endswith("$")
-    )
-
-
-def is_horizontal_rule(line: str) -> bool:
-    return bool(re.fullmatch(r"\s*-{3,}\s*", line.strip()))
+# The {{…}}/{%…%} alternatives of document_translator._PROTECTED_PATTERN:
+# the translator protects these spans verbatim, so the evaluator verifies
+# they survive verbatim.
+_DIRECTIVE_SPAN_PATTERN = re.compile(r"\{\{.*?\}\}|\{\%.*?\%\}", re.DOTALL)
 
 
 def _require_directory(path: Path, name: str) -> None:
@@ -63,26 +59,22 @@ def clean_line_for_comparison(line: str) -> str:
 
 
 def extract_text_nodes(node: object) -> list[object]:
-    class_name = node.__class__.__name__
-    if class_name in ("Document", "List", "ListItem", "Table", "TableRow"):
-        nodes: list[object] = []
-        header = getattr(node, "header", None)
-        if class_name == "Table" and header:
-            nodes.extend(extract_text_nodes(header))
-        for child in getattr(node, "children", []):
-            nodes.extend(extract_text_nodes(child))
-        return nodes
-    if class_name not in ("Paragraph", "Heading", "TableCell"):
-        return []
-    children = getattr(node, "children", [])
-    has_jinja = any(
-        c.__class__.__name__ == "RawText"
-        and ("{{" in c.content or "{%" in c.content)
-        for c in children
-    )
-    if has_jinja:
-        return []
-    return [node]
+    if node.__class__.__name__ in _LEAF_BLOCK_NAMES:
+        return [node]
+    nodes: list[object] = []
+    # Every non-leaf node is walked: a container whitelist could only route
+    # to this same walk, and an unlisted container (Quote was one) must not
+    # silently skip its subtree — eval-side mirror of the G-82 dispatch fix.
+    header = getattr(node, "header", None)
+    if header:
+        nodes.extend(extract_text_nodes(header))
+    for child in getattr(node, "children", []):
+        nodes.extend(extract_text_nodes(child))
+    return nodes
+
+
+def _directive_spans(text: str) -> list[str]:
+    return _DIRECTIVE_SPAN_PATTERN.findall(text)
 
 
 def render_node(node: object, renderer: MarkdownRenderer) -> str:
@@ -92,6 +84,9 @@ def render_node(node: object, renderer: MarkdownRenderer) -> str:
         )
         return next(iter(lines), "")
     wrapper = Document([])
+    # extract_text_nodes yields only mistletoe block tokens, so node is a
+    # valid children element; the throwaway Document is a render carrier —
+    # MarkdownRenderer.render() only iterates .children.
     wrapper.children = [node]  # type: ignore[list-item]
     return renderer.render(wrapper).strip()
 
@@ -104,12 +99,14 @@ def evaluate_node_pair(src: str, trans: str) -> LineResult:
         and len(src_clean) > 3
         and not re.fullmatch(r"[^a-zA-Z]+", src_clean)
     )
+    is_directive_mismatch = _directive_spans(src) != _directive_spans(trans)
     src_pipes, trans_pipes = src.count("|"), trans.count("|")
     if src.strip().startswith("|"):
         return LineResult(
             is_fallback=is_fallback,
             is_wiki_mismatch=False,
             is_table_mismatch=(src_pipes != trans_pipes),
+            is_directive_mismatch=is_directive_mismatch,
         )
     src_opens, trans_opens = src.count("[["), trans.count("[[")
     src_closes, trans_closes = src.count("]]"), trans.count("]]")
@@ -118,7 +115,7 @@ def evaluate_node_pair(src: str, trans: str) -> LineResult:
         or src_opens != trans_opens
         or src_closes != trans_closes
     )
-    return LineResult(is_fallback, is_wiki, False)
+    return LineResult(is_fallback, is_wiki, False, is_directive_mismatch)
 
 
 class MachineTranslationEvaluator:
@@ -189,6 +186,7 @@ class MachineTranslationEvaluator:
         node_pairs: list[tuple[object, object]],
         filename: str,
         logs: list[str],
+        failures: list[str],
     ) -> tuple[int, int, int, int]:
         total, fallback, wiki, table = 0, 0, 0, 0
         with MarkdownRenderer() as renderer:
@@ -200,6 +198,11 @@ class MachineTranslationEvaluator:
                 self._log_violations(
                     result, src_str, trans_str, filename, logs
                 )
+                if result.is_directive_mismatch:
+                    failures.append(
+                        f"[DIRECTIVE MISMATCH] In '{filename}': "
+                        f"'{src_str}' -> '{trans_str}'"
+                    )
                 fallback += int(result.is_fallback)
                 wiki += int(result.is_wiki_mismatch)
                 table += int(result.is_table_mismatch)
@@ -229,13 +232,7 @@ class MachineTranslationEvaluator:
     def _get_bleu_sentences(
         self, translations: Mapping[str, str]
     ) -> list[str]:
-        return [
-            key
-            for key in translations.keys()
-            if len(key.split()) > 5
-            and not key.startswith("Start with")
-            and not key.startswith("The collector")
-        ]
+        return [key for key in translations.keys() if len(key.split()) > 5]
 
     def _calculate_bleu_score(
         self,
@@ -268,6 +265,8 @@ class MachineTranslationEvaluator:
         )
         if not hypotheses:
             return 0.0
+        # sacrebleu ships no type stubs; corpus_bleu().score is float per
+        # its public API contract.
         return float(sacrebleu.corpus_bleu(hypotheses, references).score)  # pyright: ignore[reportUnknownMemberType]
 
     def _gather_bleu_data(
@@ -307,7 +306,9 @@ class MachineTranslationEvaluator:
                 src_file, trans_file, structural_failures
             )
             pair_total, pair_fallback, pair_wiki, pair_table = (
-                self._evaluate_node_list(node_pairs, src_file.name, logs)
+                self._evaluate_node_list(
+                    node_pairs, src_file.name, logs, structural_failures
+                )
             )
             total += pair_total
             fallback += pair_fallback
