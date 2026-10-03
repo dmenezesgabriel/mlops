@@ -68,7 +68,9 @@
   AU-09: 22 (S1×2, S2×2, S3×17, S4×1); AU-10: 14 (S1×1, S2×1, S3×11, S4×1) —
   evaluator false-green on missing/divergent input (S1); translator
   locale-blind for non-nllb models; model load × locale × rebuild (S2).
-- [ ] Remediate promoted S1+ gaps.
+- [x] Remediate promoted S1+ gaps. (AF-36…AF-64 all shipped — every
+  AU-06…AU-10 gap dispositioned; `ssg-i18n-evaluate` + EP surface tagged
+  for AX-2.)
 
 ## MA-5 — Media family
 

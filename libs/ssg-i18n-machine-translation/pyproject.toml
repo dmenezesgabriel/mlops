@@ -27,6 +27,12 @@ transformers = "ssg_i18n_machine_translation.infrastructure.plugin:create_transf
 [tool.uv.sources]
 ssg-i18n = { workspace = true }
 
+[tool.coverage.run]
+# bare `--cov` traces the editable `ssg_i18n` workspace dependency; those
+# modules are covered by ssg-i18n's own suite, so measure only this
+# package's code.
+source = ["src", "tests"]
+
 [tool.deptry.package_module_name_map]
 ssg-i18n = "ssg_i18n"
 ssg-i18n-machine-translation = "ssg_i18n_machine_translation"

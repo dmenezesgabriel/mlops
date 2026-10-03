@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+import sacrebleu
 from ssg_i18n.domain.value_objects.locale import Locale
 from ssg_i18n.infrastructure.in_memory_text_translator import (
     InMemoryTextTranslator,
@@ -20,6 +21,10 @@ def _doc_pair(
     translated_dir.mkdir()
     (translated_dir / "doc.md").write_text(translated_text, encoding="utf-8")
     return source_dir, translated_dir
+
+
+class FixedBleuResult:
+    score = 50.0
 
 
 class TestMachineTranslationEvaluator:
@@ -231,3 +236,104 @@ class TestMachineTranslationEvaluator:
 
         assert report.passed is True
         assert report.total_lines_evaluated == 1
+
+    def test_markdown_table_cells_are_evaluated(self, tmp_path: Path) -> None:
+        # Tables carry prose in header AND body cells — the walk must descend
+        # Table.header and render each TableCell or table content is
+        # invisible to the gate.
+        markdown = (
+            "| English source text | More english text |\n"
+            "|---|---|\n"
+            "| Cell one body | Cell two body |\n"
+        )
+        source_dir, translated_dir = _doc_pair(tmp_path, markdown, markdown)
+
+        evaluator = MachineTranslationEvaluator(
+            translator=InMemoryTextTranslator({}),
+            max_fallback_rate_pct=0.0,
+        )
+        report = evaluator.evaluate(source_dir, translated_dir)
+
+        assert report.total_lines_evaluated == 4
+        assert report.english_fallback_lines == 4
+        assert report.passed is False
+
+    def test_identical_short_line_counts_as_fallback(
+        self, tmp_path: Path
+    ) -> None:
+        # `len(src_clean) > 3` is the only length gate on fallback — a 4..30
+        # char identical line must still count.
+        source_dir, translated_dir = _doc_pair(
+            tmp_path, "Hello world.", "Hello world."
+        )
+
+        evaluator = MachineTranslationEvaluator(
+            translator=InMemoryTextTranslator({}),
+            max_fallback_rate_pct=0.0,
+        )
+        report = evaluator.evaluate(source_dir, translated_dir)
+
+        assert report.english_fallback_lines == 1
+        assert report.passed is False
+
+    def test_catalog_with_only_short_keys_scores_zero_bleu(
+        self, tmp_path: Path
+    ) -> None:
+        # A catalog whose keys all miss the >5-word sentence filter yields no
+        # hypotheses — BLEU reports 0.0 and fails the gate, not skips it.
+        source_dir, translated_dir = _doc_pair(
+            tmp_path, "Hello world.", "Olá mundo."
+        )
+        catalog_path = tmp_path / "pt-BR.yaml"
+        catalog_path.write_text(
+            'translations:\n  "hi": "oi"\n', encoding="utf-8"
+        )
+
+        evaluator = MachineTranslationEvaluator(
+            translator=InMemoryTextTranslator({}),
+        )
+        report = evaluator.evaluate(
+            source_dir,
+            translated_dir,
+            catalog_path=catalog_path,
+            target_locale=Locale("pt-BR"),
+        )
+
+        assert report.bleu_score_against_catalog == 0.0
+        assert report.passed is False
+        assert any("BLEU score 0.00" in failure for failure in report.failures)
+
+    def test_bleu_score_at_threshold_boundary_passes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # bleu == min_bleu_score must pass (strict `<`): `<=` would flip a
+        # passing gate at the boundary. corpus_bleu is stubbed to a fixed
+        # score — its real float (100.00000000000004) makes equality fragile.
+        source_dir, translated_dir = _doc_pair(
+            tmp_path, "Short text.", "Texto curto."
+        )
+        catalog_path = tmp_path / "pt-BR.yaml"
+        catalog_path.write_text(
+            "translations:\n"
+            "  This is a long sentence for testing: Esta é uma frase longa de teste\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(
+            sacrebleu,
+            "corpus_bleu",
+            lambda *_args, **_kwargs: FixedBleuResult(),
+        )
+
+        evaluator = MachineTranslationEvaluator(
+            translator=InMemoryTextTranslator({}),
+            min_bleu_score=50.0,
+        )
+        report = evaluator.evaluate(
+            source_dir,
+            translated_dir,
+            catalog_path=catalog_path,
+            target_locale=Locale("pt-BR"),
+        )
+
+        assert report.bleu_score_against_catalog == 50.0
+        assert report.passed is True

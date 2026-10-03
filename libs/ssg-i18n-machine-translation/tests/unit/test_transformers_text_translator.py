@@ -39,28 +39,19 @@ class RepeatingFakeTranslationPipeline:
         return [{"translation_text": "translation " * 20}]
 
 
-def test_translate_uses_transformers_pipeline_and_reuses_loaded_model() -> (
-    None
-):
+def test_translate_uses_transformers_pipeline_and_reuses_loaded_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # Arrange
-    previous_module = sys.modules.get("transformers")
     fake_module = FakeTransformersModule()
-    sys.modules["transformers"] = fake_module
+    monkeypatch.setitem(sys.modules, "transformers", fake_module)
     translator = TransformersTextTranslator("fake-technical-model")
 
-    try:
-        # Act
-        first_translation = translator.translate(
-            "Feature store", Locale("pt-BR")
-        )
-        second_translation = translator.translate(
-            "Model registry", Locale("pt-BR")
-        )
-    finally:
-        if previous_module is None:
-            del sys.modules["transformers"]
-        else:
-            sys.modules["transformers"] = previous_module
+    # Act
+    first_translation = translator.translate("Feature store", Locale("pt-BR"))
+    second_translation = translator.translate(
+        "Model registry", Locale("pt-BR")
+    )
 
     # Assert
     assert first_translation == "pt-BR:Feature store"
@@ -246,3 +237,106 @@ def test_translate_names_transformers_extra_when_module_missing(
 
     assert f"'{missing_name}'" in str(excinfo.value)
     assert "ssg-i18n-machine-translation[transformers]" in str(excinfo.value)
+
+
+def test_translate_rejects_module_without_pipeline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange — a module that imports but lacks a conforming `pipeline` must
+    # name the missing surface, not AttributeError on attribute access.
+    monkeypatch.setattr(
+        transformers_text_translator,
+        "import_module",
+        lambda _name: ModuleType("transformers"),
+    )
+    translator = TransformersTextTranslator()
+
+    # Act / Assert
+    with pytest.raises(RuntimeError, match="Missing transformers.pipeline"):
+        translator.translate("Hello world", Locale("pt-BR"))
+
+
+class StaticResultPipeline:
+    def __init__(self, result: object) -> None:
+        self._result = result
+
+    def __call__(
+        self, _source_text: str, **_generation_options: object
+    ) -> object:
+        return self._result
+
+
+@pytest.mark.parametrize(
+    "bad_result",
+    [{}, [], None, "not-a-list"],
+    ids=["dict", "empty-list", "none", "str"],
+)
+def test_translate_rejects_non_list_pipeline_result(
+    bad_result: object,
+) -> None:
+    # Arrange — the HF contract is a non-empty list of dicts; anything else
+    # must fail loudly instead of indexing into it.
+    translator = TransformersTextTranslator()
+    translator._translation_pipeline = StaticResultPipeline(bad_result)
+
+    # Act / Assert
+    with pytest.raises(RuntimeError, match="expected non-empty list"):
+        translator.translate("Hello world", Locale("pt-BR"))
+
+
+@pytest.mark.parametrize(
+    "bad_result",
+    [[42], [{"other": "x"}], [{"translation_text": 5}]],
+    ids=["non-dict-item", "missing-key", "non-str-value"],
+)
+def test_translate_rejects_result_without_translation_text(
+    bad_result: object,
+) -> None:
+    # Arrange — a list result whose first item lacks a string
+    # `translation_text` is equally invalid.
+    translator = TransformersTextTranslator()
+    translator._translation_pipeline = StaticResultPipeline(bad_result)
+
+    # Act / Assert
+    with pytest.raises(RuntimeError, match="expected translation_text"):
+        translator.translate("Hello world", Locale("pt-BR"))
+
+
+class BoundaryRatioPipeline:
+    """20 words, 7 unique → unique_word_ratio exactly 0.35 (the boundary)."""
+
+    TEXT = " ".join(["repeat"] * 14 + [f"unique{i}" for i in range(6)])
+
+    def __call__(
+        self, _source_text: str, **_generation_options: object
+    ) -> list[dict[str, str]]:
+        return [{"translation_text": self.TEXT}]
+
+
+def test_translate_keeps_text_at_degenerate_ratio_boundary() -> None:
+    # Arrange — ratio == 0.35 is NOT degenerate (strict `<`): `<=` would
+    # discard a legitimate translation as repetition.
+    translator = TransformersTextTranslator()
+    translator._translation_pipeline = BoundaryRatioPipeline()
+
+    # Act
+    translated = translator.translate(
+        "Feature store for model registry", Locale("pt-BR")
+    )
+
+    # Assert
+    assert translated == BoundaryRatioPipeline.TEXT
+
+
+def test_translate_floors_max_new_tokens_for_empty_source() -> None:
+    # Arrange — a zero-word input must still request the 16-token floor,
+    # never zero or negative.
+    translator = TransformersTextTranslator()
+    pipeline_mock = CaptureOptionsFakeTranslationPipeline()
+    translator._translation_pipeline = pipeline_mock
+
+    # Act
+    translator.translate("", Locale("pt-BR"))
+
+    # Assert
+    assert pipeline_mock.calls[0][1]["max_new_tokens"] == 16
