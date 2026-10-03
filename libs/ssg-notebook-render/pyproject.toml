@@ -17,6 +17,11 @@ notebook = "ssg_notebook_render.notebook_content_renderer:create_notebook_conten
 [tool.uv.sources]
 ssg = { workspace = true }
 
+[tool.coverage.run]
+# bare `--cov` traces the editable `ssg` workspace dependency; those modules
+# are covered by ssg's own suite, so measure only this package's code.
+source = ["src", "tests"]
+
 [tool.deptry.package_module_name_map]
 ssg = "ssg"
 ssg-notebook-render = "ssg_notebook_render"

@@ -380,11 +380,10 @@ class NotebookContentRenderer(ContentRenderer):
         if output_type == "error":
             return self._render_error_output(output)
 
-        data = getattr(output, "data", {})
-        if not isinstance(data, dict):
-            return ""
+        # nbformat validates `data` is a MIME-bundle dict at read time, so
+        # anything reaching here is already a dict.
         return self._render_data_output(
-            cast(dict[str, Any], data),
+            getattr(output, "data", {}),
             page,
             output_path,
             cell_index,
