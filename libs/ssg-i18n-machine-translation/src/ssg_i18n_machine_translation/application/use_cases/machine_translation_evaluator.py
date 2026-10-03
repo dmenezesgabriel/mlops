@@ -1,4 +1,5 @@
 import re
+from collections.abc import Mapping
 from pathlib import Path
 
 import sacrebleu
@@ -10,6 +11,9 @@ from ssg_i18n.application.use_cases.document_translator import (
     DocumentTranslator,
 )
 from ssg_i18n.domain.value_objects.locale import Locale
+from ssg_i18n.infrastructure.yaml_translation_catalog_repository import (
+    YamlTranslationCatalogRepository,
+)
 
 from ssg_i18n_machine_translation.domain.value_objects.line_result import (
     LineResult,
@@ -42,6 +46,13 @@ def _require_directory(path: Path, name: str) -> None:
     if not path.is_dir():
         raise FileNotFoundError(
             f"{name} must be an existing directory, got: '{path}'"
+        )
+
+
+def _require_file(path: Path, name: str) -> None:
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"{name} must be an existing file, got: '{path}'"
         )
 
 
@@ -215,7 +226,9 @@ class MachineTranslationEvaluator:
                 f"[TABLE MISMATCH] In '{filename}': '{src_str}' -> '{trans_str}'"
             )
 
-    def _get_bleu_sentences(self, translations: dict[str, str]) -> list[str]:
+    def _get_bleu_sentences(
+        self, translations: Mapping[str, str]
+    ) -> list[str]:
         return [
             key
             for key in translations.keys()
@@ -229,8 +242,18 @@ class MachineTranslationEvaluator:
         catalog_path: Path,
         locale: Locale,
     ) -> float:
-        catalog = yaml.safe_load(catalog_path.read_text(encoding="utf-8"))
-        translations = catalog.get("translations", {})
+        try:
+            catalog = YamlTranslationCatalogRepository().load(catalog_path)
+        except yaml.YAMLError as exc:
+            raise ValueError(
+                f"Invalid i18n catalog {catalog_path}: {exc}"
+            ) from exc
+        if not catalog.translations:
+            raise ValueError(
+                f"Invalid i18n catalog {catalog_path}: "
+                "expected non-empty translations mapping"
+            )
+        translations = catalog.translations
         doc_translator = DocumentTranslator(self._translator)
         hypotheses: list[str] = []
         references: list[list[str]] = []
@@ -250,7 +273,7 @@ class MachineTranslationEvaluator:
     def _gather_bleu_data(
         self,
         sentences: list[str],
-        translations: dict[str, str],
+        translations: Mapping[str, str],
         translator: DocumentTranslator,
         locale: Locale,
         hypotheses: list[str],
@@ -292,7 +315,8 @@ class MachineTranslationEvaluator:
             table += pair_table
 
         bleu = None
-        if catalog_path is not None and catalog_path.exists():
+        if catalog_path is not None:
+            _require_file(catalog_path, "catalog_path")
             bleu = self._calculate_bleu_score(catalog_path, locale)
 
         return self._build_report(

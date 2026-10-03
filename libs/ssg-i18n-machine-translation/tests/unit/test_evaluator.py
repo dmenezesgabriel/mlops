@@ -263,3 +263,65 @@ def test_evaluator_fails_on_node_count_mismatch(
         report,
         "[STRUCTURE MISMATCH] File 'doc1.md' has 2 source nodes, but 'doc1.md' has 1 translated nodes.",
     )
+
+
+def test_evaluator_fails_when_catalog_path_missing(tmp_path: Path) -> None:
+    # Arrange — a passed --catalog-path that resolves to nothing must not be
+    # silently skipped: the requested BLEU check would vanish with no log.
+    source_dir, translated_dir = _doc_pair(tmp_path, "Hello.", "Olá.")
+    evaluator = MachineTranslationEvaluator(
+        translator=InMemoryTextTranslator({})
+    )
+
+    # Act / Assert
+    with pytest.raises(FileNotFoundError, match="catalog_path"):
+        evaluator.evaluate(
+            source_dir,
+            translated_dir,
+            catalog_path=tmp_path / "missing.yaml",
+        )
+
+
+@pytest.mark.parametrize(
+    "catalog_yaml",
+    [
+        "- a\n- b\n",  # list root
+        "just a string\n",  # scalar root
+        "glossary:\n  a: b\n",  # missing translations section
+        "translations: {}\n",  # empty translations
+        "translations: [a, b]\n",  # non-dict translations
+        "translations:\n  5: x\n",  # non-str key
+        "translations:\n  a sentence with six words or more: 5\n",  # non-str value
+        "translations: {{{{\n",  # unparseable yaml
+    ],
+    ids=[
+        "list-root",
+        "scalar-root",
+        "missing-translations",
+        "empty-translations",
+        "non-dict-translations",
+        "non-str-key",
+        "non-str-value",
+        "yaml-parse-error",
+    ],
+)
+def test_evaluator_fails_on_invalid_catalog(
+    tmp_path: Path, catalog_yaml: str
+) -> None:
+    # Arrange — malformed catalogs must name the file instead of crashing on
+    # AttributeError or degrading into a misleading bleu=0.0 threshold failure.
+    source_dir, translated_dir = _doc_pair(tmp_path, "Hello.", "Olá.")
+    catalog_path = tmp_path / "catalog.yaml"
+    catalog_path.write_text(catalog_yaml, encoding="utf-8")
+    evaluator = MachineTranslationEvaluator(
+        translator=InMemoryTextTranslator({})
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="Invalid i18n catalog"):
+        evaluator.evaluate(
+            source_dir,
+            translated_dir,
+            catalog_path=catalog_path,
+            target_locale=Locale("pt-BR"),
+        )

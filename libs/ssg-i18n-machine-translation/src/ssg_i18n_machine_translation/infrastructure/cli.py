@@ -58,6 +58,19 @@ def print_logs(report: TranslationEvaluationReport) -> None:
 
 def main() -> None:
     args = parse_arguments()
+    try:
+        _dispatch(args)
+    except (
+        ValueError,
+        TypeError,
+        FileNotFoundError,
+        ImportError,
+        RuntimeError,
+    ) as exc:
+        raise SystemExit(str(exc)) from exc
+
+
+def _dispatch(args: argparse.Namespace) -> None:
     evaluator = MachineTranslationEvaluator(
         max_fallback_rate_pct=args.max_fallback_rate_pct,
         max_wikilink_syntax_mismatches=args.max_wikilink_syntax_mismatches,
