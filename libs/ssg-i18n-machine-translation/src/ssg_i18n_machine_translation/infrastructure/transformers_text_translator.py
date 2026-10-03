@@ -27,6 +27,14 @@ class TransformersTextTranslator(TextTranslator):
         self._target_languages = tuple(
             language.lower().replace("_", "-") for language in target_languages
         )
+        # Decoder positional max per model family — the ceiling, not an
+        # arbitrary constant: generate cannot produce past the model's
+        # positional embeddings (Marian 512, nllb-200 1024), and the
+        # encoder truncates inputs at the same bound, so EOS — not this
+        # cap — is the binding stop for every servable input.
+        self._max_new_tokens_cap = (
+            1024 if "nllb" in model_name.lower() else 512
+        )
         self._translation_pipeline: Callable[..., object] | None = None
 
     def translate(self, source_text: str, target_locale: Locale) -> str:
@@ -35,7 +43,13 @@ class TransformersTextTranslator(TextTranslator):
         target_lang_code = self._target_lang_code(target_locale)
         translation_pipeline = self._pipeline()
         generation_options: dict[str, object] = {
-            "max_new_tokens": max(16, min(128, len(source_text.split()) * 4)),
+            "max_new_tokens": max(
+                16,
+                min(
+                    self._max_new_tokens_cap,
+                    len(source_text.split()) * 4,
+                ),
+            ),
             "no_repeat_ngram_size": 3,
         }
         if target_lang_code is not None:
@@ -109,7 +123,13 @@ class TransformersTextTranslator(TextTranslator):
         ):
             return self._translation_pipeline
 
-        transformers_module = import_module("transformers")
+        try:
+            transformers_module = import_module("transformers")
+        except ModuleNotFoundError as exc:
+            raise RuntimeError(
+                f"Missing dependency {exc.name!r}: expected the "
+                "ssg-i18n-machine-translation[transformers] extra installed"
+            ) from exc
         if not isinstance(transformers_module, TransformersModule):
             raise RuntimeError(
                 "Missing transformers.pipeline: expected transformers extra installed"

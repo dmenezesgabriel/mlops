@@ -3,6 +3,9 @@ from types import ModuleType
 
 import pytest
 from ssg_i18n.domain.locale import Locale
+from ssg_i18n_machine_translation.infrastructure import (
+    transformers_text_translator,
+)
 from ssg_i18n_machine_translation.infrastructure.transformers_text_translator import (
     TransformersTextTranslator,
 )
@@ -175,3 +178,71 @@ def test_translate_accepts_region_full_declared_target_language() -> None:
 
     # Assert
     assert translated_text == "translated:Hello world"
+
+
+def test_translate_scales_max_new_tokens_with_input_length() -> None:
+    # Arrange
+    translator = TransformersTextTranslator()
+    pipeline_mock = CaptureOptionsFakeTranslationPipeline()
+    translator._translation_pipeline = pipeline_mock
+    source_text = " ".join(["feature"] * 50)
+
+    # Act
+    translator.translate(source_text, Locale("pt-BR"))
+
+    # Assert
+    assert pipeline_mock.calls[0][1]["max_new_tokens"] == 200
+
+
+@pytest.mark.parametrize(
+    ("model_name", "expected_cap"),
+    [
+        ("Helsinki-NLP/opus-mt-tc-big-en-pt", 512),
+        ("facebook/nllb-200-distilled-600M", 1024),
+    ],
+)
+def test_translate_caps_max_new_tokens_at_model_positional_max(
+    model_name: str, expected_cap: int
+) -> None:
+    # Arrange
+    translator = TransformersTextTranslator(model_name)
+    pipeline_mock = CaptureOptionsFakeTranslationPipeline()
+    translator._translation_pipeline = pipeline_mock
+    source_text = " ".join(["feature"] * 300)
+
+    # Act
+    translator.translate(source_text, Locale("pt-BR"))
+
+    # Assert
+    assert pipeline_mock.calls[0][1]["max_new_tokens"] == expected_cap
+
+
+class MissingModuleImporter:
+    def __init__(self, missing_name: str) -> None:
+        self._missing_name = missing_name
+
+    def __call__(self, _name: str) -> ModuleType:
+        raise ModuleNotFoundError(
+            f"No module named {self._missing_name!r}",
+            name=self._missing_name,
+        )
+
+
+@pytest.mark.parametrize("missing_name", ["transformers", "torch"])
+def test_translate_names_transformers_extra_when_module_missing(
+    missing_name: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Arrange
+    monkeypatch.setattr(
+        transformers_text_translator,
+        "import_module",
+        MissingModuleImporter(missing_name),
+    )
+    translator = TransformersTextTranslator()
+
+    # Act / Assert
+    with pytest.raises(RuntimeError) as excinfo:
+        translator.translate("Hello world", Locale("pt-BR"))
+
+    assert f"'{missing_name}'" in str(excinfo.value)
+    assert "ssg-i18n-machine-translation[transformers]" in str(excinfo.value)
