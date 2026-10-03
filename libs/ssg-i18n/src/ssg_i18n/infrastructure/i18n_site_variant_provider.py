@@ -115,6 +115,10 @@ class I18nSiteVariantProvider(SiteVariantProvider):
         # so their rewrites stop retriggering the watcher on every rebuild.
         self._string_caches: dict[str, tuple[str, dict[str, str]]] = {}
         self._translated_files: dict[tuple[Path, str], tuple[str, str]] = {}
+        # A created machine translator can hold a loaded model; sharing one
+        # across locales and rebuilds avoids N-1 co-resident copies plus a
+        # reload on every rebuild that re-translates.
+        self._machine_text_translator: TextTranslator | None = None
 
     def variants(
         self, site: Site, context: BuildContext
@@ -372,7 +376,11 @@ class I18nSiteVariantProvider(SiteVariantProvider):
         if self._machine_text_translator_factory is None:
             return self._text_translator
 
-        return self._machine_text_translator_factory.create()
+        if self._machine_text_translator is None:
+            self._machine_text_translator = (
+                self._machine_text_translator_factory.create()
+            )
+        return self._machine_text_translator
 
     def _translation_catalog(
         self, site: Site, context: BuildContext, target_locale: Locale

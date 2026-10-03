@@ -218,6 +218,58 @@ def test_variants_does_not_recreate_the_translator_on_a_warm_rebuild(
     assert factory.creates == 1
 
 
+def test_variants_shares_one_machine_translator_across_non_default_locales(
+    tmp_path: Path,
+) -> None:
+    # Arrange — creating the machine translator can load a model, so one
+    # instance must serve every non-default locale, not one per locale.
+    collection = _write_collection(
+        tmp_path / "content", "coll0", (("a", "First words.\n"),)
+    )
+    factory = RecordingTextTranslatorFactory(RecordingTextTranslator({}))
+    provider = I18nSiteVariantProvider(
+        InMemoryTextTranslator({}),
+        machine_text_translator_factory=factory,
+    )
+    site = _make_site(
+        collection,
+        translation_mode="machine",
+        i18n_settings={"locales": "en,pt-BR,es"},
+    )
+
+    # Act
+    provider.variants(site, _make_context(tmp_path))
+
+    # Assert
+    assert factory.creates == 1
+
+
+def test_variants_reuses_the_machine_translator_on_a_rebuild_with_changes(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    collection = _write_collection(
+        tmp_path / "content", "coll0", (("a", "First words.\n"),)
+    )
+    factory = RecordingTextTranslatorFactory(RecordingTextTranslator({}))
+    provider = I18nSiteVariantProvider(
+        InMemoryTextTranslator({}),
+        machine_text_translator_factory=factory,
+    )
+    site = _make_site(collection, translation_mode="machine")
+    context = _make_context(tmp_path)
+    provider.variants(site, context)
+    assert factory.creates == 1
+
+    # Act — a changed source forces re-translation; the rebuild must not
+    # pay a fresh create() (a real factory reloads the model).
+    _write(collection.source_root, "a", "First words changed.\n")
+    provider.variants(site, context)
+
+    # Assert
+    assert factory.creates == 1
+
+
 def test_variants_retranslates_when_the_catalog_changes(
     tmp_path: Path,
 ) -> None:
