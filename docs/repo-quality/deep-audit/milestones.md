@@ -76,6 +76,8 @@
 
 - [ ] **AU-11** diagrams → **AU-12** videos domain+app → **AU-13** videos
   infra+cli → **AU-14** videos-linter (depends on videos).
+  (AU-11/AU-12/AU-13 done; 47 open gaps — S3×43, S4×4 — awaiting the
+  remediation step below.)
 - [ ] Remediate promoted S1+ gaps.
 
 ## MA-6 — ML workspace
