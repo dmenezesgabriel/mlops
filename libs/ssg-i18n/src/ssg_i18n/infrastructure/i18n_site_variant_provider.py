@@ -1,4 +1,6 @@
-from dataclasses import replace
+import hashlib
+from collections.abc import Callable
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Protocol
 
@@ -34,6 +36,41 @@ class TextTranslatorFactory(Protocol):
     def create(self) -> TextTranslator: ...
 
 
+def _catalog_fingerprint(catalog: TranslationCatalog) -> str:
+    items = (
+        *sorted(catalog.translations.items()),
+        *sorted(catalog.glossary_terms.items()),
+    )
+    return hashlib.sha256(repr(items).encode("utf-8")).hexdigest()
+
+
+@dataclass
+class _TranslationSession:
+    """One locale's state for a variants() call: a memoized string funnel and
+    a lazily resolved translator, so a fully cached rebuild never pays the
+    fallback factory (a machine model load) for work it will not do."""
+
+    locale: Locale
+    catalog_fingerprint: str
+    string_cache: dict[str, str]
+    resolver: Callable[[], TextTranslator]
+    _translator: TextTranslator | None = field(default=None, init=False)
+
+    def translate(self, source_text: str) -> str:
+        if not source_text:
+            return source_text
+        if source_text not in self.string_cache:
+            self.string_cache[source_text] = self.translator().translate(
+                source_text, self.locale
+            )
+        return self.string_cache[source_text]
+
+    def translator(self) -> TextTranslator:
+        if self._translator is None:
+            self._translator = self.resolver()
+        return self._translator
+
+
 class I18nSiteVariantProvider(SiteVariantProvider):
     """Concrete SiteVariantProvider that produces one site variant per locale.
 
@@ -51,6 +88,12 @@ class I18nSiteVariantProvider(SiteVariantProvider):
         self._text_translator = text_translator
         self._catalog_repository = catalog_repository
         self._machine_text_translator_factory = machine_text_translator_factory
+        # Preview rebuilds re-call variants() on this same provider (cli.py
+        # closes one builder over every on_change). The caches let unchanged
+        # pages skip re-translation and keep generated-file mtimes stable,
+        # so their rewrites stop retriggering the watcher on every rebuild.
+        self._string_caches: dict[str, tuple[str, dict[str, str]]] = {}
+        self._translated_files: dict[tuple[Path, str], tuple[str, str]] = {}
 
     def variants(
         self, site: Site, context: BuildContext
@@ -89,27 +132,49 @@ class I18nSiteVariantProvider(SiteVariantProvider):
                 site, locale=locale.tag, default_locale=default_locale.tag
             )
 
-        text_translator = self._text_translator_for(site, context, locale)
+        session = self._translation_session(site, context, locale)
         return Site(
-            title=self._translate(site.title, locale, text_translator),
-            description=self._translate(
-                site.description, locale, text_translator
-            ),
+            title=session.translate(site.title),
+            description=session.translate(site.description),
             collections=tuple(
-                self._localized_collection(
-                    collection, site, context, locale, text_translator
+                self._localized_collection(collection, site, context, session)
+                for collection in site.selected_collections(
+                    context.collection_name
                 )
-                for collection in site.collections
             ),
             locale=locale.tag,
             default_locale=default_locale.tag,
-            extensions=self._localized_extensions(
-                site, locale, text_translator
+            extensions=self._localized_extensions(site, session),
+        )
+
+    def _translation_session(
+        self, site: Site, context: BuildContext, locale: Locale
+    ) -> _TranslationSession:
+        catalog = self._translation_catalog(site, context, locale)
+        catalog_fingerprint = _catalog_fingerprint(catalog)
+        return _TranslationSession(
+            locale=locale,
+            catalog_fingerprint=catalog_fingerprint,
+            string_cache=self._string_cache_for(
+                locale.tag, catalog_fingerprint
+            ),
+            resolver=lambda: CatalogFirstTextTranslator(
+                catalog, self._fallback_text_translator(site)
             ),
         )
 
+    def _string_cache_for(
+        self, locale_tag: str, catalog_fingerprint: str
+    ) -> dict[str, str]:
+        cached = self._string_caches.get(locale_tag)
+        if cached is not None and cached[0] == catalog_fingerprint:
+            return cached[1]
+        cache: dict[str, str] = {}
+        self._string_caches[locale_tag] = (catalog_fingerprint, cache)
+        return cache
+
     def _localized_extensions(
-        self, site: Site, locale: Locale, text_translator: TextTranslator
+        self, site: Site, session: _TranslationSession
     ) -> dict[str, dict[str, str]]:
         extensions = {
             name: dict(settings)
@@ -117,9 +182,7 @@ class I18nSiteVariantProvider(SiteVariantProvider):
         }
         i18n_settings = dict(extensions.get("i18n", {}))
         for setting_name, source_text in self._ui_label_sources().items():
-            i18n_settings[setting_name] = self._translate(
-                source_text, locale, text_translator
-            )
+            i18n_settings[setting_name] = session.translate(source_text)
 
         extensions["i18n"] = i18n_settings
         return extensions
@@ -145,18 +208,15 @@ class I18nSiteVariantProvider(SiteVariantProvider):
         collection: ContentCollection,
         site: Site,
         context: BuildContext,
-        locale: Locale,
-        text_translator: TextTranslator,
+        session: _TranslationSession,
     ) -> ContentCollection:
         return ContentCollection(
             name=collection.name,
-            title=self._translate(collection.title, locale, text_translator),
+            title=session.translate(collection.title),
             source_root=collection.source_root,
             output_slug=collection.output_slug,
             pages=tuple(
-                self._localized_page(
-                    collection, site, page, context, locale, text_translator
-                )
+                self._localized_page(collection, site, page, context, session)
                 for page in collection.pages
             ),
             videos=collection.videos,
@@ -169,23 +229,41 @@ class I18nSiteVariantProvider(SiteVariantProvider):
         site: Site,
         page: Page,
         context: BuildContext,
-        locale: Locale,
-        text_translator: TextTranslator,
+        session: _TranslationSession,
     ) -> Page:
         source_path = page.source_path
         if source_path.suffix in {".md", ".ipynb"}:
             source_path = self._translated_source_path(
-                collection, site, page, context, locale
+                collection, site, page, context, session.locale
             )
-            DocumentTranslator(text_translator).translate_file(
-                page.source_path, source_path, locale
+            self._ensure_translated_file(
+                page.source_path, source_path, session
             )
 
         return Page(
             slug=page.slug,
-            title=self._translate(page.title, locale, text_translator),
+            title=session.translate(page.title),
             source_path=source_path,
         )
+
+    def _ensure_translated_file(
+        self,
+        source_path: Path,
+        output_path: Path,
+        session: _TranslationSession,
+    ) -> None:
+        source_hash = hashlib.sha256(source_path.read_bytes()).hexdigest()
+        cache_key = (source_path, session.locale.tag)
+        fingerprint = (session.catalog_fingerprint, source_hash)
+        if (
+            self._translated_files.get(cache_key) == fingerprint
+            and output_path.exists()
+        ):
+            return
+        DocumentTranslator(session.translator()).translate_file(
+            source_path, output_path, session.locale
+        )
+        self._translated_files[cache_key] = fingerprint
 
     def _translated_source_path(
         self,
@@ -233,13 +311,6 @@ class I18nSiteVariantProvider(SiteVariantProvider):
         )
         return LocaleSet(default_locale=default_locale, locales=locales)
 
-    def _text_translator_for(
-        self, site: Site, context: BuildContext, target_locale: Locale
-    ) -> TextTranslator:
-        catalog = self._translation_catalog(site, context, target_locale)
-        fallback_translator = self._fallback_text_translator(site)
-        return CatalogFirstTextTranslator(catalog, fallback_translator)
-
     def _fallback_text_translator(self, site: Site) -> TextTranslator:
         translation_mode = site.extension_setting(
             "i18n", "translation_mode", "manual"
@@ -267,14 +338,3 @@ class I18nSiteVariantProvider(SiteVariantProvider):
             return self._catalog_repository.load(catalog_path)
 
         return EMPTY_TRANSLATION_CATALOG
-
-    def _translate(
-        self,
-        source_text: str,
-        target_locale: Locale,
-        text_translator: TextTranslator,
-    ) -> str:
-        if not source_text:
-            return source_text
-
-        return text_translator.translate(source_text, target_locale)
