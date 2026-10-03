@@ -290,6 +290,39 @@ def test_variants_compiles_the_glossary_pattern_once_per_build(
     assert len(glossary_compiles) == 1
 
 
+def test_variants_applies_yaml_catalog_to_span_bearing_source_sentences(
+    tmp_path: Path,
+) -> None:
+    # Arrange — catalog keys are authored source sentences; inline-code
+    # spans must not force authors to write generated marker text.
+    collection = _write_collection(
+        tmp_path / "content",
+        "coll0",
+        (("a", "Use `MLflow` for tracking.\n"),),
+    )
+    catalog_path = tmp_path / "site" / "i18n" / "pt-BR.yaml"
+    catalog_path.parent.mkdir(parents=True)
+    catalog_path.write_text(
+        "translations:\n"
+        '  "Use `MLflow` for tracking.": "Use MLflow para rastreamento."\n',
+        encoding="utf-8",
+    )
+    provider = I18nSiteVariantProvider(
+        RecordingTextTranslator({}),
+        catalog_repository=YamlTranslationCatalogRepository(),
+    )
+
+    # Act
+    provider.variants(_make_site(collection), _make_context(tmp_path))
+
+    # Assert
+    generated = _generated_page(tmp_path, "coll0", "a")
+    assert (
+        generated.read_text(encoding="utf-8")
+        == "Use MLflow para rastreamento.\n"
+    )
+
+
 def test_variants_regenerates_a_deleted_output(tmp_path: Path) -> None:
     # Arrange
     collection = _write_collection(

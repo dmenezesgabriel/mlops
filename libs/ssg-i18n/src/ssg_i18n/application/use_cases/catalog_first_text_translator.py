@@ -24,6 +24,9 @@ class CatalogFirstTextTranslator:
     def glossary_terms(self) -> dict[str, str]:
         return self.catalog.glossary_terms
 
+    def catalog_translation_for(self, source_text: str) -> str | None:
+        return self.catalog.translation_for(source_text)
+
     def translate(self, source_text: str, target_locale: Locale) -> str:
         manual_translation = self.catalog.translation_for(source_text)
         if manual_translation is not None:

@@ -30,8 +30,47 @@ class _GlossaryAwareStubTranslator:
     def glossary_terms(self) -> dict[str, str]:
         return self._glossary_terms
 
+    def catalog_translation_for(self, source_text: str) -> str | None:
+        return self._translations.get(source_text)
+
     def translate(self, source_text: str, target_locale: Locale) -> str:
         return self._translations.get(source_text, source_text)
+
+
+class _EchoTranslator:
+    """TextTranslator fake returning its input — exercises marker restore."""
+
+    def translate(self, source_text: str, target_locale: Locale) -> str:
+        return source_text
+
+
+class _RecordingFallbackTranslator:
+    """TextTranslator fake recording translate() inputs; echoes the source."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def translate(self, source_text: str, target_locale: Locale) -> str:
+        self.calls.append(source_text)
+        return source_text
+
+
+class _TrailingProseTranslator:
+    """Echoes the sentence with a trailing 'TR 9' — ordinary MT prose."""
+
+    def translate(self, source_text: str, target_locale: Locale) -> str:
+        return source_text + " com TR 9"
+
+
+class _MarkerDroppingTranslator:
+    """Machine-translation fake that drops every protection marker."""
+
+    def translate(self, source_text: str, target_locale: Locale) -> str:
+        return "cauda traduzida"
+
+
+def _fixed_marker_token() -> str:
+    return "0123456789abcdef"
 
 
 class TestDocumentTranslator:
@@ -73,9 +112,13 @@ class TestDocumentTranslator:
         # the contract is the port, not CatalogFirstTextTranslator.
         stub = _GlossaryAwareStubTranslator(
             glossary_terms={"Zebraterm": "Termozebra"},
-            translations={"Use TR0 here.": "Use TR0 aqui."},
+            translations={
+                "Use TR0X0123456789abcdef here.": "Use TR0X0123456789abcdef aqui."
+            },
         )
-        translator = DocumentTranslator(stub)
+        translator = DocumentTranslator(
+            stub, marker_token_factory=_fixed_marker_token
+        )
         result = translator.translate_markdown_source(
             "Use Zebraterm here.\n", Locale("pt-BR")
         )
@@ -96,9 +139,12 @@ class TestDocumentTranslator:
                 "machine learning": "aprendizado de maquina",
             },
         )
-        fallback = InMemoryTextTranslator({"TR0 works.": "TR0 funciona."})
+        fallback = InMemoryTextTranslator(
+            {"TR0X0123456789abcdef works.": "TR0X0123456789abcdef funciona."}
+        )
         translator = DocumentTranslator(
-            CatalogFirstTextTranslator(catalog, fallback)
+            CatalogFirstTextTranslator(catalog, fallback),
+            marker_token_factory=_fixed_marker_token,
         )
         result = translator.translate_markdown_source(
             "Machine learning works.\n", Locale("pt-BR")
@@ -143,3 +189,100 @@ class TestDocumentTranslator:
             "Batch Skript laeuft.\n", Locale("de")
         )
         assert result == "Batch Skript laeuft.\n"
+
+    def test_literal_marker_text_in_source_is_not_collided(self) -> None:
+        # "TR0" can be a legitimate acronym — protection markers are
+        # unguessable so authored literals survive restore untouched.
+        translator = DocumentTranslator(text_translator=_EchoTranslator())
+        result = translator.translate_markdown_source(
+            "TR0 is a real acronym. Use `code` now.\n", Locale("pt-BR")
+        )
+        assert result == "TR0 is a real acronym. Use `code` now.\n"
+
+    def test_literal_mathexpr_text_survives_math_protection(self) -> None:
+        translator = DocumentTranslator(text_translator=_EchoTranslator())
+        result = translator.translate_markdown_source(
+            "The MATHEXPR0 label and $x<y$ math.\n", Locale("pt-BR")
+        )
+        assert result == "The MATHEXPR0 label and $x<y$ math.\n"
+
+    def test_tr_n_prose_is_not_rewritten_by_marker_heal(self) -> None:
+        # "TR 9" is ordinary prose, not a mangled marker — heal may only
+        # normalize copies of markers this sentence actually placed.
+        translator = DocumentTranslator(
+            text_translator=_TrailingProseTranslator()
+        )
+        result = translator.translate_markdown_source(
+            "Use `code` now.\n", Locale("pt-BR")
+        )
+        assert result == "Use `code` now. com TR 9\n"
+
+    def test_dropped_marker_falls_back_without_prepend_duplicate(
+        self,
+    ) -> None:
+        translator = DocumentTranslator(
+            text_translator=_MarkerDroppingTranslator()
+        )
+        result = translator.translate_markdown_source(
+            "**bold** tail\n", Locale("pt-BR")
+        )
+        assert result == "**cauda traduzida** tail\n"
+
+    def test_catalog_lookup_uses_source_sentence_not_marker_text(
+        self,
+    ) -> None:
+        catalog = TranslationCatalog(
+            translations={
+                "Use `MLflow` for tracking.": "Use MLflow para rastreamento."
+            },
+            glossary_terms={},
+        )
+        fallback = _RecordingFallbackTranslator()
+        translator = DocumentTranslator(
+            CatalogFirstTextTranslator(catalog, fallback)
+        )
+        result = translator.translate_markdown_source(
+            "Use `MLflow` for tracking.\n", Locale("pt-BR")
+        )
+        assert result == "Use MLflow para rastreamento.\n"
+        assert fallback.calls == []
+
+    def test_catalog_hit_is_independent_of_protected_span_count(
+        self,
+    ) -> None:
+        catalog = TranslationCatalog(
+            translations={
+                "Rely on `MLflow` and `DuckDB` here.": (
+                    "Confie em MLflow e DuckDB aqui."
+                )
+            },
+            glossary_terms={},
+        )
+        fallback = _RecordingFallbackTranslator()
+        translator = DocumentTranslator(
+            CatalogFirstTextTranslator(catalog, fallback)
+        )
+        result = translator.translate_markdown_source(
+            "Rely on `MLflow` and `DuckDB` here.\n", Locale("pt-BR")
+        )
+        assert result == "Confie em MLflow e DuckDB aqui.\n"
+        assert fallback.calls == []
+
+    def test_catalog_lookup_restores_math_markers_in_source_key(
+        self,
+    ) -> None:
+        catalog = TranslationCatalog(
+            translations={
+                "The score is $R^2$ today.": "O escore é $R^2$ hoje."
+            },
+            glossary_terms={},
+        )
+        fallback = _RecordingFallbackTranslator()
+        translator = DocumentTranslator(
+            CatalogFirstTextTranslator(catalog, fallback)
+        )
+        result = translator.translate_markdown_source(
+            "The score is $R^2$ today.\n", Locale("pt-BR")
+        )
+        assert result == "O escore é $R^2$ hoje.\n"
+        assert fallback.calls == []

@@ -28,7 +28,7 @@ class TerminologyMapper:
             return f"{new_article}{new_tag} {name}"
 
         text = re.sub(
-            r"\b([Oo])\s+(@[a-zA-Z0-9_-]+|TR\d+|champion)\s+[Aa]lias\b",
+            r"\b([Oo])\s+(@[a-zA-Z0-9_-]+|TR\d+(?:X[0-9a-fA-F]+)?|champion)\s+[Aa]lias\b",
             replace_alias_with_o,
             text,
         )
@@ -44,7 +44,7 @@ class TerminologyMapper:
             return f"{new_article}{new_tag} {name}"
 
         text = re.sub(
-            r"\b([Oo])\s+[Aa]lias\s+(@[a-zA-Z0-9_-]+|TR\d+|champion)\b",
+            r"\b([Oo])\s+[Aa]lias\s+(@[a-zA-Z0-9_-]+|TR\d+(?:X[0-9a-fA-F]+)?|champion)\b",
             replace_o_alias,
             text,
         )
@@ -58,7 +58,7 @@ class TerminologyMapper:
             return f"{new_article}{new_tag} {name}"
 
         text = re.sub(
-            r"\b([Uu]m)\s+[Aa]lias\s+(@[a-zA-Z0-9_-]+|TR\d+|champion)\b",
+            r"\b([Uu]m)\s+[Aa]lias\s+(@[a-zA-Z0-9_-]+|TR\d+(?:X[0-9a-fA-F]+)?|champion)\b",
             replace_um_alias,
             text,
         )
@@ -72,20 +72,20 @@ class TerminologyMapper:
             return f"{new_prep}{new_tag} {name}"
 
         text = re.sub(
-            r"\b([Dd]o)\s+[Aa]lias\s+(@[a-zA-Z0-9_-]+|TR\d+|champion)\b",
+            r"\b([Dd]o)\s+[Aa]lias\s+(@[a-zA-Z0-9_-]+|TR\d+(?:X[0-9a-fA-F]+)?|champion)\b",
             replace_do_alias,
             text,
         )
 
         # Matches: 'name Alias' -> 'tag name'
         text = re.sub(
-            r"\b(@[a-zA-Z0-9_-]+|TR\d+|champion)\s+[Aa]lias\b",
+            r"\b(@[a-zA-Z0-9_-]+|TR\d+(?:X[0-9a-fA-F]+)?|champion)\s+[Aa]lias\b",
             r"tag \1",
             text,
         )
         # Matches: 'Alias name' -> 'tag name'
         text = re.sub(
-            r"\b[Aa]lias\s+(@[a-zA-Z0-9_-]+|TR\d+|champion)\b",
+            r"\b[Aa]lias\s+(@[a-zA-Z0-9_-]+|TR\d+(?:X[0-9a-fA-F]+)?|champion)\b",
             r"tag \1",
             text,
         )

@@ -1,4 +1,6 @@
+import functools
 import hashlib
+import secrets
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -44,6 +46,9 @@ def _catalog_fingerprint(catalog: TranslationCatalog) -> str:
     return hashlib.sha256(repr(items).encode("utf-8")).hexdigest()
 
 
+_DEFAULT_MARKER_TOKEN_FACTORY = functools.partial(secrets.token_hex, 8)
+
+
 @dataclass
 class _TranslationSession:
     """One locale's state for a variants() call: a memoized string funnel and
@@ -54,6 +59,7 @@ class _TranslationSession:
     catalog_fingerprint: str
     string_cache: dict[str, str]
     resolver: Callable[[], TextTranslator]
+    marker_token_factory: Callable[[], str]
     _translator: TextTranslator | None = field(default=None, init=False)
     _document_translator: DocumentTranslator | None = field(
         default=None, init=False
@@ -75,7 +81,10 @@ class _TranslationSession:
 
     def document_translator(self) -> DocumentTranslator:
         if self._document_translator is None:
-            self._document_translator = DocumentTranslator(self.translator())
+            self._document_translator = DocumentTranslator(
+                self.translator(),
+                marker_token_factory=self.marker_token_factory,
+            )
         return self._document_translator
 
 
@@ -92,10 +101,14 @@ class I18nSiteVariantProvider(SiteVariantProvider):
         text_translator: TextTranslator,
         catalog_repository: TranslationCatalogRepository | None = None,
         machine_text_translator_factory: TextTranslatorFactory | None = None,
+        marker_token_factory: Callable[[], str] = (
+            _DEFAULT_MARKER_TOKEN_FACTORY
+        ),
     ) -> None:
         self._text_translator = text_translator
         self._catalog_repository = catalog_repository
         self._machine_text_translator_factory = machine_text_translator_factory
+        self._marker_token_factory = marker_token_factory
         # Preview rebuilds re-call variants() on this same provider (cli.py
         # closes one builder over every on_change). The caches let unchanged
         # pages skip re-translation and keep generated-file mtimes stable,
@@ -169,6 +182,7 @@ class I18nSiteVariantProvider(SiteVariantProvider):
             resolver=lambda: CatalogFirstTextTranslator(
                 catalog, self._fallback_text_translator(site)
             ),
+            marker_token_factory=self._marker_token_factory,
         )
 
     def _string_cache_for(

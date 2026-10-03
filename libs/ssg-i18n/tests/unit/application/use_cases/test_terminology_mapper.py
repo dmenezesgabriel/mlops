@@ -35,3 +35,10 @@ class TestTerminologyMapper:
         assert mapper.map_text("Batch Inferência", Locale("fr")) == (
             "Batch Inferência"
         )
+
+    def test_alias_rules_apply_to_suffixed_protection_markers(self) -> None:
+        # Markers are TR{n}X{hex} — the alias grammar rules still apply
+        # before restore, where translated text carries them verbatim.
+        mapper = TerminologyMapper()
+        result = mapper.map_text("o alias TR0X0123456789abcdef", PT_BR)
+        assert result == "a tag TR0X0123456789abcdef"

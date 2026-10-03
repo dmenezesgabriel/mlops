@@ -33,8 +33,10 @@ def test_i18n_build_composes_with_content_and_html_extensions(
             "Sample Collection": "Colecao de Exemplo",
             "Overview": "Visao Geral",
             "Notebook": "Caderno",
-            "Use TR0 for tracking.": "Use TR0 para rastreamento.",
-            "Run TR0 after validation.": ("Execute TR0 apos a validacao."),
+            "Use TR0X0123456789abcdef for tracking.": "Use TR0X0123456789abcdef para rastreamento.",
+            "Run TR0X0123456789abcdef after validation.": (
+                "Execute TR0X0123456789abcdef apos a validacao."
+            ),
         }
     )
     from ssg.infrastructure.html_article_outline_builder import (
@@ -52,7 +54,9 @@ def test_i18n_build_composes_with_content_and_html_extensions(
         ),
         html_post_processors=(create_pygments_html_post_processor(),),
         page_renderer=JinjaPageRenderer(),
-        site_variant_provider=I18nSiteVariantProvider(translator),
+        site_variant_provider=I18nSiteVariantProvider(
+            translator, marker_token_factory=lambda: "0123456789abcdef"
+        ),
         article_outline_builder=HtmlArticleOutlineBuilder(),
         dependency_tracker=InMemoryDependencyTracker(),
     )

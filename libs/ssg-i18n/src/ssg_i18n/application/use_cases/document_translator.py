@@ -7,7 +7,8 @@
 # introspects token nodes via getattr.
 import json
 import re
-from collections.abc import Iterable
+import secrets
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -77,8 +78,14 @@ class _CustomMarkdownRenderer(MarkdownRenderer):
             self.in_list_loose = old_loose
 
 
+_MATH_MARKER_REGEX = r"MATHEXPR\d+X[0-9a-fA-F]+"
+# The MATHEXPR arm deliberately has no \b before it: markers glued to a
+# preceding token ("hour:TR1MATHEXPR1") must still be protected. The hex
+# suffix makes an authored literal unable to match, so \b buys nothing.
 _PROTECTED_PATTERN = re.compile(
-    r"(\{\{.*?\}\}|\{\%.*?\}\}|\$\$.*?\$\$|(?<!\$)\$[^\$\s](?:[^\$]*?[^\$\s])?\$(?!\d)|https?://\S+|\bMATHEXPR\d+\b)",
+    r"(\{\{.*?\}\}|\{\%.*?\}\}|\$\$.*?\$\$|(?<!\$)\$[^\$\s](?:[^\$]*?[^\$\s])?\$(?!\d)|https?://\S+|"
+    + _MATH_MARKER_REGEX
+    + ")",
     re.DOTALL,
 )
 _WIKILINK_PATTERN = re.compile(r"\[\[([a-zA-Z0-9_-]+)(?:\|([^\]]+))?\]\]")
@@ -101,6 +108,18 @@ _LEAF_BLOCK_NAMES = (
     "TableCell",
     "SetextHeading",
 )
+
+
+def _default_marker_token() -> str:
+    return secrets.token_hex(8)
+
+
+def _heal_mangled_marker(translated: str, marker: str) -> str:
+    tolerant = re.compile(
+        r"\b" + r"\s*".join(re.escape(char) for char in marker) + r"\b",
+        re.IGNORECASE,
+    )
+    return tolerant.sub(marker, translated)
 
 
 def _reference_definition_lines(
@@ -151,6 +170,7 @@ class DocumentTranslator:
 
     text_translator: TextTranslator
     terminology_mapper: TerminologyMapper = TerminologyMapper()
+    marker_token_factory: Callable[[], str] = _default_marker_token
     _glossary_protection: _GlossaryProtection | None = field(
         init=False, default=None, repr=False, compare=False
     )
@@ -229,12 +249,13 @@ class DocumentTranslator:
         if not source.strip():
             return source
 
-        math_expressions: list[str] = []
+        math_map: dict[str, str] = {}
 
         def protect_math(match: re.Match[str]) -> str:
-            expr = match.group(0)
-            placeholder = f"MATHEXPR{len(math_expressions)}"
-            math_expressions.append(expr)
+            placeholder = (
+                f"MATHEXPR{len(math_map)}X{self.marker_token_factory()}"
+            )
+            math_map[placeholder] = match.group(0)
             return placeholder
 
         math_pattern = re.compile(
@@ -250,14 +271,13 @@ class DocumentTranslator:
             # parsing (block_token.py:158-160) — re-point it at this doc.
             token._root_node = doc
             try:
-                self._translate_block(doc, target_locale, renderer)
+                self._translate_block(doc, target_locale, renderer, math_map)
                 translated = renderer.render(doc)
             finally:
                 token._root_node = None
 
         translated_str = str(translated)
-        for i, expr in reversed(list(enumerate(math_expressions))):
-            placeholder = f"MATHEXPR{i}"
+        for placeholder, expr in math_map.items():
             translated_str = translated_str.replace(placeholder, expr)
 
         # Reference definitions parse into doc.footnotes, not the AST, so
@@ -276,6 +296,7 @@ class DocumentTranslator:
         node: object,
         target_locale: Locale,
         renderer: _CustomMarkdownRenderer,
+        math_map: dict[str, str],
     ) -> None:
         class_name = node.__class__.__name__
         children = getattr(node, "children", None)
@@ -284,22 +305,29 @@ class DocumentTranslator:
         if class_name in _CONTAINER_BLOCK_NAMES:
             header = getattr(node, "header", None)
             if class_name == "Table" and header is not None:
-                self._translate_block(header, target_locale, renderer)
-            self._translate_children(children, target_locale, renderer)
+                self._translate_block(
+                    header, target_locale, renderer, math_map
+                )
+            self._translate_children(
+                children, target_locale, renderer, math_map
+            )
             return
         if class_name in _LEAF_BLOCK_NAMES:
-            self._translate_container(node, children, target_locale, renderer)
+            self._translate_container(
+                node, children, target_locale, renderer, math_map
+            )
             return
-        self._translate_children(children, target_locale, renderer)
+        self._translate_children(children, target_locale, renderer, math_map)
 
     def _translate_children(
         self,
         children: list[object],
         target_locale: Locale,
         renderer: _CustomMarkdownRenderer,
+        math_map: dict[str, str],
     ) -> None:
         for child in children:
-            self._translate_block(child, target_locale, renderer)
+            self._translate_block(child, target_locale, renderer, math_map)
 
     def _translate_container(
         self,
@@ -307,11 +335,14 @@ class DocumentTranslator:
         children: list[object],
         target_locale: Locale,
         renderer: _CustomMarkdownRenderer,
+        math_map: dict[str, str],
     ) -> None:
         setattr(  # noqa: B010
             node,
             "children",
-            self._translate_inline_children(children, target_locale, renderer),
+            self._translate_inline_children(
+                children, target_locale, renderer, math_map
+            ),
         )
 
     def _translate_inline_children(
@@ -319,10 +350,14 @@ class DocumentTranslator:
         children: list[object],
         target_locale: Locale,
         renderer: _CustomMarkdownRenderer,
+        math_map: dict[str, str],
     ) -> list[object]:
+        cataloged = self._catalog_translation(children, renderer, math_map)
+        if cataloged is not None:
+            return list(span_token.tokenize_inner(cataloged))
         protected_parts: dict[str, str] = {}
         english = self._translate_inline_nodes(
-            children, target_locale, protected_parts, renderer
+            children, target_locale, protected_parts, renderer, math_map
         )
         english = self._protect_and_translate_raw_text(
             english, protected_parts, target_locale
@@ -331,11 +366,53 @@ class DocumentTranslator:
         if not english.strip():
             return children
         translated = self.text_translator.translate(english, target_locale)
-        translated = self._normalize_and_heal_markers(translated, english)
+        translated = self._normalize_and_heal_markers(
+            translated, protected_parts
+        )
         finalized = self._restore_and_postprocess(
             translated, english, protected_parts, target_locale
         )
         return list(span_token.tokenize_inner(finalized))
+
+    def _catalog_translation(
+        self,
+        children: list[object],
+        renderer: _CustomMarkdownRenderer,
+        math_map: dict[str, str],
+    ) -> str | None:
+        # Catalog keys are the authored sentence, so the lookup runs
+        # before protection markers exist — an author never writes TRnX.
+        if not isinstance(self.text_translator, CatalogAwareTextTranslator):
+            return None
+        source_sentence = self._source_sentence(children, renderer, math_map)
+        if not source_sentence.strip():
+            return None
+        return self.text_translator.catalog_translation_for(source_sentence)
+
+    def _source_sentence(
+        self,
+        children: list[object],
+        renderer: _CustomMarkdownRenderer,
+        math_map: dict[str, str],
+    ) -> str:
+        parts = [
+            self._render_token_for_catalog_key(child, renderer)
+            for child in children
+        ]
+        sentence = "".join(parts)
+        for placeholder, expr in math_map.items():
+            sentence = sentence.replace(placeholder, expr)
+        return sentence
+
+    def _render_token_for_catalog_key(
+        self, child: object, renderer: _CustomMarkdownRenderer
+    ) -> str:
+        name = child.__class__.__name__
+        if name == "RawText":
+            return str(getattr(child, "content", ""))
+        if name == "LineBreak":
+            return "\n"
+        return renderer.render(child).rstrip("\n")  # type: ignore[arg-type]
 
     def _get_glossary_terms(self) -> dict[str, str]:
         if not isinstance(self.text_translator, CatalogAwareTextTranslator):
@@ -355,30 +432,30 @@ class DocumentTranslator:
             replacement = protection.replacements.get(match.group(0).lower())
             if replacement is None:
                 return match.group(0)
-            marker = f"TR{len(protected_parts)}"
+            marker = self._new_marker(protected_parts)
             protected_parts[marker] = replacement
             return marker
 
         return protection.pattern.sub(replace_term, sentence)
 
+    def _new_marker(self, protected_parts: dict[str, str]) -> str:
+        # Markers carry an unguessable token so authored text like "TR0"
+        # can neither collide with a marker nor be healed into one.
+        return f"TR{len(protected_parts)}X{self.marker_token_factory()}"
+
     def _normalize_and_heal_markers(
         self,
         translated: str,
-        original: str,
+        protected_parts: dict[str, str],
     ) -> str:
-        # Heal case and space variations of TR{index} markers, e.g. "tr 0", "Tr0" -> "TR0"
-        normalized = re.sub(
-            r"\b[Tt][Rr]\s*(\d+)\b",
-            lambda m: f"TR{m.group(1)}",
-            translated,
-        )
-        leading_match = re.match(r"^(TR\d+)(:?\s*)", original)
-        if not leading_match:
-            return normalized
-        marker = leading_match.group(1)
-        if marker in normalized:
-            return normalized
-        return marker + leading_match.group(2) + normalized
+        # Heal case/space-mangled copies of markers this sentence actually
+        # placed — never pattern-match prose ("TR 9" stays literal). A
+        # dropped marker falls back to the source sentence downstream.
+        for marker in protected_parts:
+            if marker in translated:
+                continue
+            translated = _heal_mangled_marker(translated, marker)
+        return translated
 
     def _restore_and_postprocess(
         self,
@@ -403,12 +480,17 @@ class DocumentTranslator:
         target_locale: Locale,
         protected_parts: dict[str, str],
         renderer: _CustomMarkdownRenderer,
+        math_map: dict[str, str],
     ) -> str:
         parts = []
         for child in tokens:
             parts.append(
                 self._render_token_in_sentence(
-                    child, target_locale, protected_parts, renderer
+                    child,
+                    target_locale,
+                    protected_parts,
+                    renderer,
+                    math_map,
                 )
             )
         return "".join(parts)
@@ -419,17 +501,18 @@ class DocumentTranslator:
         target_locale: Locale,
         protected_parts: dict[str, str],
         renderer: _CustomMarkdownRenderer,
+        math_map: dict[str, str],
     ) -> str:
         name = child.__class__.__name__
         if name == "RawText":
             return str(getattr(child, "content", ""))
         if name in ("Strong", "Emphasis"):
             return self._translate_and_protect_styled(
-                child, target_locale, protected_parts, renderer
+                child, target_locale, protected_parts, renderer, math_map
             )
         if name == "Link":
             return self._translate_and_protect_link(
-                child, target_locale, protected_parts, renderer
+                child, target_locale, protected_parts, renderer, math_map
             )
         if name in ("InlineCode", "LineBreak"):
             return self._protect_node(child, protected_parts, renderer)
@@ -441,17 +524,18 @@ class DocumentTranslator:
         target_locale: Locale,
         protected_parts: dict[str, str],
         renderer: _CustomMarkdownRenderer,
+        math_map: dict[str, str],
     ) -> str:
         original_children = getattr(node, "children", None)
         if original_children is None:
             original_children = []
         translated_children = self._translate_inline_children(
-            original_children, target_locale, renderer
+            original_children, target_locale, renderer, math_map
         )
         setattr(node, "children", translated_children)  # noqa: B010
         rendered = renderer.render(node).rstrip("\n")  # type: ignore[arg-type]
         setattr(node, "children", original_children)  # noqa: B010
-        marker = f"TR{len(protected_parts)}"
+        marker = self._new_marker(protected_parts)
         protected_parts[marker] = rendered
         return marker
 
@@ -461,12 +545,13 @@ class DocumentTranslator:
         target_locale: Locale,
         protected_parts: dict[str, str],
         renderer: _CustomMarkdownRenderer,
+        math_map: dict[str, str],
     ) -> str:
         children = getattr(link, "children", None)
         if children is None:
             children = []
         label = self._translate_inline_nodes(
-            children, target_locale, protected_parts, renderer
+            children, target_locale, protected_parts, renderer, math_map
         )
         original = children
         setattr(link, "children", [span_token.RawText(label)])  # noqa: B010
@@ -483,7 +568,7 @@ class DocumentTranslator:
         rendered = renderer.render(node)  # type: ignore[arg-type]
         if node.__class__.__name__ != "LineBreak" and rendered.endswith("\n"):
             rendered = rendered.rstrip("\n")
-        marker = f"TR{len(protected_parts)}"
+        marker = self._new_marker(protected_parts)
         protected_parts[marker] = rendered
         return marker
 
@@ -505,7 +590,7 @@ class DocumentTranslator:
                     label, target_locale
                 )
                 reconstructed = f"[[{target}|{translated}]]"
-            marker = f"TR{len(protected_parts)}"
+            marker = self._new_marker(protected_parts)
             protected_parts[marker] = reconstructed
             return marker
 
@@ -515,7 +600,7 @@ class DocumentTranslator:
         self, text: str, protected_parts: dict[str, str]
     ) -> str:
         def replace_protected(match: re.Match[str]) -> str:
-            marker = f"TR{len(protected_parts)}"
+            marker = self._new_marker(protected_parts)
             protected_parts[marker] = match.group(0)
             return marker
 

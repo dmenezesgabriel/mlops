@@ -3,11 +3,19 @@ from ssg_i18n.application.translation import InMemoryTextTranslator
 from ssg_i18n.domain.locale import Locale
 
 PT_BR = Locale("pt-BR")
+_MARKER_TOKEN = "0123456789abcdef"
+
+
+def _fixed_marker_token() -> str:
+    return _MARKER_TOKEN
 
 
 def _make_translator(mappings: dict[str, str]) -> DocumentTranslator:
     """Build a DocumentTranslator backed by an in-memory lookup table."""
-    return DocumentTranslator(InMemoryTextTranslator(mappings))
+    return DocumentTranslator(
+        InMemoryTextTranslator(mappings),
+        marker_token_factory=_fixed_marker_token,
+    )
 
 
 def test_translate_preserves_bold_in_nested_list_item() -> None:
@@ -15,7 +23,7 @@ def test_translate_preserves_bold_in_nested_list_item() -> None:
     translator = _make_translator(
         {
             "Overestimating Demand (False Positives)": "Superestimando a Demanda (Positivos Falsos)",
-            "TR0:": "TR0:",
+            "TR0X0123456789abcdef:": "TR0X0123456789abcdef:",
         }
     )
     result = translator.translate_markdown_source(source, PT_BR)
@@ -27,8 +35,8 @@ def test_translate_preserves_italic_inline_formatting() -> None:
     translator = _make_translator(
         {
             "before": "antes",
-            "By predicting demand TR0 the ride requests occur.": (
-                "Ao prever a demanda TR0 que os pedidos de carona ocorram."
+            "By predicting demand TR0X0123456789abcdef the ride requests occur.": (
+                "Ao prever a demanda TR0X0123456789abcdef que os pedidos de carona ocorram."
             ),
         }
     )
@@ -51,7 +59,7 @@ def test_translate_preserves_italic_in_nested_list_item() -> None:
     translator = _make_translator(
         {
             "Operational Consequence": "Consequência Operacional",
-            "TR0: Drivers are routed.": "TR0: Os motoristas são encaminhados.",
+            "TR0X0123456789abcdef: Drivers are routed.": "TR0X0123456789abcdef: Os motoristas são encaminhados.",
         }
     )
     result = translator.translate_markdown_source(source, PT_BR)
@@ -67,7 +75,7 @@ def test_translate_preserves_both_bold_and_italic_in_same_line() -> None:
         {
             "DuckDB": "DuckDB",
             "analytics": "análise",
-            "Use TR0 for TR1.": "Use TR0 para TR1.",
+            "Use TR0X0123456789abcdef for TR1X0123456789abcdef.": "Use TR0X0123456789abcdef para TR1X0123456789abcdef.",
         }
     )
     result = translator.translate_markdown_source(source, PT_BR)
@@ -79,7 +87,7 @@ def test_translate_preserves_bold_in_top_level_list_item() -> None:
     translator = _make_translator(
         {
             "Target": "Target",
-            "TR0: Predict the pickup count.": "TR0: Preveja a contagem de embarques.",
+            "TR0X0123456789abcdef: Predict the pickup count.": "TR0X0123456789abcdef: Preveja a contagem de embarques.",
         }
     )
     result = translator.translate_markdown_source(source, PT_BR)
@@ -92,7 +100,7 @@ def test_translate_falls_back_to_english_source_when_bold_marker_dropped() -> (
     # If the MT model drops a glossary placeholder, fallback is triggered
     source = "Avoid **Feast** here.\n"
     translator = _make_translator(
-        {"Avoid TR0 here.": "Evite aqui sem o marcador."}
+        {"Avoid TR0X0123456789abcdef here.": "Evite aqui sem o marcador."}
     )
     # Mock catalog has Feast: Feast in glossary
     from ssg_i18n.application.translation import CatalogFirstTextTranslator
@@ -100,7 +108,8 @@ def test_translate_falls_back_to_english_source_when_bold_marker_dropped() -> (
 
     catalog = TranslationCatalog({}, {"Feast": "Feast"})
     doc_translator = DocumentTranslator(
-        CatalogFirstTextTranslator(catalog, translator.text_translator)
+        CatalogFirstTextTranslator(catalog, translator.text_translator),
+        marker_token_factory=_fixed_marker_token,
     )
     result = doc_translator.translate_markdown_source(source, PT_BR)
     assert result == "Avoid **Feast** here.\n"
@@ -112,7 +121,7 @@ def test_translate_preserves_jinja_expressions_and_translates_surrounding_text()
     source = 'Below is the core implementation:\n{{ include_source("script.py") }}\n'
     translator = _make_translator(
         {
-            "Below is the core implementation:TR0TR1": "Abaixo está a implementação principal:TR0TR1"
+            "Below is the core implementation:TR0X0123456789abcdefTR1X0123456789abcdef": "Abaixo está a implementação principal:TR0X0123456789abcdefTR1X0123456789abcdef"
         }
     )
     result = translator.translate_markdown_source(source, PT_BR)
@@ -124,7 +133,9 @@ def test_translate_preserves_jinja_expressions_and_translates_surrounding_text()
 
 def test_translate_preserves_math_expressions_with_underscores() -> None:
     source = "$$R^2 = 1 - \\frac{\\sum_{i=1}^n (y_i - \\hat{y}_i)^2}{\\sum_{i=1}^n (y_i - \\bar{y})^2}$$\n"
-    translator = _make_translator({"TR0": "TR0"})
+    translator = _make_translator(
+        {"TR0X0123456789abcdef": "TR0X0123456789abcdef"}
+    )
     result = translator.translate_markdown_source(source, PT_BR)
     assert (
         result
@@ -151,7 +162,9 @@ def test_translate_table_header_cells() -> None:
 
 def test_translate_preserves_reference_style_link() -> None:
     source = "See [x][r] now.\n\n[r]: /dest\n"
-    translator = _make_translator({"See TR0 now.": "Veja TR0 agora."})
+    translator = _make_translator(
+        {"See TR0X0123456789abcdef now.": "Veja TR0X0123456789abcdef agora."}
+    )
     result = translator.translate_markdown_source(source, PT_BR)
     assert result == "Veja [x][r] agora.\n\n[r]: /dest\n"
 

@@ -10,6 +10,12 @@ from ssg_i18n.infrastructure.yaml_translation_catalog_repository import (
     YamlTranslationCatalogRepository,
 )
 
+_MARKER_TOKEN = "0123456789abcdef"
+
+
+def _fixed_marker_token() -> str:
+    return _MARKER_TOKEN
+
 
 def test_variants_create_localized_site_and_translated_sources(
     tmp_path: Path,
@@ -48,7 +54,7 @@ def test_variants_create_localized_site_and_translated_sources(
             "Build machine learning systems.": "Construa sistemas de machine learning.",
             "Sample Collection": "Colecao de Exemplo",
             "Overview": "Visao Geral",
-            "Use TR0 for tracking.": "Use TR0 para rastreamento.",
+            "Use TR0X0123456789abcdef for tracking.": "Use TR0X0123456789abcdef para rastreamento.",
         }
     )
     context = BuildContext(
@@ -59,7 +65,9 @@ def test_variants_create_localized_site_and_translated_sources(
     )
 
     # Act
-    variants = I18nSiteVariantProvider(translator).variants(site, context)
+    variants = I18nSiteVariantProvider(
+        translator, marker_token_factory=_fixed_marker_token
+    ).variants(site, context)
 
     # Assert
     english_variant, portuguese_variant = variants
@@ -127,7 +135,7 @@ def test_variants_translate_notebook_markdown_cells_without_code_cells(
     translator = InMemoryTextTranslator(
         {
             "Feature Engineering": "Engenharia de Features",
-            "Run TR0 after validation.": "Execute TR0 apos a validacao.",
+            "Run TR0X0123456789abcdef after validation.": "Execute TR0X0123456789abcdef apos a validacao.",
             "Learning Site": "Site de Aprendizado",
             "Notebook": "Caderno",
             "Sample Collection": "Colecao de Exemplo",
@@ -138,7 +146,9 @@ def test_variants_translate_notebook_markdown_cells_without_code_cells(
     )
 
     # Act
-    variants = I18nSiteVariantProvider(translator).variants(site, context)
+    variants = I18nSiteVariantProvider(
+        translator, marker_token_factory=_fixed_marker_token
+    ).variants(site, context)
 
     # Assert
     translated_path = variants[1].site.collections[0].pages[0].source_path
@@ -178,14 +188,16 @@ def test_variants_fall_back_to_source_text_when_machine_translation_drops_code_m
         extensions={"i18n": {"default_locale": "en", "locales": "en,pt-BR"}},
     )
     translator = InMemoryTextTranslator(
-        {"Use TR0 for tracking.": "Traducao sem marcador"}
+        {"Use TR0X0123456789abcdef for tracking.": "Traducao sem marcador"}
     )
     context = BuildContext(
         tmp_path / "site.yaml", tmp_path / "build", None, "test"
     )
 
     # Act
-    variants = I18nSiteVariantProvider(translator).variants(site, context)
+    variants = I18nSiteVariantProvider(
+        translator, marker_token_factory=_fixed_marker_token
+    ).variants(site, context)
 
     # Assert
     translated_path = variants[1].site.collections[0].pages[0].source_path
@@ -221,7 +233,7 @@ def test_variants_translate_wikilink_labels_while_preserving_targets(
     translator = InMemoryTextTranslator(
         {
             "Overview": "Visao Geral",
-            "See TR0.": "Veja TR0.",
+            "See TR0X0123456789abcdef.": "Veja TR0X0123456789abcdef.",
         }
     )
     context = BuildContext(
@@ -229,7 +241,9 @@ def test_variants_translate_wikilink_labels_while_preserving_targets(
     )
 
     # Act
-    variants = I18nSiteVariantProvider(translator).variants(site, context)
+    variants = I18nSiteVariantProvider(
+        translator, marker_token_factory=_fixed_marker_token
+    ).variants(site, context)
 
     # Assert
     translated_path = variants[1].site.collections[0].pages[0].source_path
@@ -266,7 +280,7 @@ def test_variants_protects_entire_wikilink_from_machine_translation(
     translator = InMemoryTextTranslator(
         {
             "Overview": "Visão Geral",
-            "See TR0.": "Veja TR0.",
+            "See TR0X0123456789abcdef.": "Veja TR0X0123456789abcdef.",
         }
     )
     context = BuildContext(
@@ -274,7 +288,9 @@ def test_variants_protects_entire_wikilink_from_machine_translation(
     )
 
     # Act
-    variants = I18nSiteVariantProvider(translator).variants(site, context)
+    variants = I18nSiteVariantProvider(
+        translator, marker_token_factory=_fixed_marker_token
+    ).variants(site, context)
 
     # Assert
     translated_path = variants[1].site.collections[0].pages[0].source_path
@@ -313,8 +329,8 @@ def test_variants_preserves_latex_expressions_in_machine_translation(
     # The translator expects the protected LaTeX markers:
     translator = InMemoryTextTranslator(
         {
-            "Optimize over strength TR0 using TR1.": (
-                "Otimize sobre a forca TR0 usando TR1."
+            "Optimize over strength TR0X0123456789abcdef using TR1X0123456789abcdef.": (
+                "Otimize sobre a forca TR0X0123456789abcdef usando TR1X0123456789abcdef."
             )
         }
     )
@@ -323,7 +339,9 @@ def test_variants_preserves_latex_expressions_in_machine_translation(
     )
 
     # Act
-    variants = I18nSiteVariantProvider(translator).variants(site, context)
+    variants = I18nSiteVariantProvider(
+        translator, marker_token_factory=_fixed_marker_token
+    ).variants(site, context)
 
     # Assert
     translated_path = variants[1].site.collections[0].pages[0].source_path
@@ -371,8 +389,8 @@ def test_variants_uses_catalog_glossary_to_protect_and_translate_technical_terms
     # The fallback translator expects the protected markers:
     fallback_translator = InMemoryTextTranslator(
         {
-            "We use TR0 for features and a TR1 for tracking.": (
-                "Usamos TR0 para features e um TR1 para rastreamento."
+            "We use TR0X0123456789abcdef for features and a TR1X0123456789abcdef for tracking.": (
+                "Usamos TR0X0123456789abcdef para features e um TR1X0123456789abcdef para rastreamento."
             )
         }
     )
@@ -385,6 +403,7 @@ def test_variants_uses_catalog_glossary_to_protect_and_translate_technical_terms
         fallback_translator,
         catalog_repository=YamlTranslationCatalogRepository(),
         machine_text_translator_factory=None,
+        marker_token_factory=_fixed_marker_token,
     ).variants(site, context)
 
     # Assert
@@ -424,8 +443,8 @@ def test_variants_restores_mutated_markers_from_machine_translation(
     # The translator returns the markers with mutated casing, spacing, and missing braces:
     translator = InMemoryTextTranslator(
         {
-            "Optimize over strength TR0 using TR1.": (
-                "Otimize sobre a forca tr 0 usando Tr1."
+            "Optimize over strength TR0X0123456789abcdef using TR1X0123456789abcdef.": (
+                "Otimize sobre a forca tr 0x0123456789abcdef usando Tr1x0123456789abcdef."
             )
         }
     )
@@ -434,7 +453,9 @@ def test_variants_restores_mutated_markers_from_machine_translation(
     )
 
     # Act
-    variants = I18nSiteVariantProvider(translator).variants(site, context)
+    variants = I18nSiteVariantProvider(
+        translator, marker_token_factory=_fixed_marker_token
+    ).variants(site, context)
 
     # Assert
     translated_path = variants[1].site.collections[0].pages[0].source_path

@@ -46,3 +46,25 @@ class TestCatalogFirstTextTranslator:
             fallback_translator=InMemoryTextTranslator({}),
         )
         assert translator.glossary_terms == {"Deploy": "Implantar"}
+
+    def test_catalog_translation_for_returns_catalog_value(self) -> None:
+        catalog = TranslationCatalog(
+            translations={"Hello": "Olá"}, glossary_terms={}
+        )
+        translator = CatalogFirstTextTranslator(
+            catalog=catalog,
+            fallback_translator=InMemoryTextTranslator({}),
+        )
+        assert translator.catalog_translation_for("Hello") == "Olá"
+
+    def test_catalog_translation_for_miss_does_not_consult_fallback(
+        self,
+    ) -> None:
+        # The catalog-only lookup must not reach the machine fallback —
+        # DocumentTranslator uses it before inserting protection markers.
+        catalog = TranslationCatalog(translations={}, glossary_terms={})
+        fallback = InMemoryTextTranslator({"World": "Mundo"})
+        translator = CatalogFirstTextTranslator(
+            catalog=catalog, fallback_translator=fallback
+        )
+        assert translator.catalog_translation_for("World") is None
