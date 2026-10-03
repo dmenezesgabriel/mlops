@@ -1,6 +1,7 @@
 import sys
 from types import ModuleType
 
+import pytest
 from ssg_i18n.domain.locale import Locale
 from ssg_i18n_machine_translation.infrastructure.transformers_text_translator import (
     TransformersTextTranslator,
@@ -119,3 +120,58 @@ def test_translate_passes_flores_language_codes_to_nllb_pipeline() -> None:
             "tgt_lang": "spa_Latn",
         },
     )
+
+
+@pytest.mark.parametrize("target_tag", ["fr", "de"])
+def test_translate_rejects_target_locale_outside_the_model_pair(
+    target_tag: str,
+) -> None:
+    # Arrange
+    translator = TransformersTextTranslator()
+    translator._translation_pipeline = CaptureOptionsFakeTranslationPipeline()
+
+    # Act / Assert
+    with pytest.raises(
+        ValueError, match=f"cannot translate to locale '{target_tag}'"
+    ):
+        translator.translate("Hello world", Locale(target_tag))
+
+
+def test_translate_rejects_unmapped_flores_locale_on_nllb() -> None:
+    # Arrange
+    translator = TransformersTextTranslator("facebook/nllb-200-distilled-600M")
+    translator._translation_pipeline = CaptureOptionsFakeTranslationPipeline()
+
+    # Act / Assert
+    with pytest.raises(ValueError) as excinfo:
+        translator.translate("Hello world", Locale("nl"))
+
+    assert "'nl'" in str(excinfo.value)
+    assert "expected one of" in str(excinfo.value)
+
+
+def test_translate_serves_a_declared_target_language() -> None:
+    # Arrange
+    translator = TransformersTextTranslator(
+        "Helsinki-NLP/opus-mt-en-fr", target_languages=("fr",)
+    )
+    pipeline_mock = CaptureOptionsFakeTranslationPipeline()
+    translator._translation_pipeline = pipeline_mock
+
+    # Act
+    translated_text = translator.translate("Hello world", Locale("fr"))
+
+    # Assert
+    assert translated_text == "translated:Hello world"
+
+
+def test_translate_accepts_region_full_declared_target_language() -> None:
+    # Arrange
+    translator = TransformersTextTranslator(target_languages=("pt-BR",))
+    translator._translation_pipeline = CaptureOptionsFakeTranslationPipeline()
+
+    # Act
+    translated_text = translator.translate("Hello world", Locale("pt-BR"))
+
+    # Assert
+    assert translated_text == "translated:Hello world"

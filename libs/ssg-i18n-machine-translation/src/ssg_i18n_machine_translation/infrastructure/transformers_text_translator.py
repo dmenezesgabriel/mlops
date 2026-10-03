@@ -13,22 +13,34 @@ class TransformersModule(Protocol):
 
 class TransformersTextTranslator(TextTranslator):
     def __init__(
-        self, model_name: str = "Helsinki-NLP/opus-mt-tc-big-en-pt"
+        self,
+        model_name: str = "Helsinki-NLP/opus-mt-tc-big-en-pt",
+        target_languages: tuple[str, ...] = ("pt",),
     ) -> None:
+        # target_languages declares what a fixed-pair model (the Helsinki
+        # opus-mt-{src}-{tgt} convention) can produce — mirroring HF's
+        # MarianTokenizer.target_lang / supported_language_codes metadata —
+        # so a target_locale the model cannot serve fails loudly instead of
+        # publishing the wrong language. nllb models ignore it: their served
+        # set is the FLORES mapping in _flores_lang_code.
         self._model_name = model_name
+        self._target_languages = tuple(
+            language.lower().replace("_", "-") for language in target_languages
+        )
         self._translation_pipeline: Callable[..., object] | None = None
 
     def translate(self, source_text: str, target_locale: Locale) -> str:
+        # Refuse unservable locales before loading the model: the rejection
+        # must not depend on the transformers extra being installed.
+        target_lang_code = self._target_lang_code(target_locale)
         translation_pipeline = self._pipeline()
         generation_options: dict[str, object] = {
             "max_new_tokens": max(16, min(128, len(source_text.split()) * 4)),
             "no_repeat_ngram_size": 3,
         }
-        if "nllb" in self._model_name.lower():
+        if target_lang_code is not None:
             generation_options["src_lang"] = "eng_Latn"
-            generation_options["tgt_lang"] = self._flores_lang_code(
-                target_locale
-            )
+            generation_options["tgt_lang"] = target_lang_code
 
         result = translation_pipeline(
             source_text,
@@ -41,6 +53,31 @@ class TransformersTextTranslator(TextTranslator):
             return source_text
 
         return translated_text
+
+    def _target_lang_code(self, target_locale: Locale) -> str | None:
+        if "nllb" in self._model_name.lower():
+            return self._flores_lang_code(target_locale)
+        self._require_supported_target(target_locale)
+        return None
+
+    def _require_supported_target(self, target_locale: Locale) -> None:
+        normalized = target_locale.tag.lower().replace("_", "-")
+        prefix = normalized.split("-")[0]
+        if (
+            normalized in self._target_languages
+            or prefix in self._target_languages
+        ):
+            return
+
+        expected = ", ".join(
+            repr(language) for language in sorted(self._target_languages)
+        )
+        raise ValueError(
+            f"Model {self._model_name!r} cannot translate to locale "
+            f"{target_locale.tag!r}: expected one of {expected} "
+            "(the model's fixed target set — pass target_languages "
+            "matching the model's language pair)"
+        )
 
     def _flores_lang_code(self, locale: Locale) -> str:
         normalized = locale.tag.lower().replace("_", "-")
@@ -61,7 +98,10 @@ class TransformersTextTranslator(TextTranslator):
             return mapping[normalized]
         if prefix in mapping:
             return mapping[prefix]
-        return locale.tag
+        raise ValueError(
+            f"Model {self._model_name!r} has no FLORES code for locale "
+            f"{locale.tag!r}: expected one of {', '.join(sorted(mapping))}"
+        )
 
     def _pipeline(self) -> Callable[..., object]:
         if self._translation_pipeline is not None and callable(
