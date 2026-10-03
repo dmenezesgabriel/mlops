@@ -286,3 +286,110 @@ class TestDocumentTranslator:
         )
         assert result == "O escore é $R^2$ hoje.\n"
         assert fallback.calls == []
+
+    def test_link_label_is_translated_and_target_preserved(self) -> None:
+        translator = DocumentTranslator(
+            InMemoryTextTranslator(
+                {
+                    "the link text": "o texto do link",
+                    "A TR0X0123456789abcdef here.": (
+                        "Um TR0X0123456789abcdef aqui."
+                    ),
+                }
+            ),
+            marker_token_factory=_fixed_marker_token,
+        )
+        result = translator.translate_markdown_source(
+            "A [the link text](http://x) here.\n", Locale("pt-BR")
+        )
+        assert result == "Um [o texto do link](http://x) aqui.\n"
+
+    def test_image_syntax_is_protected_whole_not_sent_raw(self) -> None:
+        recorder = _RecordingFallbackTranslator()
+        result = DocumentTranslator(
+            recorder, marker_token_factory=_fixed_marker_token
+        ).translate_markdown_source(
+            "See ![the alt text](img.png) here.\n", Locale("pt-BR")
+        )
+        assert recorder.calls == ["See TR0X0123456789abcdef here."]
+        assert result == "See ![the alt text](img.png) here.\n"
+
+    def test_inline_html_tags_are_protected_not_sent_raw(self) -> None:
+        recorder = _RecordingFallbackTranslator()
+        result = DocumentTranslator(
+            recorder, marker_token_factory=_fixed_marker_token
+        ).translate_markdown_source(
+            "before <em>inline</em> after\n", Locale("pt-BR")
+        )
+        assert recorder.calls == [
+            "before TR0X0123456789abcdefinlineTR1X0123456789abcdef after"
+        ]
+        assert result == "before <em>inline</em> after\n"
+
+    def test_autolink_is_protected_whole_without_dangling_bracket(
+        self,
+    ) -> None:
+        recorder = _RecordingFallbackTranslator()
+        result = DocumentTranslator(
+            recorder, marker_token_factory=_fixed_marker_token
+        ).translate_markdown_source(
+            "Autolink <http://example.com> done.\n", Locale("pt-BR")
+        )
+        assert recorder.calls == ["Autolink TR0X0123456789abcdef done."]
+        assert result == "Autolink <http://example.com> done.\n"
+
+    def test_strikethrough_children_are_translated(self) -> None:
+        translator = DocumentTranslator(
+            InMemoryTextTranslator(
+                {
+                    "struck": "riscado",
+                    "Some TR0X0123456789abcdef text.": (
+                        "Algum TR0X0123456789abcdef texto."
+                    ),
+                }
+            ),
+            marker_token_factory=_fixed_marker_token,
+        )
+        result = translator.translate_markdown_source(
+            "Some ~~struck~~ text.\n", Locale("pt-BR")
+        )
+        assert result == "Algum ~~riscado~~ texto.\n"
+
+    def test_escape_sequence_is_protected_not_sent_raw(self) -> None:
+        recorder = _RecordingFallbackTranslator()
+        result = DocumentTranslator(
+            recorder, marker_token_factory=_fixed_marker_token
+        ).translate_markdown_source("An \\* escaped star.\n", Locale("pt-BR"))
+        assert recorder.calls == ["An TR0X0123456789abcdef escaped star."]
+        assert result == "An \\* escaped star.\n"
+
+    @pytest.mark.parametrize(
+        "entity",
+        ["&amp;copy;", "&amp;", "&#233;"],
+    )
+    def test_authored_entities_round_trip_verbatim(self, entity: str) -> None:
+        recorder = _RecordingFallbackTranslator()
+        result = DocumentTranslator(
+            recorder, marker_token_factory=_fixed_marker_token
+        ).translate_markdown_source(
+            f"The entity {entity} is text.\n", Locale("pt-BR")
+        )
+        assert recorder.calls == [f"The entity {entity} is text."]
+        assert result == f"The entity {entity} is text.\n"
+
+    def test_catalog_key_uses_authored_entity_text(self) -> None:
+        catalog = TranslationCatalog(
+            translations={
+                "The entity &amp;copy; is text.": "A entidade permanece."
+            },
+            glossary_terms={},
+        )
+        fallback = _RecordingFallbackTranslator()
+        translator = DocumentTranslator(
+            CatalogFirstTextTranslator(catalog, fallback)
+        )
+        result = translator.translate_markdown_source(
+            "The entity &amp;copy; is text.\n", Locale("pt-BR")
+        )
+        assert result == "A entidade permanece.\n"
+        assert fallback.calls == []

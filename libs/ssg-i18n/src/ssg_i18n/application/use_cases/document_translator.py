@@ -3,8 +3,9 @@
 # pyright: reportUnknownArgumentType=false
 # mistletoe is untyped and this module adapts its internals on purpose:
 # it patches block_token.remove_token/_token_types, dispatches through
-# renderer.render_map (max_line_length is a real runtime kwarg), and
-# introspects token nodes via getattr.
+# renderer.render_map (max_line_length is a real runtime kwarg),
+# introspects token nodes via getattr, and swaps the charref pattern
+# span_tokenizer installs for html.unescape.
 import json
 import re
 import secrets
@@ -13,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import mistletoe
-from mistletoe import block_token, span_token, token
+from mistletoe import block_token, span_token, span_tokenizer, token
 from mistletoe.markdown_renderer import MarkdownRenderer
 
 from ssg_i18n.application.ports.text_translator import (
@@ -36,6 +37,15 @@ def _safe_remove_token(token_cls: type) -> None:
 
 
 block_token.remove_token = _safe_remove_token
+
+# Authored entities must survive the parse→translate→re-render
+# round-trip verbatim: make_tokens decodes every fallback span through
+# html.unescape (span_tokenizer.py:81,89 — under tokenize()'s own
+# _charref swap), so "&amp;copy;" re-emitted "&copy;" which renders ©
+# where the author wrote text that displays "&copy;". A charref that
+# never matches turns unescape into a no-op inside tokenize() only —
+# and keeps entity escapes in link targets/titles verbatim too.
+span_tokenizer._markdown_charref = re.compile(r"(?!)")
 
 
 class _CustomMarkdownRenderer(MarkdownRenderer):
@@ -264,7 +274,16 @@ class DocumentTranslator:
         )
         source_protected = math_pattern.sub(protect_math, source)
 
-        doc = mistletoe.Document(source_protected)  # type: ignore
+        # Inline HTML must arrive as HtmlSpan tokens so the span dispatch
+        # can protect each tag whole; without it "<em>" sits inside
+        # RawText and reaches the translator as markup. (The re-tokenize
+        # below already runs with HtmlSpan active — the renderer's extras
+        # enable it inside `with`.)
+        span_token.add_token(span_token.HtmlSpan)
+        try:
+            doc = mistletoe.Document(source_protected)  # type: ignore
+        finally:
+            span_token.remove_token(span_token.HtmlSpan)
         with _CustomMarkdownRenderer() as renderer:
             # tokenize_inner resolves `[label][ref]` via
             # token._root_node.footnotes, which Document clears after
@@ -506,19 +525,22 @@ class DocumentTranslator:
         name = child.__class__.__name__
         if name == "RawText":
             return str(getattr(child, "content", ""))
-        if name in ("Strong", "Emphasis"):
-            return self._translate_and_protect_styled(
+        if name in ("Strong", "Emphasis", "Strikethrough", "Link"):
+            return self._translate_and_protect_children(
                 child, target_locale, protected_parts, renderer, math_map
             )
-        if name == "Link":
-            return self._translate_and_protect_link(
-                child, target_locale, protected_parts, renderer, math_map
-            )
-        if name in ("InlineCode", "LineBreak"):
+        if name in (
+            "InlineCode",
+            "LineBreak",
+            "Image",
+            "AutoLink",
+            "HtmlSpan",
+            "EscapeSequence",
+        ):
             return self._protect_node(child, protected_parts, renderer)
         return renderer.render(child).rstrip("\n")  # type: ignore[arg-type]
 
-    def _translate_and_protect_styled(
+    def _translate_and_protect_children(
         self,
         node: object,
         target_locale: Locale,
@@ -537,26 +559,6 @@ class DocumentTranslator:
         setattr(node, "children", original_children)  # noqa: B010
         marker = self._new_marker(protected_parts)
         protected_parts[marker] = rendered
-        return marker
-
-    def _translate_and_protect_link(
-        self,
-        link: object,
-        target_locale: Locale,
-        protected_parts: dict[str, str],
-        renderer: _CustomMarkdownRenderer,
-        math_map: dict[str, str],
-    ) -> str:
-        children = getattr(link, "children", None)
-        if children is None:
-            children = []
-        label = self._translate_inline_nodes(
-            children, target_locale, protected_parts, renderer, math_map
-        )
-        original = children
-        setattr(link, "children", [span_token.RawText(label)])  # noqa: B010
-        marker = self._protect_node(link, protected_parts, renderer)
-        setattr(link, "children", original)  # noqa: B010
         return marker
 
     def _protect_node(
