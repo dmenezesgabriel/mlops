@@ -1,3 +1,4 @@
+import json
 import re
 from pathlib import Path
 
@@ -393,3 +394,91 @@ class TestDocumentTranslator:
         )
         assert result == "A entidade permanece.\n"
         assert fallback.calls == []
+
+    def test_translate_file_rejects_non_object_notebook(
+        self, tmp_path: Path
+    ) -> None:
+        source = tmp_path / "list.ipynb"
+        source.write_text(json.dumps([1, 2]), encoding="utf-8")
+
+        with pytest.raises(ValueError, match="expected JSON object"):
+            DocumentTranslator(
+                text_translator=InMemoryTextTranslator({})
+            ).translate_file(source, tmp_path / "out.ipynb", Locale("pt-BR"))
+
+    @pytest.mark.parametrize(
+        "cell",
+        [
+            pytest.param(
+                {"cell_type": "markdown", "metadata": {}}, id="absent"
+            ),
+            pytest.param(
+                {"cell_type": "markdown", "metadata": {}, "source": None},
+                id="null",
+            ),
+            pytest.param(
+                {
+                    "cell_type": "markdown",
+                    "metadata": {},
+                    "source": {"a": 1},
+                },
+                id="dict",
+            ),
+            pytest.param(
+                {"cell_type": "markdown", "metadata": {}, "source": 42},
+                id="int",
+            ),
+            pytest.param(
+                {
+                    "cell_type": "markdown",
+                    "metadata": {},
+                    "source": ["ok", 5],
+                },
+                id="mixed-list",
+            ),
+        ],
+    )
+    def test_translate_notebook_rejects_malformed_markdown_source(
+        self, tmp_path: Path, cell: dict[str, object]
+    ) -> None:
+        source = tmp_path / "bad.ipynb"
+        source.write_text(
+            json.dumps({"cells": [cell], "metadata": {}, "nbformat": 4}),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="expected.*source"):
+            DocumentTranslator(
+                text_translator=InMemoryTextTranslator({})
+            ).translate_file(source, tmp_path / "out.ipynb", Locale("pt-BR"))
+
+    def test_translate_notebook_string_list_source(
+        self, tmp_path: Path
+    ) -> None:
+        source = tmp_path / "ok.ipynb"
+        source.write_text(
+            json.dumps(
+                {
+                    "cells": [
+                        {
+                            "cell_type": "markdown",
+                            "metadata": {},
+                            "source": ["Hello notebook."],
+                        }
+                    ],
+                    "metadata": {},
+                    "nbformat": 4,
+                }
+            ),
+            encoding="utf-8",
+        )
+        output = tmp_path / "out.ipynb"
+
+        DocumentTranslator(
+            text_translator=InMemoryTextTranslator(
+                {"Hello notebook.": "Ola caderno."}
+            )
+        ).translate_file(source, output, Locale("pt-BR"))
+
+        translated = json.loads(output.read_text(encoding="utf-8"))
+        assert translated["cells"][0]["source"] == "Ola caderno."

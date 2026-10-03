@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Protocol, runtime_checkable
 
 from ssg_i18n.domain.value_objects.locale import Locale
@@ -17,7 +18,7 @@ class CatalogAwareTextTranslator(TextTranslator, Protocol):
     """
 
     @property
-    def glossary_terms(self) -> dict[str, str]: ...
+    def glossary_terms(self) -> Mapping[str, str]: ...
 
     def catalog_translation_for(self, source_text: str) -> str | None:
         """Return the curated translation for a source sentence, or None.

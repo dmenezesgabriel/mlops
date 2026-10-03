@@ -49,6 +49,33 @@ class YamlTranslationCatalogRepository:
 
         mapping = cast(dict[object, object], value)
         return {
-            str(source_text): str(translated_text)
+            self._require_catalog_key(
+                source_text, key, catalog_path
+            ): self._require_catalog_value(
+                translated_text, source_text, key, catalog_path
+            )
             for source_text, translated_text in mapping.items()
         }
+
+    def _require_catalog_key(
+        self, key: object, section: str, catalog_path: Path
+    ) -> str:
+        if isinstance(key, str):
+            return key
+
+        raise ValueError(
+            f"Invalid i18n catalog {catalog_path}: expected string key "
+            f"in {section}, got {key!r} ({type(key).__name__})"
+        )
+
+    def _require_catalog_value(
+        self, value: object, key: object, section: str, catalog_path: Path
+    ) -> str:
+        if isinstance(value, str):
+            return value
+
+        raise ValueError(
+            f"Invalid i18n catalog {catalog_path}: expected string value "
+            f"for {key!r} in {section}, got {value!r} "
+            f"({type(value).__name__})"
+        )

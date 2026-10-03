@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from ssg_i18n.application.ports.text_translator import TextTranslator
@@ -21,7 +22,7 @@ class CatalogFirstTextTranslator:
     fallback_translator: TextTranslator
 
     @property
-    def glossary_terms(self) -> dict[str, str]:
+    def glossary_terms(self) -> Mapping[str, str]:
         return self.catalog.glossary_terms
 
     def catalog_translation_for(self, source_text: str) -> str | None:

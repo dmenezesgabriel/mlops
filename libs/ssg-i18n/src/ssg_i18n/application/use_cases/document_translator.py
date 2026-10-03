@@ -9,7 +9,7 @@
 import json
 import re
 import secrets
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -148,7 +148,7 @@ class _GlossaryProtection:
 
 
 def _glossary_protection_for(
-    terms: dict[str, str],
+    terms: Mapping[str, str],
 ) -> _GlossaryProtection | None:
     # Longest terms first so "machine learning" wins over "machine" inside
     # the single combined pass; one alternation compiled once per catalog.
@@ -219,6 +219,12 @@ class DocumentTranslator:
         self, source_path: Path, target_locale: Locale
     ) -> str:
         notebook = json.loads(source_path.read_text(encoding="utf-8"))
+        if not isinstance(notebook, dict):
+            raise ValueError(
+                f"Invalid notebook {source_path}: expected JSON object, "
+                f"got {type(notebook).__name__}"
+            )
+
         cells = notebook.get("cells", [])
         if not isinstance(cells, list):
             raise ValueError(
@@ -226,32 +232,41 @@ class DocumentTranslator:
             )
 
         notebook["cells"] = [
-            self._translate_notebook_cell(cell, target_locale)
+            self._translate_notebook_cell(cell, target_locale, source_path)
             for cell in cells
         ]
         return json.dumps(notebook, ensure_ascii=False, indent=2)
 
     def _translate_notebook_cell(
-        self, cell: object, target_locale: Locale
+        self, cell: object, target_locale: Locale, source_path: Path
     ) -> object:
         if not isinstance(cell, dict) or cell.get("cell_type") != "markdown":
             return cell
 
         translated_cell: dict[str, object] = dict(cell)
         translated_cell["source"] = self._translate_notebook_source(
-            cell.get("source"), target_locale
+            cell.get("source"), target_locale, source_path
         )
         return translated_cell
 
     def _translate_notebook_source(
-        self, source: object, target_locale: Locale
-    ) -> object:
-        if isinstance(source, list):
+        self, source: object, target_locale: Locale, source_path: Path
+    ) -> str:
+        if isinstance(source, str):
+            return self.translate_markdown_source(source, target_locale)
+
+        if isinstance(source, list) and all(
+            isinstance(line, str) for line in source
+        ):
             return self.translate_markdown_source(
-                "".join(str(line) for line in source), target_locale
+                "".join(source), target_locale
             )
 
-        return self.translate_markdown_source(str(source), target_locale)
+        raise ValueError(
+            f"Invalid notebook {source_path}: expected string or list of "
+            f"strings markdown cell source, got {source!r} "
+            f"({type(source).__name__})"
+        )
 
     def translate_markdown_source(
         self, source: str, target_locale: Locale
@@ -433,7 +448,7 @@ class DocumentTranslator:
             return "\n"
         return renderer.render(child).rstrip("\n")  # type: ignore[arg-type]
 
-    def _get_glossary_terms(self) -> dict[str, str]:
+    def _get_glossary_terms(self) -> Mapping[str, str]:
         if not isinstance(self.text_translator, CatalogAwareTextTranslator):
             return {}
         return self.text_translator.glossary_terms
