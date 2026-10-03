@@ -5,7 +5,9 @@
 # it patches block_token.remove_token/_token_types, dispatches through
 # renderer.render_map (max_line_length is a real runtime kwarg),
 # introspects token nodes via getattr, and swaps the charref pattern
-# span_tokenizer installs for html.unescape.
+# span_tokenizer installs for html.unescape. Because these surfaces are
+# private, pyproject pins mistletoe==1.5.1 — bump only with the drift
+# test (tests/unit/application/use_cases/test_mistletoe_drift.py).
 import json
 import re
 import secrets
@@ -29,11 +31,8 @@ _orig_remove_token = block_token.remove_token
 
 
 def _safe_remove_token(token_cls: type) -> None:
-    try:
-        if token_cls in block_token._token_types:
-            _orig_remove_token(token_cls)
-    except ValueError:
-        pass
+    if token_cls in block_token._token_types:
+        _orig_remove_token(token_cls)
 
 
 block_token.remove_token = _safe_remove_token

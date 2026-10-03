@@ -1,4 +1,4 @@
-from importlib.metadata import entry_points
+from importlib.metadata import EntryPoint, entry_points
 
 from ssg.application.ports import SiteVariantProvider
 
@@ -23,6 +23,26 @@ def create_i18n_site_variant_provider() -> SiteVariantProvider:
     )
 
 
+def _load_text_translator(entry_point: EntryPoint) -> TextTranslator:
+    """Instantiate the ssg_i18n.text_translators entry point: name →
+    zero-arg factory → port-conforming instance. Failures name the
+    entry point and group."""
+    try:
+        translator = entry_point.load()()
+    except Exception as exc:
+        raise RuntimeError(
+            f"Failed to load entry point {entry_point.name!r} "
+            f"in group 'ssg_i18n.text_translators': {exc}"
+        ) from exc
+    if not isinstance(translator, TextTranslator):
+        raise TypeError(
+            f"Invalid ssg_i18n.text_translators plugin "
+            f"{entry_point.name!r}: expected TextTranslator "
+            f"implementation, got {type(translator).__name__}"
+        )
+    return translator
+
+
 class EntryPointTextTranslatorFactory(TextTranslatorFactory):
     def create(self) -> TextTranslator:
         translator_entry_points = tuple(
@@ -32,14 +52,7 @@ class EntryPointTextTranslatorFactory(TextTranslatorFactory):
             return InMemoryTextTranslator({})
 
         if len(translator_entry_points) == 1:
-            loaded_translator = translator_entry_points[0].load()()
-            if isinstance(loaded_translator, TextTranslator):
-                return loaded_translator
-
-            raise TypeError(
-                f"Invalid i18n text translator {loaded_translator!r}: "
-                "expected TextTranslator implementation",
-            )
+            return _load_text_translator(translator_entry_points[0])
 
         translator_names = [
             entry_point.name for entry_point in translator_entry_points
