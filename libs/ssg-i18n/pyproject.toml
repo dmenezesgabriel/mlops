@@ -14,6 +14,12 @@ i18n = "ssg_i18n.infrastructure.plugin:create_i18n_site_variant_provider"
 [tool.uv.sources]
 ssg = { workspace = true }
 
+[tool.coverage.run]
+# bare `--cov` traces the editable `ssg` and plugin workspace dependencies;
+# those modules are covered by their own suites, so measure only this
+# package's code.
+source = ["src", "tests"]
+
 [tool.deptry.package_module_name_map]
 ssg = "ssg"
 ssg-i18n = "ssg_i18n"

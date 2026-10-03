@@ -22,6 +22,7 @@ class TestTextTranslatorProtocol:
     def test_stub_satisfies_protocol(self) -> None:
         # Runtime check that the protocol is satisfied structurally.
         assert isinstance(_StubTranslator(), TextTranslator)
+        assert _StubTranslator().translate("x", Locale("pt-BR")) == "x"
 
 
 class TestCatalogAwareTextTranslatorProtocol:

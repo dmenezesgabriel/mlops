@@ -363,6 +363,27 @@ def test_variants_keeps_author_i18n_label_overrides(tmp_path: Path) -> None:
     assert "Language" not in called_texts
 
 
+def test_variants_falls_back_to_injected_translator_in_machine_mode_without_factory(
+    tmp_path: Path,
+) -> None:
+    # Arrange — `machine` mode with no entry-point factory degrades to the
+    # provider's own translator instead of failing the build.
+    collection = _write_collection(
+        tmp_path / "content", "coll0", (("a", "Hello world.\n"),)
+    )
+    manual = RecordingTextTranslator({"Hello world.": "Olá mundo."})
+    provider = I18nSiteVariantProvider(manual)
+    site = _make_site(collection, translation_mode="machine")
+
+    # Act
+    provider.variants(site, _make_context(tmp_path))
+
+    # Assert
+    assert ("Hello world.", "pt-BR") in manual.calls
+    generated = _generated_page(tmp_path, "coll0", "a")
+    assert "Olá mundo." in generated.read_text(encoding="utf-8")
+
+
 def test_variants_rejects_unknown_translation_mode(tmp_path: Path) -> None:
     # Arrange
     collection = _write_collection(

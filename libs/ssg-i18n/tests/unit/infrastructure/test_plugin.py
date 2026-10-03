@@ -1,7 +1,14 @@
 import pytest
+from ssg.application.ports import SiteVariantProvider
 from ssg_i18n.domain.value_objects.locale import Locale
 from ssg_i18n.infrastructure import plugin
-from ssg_i18n.infrastructure.plugin import EntryPointTextTranslatorFactory
+from ssg_i18n.infrastructure.in_memory_text_translator import (
+    InMemoryTextTranslator,
+)
+from ssg_i18n.infrastructure.plugin import (
+    EntryPointTextTranslatorFactory,
+    create_i18n_site_variant_provider,
+)
 
 
 class FakeTextTranslator:
@@ -56,6 +63,52 @@ def test_create_returns_conforming_translator(
 
     # Assert
     assert isinstance(translator, FakeTextTranslator)
+    assert translator.translate("text", Locale("pt-BR")) == "text"
+
+
+def test_create_returns_in_memory_translator_without_entry_points(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    def fake_entry_points(
+        group: str,
+    ) -> tuple[FakeTranslatorEntryPoint, ...]:
+        return ()
+
+    monkeypatch.setattr(plugin, "entry_points", fake_entry_points)
+
+    # Act
+    translator = EntryPointTextTranslatorFactory().create()
+
+    # Assert
+    assert isinstance(translator, InMemoryTextTranslator)
+
+
+def test_create_rejects_multiple_translator_entry_points(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    def fake_entry_points(
+        group: str,
+    ) -> tuple[FakeTranslatorEntryPoint, NonConformingEntryPoint]:
+        return (FakeTranslatorEntryPoint(), NonConformingEntryPoint())
+
+    monkeypatch.setattr(plugin, "entry_points", fake_entry_points)
+
+    # Act / Assert
+    with pytest.raises(ValueError) as excinfo:
+        EntryPointTextTranslatorFactory().create()
+    assert "fake-translator" in str(excinfo.value)
+    assert "non-conforming-translator" in str(excinfo.value)
+    assert "at most one" in str(excinfo.value)
+
+
+def test_entry_point_factory_builds_conforming_provider() -> None:
+    # Act
+    provider = create_i18n_site_variant_provider()
+
+    # Assert
+    assert isinstance(provider, SiteVariantProvider)
 
 
 def test_create_wraps_entry_point_load_failure(

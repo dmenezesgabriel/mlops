@@ -62,3 +62,31 @@ def test_load_rejects_non_string_values(
 
     with pytest.raises(ValueError, match="expected string value"):
         YamlTranslationCatalogRepository().load(catalog_path)
+
+
+@pytest.mark.parametrize(
+    "manifest",
+    [
+        pytest.param("- just\n- a\n- list\n", id="list-manifest"),
+        pytest.param("just a string\n", id="scalar-manifest"),
+    ],
+)
+def test_load_rejects_non_mapping_manifest(
+    tmp_path: Path, manifest: str
+) -> None:
+    catalog_path = tmp_path / "pt-BR.yaml"
+    catalog_path.write_text(manifest, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="expected YAML mapping"):
+        YamlTranslationCatalogRepository().load(catalog_path)
+
+
+@pytest.mark.parametrize("section", ["translations", "glossary"])
+def test_load_rejects_non_mapping_section(
+    tmp_path: Path, section: str
+) -> None:
+    catalog_path = tmp_path / "pt-BR.yaml"
+    catalog_path.write_text(f"{section}: not-a-mapping\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match=f"expected {section} mapping"):
+        YamlTranslationCatalogRepository().load(catalog_path)

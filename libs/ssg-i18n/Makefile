@@ -15,7 +15,7 @@ test:
 	uv run pytest
 
 coverage:
-	uv run pytest --cov --cov-report=term-missing:skip-covered --cov-fail-under=75
+	uv run pytest --cov --cov-report=term-missing:skip-covered --cov-fail-under=95
 
 complexity:
 	tmp=$$(mktemp); \
