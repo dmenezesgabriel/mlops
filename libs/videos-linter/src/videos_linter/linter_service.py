@@ -6,6 +6,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+from videos.application.ports.linter import Linter
 from videos.domain.quality import RuleViolation
 
 Box = tuple[int, int, int, int]
@@ -53,6 +54,18 @@ def _frame_centroid(gray: np.ndarray) -> tuple[int, int] | None:
     return int(moments["m10"] / moments["m00"]), int(
         moments["m01"] / moments["m00"]
     )
+
+
+def _relative_luminance(mean_bgr: np.ndarray) -> float:
+    # WCAG 2.x contrast math runs on linear-light luminance: each sRGB
+    # channel must be linearized before the Rec. 709 coefficients, or the
+    # ratio lands ~3x too strict at the dark end and false-rejects
+    # AA-conformant pairs.
+    srgb = mean_bgr / 255.0
+    linear = np.where(
+        srgb <= 0.04045, srgb / 12.92, ((srgb + 0.055) / 1.055) ** 2.4
+    )
+    return float(0.0722 * linear[0] + 0.7152 * linear[1] + 0.2126 * linear[2])
 
 
 class ContrastChecker:
@@ -104,19 +117,8 @@ class ContrastChecker:
                 # phantom dark floor.
                 bg_mean = np.percentile(img.reshape(-1, 3), 5, axis=0)
 
-            fg_b, fg_g, fg_r = (
-                fg_mean[0] / 255.0,
-                fg_mean[1] / 255.0,
-                fg_mean[2] / 255.0,
-            )
-            bg_b, bg_g, bg_r = (
-                bg_mean[0] / 255.0,
-                bg_mean[1] / 255.0,
-                bg_mean[2] / 255.0,
-            )
-
-            l_fg = 0.2126 * fg_r + 0.7152 * fg_g + 0.0722 * fg_b
-            l_bg = 0.2126 * bg_r + 0.7152 * bg_g + 0.0722 * bg_b
+            l_fg = _relative_luminance(fg_mean)
+            l_bg = _relative_luminance(bg_mean)
 
             l_lightest = max(l_fg, l_bg)
             l_darkest = min(l_fg, l_bg)
@@ -488,7 +490,7 @@ class LinterError(RuntimeError):
     pass
 
 
-class LinterService:
+class LinterService(Linter):
     def __init__(
         self,
         contrast_checker: ContrastChecker | None = None,
@@ -502,17 +504,29 @@ class LinterService:
         self._motion_analyzer = motion_analyzer or VideoMotionAnalyzer()
 
     def verify_visuals(self, image_path: Path, scene_id: str) -> None:
+        labels: list[str] = []
+        suggestions: list[str] = []
         for checker, label in (
             (self._contrast_checker, "contrast issues"),
             (self._blur_detector, "blurriness"),
             (self._overlap_detector, "overlapping elements"),
         ):
             violations = checker.check_image(image_path, scene_id)
-            if violations:
-                raise LinterError(
-                    f"Visual Linter failed for scene {scene_id!r} due to {label}: "
-                    + "; ".join(v.suggestion for v in violations)
-                )
+            if not violations:
+                continue
+            labels.append(label)
+            for violation in violations:
+                # Every checker reports the same unreadable-image violation
+                # on a decode failure — emit each distinct suggestion once.
+                if violation.suggestion not in suggestions:
+                    suggestions.append(violation.suggestion)
+        if suggestions:
+            raise LinterError(
+                f"Visual Linter failed for scene {scene_id!r} due to "
+                + ", ".join(labels)
+                + ": "
+                + "; ".join(suggestions)
+            )
 
     def verify_video(self, video_path: Path, scene_id: str) -> None:
         violations = self._motion_analyzer.analyze_video(video_path, scene_id)

@@ -4,6 +4,8 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+import videos_linter
+from videos.application.ports.linter import Linter
 from videos.domain.quality import RuleViolation
 from videos_linter.linter_service import LinterError, LinterService
 
@@ -85,3 +87,54 @@ class TestLinterService:
         service = LinterService()
         with pytest.raises(LinterError, match="Could not analyze video"):
             service.verify_video(tmp_path / "missing.mp4", "scene_a")
+
+    def test_linter_service_implements_linter_port(self) -> None:
+        # The nominal base is what lets pyright verify signature
+        # conformance in-repo; the port is not @runtime_checkable, so
+        # issubclass() is unavailable and the MRO is asserted directly.
+        assert Linter in LinterService.__mro__
+
+    def test_package_ships_py_typed_marker(self) -> None:
+        package_dir = Path(videos_linter.__file__).parent
+        assert (package_dir / "py.typed").is_file()
+
+    def test_verify_visuals_reports_all_failing_checkers(self) -> None:
+        # Arrange — all three checkers fail; the error must carry every
+        # label and suggestion, not just the first failing checker's.
+        contrast = MagicMock()
+        contrast.check_image.return_value = [
+            RuleViolation(
+                scene_id="scene_a", rule="contrast", suggestion="Low contrast"
+            )
+        ]
+        blur = MagicMock()
+        blur.check_image.return_value = [
+            RuleViolation(
+                scene_id="scene_a", rule="blur", suggestion="Too blurry"
+            )
+        ]
+        overlap = MagicMock()
+        overlap.check_image.return_value = [
+            RuleViolation(
+                scene_id="scene_a",
+                rule="overlap",
+                suggestion="Elements overlap",
+            )
+        ]
+
+        service = LinterService(
+            contrast_checker=contrast,
+            blur_detector=blur,
+            overlap_detector=overlap,
+        )
+
+        # Act & Assert
+        with pytest.raises(LinterError) as exc_info:
+            service.verify_visuals(Path("dummy.png"), "scene_a")
+        message = str(exc_info.value)
+        assert "contrast issues" in message
+        assert "blurriness" in message
+        assert "overlapping elements" in message
+        assert "Low contrast" in message
+        assert "Too blurry" in message
+        assert "Elements overlap" in message

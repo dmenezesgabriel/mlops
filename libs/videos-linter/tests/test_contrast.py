@@ -78,4 +78,49 @@ class TestContrastChecker:
         violations = checker.check_image(img_path)
         assert len(violations) > 0
         assert "contrast" in violations[0].rule
-        assert float(violations[0].actual) < 4.5
+        # WCAG 2.x: gray-200 on gray-100 is ratio 3.54 — the raw-sRGB dot
+        # reported 1.89 (~2x too strict at mid-dark tones).
+        assert float(violations[0].actual) == pytest.approx(3.54, abs=0.05)
+
+    def test_passes_mid_gray_element_on_white(
+        self, temp_image_dir: Path
+    ) -> None:
+        # Gray-100 on white is WCAG ratio 5.92 — the un-linearized metric
+        # reported 2.37 and false-rejected conformant content.
+        img_path = _create_test_image(
+            temp_image_dir,
+            "mid_gray_on_white.png",
+            (255, 255, 255),
+            (100, 100, 100),
+        )
+        checker = ContrastChecker(min_ratio=4.5)
+        violations = checker.check_image(img_path)
+        assert len(violations) == 0
+
+    def test_reports_wcag_ratio_for_flagged_pair(
+        self, temp_image_dir: Path
+    ) -> None:
+        # Gray-150 on white: true WCAG 2.96 (un-linearized metric: 1.65).
+        img_path = _create_test_image(
+            temp_image_dir,
+            "flagged_pair.png",
+            (255, 255, 255),
+            (150, 150, 150),
+        )
+        checker = ContrastChecker(min_ratio=4.5)
+        violations = checker.check_image(img_path)
+        assert len(violations) > 0
+        assert float(violations[0].actual) == pytest.approx(2.96, abs=0.05)
+
+    def test_passes_wcag_aa_boundary_gray(self, temp_image_dir: Path) -> None:
+        # Gray-118 (~#767676) on white is the classic WCAG AA boundary at
+        # ratio ~4.54 — must pass un-linearized-metric-free.
+        img_path = _create_test_image(
+            temp_image_dir,
+            "aa_boundary.png",
+            (255, 255, 255),
+            (118, 118, 118),
+        )
+        checker = ContrastChecker(min_ratio=4.5)
+        violations = checker.check_image(img_path)
+        assert len(violations) == 0
