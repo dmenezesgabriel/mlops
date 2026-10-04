@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from videos.application.ports.renderer import RenderResult
+from videos.domain.value_objects.identifiers import require_quality
 from videos.infrastructure.manim._missing import require_manim
 
 if TYPE_CHECKING:
@@ -130,6 +131,7 @@ class ManimRenderer:
 
     @contextlib.contextmanager
     def quality_context(self, quality: str) -> Iterator[None]:
+        require_quality(quality)
         require_manim()
         with self._lock:
             from manim import config
@@ -139,7 +141,7 @@ class ManimRenderer:
             ) as tmp_dir:
                 tmp_path = Path(tmp_dir)
 
-                manim_quality = self.QUALITY_MAP.get(quality, "low_quality")
+                manim_quality = self.QUALITY_MAP[quality]
                 snapshot = {
                     attr: getattr(config, attr, None)
                     for attr in _MANIM_CONFIG_ATTRS
@@ -162,6 +164,7 @@ class ManimRenderer:
     def render(
         self, scene_job: Scene, output_path: Path, quality: str = "preview"
     ) -> RenderResult:
+        require_quality(quality)
         require_manim()
         start = time.monotonic()
         context_quality = self._context_quality
@@ -196,7 +199,7 @@ class ManimRenderer:
     ) -> RenderResult:
         from manim import config, tempconfig
 
-        manim_quality = self.QUALITY_MAP.get(quality, "low_quality")
+        manim_quality = self.QUALITY_MAP[quality]
 
         # Fallback if quality_context was not used: wrap manually
         with (

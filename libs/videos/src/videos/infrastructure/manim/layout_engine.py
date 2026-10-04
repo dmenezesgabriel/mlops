@@ -37,19 +37,20 @@ class ManimLayoutEngine:
         region_counts: dict[LayoutRegion, int] = {}
         for comp in scene.components:
             region = LayoutRegion(comp.region)
-            coords = self.REGION_MAP.get(
-                region, LayoutRegionCoordinates(0, 0, 0)
-            )
+            coords = self.REGION_MAP[region]
             count = region_counts.get(region, 0)
             region_counts[region] = count + 1
 
             new_props = dict(comp.props)
-            offset_y = coords.y - 0.8 * count
-            new_props["position"] = [
-                float(coords.x),
-                float(offset_y),
-                float(coords.z),
-            ]
+            # An author-supplied position wins — the engine only fills
+            # layout slots the author left open.
+            if "position" not in new_props:
+                offset_y = coords.y - 0.8 * count
+                new_props["position"] = [
+                    float(coords.x),
+                    float(offset_y),
+                    float(coords.z),
+                ]
 
             new_comp = ComponentSpec(
                 type=comp.type,

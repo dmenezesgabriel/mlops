@@ -60,36 +60,46 @@ def main() -> None:
     args = parser.parse_args()
 
     setup_structured_logging()
-    register_all(definitions_dir=args.definitions_dir)
+    # Fail fast with a named directory — register_all would otherwise
+    # silently register nothing and produce a misleading "Unknown concept"
+    # for every id.
+    if not args.definitions_dir.is_dir():
+        print(
+            f"Definitions directory not found: {args.definitions_dir}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
-    registry = ComponentRegistry()
-    register_default_components(registry)
-
-    renderer = ManimRenderer()
-    scene_builder = ManimSceneBuilder(registry=registry)
-    layout_engine = ManimLayoutEngine()
-    artifact_store = FileSystemArtifactStore(output_root=args.output_dir)
-    telemetry = ConsoleTelemetry()
     try:
-        from videos_linter.linter_service import (  # pyright: ignore[reportMissingTypeStubs]
-            LinterService as AdvancedLinter,
+        register_all(definitions_dir=args.definitions_dir)
+
+        registry = ComponentRegistry()
+        register_default_components(registry)
+
+        renderer = ManimRenderer()
+        scene_builder = ManimSceneBuilder(registry=registry)
+        layout_engine = ManimLayoutEngine()
+        artifact_store = FileSystemArtifactStore(output_root=args.output_dir)
+        telemetry = ConsoleTelemetry()
+        try:
+            from videos_linter.linter_service import (  # pyright: ignore[reportMissingTypeStubs]
+                LinterService as AdvancedLinter,
+            )
+
+            linter_service = AdvancedLinter()
+        except ImportError:
+            linter_service = LinterService()
+
+        director = Director(
+            concept_id=args.concept_id,
+            renderer=renderer,
+            scene_builder=scene_builder,
+            layout_engine=layout_engine,
+            artifact_store=artifact_store,
+            telemetry=telemetry,
+            linter_service=linter_service,
         )
 
-        linter_service = AdvancedLinter()
-    except ImportError:
-        linter_service = LinterService()
-
-    director = Director(
-        concept_id=args.concept_id,
-        renderer=renderer,
-        scene_builder=scene_builder,
-        layout_engine=layout_engine,
-        artifact_store=artifact_store,
-        telemetry=telemetry,
-        linter_service=linter_service,
-    )
-
-    try:
         director.produce(quality=args.quality)
         print(
             f"Successfully produced video for concept: {args.concept_id} (quality={args.quality})"

@@ -129,25 +129,68 @@ class TextComponent:
         return text
 
 
+_VALID_DIAGRAM_KINDS = ("cycle", "linear", "target")
+_DEFAULT_DIAGRAM_COLORS = [
+    "#4A90D9",
+    "#E67E22",
+    "#2ECC71",
+    "#E74C3C",
+    "#9B59B6",
+]
+
+
+def _require_kind(value: object) -> str:
+    if value not in _VALID_DIAGRAM_KINDS:
+        raise ValueError(
+            f"kind must be one of {_VALID_DIAGRAM_KINDS}, got {value!r}"
+        )
+    return cast(str, value)
+
+
+def _require_str_list(value: object, prop: str) -> list[str]:
+    # A bare string is itself a Sequence — it would silently fan out into
+    # per-character labels downstream, so it must be rejected first.
+    if isinstance(value, str) or not isinstance(value, Sequence):
+        raise ValueError(f"{prop} must be a list of str, got {value!r}")
+    items = list(value)
+    if not all(isinstance(item, str) for item in items):
+        raise ValueError(f"{prop} must be a list of str, got {value!r}")
+    return items
+
+
+def _require_int(value: object, prop: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{prop} must be an int, got {value!r}")
+    return value
+
+
+def _require_number(value: object, prop: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{prop} must be a number, got {value!r}")
+    return float(value)
+
+
 class DiagramComponent:
     def build(self, spec: ComponentSpec, scene: object) -> Any:
-        from manim import Scene, Write  # pyright: ignore[reportUnusedImport]
-
-        kind = str(spec.props.get("kind", "cycle"))
-        labels = cast(list[str], spec.props.get("labels", []))
-        colors = cast(
-            list[str],
-            spec.props.get(
-                "colors",
-                ["#4A90D9", "#E67E22", "#2ECC71", "#E74C3C", "#9B59B6"],
-            ),
+        # Validate before the optional manim import so malformed props fail
+        # with the offending value named, even where manim is absent.
+        kind = _require_kind(spec.props.get("kind", "cycle"))
+        labels = _require_str_list(spec.props.get("labels", []), "labels")
+        colors = _require_str_list(
+            spec.props.get("colors", _DEFAULT_DIAGRAM_COLORS), "colors"
         )
+        if not colors:
+            raise ValueError("colors must be a non-empty list of str, got []")
+        rings = _require_int(spec.props.get("rings", 4), "rings")
+        max_radius = _require_number(
+            spec.props.get("max_radius", 2.0), "max_radius"
+        )
+
+        from manim import Scene, Write  # pyright: ignore[reportUnusedImport]
 
         if kind == "linear":
             mobj = build_linear_nodes(cast(Scene, scene), labels, colors)
         elif kind == "target":
-            rings = int(cast(int, spec.props.get("rings", 4)))
-            max_radius = float(cast(float, spec.props.get("max_radius", 2.0)))
             mobj = create_target(
                 cast(Scene, scene), rings=rings, max_radius=max_radius
             )

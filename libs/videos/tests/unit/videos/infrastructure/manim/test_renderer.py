@@ -162,6 +162,23 @@ def test_quality_context_serializes_concurrent_renders(
     thread.join(timeout=5)
 
 
+def test_quality_context_rejects_unknown_quality(
+    fake_manim: FakeManim,
+) -> None:
+    with pytest.raises(ValueError, match="quality"):
+        with ManimRenderer().quality_context("bogus"):
+            pass
+
+
+def test_render_rejects_unknown_quality(
+    fake_manim: FakeManim, tmp_path: Path
+) -> None:
+    renderer = ManimRenderer()
+    scene = fake_manim.make_scene(files={"video/final.mp4": b"FINAL"})
+    with pytest.raises(ValueError, match="quality"):
+        renderer.render(scene, tmp_path / "out.mp4", quality="bogus")
+
+
 def test_quality_context_manim_absent_raises_named_error(
     manim_absent: None,
 ) -> None:

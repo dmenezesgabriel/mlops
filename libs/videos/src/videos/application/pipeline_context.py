@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from videos.domain.value_objects.identifiers import QualityLevel
+from videos.domain.value_objects.identifiers import require_quality
 
 if TYPE_CHECKING:
     from videos.application.ports.renderer import RenderResult
@@ -29,8 +29,4 @@ class PipelineContext:
         # Guard at the context boundary so both `produce` and a directly
         # constructed `execute(context)` reject a quality that would skip
         # the final-render branch and mislead at the artifact store.
-        valid = sorted(level.value for level in QualityLevel)
-        if self.quality not in valid:
-            raise ValueError(
-                f"quality must be one of {valid}, got {self.quality!r}"
-            )
+        require_quality(self.quality)

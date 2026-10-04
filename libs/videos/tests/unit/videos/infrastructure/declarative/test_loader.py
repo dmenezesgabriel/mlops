@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
 from videos.domain.concept import ConceptId
-from videos.infrastructure.declarative.loader import yaml_to_concept_extension
+from videos.infrastructure.declarative.loader import (
+    load_concept_from_yaml_file,
+    yaml_to_concept_extension,
+)
 
 SAMPLE_YAML = """
 concept:
@@ -70,3 +76,29 @@ class TestYamlToConceptExtension:
         ConceptRegistry.register(ext)
         retrieved = ConceptRegistry.get(ConceptId("test_concept"))
         assert retrieved is ext
+
+
+class TestYamlShapeValidation:
+    @pytest.mark.parametrize("bad_yaml", ["- a\n- b\n", "just text", "42"])
+    def test_rejects_non_mapping_yaml_root(self, bad_yaml: str) -> None:
+        with pytest.raises(ValueError, match="expected mapping"):
+            yaml_to_concept_extension(bad_yaml)
+
+    def test_load_file_wraps_shape_errors_with_path(
+        self, tmp_path: Path
+    ) -> None:
+        bad = tmp_path / "bad.yaml"
+        bad.write_text("- a\n- b\n")
+        with pytest.raises(ValueError) as excinfo:
+            load_concept_from_yaml_file(str(bad))
+        assert str(bad) in str(excinfo.value)
+        assert "expected mapping" in str(excinfo.value)
+
+    def test_load_file_wraps_parse_errors_with_path(
+        self, tmp_path: Path
+    ) -> None:
+        bad = tmp_path / "broken.yaml"
+        bad.write_text("concept: [unclosed")
+        with pytest.raises(ValueError) as excinfo:
+            load_concept_from_yaml_file(str(bad))
+        assert str(bad) in str(excinfo.value)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from videos.domain.concept import ConceptId
 from videos.domain.concept_registry import ConceptRegistry
 from videos.infrastructure.declarative import register_all
@@ -51,3 +52,15 @@ narrative:
 
         # Assert
         assert len(ConceptRegistry.all()) == 0
+
+    def test_register_all_fail_fast_names_bad_file(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — a malformed file aborts registration naming its path
+        ConceptRegistry._extensions.clear()
+        (tmp_path / "bad.yaml").write_text("- not\n- a\n- mapping\n")
+
+        # Act & Assert
+        with pytest.raises(ValueError) as excinfo:
+            register_all(definitions_dir=tmp_path)
+        assert "bad.yaml" in str(excinfo.value)

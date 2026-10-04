@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 
 from videos.domain._base import require_slug
+from videos.domain.value_objects.identifiers import require_quality
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,7 @@ class FileSystemArtifactStore:
         return dest
 
     def resolve_output_path(self, concept_id: str, quality: str) -> Path:
+        require_quality(quality)
         if quality == "final":
             return self._final_dir / self._concept_filename(concept_id)
         return self._preview_dir / self._concept_filename(concept_id)

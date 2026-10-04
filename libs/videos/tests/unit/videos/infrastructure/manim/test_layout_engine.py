@@ -74,3 +74,28 @@ class TestManimLayoutEngine:
         assert result.components[0].props["position"] == [0.0, 0.0, 0.0]
         assert result.components[1].props["position"] == [0.0, -0.8, 0.0]
         assert result.components[2].props["position"] == [0.0, -1.6, 0.0]
+
+    def test_apply_preserves_author_position(
+        self, engine: ManimLayoutEngine
+    ) -> None:
+        # Author-supplied position wins over the region default — the
+        # layout engine fills layout only where the author left it open.
+        comp = ComponentSpec(
+            type="text", region="body", props={"position": [9.0, 9.0, 9.0]}
+        )
+        scene = _minimal_scene((comp,))
+
+        result = engine.apply(scene)
+
+        assert result.components[0].props["position"] == [9.0, 9.0, 9.0]
+
+    def test_apply_rejects_unknown_region(
+        self, engine: ManimLayoutEngine
+    ) -> None:
+        # LayoutRegion(comp.region) raises before REGION_MAP lookup — an
+        # unknown region can never reach the coordinates table.
+        comp = ComponentSpec(type="text", region="bogus")
+        scene = _minimal_scene((comp,))
+
+        with pytest.raises(ValueError):
+            engine.apply(scene)

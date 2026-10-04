@@ -79,6 +79,15 @@ class TestFileSystemArtifactStore:
         with pytest.raises(ValueError, match="scene_id"):
             store.resolve_scene_preview_path("concept_a", scene_id)
 
+    @pytest.mark.parametrize("quality", ["bogus", "FINAL", "", "Preview"])
+    def test_resolve_output_path_rejects_unknown_quality(
+        self, tmp_path: Path, quality: str
+    ) -> None:
+        store = FileSystemArtifactStore(output_root=tmp_path)
+
+        with pytest.raises(ValueError, match="quality"):
+            store.resolve_output_path("concept_a", quality)
+
     @pytest.mark.parametrize("quality", ["preview", "final"])
     def test_resolve_output_path_rejects_non_slug_concept_id(
         self, tmp_path: Path, quality: str

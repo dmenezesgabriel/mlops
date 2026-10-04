@@ -22,14 +22,14 @@ class TestCLI:
         mock_parse_args.return_value = MagicMock(
             concept_id="test",
             output_dir=tmp_path / "out",
-            definitions_dir=Path("defs"),
+            definitions_dir=tmp_path,
         )
 
         # Act
         main()
 
         # Assert
-        mock_register_all.assert_called_once_with(definitions_dir=Path("defs"))
+        mock_register_all.assert_called_once_with(definitions_dir=tmp_path)
 
     @patch("videos.infrastructure.cli.Director")
     @patch("videos.infrastructure.cli.register_all")
@@ -45,7 +45,7 @@ class TestCLI:
         mock_parse_args.return_value = MagicMock(
             concept_id="test",
             output_dir=tmp_path / "out",
-            definitions_dir=Path("videos/definition"),
+            definitions_dir=tmp_path,
             quality="preview",
         )
 
@@ -53,9 +53,7 @@ class TestCLI:
         main()
 
         # Assert
-        mock_register_all.assert_called_once_with(
-            definitions_dir=Path("videos/definition")
-        )
+        mock_register_all.assert_called_once_with(definitions_dir=tmp_path)
 
     @patch("videos.infrastructure.cli.Director")
     @patch("videos.infrastructure.cli.register_all")
@@ -71,7 +69,7 @@ class TestCLI:
         mock_parse_args.return_value = MagicMock(
             concept_id="test",
             output_dir=tmp_path / "out",
-            definitions_dir=Path("defs"),
+            definitions_dir=tmp_path,
             quality="final",
         )
         mock_director = mock_director_class.return_value
@@ -96,7 +94,7 @@ class TestCLI:
         mock_parse_args.return_value = MagicMock(
             concept_id="test",
             output_dir=tmp_path / "out",
-            definitions_dir=Path("defs"),
+            definitions_dir=tmp_path,
         )
         mock_director = mock_director_class.return_value
         mock_director.produce.side_effect = Exception("Boom")
@@ -121,7 +119,7 @@ class TestCLI:
         mock_parse_args.return_value = MagicMock(
             concept_id="test",
             output_dir=tmp_path / "out",
-            definitions_dir=Path("defs"),
+            definitions_dir=tmp_path,
             quality="preview",
         )
 
@@ -162,7 +160,7 @@ class TestCLI:
         mock_parse_args.return_value = MagicMock(
             concept_id="test",
             output_dir=tmp_path / "out",
-            definitions_dir=Path("defs"),
+            definitions_dir=tmp_path,
             quality="preview",
         )
 
@@ -180,3 +178,87 @@ class TestCLI:
         )
 
         assert isinstance(called_linter, LocalLinterService)
+
+    @patch("videos.infrastructure.cli.Director")
+    @patch("argparse.ArgumentParser.parse_args")
+    def test_main_reports_missing_definitions_dir(
+        self,
+        mock_parse_args: MagicMock,
+        mock_director_class: MagicMock,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        # Arrange — register_all stays unmocked: the check must fire first
+        absent = tmp_path / "absent"
+        mock_parse_args.return_value = MagicMock(
+            concept_id="test",
+            output_dir=tmp_path / "out",
+            definitions_dir=absent,
+            quality="preview",
+        )
+
+        # Act & Assert
+        with pytest.raises(SystemExit) as excinfo:
+            main()
+        assert excinfo.value.code == 1
+        assert "Definitions directory not found" in capsys.readouterr().err
+        mock_director_class.assert_not_called()
+
+    @patch("videos.infrastructure.cli.Director")
+    @patch("argparse.ArgumentParser.parse_args")
+    @pytest.mark.parametrize(
+        "bad_yaml", ["concept: [unclosed", "- not\n- a\n- mapping\n"]
+    )
+    def test_main_exits_cleanly_on_bad_definition_file(
+        self,
+        mock_parse_args: MagicMock,
+        mock_director_class: MagicMock,
+        bad_yaml: str,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        # Arrange — real register_all against a dir holding a bad yaml;
+        # the error must exit(1) with the file named, not traceback out
+        defs = tmp_path / "defs"
+        defs.mkdir()
+        (defs / "bad.yaml").write_text(bad_yaml)
+        mock_parse_args.return_value = MagicMock(
+            concept_id="test",
+            output_dir=tmp_path / "out",
+            definitions_dir=defs,
+            quality="preview",
+        )
+
+        # Act & Assert
+        with pytest.raises(SystemExit) as excinfo:
+            main()
+        assert excinfo.value.code == 1
+        assert "bad.yaml" in capsys.readouterr().err
+
+    @patch("videos.infrastructure.cli.Director")
+    @patch("videos.infrastructure.cli.register_default_components")
+    @patch("videos.infrastructure.cli.register_all")
+    @patch("argparse.ArgumentParser.parse_args")
+    def test_main_exits_cleanly_on_wiring_failure(
+        self,
+        mock_parse_args: MagicMock,
+        mock_register_all: MagicMock,
+        mock_register_default_components: MagicMock,
+        mock_director_class: MagicMock,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        # Arrange — a wiring failure (not just produce) must be caught
+        mock_parse_args.return_value = MagicMock(
+            concept_id="test",
+            output_dir=tmp_path / "out",
+            definitions_dir=tmp_path,
+            quality="preview",
+        )
+        mock_register_default_components.side_effect = TypeError("Boom")
+
+        # Act & Assert
+        with pytest.raises(SystemExit) as excinfo:
+            main()
+        assert excinfo.value.code == 1
+        assert "Failed to produce video" in capsys.readouterr().err
