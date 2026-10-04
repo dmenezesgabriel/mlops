@@ -19,6 +19,33 @@ def _read_image(img_path: Path) -> np.ndarray | None:
     return img
 
 
+def _unreadable_image_violation(
+    image_path: Path, scene_id: str
+) -> RuleViolation:
+    return RuleViolation(
+        scene_id=scene_id,
+        rule="unreadable_image",
+        suggestion=(
+            f"Could not decode image at '{image_path}'. "
+            f"Expected a readable image file."
+        ),
+        actual="missing or undecodable",
+        expected="a decodable image file",
+    )
+
+
+def _unreadable_video_violation(
+    video_path: Path, scene_id: str, detail: str
+) -> RuleViolation:
+    return RuleViolation(
+        scene_id=scene_id,
+        rule="unreadable_video",
+        suggestion=f"Could not analyze video at '{video_path}': {detail}.",
+        actual=detail,
+        expected="a decodable video with >= 2 frames",
+    )
+
+
 def _frame_centroid(gray: np.ndarray) -> tuple[int, int] | None:
     _, thresh = cv2.threshold(gray, 40, 255, cv2.THRESH_BINARY)
     moments = cv2.moments(thresh)
@@ -38,7 +65,7 @@ class ContrastChecker:
     ) -> list[RuleViolation]:
         img = _read_image(image_path)
         if img is None:
-            return []
+            return [_unreadable_image_violation(image_path, scene_id)]
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
@@ -72,7 +99,11 @@ class ContrastChecker:
                 bg_pixels = roi_bgr[bg_mask]
                 bg_mean = np.percentile(bg_pixels, 5, axis=0)
             else:
-                bg_mean = np.array([30.0, 30.0, 30.0])
+                # No sub-threshold pixels inside the contour's bounding box:
+                # measure the image's own dark end rather than assume a fixed
+                # background — a bright slide would otherwise pass against a
+                # phantom dark floor.
+                bg_mean = np.percentile(img.reshape(-1, 3), 5, axis=0)
 
             fg_b, fg_g, fg_r = (
                 fg_mean[0] / 255.0,
@@ -119,7 +150,7 @@ class BlurDetector:
     ) -> list[RuleViolation]:
         img = _read_image(image_path)
         if img is None:
-            return []
+            return [_unreadable_image_violation(image_path, scene_id)]
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         variance = cv2.Laplacian(gray, cv2.CV_64F).var()
@@ -140,17 +171,42 @@ class BlurDetector:
         return []
 
 
-def _detect_boxes(img: np.ndarray) -> list[Box]:
+# A concavity this deep in a thresholded blob means several same-color
+# elements fused into one contour — glyph-level notches (kerning) stay well
+# under it after the 20px dilation smooths them out.
+_MERGED_BLOB_DEFECT_DEPTH = 25.0
+
+
+@dataclass(frozen=True)
+class _DetectedBlob:
+    box: Box
+    deepest_defect: float
+
+
+def _deepest_defect_depth(contour: np.ndarray) -> float:
+    if len(contour) < 3:
+        return 0.0
+    hull = cv2.convexHull(contour, returnPoints=False)
+    if hull is None or len(hull) <= 3:
+        return 0.0
+    defects = cv2.convexityDefects(contour, hull)
+    if defects is None:
+        return 0.0
+    # cv2 reports defect depth in 8.24 fixed-point units.
+    return float(max(d[0][3] for d in defects) / 256.0)
+
+
+def _detect_boxes(img: np.ndarray) -> list[_DetectedBlob]:
     channels = list(cv2.split(img)) + [cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)]
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 20))
-    boxes: list[Box] = []
+    blobs: list[_DetectedBlob] = []
     for ch in channels:
-        _collect_channel_boxes(ch, kernel, boxes)
-    return boxes
+        _collect_channel_boxes(ch, kernel, blobs)
+    return blobs
 
 
 def _collect_channel_boxes(
-    ch: np.ndarray, kernel: np.ndarray, boxes: list[Box]
+    ch: np.ndarray, kernel: np.ndarray, blobs: list[_DetectedBlob]
 ) -> None:
     _, thresh = cv2.threshold(ch, 40, 255, cv2.THRESH_BINARY)
     thresh = cv2.dilate(thresh, kernel, iterations=1)
@@ -163,18 +219,22 @@ def _collect_channel_boxes(
         if w < 5 or h < 5:
             continue
         box = (x, y, w, h)
-        if not _is_known_box(box, boxes):
-            boxes.append(box)
+        if not _is_known_box(box, blobs):
+            blobs.append(
+                _DetectedBlob(
+                    box=box, deepest_defect=_deepest_defect_depth(contour)
+                )
+            )
 
 
-def _is_known_box(box: Box, boxes: list[Box]) -> bool:
+def _is_known_box(box: Box, blobs: list[_DetectedBlob]) -> bool:
     x, y, w, h = box
     return any(
-        abs(x - bx) < 3
-        and abs(y - by) < 3
-        and abs(w - bw) < 3
-        and abs(h - bh) < 3
-        for bx, by, bw, bh in boxes
+        abs(x - b.box[0]) < 3
+        and abs(y - b.box[1]) < 3
+        and abs(w - b.box[2]) < 3
+        and abs(h - b.box[3]) < 3
+        for b in blobs
     )
 
 
@@ -194,19 +254,41 @@ class ImageOverlapDetector:
     ) -> list[RuleViolation]:
         img = _read_image(image_path)
         if img is None:
-            return []
+            return [_unreadable_image_violation(image_path, scene_id)]
         return self._overlap_violations(_detect_boxes(img), scene_id)
 
     def _overlap_violations(
-        self, boxes: list[Box], scene_id: str
+        self, blobs: list[_DetectedBlob], scene_id: str
     ) -> list[RuleViolation]:
         violations: list[RuleViolation] = []
-        for i, box_a in enumerate(boxes):
-            for j, box_b in enumerate(boxes[i + 1 :], start=i + 1):
-                violation = _overlap_violation(box_a, box_b, scene_id, i, j)
+        for i, blob_a in enumerate(blobs):
+            if blob_a.deepest_defect >= _MERGED_BLOB_DEFECT_DEPTH:
+                violations.append(_merged_blob_violation(blob_a, scene_id, i))
+            for j, blob_b in enumerate(blobs[i + 1 :], start=i + 1):
+                violation = _overlap_violation(
+                    blob_a.box, blob_b.box, scene_id, i, j
+                )
                 if violation is not None:
                     violations.append(violation)
         return violations
+
+
+def _merged_blob_violation(
+    blob: _DetectedBlob, scene_id: str, idx: int
+) -> RuleViolation:
+    return RuleViolation(
+        scene_id=scene_id,
+        rule="visual_overlap",
+        suggestion=(
+            f"Rendered elements overlap in image space. "
+            f"Element {idx} is a fused blob with a "
+            f"{blob.deepest_defect:.1f}px concavity — overlapping "
+            f"same-color elements merged into one region."
+        ),
+        object_id=f"element_{idx}",
+        actual=f"concavity={blob.deepest_defect:.1f}px",
+        expected="no overlap",
+    )
 
 
 def _overlap_violation(
@@ -317,11 +399,21 @@ class VideoMotionAnalyzer:
     ) -> list[RuleViolation]:
         cap = cv2.VideoCapture(str(video_path))
         if not cap.isOpened():
-            return []
-        stats = _collect_frame_stats(cap)
-        cap.release()
+            return [
+                _unreadable_video_violation(
+                    video_path, scene_id, "video failed to open"
+                )
+            ]
+        try:
+            stats = _collect_frame_stats(cap)
+        finally:
+            cap.release()
         if stats is None:
-            return []
+            return [
+                _unreadable_video_violation(
+                    video_path, scene_id, "fewer than 2 decodable frames"
+                )
+            ]
         violations = self._check_frozen(stats, scene_id)
         violations += self._check_flicker(stats, scene_id)
         violations += self._check_stutter(stats, scene_id)

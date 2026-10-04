@@ -47,3 +47,17 @@ class TestBlurDetector:
         violations = detector.check_image(blurry_path)
         assert len(violations) > 0
         assert "blurry" in violations[0].rule
+
+    def test_flags_missing_image(self, temp_image_dir: Path) -> None:
+        detector = BlurDetector()
+        violations = detector.check_image(temp_image_dir / "missing.png")
+        assert len(violations) == 1
+        assert violations[0].rule == "unreadable_image"
+
+    def test_flags_undecodable_image(self, temp_image_dir: Path) -> None:
+        corrupt_path = temp_image_dir / "corrupt.png"
+        corrupt_path.write_text("this is not image data")
+        detector = BlurDetector()
+        violations = detector.check_image(corrupt_path)
+        assert len(violations) == 1
+        assert violations[0].rule == "unreadable_image"

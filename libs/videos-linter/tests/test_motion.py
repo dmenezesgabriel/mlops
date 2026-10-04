@@ -93,3 +93,31 @@ class TestVideoMotionAnalyzer:
         violations = analyzer.analyze_video(video_path)
         assert len(violations) > 0
         assert any("stutter" in v.rule or "jump" in v.rule for v in violations)
+
+    def test_flags_missing_video(self, temp_video_dir: Path) -> None:
+        analyzer = VideoMotionAnalyzer()
+        violations = analyzer.analyze_video(temp_video_dir / "missing.mp4")
+        assert len(violations) == 1
+        assert violations[0].rule == "unreadable_video"
+
+    def test_flags_undecodable_video(self, temp_video_dir: Path) -> None:
+        corrupt_path = temp_video_dir / "corrupt.mp4"
+        corrupt_path.write_bytes(b"this is not video data")
+        analyzer = VideoMotionAnalyzer()
+        violations = analyzer.analyze_video(corrupt_path)
+        assert len(violations) == 1
+        assert violations[0].rule == "unreadable_video"
+
+    def test_flags_video_with_too_few_frames(
+        self, temp_video_dir: Path
+    ) -> None:
+        def still_gen(frame_idx: int) -> np.ndarray:
+            return np.full((200, 200, 3), 30, dtype=np.uint8)
+
+        video_path = _create_video(
+            temp_video_dir / "one_frame.mp4", 1, 30, still_gen
+        )
+        analyzer = VideoMotionAnalyzer()
+        violations = analyzer.analyze_video(video_path)
+        assert len(violations) == 1
+        assert violations[0].rule == "unreadable_video"

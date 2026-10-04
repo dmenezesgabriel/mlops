@@ -47,3 +47,35 @@ class TestContrastChecker:
         assert len(violations) > 0
         assert "contrast" in violations[0].rule
         assert float(violations[0].actual) < 4.5
+
+    def test_flags_missing_image(self, temp_image_dir: Path) -> None:
+        checker = ContrastChecker()
+        violations = checker.check_image(temp_image_dir / "missing.png")
+        assert len(violations) == 1
+        assert violations[0].rule == "unreadable_image"
+
+    def test_flags_undecodable_image(self, temp_image_dir: Path) -> None:
+        corrupt_path = temp_image_dir / "corrupt.png"
+        corrupt_path.write_text("this is not image data")
+        checker = ContrastChecker()
+        violations = checker.check_image(corrupt_path)
+        assert len(violations) == 1
+        assert violations[0].rule == "unreadable_image"
+
+    def test_measures_real_background_when_element_fills_roi(
+        self, temp_image_dir: Path
+    ) -> None:
+        # A bright element on a moderately bright background leaves no
+        # sub-threshold pixels inside the contour's bounding box — the real
+        # background must be measured from the image, not assumed dark.
+        img_path = _create_test_image(
+            temp_image_dir,
+            "bright_background.png",
+            (100, 100, 100),
+            (200, 200, 200),
+        )
+        checker = ContrastChecker(min_ratio=4.5)
+        violations = checker.check_image(img_path)
+        assert len(violations) > 0
+        assert "contrast" in violations[0].rule
+        assert float(violations[0].actual) < 4.5

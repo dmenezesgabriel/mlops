@@ -67,3 +67,24 @@ class TestImageOverlapDetector:
         detector = ImageOverlapDetector()
         violations = detector.check_image(path)
         assert len(violations) == 0
+
+    def test_flags_missing_image(self, temp_image_dir: Path) -> None:
+        detector = ImageOverlapDetector()
+        violations = detector.check_image(temp_image_dir / "missing.png")
+        assert len(violations) == 1
+        assert violations[0].rule == "unreadable_image"
+
+    def test_fails_on_same_color_overlap(self, temp_image_dir: Path) -> None:
+        # Two same-color overlapping elements fuse into one thresholded blob;
+        # the collision must still surface instead of passing silently.
+        img = Image.new("RGB", (300, 300), color=(30, 30, 30))
+        draw = ImageDraw.Draw(img)
+        draw.rectangle([50, 50, 150, 150], fill=(255, 255, 255))
+        draw.rectangle([120, 120, 220, 220], fill=(255, 255, 255))
+        path = temp_image_dir / "same_color_overlap.png"
+        img.save(path)
+
+        detector = ImageOverlapDetector()
+        violations = detector.check_image(path)
+        assert len(violations) > 0
+        assert "overlap" in violations[0].rule

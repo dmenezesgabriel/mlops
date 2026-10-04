@@ -71,3 +71,17 @@ class TestLinterService:
         # Act & Assert
         with pytest.raises(LinterError, match="motion issues"):
             service.verify_video(Path("dummy.mp4"), "scene_a")
+
+    def test_verify_visuals_raises_on_missing_image(
+        self, tmp_path: Path
+    ) -> None:
+        service = LinterService()
+        with pytest.raises(LinterError, match="Could not decode image"):
+            service.verify_visuals(tmp_path / "missing.png", "scene_a")
+
+    def test_verify_video_raises_on_missing_video(
+        self, tmp_path: Path
+    ) -> None:
+        service = LinterService()
+        with pytest.raises(LinterError, match="Could not analyze video"):
+            service.verify_video(tmp_path / "missing.mp4", "scene_a")
