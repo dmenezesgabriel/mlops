@@ -74,10 +74,13 @@
 
 ## MA-5 — Media family
 
-- [ ] **AU-11** diagrams → **AU-12** videos domain+app → **AU-13** videos
+- [x] **AU-11** diagrams → **AU-12** videos domain+app → **AU-13** videos
   infra+cli → **AU-14** videos-linter (depends on videos).
-  (AU-11/AU-12/AU-13 done; 47 open gaps — S3×43, S4×4 — awaiting the
-  remediation step below.)
+  (All four audits done; 54 open gaps — S1×3, S3×46, S4×5 — awaiting the
+  remediation step below. AU-14 carried the S1s: the advanced linter
+  silently green-lights missing/corrupt artifacts and has two measured
+  false-PASS paths — phantom `[30,30,30]` background, same-channel overlap
+  merge.)
 - [ ] Remediate promoted S1+ gaps.
 
 ## MA-6 — ML workspace
