@@ -41,6 +41,17 @@ class TestDensityAnalyzer:
         assert result.is_centered_only is True
         assert result.spread_ratio < 0.25
 
+    def test_blank_frame_is_a_lint_failure(
+        self, analyzer: DensityAnalyzer, tmp_path: Path
+    ) -> None:
+        # All-background frame: the render produced nothing — that is the
+        # failed-output case this check exists to catch, not a pass.
+        img_path = _create_test_image(tmp_path, "blank.png", [])
+
+        result = analyzer.analyze(img_path)
+        assert result.is_centered_only is True
+        assert result.spread_ratio == 0.0
+
     def test_detects_spread_content(
         self, analyzer: DensityAnalyzer, tmp_path: Path
     ) -> None:

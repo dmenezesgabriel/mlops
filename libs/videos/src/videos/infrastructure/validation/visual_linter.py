@@ -26,8 +26,10 @@ class DensityAnalyzer:
             # getbbox returns the bounding box of non-zero pixels
             bbox = mask.getbbox()
             if not bbox:
+                # Nothing above the background is a failed render, not a
+                # pass — spread 0 must not read as "content everywhere".
                 return VisualLinterResult(
-                    is_centered_only=False, spread_ratio=0.0
+                    is_centered_only=True, spread_ratio=0.0
                 )
 
             # Calculate spread as a ratio of image height

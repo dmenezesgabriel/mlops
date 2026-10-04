@@ -12,6 +12,10 @@ from videos.infrastructure.validation.linter_service import (
     LinterService,
 )
 
+# Minimal ISO-BMFF header: verify_video rejects empty/undecodable mp4s, so a
+# stub renderer's success=True must leave a header-valid file behind.
+_FAKE_MP4_BYTES = b"\x00\x00\x00\x18ftypisom" + b"\x00" * 16
+
 
 class StubRenderer:
     @contextlib.contextmanager
@@ -31,7 +35,7 @@ class StubRenderer:
         # Small centered rectangle
         draw.rectangle([400, 200, 450, 250], fill=(255, 255, 255))
         img.save(output_path.with_suffix(".png"))
-        output_path.touch()
+        output_path.write_bytes(_FAKE_MP4_BYTES)
         return RenderResult(
             output_path=output_path, duration_ms=10.0, success=True
         )
@@ -57,7 +61,7 @@ class GoodRenderer:
         # Body at center
         draw.rectangle([200, 200, 600, 300], fill=(255, 255, 255))
         img.save(output_path.with_suffix(".png"))
-        output_path.touch()
+        output_path.write_bytes(_FAKE_MP4_BYTES)
         return RenderResult(
             output_path=output_path, duration_ms=10.0, success=True
         )
