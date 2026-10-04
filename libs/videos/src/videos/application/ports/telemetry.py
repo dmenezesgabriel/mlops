@@ -8,8 +8,3 @@ class Telemetry(Protocol):
         self, event_name: str, attributes: dict[str, object]
     ) -> None:
         raise NotImplementedError
-
-    def record_error(
-        self, error: Exception, attributes: dict[str, object]
-    ) -> None:
-        raise NotImplementedError

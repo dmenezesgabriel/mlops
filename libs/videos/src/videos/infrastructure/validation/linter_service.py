@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
-from videos.domain.value_objects.quality import RuleViolation
-from videos.infrastructure.validation.geometry_rules import OverlapDetector
 from videos.infrastructure.validation.visual_linter import (
     DensityAnalyzer,
     VisualLinterResult,
@@ -43,31 +40,9 @@ def _video_file_problem(video_path: Path) -> str | None:
 class LinterService:
     def __init__(
         self,
-        overlap_detector: OverlapDetector | None = None,
         density_analyzer: DensityAnalyzer | None = None,
     ) -> None:
-        self._overlap_detector = overlap_detector or OverlapDetector()
         self._density_analyzer = density_analyzer or DensityAnalyzer()
-
-    def verify_geometry(
-        self, mobjects: list[Any], scene_id: str
-    ) -> list[RuleViolation]:
-        violations: list[RuleViolation] = []
-        # Check every pair of mobjects for overlap
-        for i in range(len(mobjects)):
-            for j in range(i + 1, len(mobjects)):
-                if self._overlap_detector.check_overlap(
-                    mobjects[i], mobjects[j]
-                ):
-                    violations.append(
-                        RuleViolation(
-                            scene_id=scene_id,
-                            rule="geometric_overlap",
-                            suggestion="Adjust layout coordinates to prevent overlapping elements.",
-                            actual=f"Overlap between object {i} and {j}",
-                        )
-                    )
-        return violations
 
     def verify_visuals(self, image_path: Path, scene_id: str) -> None:
         result = self._density_analyzer.analyze(image_path)

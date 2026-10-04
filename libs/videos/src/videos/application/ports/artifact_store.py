@@ -5,12 +5,6 @@ from typing import Protocol
 
 
 class ArtifactStore(Protocol):
-    def write_final(self, source_path: Path, concept_id: str) -> Path:
-        raise NotImplementedError
-
-    def write_preview(self, source_path: Path, concept_id: str) -> Path:
-        raise NotImplementedError
-
     def resolve_output_path(self, concept_id: str, quality: str) -> Path:
         raise NotImplementedError
 

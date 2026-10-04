@@ -37,33 +37,18 @@ class StubLayoutEngine(LayoutEngine):
     def apply(self, scene: object) -> object:
         return scene
 
-    def validate_placement(self, layout: object) -> list[str]:
-        return []
-
 
 class StubTelemetry(Telemetry):
     def __init__(self) -> None:
         self.events: list[tuple[str, dict[str, object]]] = []
-        self.errors: list[tuple[Exception, dict[str, object]]] = []
 
     def record_event(
         self, event_name: str, attributes: dict[str, object]
     ) -> None:
         self.events.append((event_name, attributes))
 
-    def record_error(
-        self, error: Exception, attributes: dict[str, object]
-    ) -> None:
-        self.errors.append((error, attributes))
-
 
 class StubArtifactStore(ArtifactStore):
-    def write_final(self, source_path: Path, concept_id: str) -> Path:
-        return Path(f"{concept_id}_final.mp4")
-
-    def write_preview(self, source_path: Path, concept_id: str) -> Path:
-        return Path(f"{concept_id}_preview.mp4")
-
     def resolve_output_path(self, concept_id: str, quality: str) -> Path:
         return Path(f"{concept_id}_{quality}.mp4")
 
@@ -95,8 +80,10 @@ class TestE2EYamlConcepts:
 
         # Assert
         assert len(storyboard.scenes) == len(narrative.beats)
-        assert storyboard.total_expected_duration == pytest.approx(
-            narrative.total_duration
+        assert sum(
+            s.duration_seconds for s in storyboard.scenes
+        ) == pytest.approx(
+            sum(b.narration.duration_seconds for b in narrative.beats)
         )
 
     def test_quality_gate_passes_yaml_concept(self) -> None:

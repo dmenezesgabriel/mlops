@@ -41,7 +41,3 @@ class Narrative(PydanticModel):
                 f"RECAP beat, got {self.beats[-1].kind.value!r}"
             )
         return self
-
-    @property
-    def total_duration(self) -> float:
-        return sum(b.narration.duration_seconds for b in self.beats)

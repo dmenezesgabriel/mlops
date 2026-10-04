@@ -36,19 +36,6 @@ class TestComponentSpec:
         )
         assert c.props == {"kind": "cycle"}
 
-    def test_to_dict_round_trip(self) -> None:
-        c = ComponentSpec(
-            type="title", region="title", props={"text": "Hello"}
-        )
-        data = c.to_dict()
-        assert data == {
-            "type": "title",
-            "region": "title",
-            "props": {"text": "Hello"},
-        }
-        restored = ComponentSpec.from_dict(data)
-        assert restored == c
-
     def test_from_dict(self) -> None:
         data = {
             "type": "text",

@@ -2,10 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from videos.domain.value_objects.layout import (
-    LayoutRegion,
-    LayoutSpec,
-)
+from videos.domain.value_objects.layout import LayoutRegion
 from videos.domain.value_objects.scene_spec import (
     ComponentSpec,
     SceneSpec,
@@ -17,9 +14,6 @@ class LayoutRegionCoordinates:
     x: float
     y: float
     z: float
-
-    def to_list(self) -> list[float]:
-        return [self.x, self.y, self.z]
 
 
 class ManimLayoutEngine:
@@ -76,6 +70,3 @@ class ManimLayoutEngine:
             style=scene.style,
             components=tuple(new_components),
         )
-
-    def validate_placement(self, layout: LayoutSpec) -> list[str]:
-        return []

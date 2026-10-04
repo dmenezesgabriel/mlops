@@ -51,17 +51,11 @@ def _minimal_narrative(concept: Concept | None = None) -> Narrative:
 class StubTelemetry(Telemetry):
     def __init__(self) -> None:
         self.events: list[tuple[str, dict[str, object]]] = []
-        self.errors: list[tuple[Exception, dict[str, object]]] = []
 
     def record_event(
         self, event_name: str, attributes: dict[str, object]
     ) -> None:
         self.events.append((event_name, attributes))
-
-    def record_error(
-        self, error: Exception, attributes: dict[str, object]
-    ) -> None:
-        self.errors.append((error, attributes))
 
 
 class StubRenderer(Renderer):
@@ -99,19 +93,10 @@ class StubLayoutEngine(LayoutEngine):
     def apply(self, scene: object) -> SceneSpec:
         return cast(SceneSpec, scene)
 
-    def validate_placement(self, layout: object) -> list[str]:
-        return []
-
 
 class StubArtifactStore(ArtifactStore):
     def __init__(self) -> None:
         self._tmp = Path("/tmp")
-
-    def write_final(self, source_path: Path, concept_id: str) -> Path:
-        return self._tmp / f"{concept_id}_final.mp4"
-
-    def write_preview(self, source_path: Path, concept_id: str) -> Path:
-        return self._tmp / f"{concept_id}_preview.mp4"
 
     def resolve_output_path(self, concept_id: str, quality: str) -> Path:
         return self._tmp / f"{concept_id}_{quality}.mp4"

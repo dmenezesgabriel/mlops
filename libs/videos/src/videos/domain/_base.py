@@ -36,11 +36,6 @@ class PydanticModel:
             cls._adapter = TypeAdapter(cls)
         return cls._adapter
 
-    def to_dict(self) -> dict[str, Any]:
-        return cast(
-            dict[str, Any], self._get_adapter().dump_python(self, mode="json")
-        )
-
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
         return cast(Self, cls._get_adapter().validate_python(data))

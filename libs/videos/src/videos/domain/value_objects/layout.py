@@ -20,10 +20,6 @@ class LayoutRegion(StrEnum):
     FOOTER = "footer"
     CALLOUT = "callout"
 
-    @classmethod
-    def all_region_names(cls) -> frozenset[str]:
-        return frozenset(m.value for m in cls)
-
 
 @dataclass(frozen=True)
 class LayoutSpec(PydanticModel):

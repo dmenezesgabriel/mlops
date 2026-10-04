@@ -7,7 +7,6 @@ from collections.abc import Mapping
 from pydantic import (
     Field,
     ValidationInfo,
-    field_serializer,
     field_validator,
 )
 from pydantic.dataclasses import dataclass
@@ -30,10 +29,6 @@ class ComponentSpec(PydanticModel):
     @classmethod
     def _props_immutable(cls, v: Mapping[str, object]) -> Mapping[str, object]:
         return freeze_mapping(v)
-
-    @field_serializer("props")
-    def _serialize_props(self, v: Mapping[str, object]) -> dict[str, object]:
-        return dict(v)
 
 
 @dataclass(frozen=True)

@@ -72,8 +72,8 @@ class TestStoryboardPlanner:
         sb = planner.plan(narrative)
 
         # Assert
-        assert sb.total_expected_duration == pytest.approx(
-            narrative.total_duration
+        assert sum(s.duration_seconds for s in sb.scenes) == pytest.approx(
+            sum(b.narration.duration_seconds for b in narrative.beats)
         )
 
     def test_plan_populates_components(self) -> None:

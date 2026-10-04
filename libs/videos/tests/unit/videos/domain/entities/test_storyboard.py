@@ -29,10 +29,6 @@ class TestStoryboard:
         with pytest.raises(ValueError, match="Duplicate"):
             Storyboard(scenes=[_make_scene("s1"), _make_scene("s1")])
 
-    def test_total_expected_duration(self) -> None:
-        sb = Storyboard(scenes=[_make_scene("s1"), _make_scene("s2")])
-        assert sb.total_expected_duration == 2.0
-
     def test_storyboard_is_a_frozen_dataclass(self) -> None:
         # Domain convention: data-carrying types are frozen pydantic
         # dataclasses (Concept, all value objects) — Storyboard must follow.

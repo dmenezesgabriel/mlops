@@ -14,7 +14,6 @@ from videos.domain.entities.concept import Concept
 from videos.domain.entities.concept_extension import ConceptExtension
 from videos.domain.entities.narrative import Narrative
 from videos.domain.value_objects.narrative import Beat
-from videos.domain.value_objects.scene_spec import SceneSpec
 
 
 def _require_mapping(value: object, context: str) -> dict[str, Any]:
@@ -42,14 +41,11 @@ class DeclarativeConceptExtension(ConceptExtension):
         self._narrative = Narrative(
             concept=self._concept, beats=self._read_beats(document)
         )
-        self._scenes: tuple[SceneSpec, ...] | None = self._read_scenes(
-            document
-        )
 
     @staticmethod
     def _raw_concept(document: dict[str, Any]) -> dict[str, Any]:
         raw = _require_mapping(document.get("concept"), "concept")
-        # Concept.from_dict needs the SceneId/ConceptId shape; declarative
+        # Concept.from_dict needs the ConceptId shape; declarative
         # files carry the string, so wrap it before pydantic sees it.
         if isinstance(raw.get("id"), str):
             return {**raw, "id": {"value": raw["id"]}}
@@ -73,26 +69,9 @@ class DeclarativeConceptExtension(ConceptExtension):
             for i, beat in enumerate(beats)
         )
 
-    @staticmethod
-    def _read_scenes(
-        document: dict[str, Any],
-    ) -> tuple[SceneSpec, ...] | None:
-        raw_scenes = document.get("scenes")
-        if raw_scenes is None:
-            return None
-        scenes = _require_list(raw_scenes, "scenes")
-        return tuple(
-            SceneSpec.from_dict(_require_mapping(scene, f"scenes[{i}]"))
-            for i, scene in enumerate(scenes)
-        )
-
     @property
     def concept(self) -> Concept:
         return self._concept
-
-    @property
-    def scenes(self) -> tuple[SceneSpec, ...] | None:
-        return self._scenes
 
     def create_narrative(self) -> Narrative:
         return self._narrative

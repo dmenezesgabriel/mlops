@@ -28,11 +28,6 @@ class ConsoleTelemetry(Telemetry):
     ) -> None:
         print(f"[EVENT] {event_name}: {attributes}")
 
-    def record_error(
-        self, error: Exception, attributes: dict[str, object]
-    ) -> None:
-        print(f"[ERROR] {error}: {attributes}", file=sys.stderr)
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(

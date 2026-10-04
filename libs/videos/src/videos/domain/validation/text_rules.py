@@ -7,7 +7,6 @@ from videos.domain.value_objects.scene_spec import SceneSpec
 
 class TextRules:
     MAX_WORDS_PER_TEXT = 14
-    MAX_BULLETS_VISIBLE = 2
 
     def __init__(self, rules: list[SceneRule] | None = None) -> None:
         self._rules = (

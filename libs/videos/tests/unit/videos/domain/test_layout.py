@@ -4,7 +4,7 @@ from videos.domain.value_objects.layout import LayoutRegion, LayoutSpec
 
 class TestLayoutRegion:
     def test_has_expected_members(self) -> None:
-        names = sorted(LayoutRegion.all_region_names())
+        names = sorted(m.value for m in LayoutRegion)
         assert names == [
             "body",
             "callout",

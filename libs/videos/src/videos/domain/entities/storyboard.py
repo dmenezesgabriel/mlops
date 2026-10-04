@@ -33,7 +33,3 @@ class Storyboard(PydanticModel):
                 )
             seen.add(scene.scene_id)
         return self
-
-    @property
-    def total_expected_duration(self) -> float:
-        return sum(s.duration_seconds for s in self.scenes)

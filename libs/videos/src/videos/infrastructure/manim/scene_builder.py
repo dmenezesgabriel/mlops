@@ -34,7 +34,6 @@ class ConfigurableScene(Scene):  # type: ignore
         require_manim()
         self._scene_spec = scene_spec
         self._registry = registry
-        self._built_mobjects: list[object] = []
         super().__init__()
 
     def construct(self) -> None:
@@ -42,15 +41,13 @@ class ConfigurableScene(Scene):  # type: ignore
 
         if not self._scene_spec.components:
             title = Text(self._scene_spec.title, font_size=40)
-            self._built_mobjects.append(title)
             self.play(Write(title))
             self.wait(self._scene_spec.duration_seconds)
             return
 
+        # Component builders play/add their own mobjects on the scene.
         for spec in self._scene_spec.components:
-            mobj = self._registry.build(spec, self)
-            if mobj:
-                self._built_mobjects.append(mobj)
+            self._registry.build(spec, self)
 
         self.wait(self._scene_spec.duration_seconds)
 

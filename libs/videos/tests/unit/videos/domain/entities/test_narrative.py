@@ -53,16 +53,6 @@ class TestNarrative:
                 beats=(_make_beat(BeatKind.RECAP),),
             )
 
-    def test_total_duration(self) -> None:
-        narrative = Narrative(
-            concept=_make_concept(),
-            beats=(
-                _make_beat(BeatKind.OPENING),
-                _make_beat(BeatKind.RECAP),
-            ),
-        )
-        assert narrative.total_duration == 10.0
-
     def test_narrative_is_a_frozen_dataclass(self) -> None:
         # Domain convention: data-carrying types are frozen pydantic
         # dataclasses (Concept, all value objects) — Narrative must follow.

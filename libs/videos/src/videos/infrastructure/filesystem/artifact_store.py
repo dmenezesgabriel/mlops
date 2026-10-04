@@ -1,13 +1,9 @@
 from __future__ import annotations
 
-import logging
-import shutil
 from pathlib import Path
 
 from videos.domain._base import require_slug
 from videos.domain.value_objects.identifiers import require_quality
-
-logger = logging.getLogger(__name__)
 
 
 class FileSystemArtifactStore:
@@ -32,24 +28,6 @@ class FileSystemArtifactStore:
         # Validated at the sink too: a direct store call bypasses the VO
         # boundary, and an unbounded id escapes the output dirs via "../".
         return f"{require_slug(concept_id, 'concept_id')}.mp4"
-
-    def write_final(self, source_path: Path, concept_id: str) -> Path:
-        dest = self._final_dir / self._concept_filename(concept_id)
-        shutil.copy2(source_path, dest)
-        logger.info(
-            "Copied final artifact",
-            extra={"concept_id": concept_id, "output_path": str(dest)},
-        )
-        return dest
-
-    def write_preview(self, source_path: Path, concept_id: str) -> Path:
-        dest = self._preview_dir / self._concept_filename(concept_id)
-        shutil.copy2(source_path, dest)
-        logger.info(
-            "Copied preview artifact",
-            extra={"concept_id": concept_id, "output_path": str(dest)},
-        )
-        return dest
 
     def resolve_output_path(self, concept_id: str, quality: str) -> Path:
         require_quality(quality)

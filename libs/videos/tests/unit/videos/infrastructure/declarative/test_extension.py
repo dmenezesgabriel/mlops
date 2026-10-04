@@ -54,15 +54,6 @@ class TestDeclarativeConceptExtension:
             raised = True
         assert raised
 
-    def test_has_scenes_none_when_not_provided(self) -> None:
-        ext = DeclarativeConceptExtension(SAMPLE_DATA)
-        assert ext.scenes is None
-
-    def test_parses_explicit_scenes(self) -> None:
-        data = {**SAMPLE_DATA, "scenes": []}
-        ext = DeclarativeConceptExtension(data)
-        assert ext.scenes == ()
-
 
 class TestDeclarativeConceptExtensionShapeValidation:
     @pytest.mark.parametrize("bad_root", [[], "text", 42])
@@ -98,17 +89,5 @@ class TestDeclarativeConceptExtensionShapeValidation:
         data = {**SAMPLE_DATA, "narrative": {"beats": ["x"]}}
         with pytest.raises(
             ValueError, match=r"expected mapping at narrative\.beats\[0\]"
-        ):
-            DeclarativeConceptExtension(data)
-
-    @pytest.mark.parametrize("bad_scenes", [42, "abc"])
-    def test_rejects_non_list_scenes(self, bad_scenes: object) -> None:
-        with pytest.raises(ValueError, match="expected list at scenes"):
-            DeclarativeConceptExtension({**SAMPLE_DATA, "scenes": bad_scenes})
-
-    def test_rejects_non_mapping_scene_element(self) -> None:
-        data = {**SAMPLE_DATA, "scenes": ["x"]}
-        with pytest.raises(
-            ValueError, match=r"expected mapping at scenes\[0\]"
         ):
             DeclarativeConceptExtension(data)

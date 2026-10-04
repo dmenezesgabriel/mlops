@@ -16,22 +16,17 @@ _TESTS_ROOT = _PKG_ROOT / "tests"
 
 _SHIM_MODULE_NAMES = frozenset(
     {
-        "brand",
         "concept",
         "concept_extension",
         "concept_registry",
         "identifiers",
         "layout",
-        "layouts",
         "narrative",
         "quality",
-        "render_profiles",
         "scene_spec",
         "storyboard",
         "style",
         "timeline",
-        "transitions",
-        "typography",
     }
 )
 

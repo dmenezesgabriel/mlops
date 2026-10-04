@@ -102,15 +102,6 @@ class TestNarrative:
         narrative = Narrative(concept=_make_concept(), beats=beats)
         assert len(narrative.beats) == 3
 
-    def test_total_duration_sums_beats(self) -> None:
-        beats = (
-            _beat(BeatKind.OPENING, 3.0),
-            _beat(BeatKind.REVEAL, 4.0),
-            _beat(BeatKind.RECAP, 3.0),
-        )
-        narrative = Narrative(concept=_make_concept(), beats=beats)
-        assert narrative.total_duration == 10.0
-
     def test_concept_is_stored(self) -> None:
         concept = _make_concept("crisp-dm")
         beats = (_beat(BeatKind.OPENING), _beat(BeatKind.RECAP))
