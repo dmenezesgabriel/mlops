@@ -73,10 +73,12 @@ class TestLinterIntegration:
         self, concept_id: str, tmp_path: Path
     ) -> None:
         # Arrange
+        from videos.domain.concept_registry import ConceptRegistry
         from videos.infrastructure.declarative import register_all
 
+        registry = ConceptRegistry()
         test_defs = Path(__file__).parents[2] / "fixtures" / "concepts"
-        register_all(definitions_dir=test_defs)
+        register_all(registry, definitions_dir=test_defs)
 
         renderer = StubRenderer()
         artifact_store = MagicMock()
@@ -96,6 +98,7 @@ class TestLinterIntegration:
             artifact_store=artifact_store,
             telemetry=MagicMock(),
             linter_service=LinterService(),
+            concept_registry=registry,
         )
 
         # Act & Assert
@@ -107,10 +110,12 @@ class TestLinterIntegration:
         self, concept_id: str, tmp_path: Path
     ) -> None:
         # Arrange
+        from videos.domain.concept_registry import ConceptRegistry
         from videos.infrastructure.declarative import register_all
 
+        registry = ConceptRegistry()
         test_defs = Path(__file__).parents[2] / "fixtures" / "concepts"
-        register_all(definitions_dir=test_defs)
+        register_all(registry, definitions_dir=test_defs)
 
         renderer = GoodRenderer()
         artifact_store = MagicMock()
@@ -129,6 +134,7 @@ class TestLinterIntegration:
             artifact_store=artifact_store,
             telemetry=MagicMock(),
             linter_service=LinterService(),
+            concept_registry=registry,
         )
 
         # Act

@@ -8,8 +8,11 @@ from videos.domain.concept_registry import ConceptRegistry
 
 
 class NarrativePlanningStep:
+    def __init__(self, registry: ConceptRegistry) -> None:
+        self._registry = registry
+
     def execute(self, context: PipelineContext) -> PipelineContext:
-        extension = ConceptRegistry.get(ConceptId(context.concept_id))
+        extension = self._registry.get(ConceptId(context.concept_id))
         narrative = extension.create_narrative()
         if narrative.concept.id.value != context.concept_id:
             raise RuntimeError(

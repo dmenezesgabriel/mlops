@@ -71,10 +71,10 @@ class TestYamlToConceptExtension:
     def test_registers_with_registry(self) -> None:
         from videos.domain.concept_registry import ConceptRegistry
 
-        ConceptRegistry._extensions.clear()
+        registry = ConceptRegistry()
         ext = yaml_to_concept_extension(SAMPLE_YAML)
-        ConceptRegistry.register(ext)
-        retrieved = ConceptRegistry.get(ConceptId("test_concept"))
+        registry.register(ext)
+        retrieved = registry.get(ConceptId("test_concept"))
         assert retrieved is ext
 
 

@@ -9,7 +9,10 @@ from videos.infrastructure.declarative.loader import (
 )
 
 
-def register_all(definitions_dir: str | Path | None = None) -> None:
+def register_all(
+    registry: ConceptRegistry,
+    definitions_dir: str | Path | None = None,
+) -> None:
     """
     Discover and register all concept definitions from the specified directory.
     If no directory is provided, no concepts are registered.
@@ -20,4 +23,4 @@ def register_all(definitions_dir: str | Path | None = None) -> None:
     root = Path(definitions_dir)
     for yaml_path in find_concept_yaml_files(root):
         ext = load_concept_from_yaml_file(str(yaml_path))
-        ConceptRegistry.register(ext)
+        registry.register(ext)

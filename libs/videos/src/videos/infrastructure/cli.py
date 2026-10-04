@@ -7,6 +7,7 @@ from pathlib import Path
 from videos.application.components import ComponentRegistry
 from videos.application.director import Director
 from videos.application.ports.telemetry import Telemetry
+from videos.domain.concept_registry import ConceptRegistry
 from videos.infrastructure.declarative import register_all
 from videos.infrastructure.filesystem.artifact_store import (
     FileSystemArtifactStore,
@@ -71,7 +72,11 @@ def main() -> None:
         sys.exit(1)
 
     try:
-        register_all(definitions_dir=args.definitions_dir)
+        concept_registry = ConceptRegistry()
+        register_all(
+            registry=concept_registry,
+            definitions_dir=args.definitions_dir,
+        )
 
         registry = ComponentRegistry()
         register_default_components(registry)
@@ -98,6 +103,7 @@ def main() -> None:
             artifact_store=artifact_store,
             telemetry=telemetry,
             linter_service=linter_service,
+            concept_registry=concept_registry,
         )
 
         director.produce(quality=args.quality)

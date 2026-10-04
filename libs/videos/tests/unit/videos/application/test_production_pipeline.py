@@ -67,6 +67,13 @@ def _minimal_narrative(concept: Concept | None = None) -> Narrative:
     )
 
 
+def _registered_ext() -> MagicMock:
+    mock_ext = MagicMock()
+    mock_ext.concept = _minimal_concept()
+    mock_ext.create_narrative.return_value = _minimal_narrative()
+    return mock_ext
+
+
 class StubTelemetry(Telemetry):
     def __init__(self) -> None:
         self.events: list[tuple[str, dict[str, object]]] = []
@@ -144,14 +151,14 @@ class StubArtifactStore(ArtifactStore):
 
 class TestNarrativePlanningStep:
     def test_plans_narrative_from_registry(self, tmp_path: Path) -> None:
-        ConceptRegistry._extensions.clear()
+        registry = ConceptRegistry()
         narrative = _minimal_narrative()
         mock_ext = MagicMock()
         mock_ext.concept = _minimal_concept()
         mock_ext.create_narrative.return_value = narrative
-        ConceptRegistry.register(mock_ext)
+        registry.register(mock_ext)
 
-        step = NarrativePlanningStep()
+        step = NarrativePlanningStep(registry)
         ctx = PipelineContext(concept_id="test")
         result = step.execute(ctx)
 
@@ -159,15 +166,30 @@ class TestNarrativePlanningStep:
         assert result.narrative.total_duration == 10.0
         assert result.correlation_id != ""
 
+    def test_reads_only_the_injected_registry(self) -> None:
+        # The step must resolve against its own registry instance, not any
+        # ambient registrations (the ClassVar singleton leaked across tests).
+        populated = ConceptRegistry()
+        populated.register(_registered_ext())
+        empty = ConceptRegistry()
+
+        with pytest.raises(LookupError, match="Unknown concept"):
+            NarrativePlanningStep(empty).execute(
+                PipelineContext(concept_id="test")
+            )
+        result = NarrativePlanningStep(populated).execute(
+            PipelineContext(concept_id="test")
+        )
+        assert result.narrative is not None
+
     def test_fails_on_unknown_concept(self) -> None:
-        ConceptRegistry._extensions.clear()
-        step = NarrativePlanningStep()
+        step = NarrativePlanningStep(ConceptRegistry())
         ctx = PipelineContext(concept_id="nonexistent")
         with pytest.raises(LookupError, match="Unknown concept"):
             step.execute(ctx)
 
     def test_rejects_narrative_for_other_concept(self) -> None:
-        ConceptRegistry._extensions.clear()
+        registry = ConceptRegistry()
         other = Concept(
             id=ConceptId("other"),
             metadata=ConceptMetadata(
@@ -181,9 +203,9 @@ class TestNarrativePlanningStep:
         mock_ext.create_narrative.return_value = _minimal_narrative(
             concept=other
         )
-        ConceptRegistry.register(mock_ext)
+        registry.register(mock_ext)
 
-        step = NarrativePlanningStep()
+        step = NarrativePlanningStep(registry)
         ctx = PipelineContext(concept_id="test")
         with pytest.raises(RuntimeError, match="other"):
             step.execute(ctx)

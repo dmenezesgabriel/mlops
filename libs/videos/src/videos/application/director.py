@@ -22,6 +22,7 @@ from videos.application.steps.static_validation_step import (
 from videos.application.steps.visual_validation_step import (
     VisualValidationStep,
 )
+from videos.domain.concept_registry import ConceptRegistry
 
 if TYPE_CHECKING:
     pass
@@ -33,27 +34,56 @@ class Director:
     def __init__(
         self,
         concept_id: str,
-        renderer: Renderer,
-        scene_builder: SceneBuilder,
-        layout_engine: LayoutEngine,
-        artifact_store: ArtifactStore,
-        telemetry: Telemetry,
+        renderer: Renderer | None = None,
+        scene_builder: SceneBuilder | None = None,
+        layout_engine: LayoutEngine | None = None,
+        artifact_store: ArtifactStore | None = None,
+        telemetry: Telemetry | None = None,
+        concept_registry: ConceptRegistry | None = None,
         linter_service: Linter | None = None,
         pipeline: ProductionPipeline | None = None,
     ) -> None:
         self._concept_id = concept_id
-        self._pipeline = pipeline or self._build_default_pipeline(
+        if pipeline is not None:
+            self._pipeline = pipeline
+            return
+        if (
+            renderer is None
+            or scene_builder is None
+            or layout_engine is None
+            or artifact_store is None
+            or telemetry is None
+            or concept_registry is None
+        ):
+            missing = ", ".join(
+                name
+                for name, adapter in (
+                    ("renderer", renderer),
+                    ("scene_builder", scene_builder),
+                    ("layout_engine", layout_engine),
+                    ("artifact_store", artifact_store),
+                    ("telemetry", telemetry),
+                    ("concept_registry", concept_registry),
+                )
+                if adapter is None
+            )
+            raise ValueError(
+                f"Director requires 'pipeline' or all adapters; "
+                f"missing: {missing}"
+            )
+        self._pipeline = self._build_default_pipeline(
             renderer=renderer,
             scene_builder=scene_builder,
             layout_engine=layout_engine,
             artifact_store=artifact_store,
             telemetry=telemetry,
             linter_service=linter_service,
+            concept_registry=concept_registry,
         )
 
-    def produce(self, quality: str = "preview") -> None:
+    def produce(self, quality: str = "preview") -> PipelineContext:
         context = PipelineContext(concept_id=self._concept_id, quality=quality)
-        self._pipeline.execute(context)
+        return self._pipeline.execute(context)
 
     @staticmethod
     def _build_default_pipeline(
@@ -63,10 +93,11 @@ class Director:
         artifact_store: ArtifactStore,
         telemetry: Telemetry,
         linter_service: Linter | None,
+        concept_registry: ConceptRegistry,
     ) -> ProductionPipeline:
         return ProductionPipeline(
             steps=[
-                NarrativePlanningStep(),
+                NarrativePlanningStep(registry=concept_registry),
                 StaticValidationStep(),
                 PreviewRenderStep(
                     renderer=renderer,

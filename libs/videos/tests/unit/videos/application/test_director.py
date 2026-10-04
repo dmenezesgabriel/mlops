@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
 from videos.application.director import Director
+from videos.application.pipeline_context import PipelineContext
 from videos.application.ports.artifact_store import ArtifactStore
 from videos.application.ports.layout_engine import LayoutEngine
 from videos.application.ports.renderer import Renderer, RenderResult
@@ -125,14 +127,14 @@ class TestDirector:
         self, tmp_path: Path
     ) -> None:
         # Arrange
-        ConceptRegistry._extensions.clear()
+        registry = ConceptRegistry()
         concept = _minimal_concept()
         narrative = _minimal_narrative(concept)
 
         mock_extension = MagicMock()
         mock_extension.concept = concept
         mock_extension.create_narrative.return_value = narrative
-        ConceptRegistry.register(mock_extension)
+        registry.register(mock_extension)
 
         renderer = StubRenderer()
         artifact_store = StubArtifactStore()
@@ -146,6 +148,7 @@ class TestDirector:
             artifact_store=artifact_store,
             telemetry=StubTelemetry(),
             linter_service=MagicMock(),
+            concept_registry=registry,
         )
 
         # Act
@@ -161,7 +164,6 @@ class TestDirector:
 
     def test_director_fails_unknown_concept(self) -> None:
         # Arrange
-        ConceptRegistry._extensions.clear()
         director = Director(
             concept_id="nonexistent",
             renderer=StubRenderer(),
@@ -169,6 +171,7 @@ class TestDirector:
             layout_engine=StubLayoutEngine(),
             artifact_store=StubArtifactStore(),
             telemetry=StubTelemetry(),
+            concept_registry=ConceptRegistry(),
         )
 
         # Act & Assert
@@ -177,7 +180,6 @@ class TestDirector:
 
     def test_director_rejects_unknown_quality(self) -> None:
         # Arrange
-        ConceptRegistry._extensions.clear()
         renderer = StubRenderer()
         director = Director(
             concept_id="test",
@@ -186,6 +188,7 @@ class TestDirector:
             layout_engine=StubLayoutEngine(),
             artifact_store=StubArtifactStore(),
             telemetry=StubTelemetry(),
+            concept_registry=ConceptRegistry(),
         )
 
         # Act & Assert — must fail before any scene renders
@@ -195,14 +198,14 @@ class TestDirector:
 
     def test_director_produce_final_quality(self, tmp_path: Path) -> None:
         # Arrange
-        ConceptRegistry._extensions.clear()
+        registry = ConceptRegistry()
         concept = _minimal_concept()
         narrative = _minimal_narrative(concept)
 
         mock_extension = MagicMock()
         mock_extension.concept = concept
         mock_extension.create_narrative.return_value = narrative
-        ConceptRegistry.register(mock_extension)
+        registry.register(mock_extension)
 
         renderer = StubRenderer()
         artifact_store = MagicMock(spec=ArtifactStore)
@@ -221,6 +224,7 @@ class TestDirector:
             artifact_store=artifact_store,
             telemetry=StubTelemetry(),
             linter_service=MagicMock(),
+            concept_registry=registry,
         )
 
         # Act
@@ -229,3 +233,57 @@ class TestDirector:
         # Assert
         # Verify resolve_output_path was called with "final"
         artifact_store.resolve_output_path.assert_any_call("test", "final")
+
+    def test_director_constructs_with_pipeline_only(self) -> None:
+        # Arrange — an injected pipeline needs no adapters
+        executed: list[PipelineContext] = []
+
+        @dataclass
+        class _RecordingPipeline:
+            def execute(self, context: PipelineContext) -> PipelineContext:
+                executed.append(context)
+                return context
+
+        director = Director(concept_id="test", pipeline=_RecordingPipeline())
+
+        # Act
+        context = director.produce()
+
+        # Assert
+        assert executed == [context]
+        assert context.concept_id == "test"
+
+    def test_director_requires_pipeline_or_adapters(self) -> None:
+        with pytest.raises(ValueError, match="missing: renderer"):
+            Director(concept_id="test")
+
+    def test_produce_returns_pipeline_context(self, tmp_path: Path) -> None:
+        # Arrange — produce must hand back the context carrying final_result
+        registry = ConceptRegistry()
+        concept = _minimal_concept()
+        mock_extension = MagicMock()
+        mock_extension.concept = concept
+        mock_extension.create_narrative.return_value = _minimal_narrative(
+            concept
+        )
+        registry.register(mock_extension)
+
+        artifact_store = StubArtifactStore()
+        artifact_store._tmp = tmp_path
+        director = Director(
+            concept_id="test",
+            renderer=StubRenderer(),
+            scene_builder=StubSceneBuilder(),
+            layout_engine=StubLayoutEngine(),
+            artifact_store=artifact_store,
+            telemetry=StubTelemetry(),
+            linter_service=MagicMock(),
+            concept_registry=registry,
+        )
+
+        # Act
+        context = director.produce(quality="final")
+
+        # Assert
+        assert context.final_result is not None
+        assert context.final_result.success

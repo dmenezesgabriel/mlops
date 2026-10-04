@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 from videos.infrastructure.cli import main
@@ -29,7 +29,9 @@ class TestCLI:
         main()
 
         # Assert
-        mock_register_all.assert_called_once_with(definitions_dir=tmp_path)
+        mock_register_all.assert_called_once_with(
+            registry=ANY, definitions_dir=tmp_path
+        )
 
     @patch("videos.infrastructure.cli.Director")
     @patch("videos.infrastructure.cli.register_all")
@@ -53,7 +55,9 @@ class TestCLI:
         main()
 
         # Assert
-        mock_register_all.assert_called_once_with(definitions_dir=tmp_path)
+        mock_register_all.assert_called_once_with(
+            registry=ANY, definitions_dir=tmp_path
+        )
 
     @patch("videos.infrastructure.cli.Director")
     @patch("videos.infrastructure.cli.register_all")

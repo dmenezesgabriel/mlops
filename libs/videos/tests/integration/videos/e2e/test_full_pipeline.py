@@ -127,6 +127,7 @@ class TestE2EDirector:
             layout_engine=StubLayoutEngine(),
             artifact_store=StubArtifactStore(),
             telemetry=StubTelemetry(),
+            concept_registry=ConceptRegistry(),
         )
 
         # Act & Assert
@@ -135,13 +136,13 @@ class TestE2EDirector:
 
     def test_register_yaml_and_director_finds_it(self) -> None:
         # Arrange
-        ConceptRegistry._extensions.clear()
+        registry = ConceptRegistry()
         path = TEST_YAML_DIR / "test_e2e.yaml"
         ext = load_concept_from_yaml_file(str(path))
-        ConceptRegistry.register(ext)
+        registry.register(ext)
 
         # Act
-        retrieved = ConceptRegistry.get(ConceptId("test_e2e"))
+        retrieved = registry.get(ConceptId("test_e2e"))
 
         # Assert
         assert retrieved.concept.id.value == "test_e2e"
@@ -150,14 +151,14 @@ class TestE2EDirector:
 class TestE2ERegisterAll:
     def test_register_all_includes_yaml(self) -> None:
         # Arrange
-        ConceptRegistry._extensions.clear()
+        registry = ConceptRegistry()
         from videos.infrastructure.declarative import register_all
 
         # Act
-        register_all(definitions_dir=TEST_YAML_DIR)
+        register_all(registry, definitions_dir=TEST_YAML_DIR)
 
         # Assert
-        ext = ConceptRegistry.get(ConceptId("test_e2e"))
+        ext = registry.get(ConceptId("test_e2e"))
         assert ext is not None
         narrative = ext.create_narrative()
         assert len(narrative.beats) > 0

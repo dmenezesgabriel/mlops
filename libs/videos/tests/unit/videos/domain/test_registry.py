@@ -41,34 +41,40 @@ def _concept(id_str: str) -> Concept:
     )
 
 
-@pytest.fixture(autouse=True)
-def _clear() -> None:
-    ConceptRegistry._extensions.clear()
-
-
 def test_register_stores_extension() -> None:
+    registry = ConceptRegistry()
     ext = StubExtension(_concept("test-a"))
-    ConceptRegistry.register(ext)
-    assert ConceptRegistry.get(ConceptId("test-a")) is ext
+    registry.register(ext)
+    assert registry.get(ConceptId("test-a")) is ext
 
 
 def test_get_raises_unknown() -> None:
+    registry = ConceptRegistry()
     with pytest.raises(UnknownConceptError, match="Unknown concept"):
-        ConceptRegistry.get(ConceptId("does-not-exist"))
+        registry.get(ConceptId("does-not-exist"))
 
 
 def test_all_returns_all_registered() -> None:
-    ext_a = StubExtension(_concept("a"))
-    ext_b = StubExtension(_concept("b"))
-    ConceptRegistry.register(ext_a)
-    ConceptRegistry.register(ext_b)
-    result = ConceptRegistry.all()
+    registry = ConceptRegistry()
+    registry.register(StubExtension(_concept("a")))
+    registry.register(StubExtension(_concept("b")))
+    result = registry.all()
     assert len(result) == 2
 
 
 def test_register_overwrites_existing() -> None:
-    older = StubExtension(_concept("dup"))
+    registry = ConceptRegistry()
     newer = StubExtension(_concept("dup"))
-    ConceptRegistry.register(older)
-    ConceptRegistry.register(newer)
-    assert ConceptRegistry.get(ConceptId("dup")) is newer
+    registry.register(StubExtension(_concept("dup")))
+    registry.register(newer)
+    assert registry.get(ConceptId("dup")) is newer
+
+
+def test_instances_are_isolated() -> None:
+    # Registrations live on the instance — a second registry must not see
+    # them (the ClassVar singleton leaked them into every consumer).
+    first = ConceptRegistry()
+    second = ConceptRegistry()
+    first.register(StubExtension(_concept("x")))
+    with pytest.raises(UnknownConceptError):
+        second.get(ConceptId("x"))

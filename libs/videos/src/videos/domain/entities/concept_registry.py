@@ -1,4 +1,4 @@
-"""ConceptRegistry entity — global registry of ConceptExtensions."""
+"""ConceptRegistry entity — registry of ConceptExtensions."""
 
 from __future__ import annotations
 
@@ -18,29 +18,31 @@ class UnknownConceptError(LookupError):
 
 
 class ConceptRegistry:
-    """Thread-unsafe singleton registry of ConceptExtensions.
+    """Registry of ConceptExtensions, injected into its consumers.
+
+    Instance-scoped: callers own the registry they populate, so tests get
+    isolation by constructing a fresh instance.
 
     Example:
-        ConceptRegistry.register(my_extension)
-        ext = ConceptRegistry.get(ConceptId(value="my_concept"))
+        registry = ConceptRegistry()
+        registry.register(my_extension)
+        ext = registry.get(ConceptId(value="my_concept"))
     """
 
-    _extensions: dict[str, ConceptExtension] = {}
+    def __init__(self) -> None:
+        self._extensions: dict[str, ConceptExtension] = {}
 
-    @classmethod
-    def register(cls, extension: ConceptExtension) -> None:
+    def register(self, extension: ConceptExtension) -> None:
         cid = extension.concept.id.value
-        if cid in cls._extensions:
+        if cid in self._extensions:
             logger.warning("Overwriting extension", extra={"concept": cid})
-        cls._extensions[cid] = extension
+        self._extensions[cid] = extension
         logger.info("Registered extension", extra={"concept": cid})
 
-    @classmethod
-    def get(cls, cid: ConceptId) -> ConceptExtension:
-        if cid.value not in cls._extensions:
-            raise UnknownConceptError(cid.value, list(cls._extensions))
-        return cls._extensions[cid.value]
+    def get(self, cid: ConceptId) -> ConceptExtension:
+        if cid.value not in self._extensions:
+            raise UnknownConceptError(cid.value, list(self._extensions))
+        return self._extensions[cid.value]
 
-    @classmethod
-    def all(cls) -> tuple[ConceptExtension, ...]:
-        return tuple(cls._extensions.values())
+    def all(self) -> tuple[ConceptExtension, ...]:
+        return tuple(self._extensions.values())
