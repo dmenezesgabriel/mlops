@@ -1,3 +1,5 @@
+from collections.abc import Iterable
+
 from diagrams_generation.domain.value_objects.diagram_cluster import (
     DiagramCluster,
 )
@@ -5,6 +7,16 @@ from diagrams_generation.domain.value_objects.diagram_connection import (
     DiagramConnection,
 )
 from diagrams_generation.domain.value_objects.diagram_node import DiagramNode
+
+
+def _first_duplicate(values: Iterable[str]) -> str | None:
+    seen: set[str] = set()
+    for value in values:
+        if value in seen:
+            return value
+        seen.add(value)
+
+    return None
 
 
 class DiagramDefinition:
@@ -38,11 +50,18 @@ class DiagramDefinition:
                 f"Invalid direction {self.direction!r}, expected one of {valid_directions}"
             )
 
-        all_identifiers = {node.identifier for node in self.nodes}
+        identifiers = [node.identifier for node in self.nodes]
         for cluster in self.clusters:
-            all_identifiers.update(node.identifier for node in cluster.nodes)
+            identifiers.extend(node.identifier for node in cluster.nodes)
 
-        self._validate_connections(all_identifiers)
+        duplicate = _first_duplicate(identifiers)
+        if duplicate is not None:
+            raise ValueError(
+                f"Duplicate node identifier {duplicate!r}: "
+                f"expected unique identifiers across nodes and clusters"
+            )
+
+        self._validate_connections(set(identifiers))
 
     def _validate_connections(self, all_identifiers: set[str]) -> None:
         for connection in self.connections:

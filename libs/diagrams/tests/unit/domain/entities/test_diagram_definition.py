@@ -2,6 +2,9 @@ import pytest
 from diagrams_generation.domain.entities.diagram_definition import (
     DiagramDefinition,
 )
+from diagrams_generation.domain.value_objects.diagram_cluster import (
+    DiagramCluster,
+)
 from diagrams_generation.domain.value_objects.diagram_connection import (
     DiagramConnection,
 )
@@ -52,3 +55,60 @@ class TestDiagramDefinition:
                 connections=(),
             )
         assert "INVALID" in str(exc_info.value)
+
+    def test_should_raise_value_error_when_node_identifier_duplicated(
+        self,
+    ) -> None:
+        # Arrange
+        nodes = (
+            DiagramNode(
+                identifier="a", label="A", node_type="onprem.compute.Server"
+            ),
+            DiagramNode(
+                identifier="a", label="A2", node_type="onprem.compute.Server"
+            ),
+        )
+
+        # Act & Assert
+        with pytest.raises(ValueError, match="'a'"):
+            DiagramDefinition(
+                name="Test",
+                filename="test",
+                direction="LR",
+                nodes=nodes,
+                clusters=(),
+                connections=(),
+            )
+
+    def test_should_raise_value_error_when_cluster_node_identifier_duplicated(
+        self,
+    ) -> None:
+        # Arrange
+        nodes = (
+            DiagramNode(
+                identifier="a", label="A", node_type="onprem.compute.Server"
+            ),
+        )
+        clusters = (
+            DiagramCluster(
+                name="cluster",
+                nodes=(
+                    DiagramNode(
+                        identifier="a",
+                        label="A2",
+                        node_type="onprem.compute.Server",
+                    ),
+                ),
+            ),
+        )
+
+        # Act & Assert
+        with pytest.raises(ValueError, match="'a'"):
+            DiagramDefinition(
+                name="Test",
+                filename="test",
+                direction="LR",
+                nodes=nodes,
+                clusters=clusters,
+                connections=(),
+            )
