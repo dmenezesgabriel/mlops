@@ -3,7 +3,6 @@ import sys
 from pathlib import Path
 
 from diagrams_generation.infrastructure.loader import load_from_file
-from diagrams_generation.infrastructure.logging import setup_structured_logging
 from diagrams_generation.infrastructure.mingrammer_renderer import (
     MingrammerDiagramRenderer,
 )
@@ -30,7 +29,6 @@ def _parse_arguments() -> argparse.Namespace:
 
 
 def main() -> None:
-    setup_structured_logging()
     arguments = _parse_arguments()
     definitions_directory = Path(arguments.definitions_dir)
     yaml_path = definitions_directory / f"{arguments.diagram_id}.yaml"

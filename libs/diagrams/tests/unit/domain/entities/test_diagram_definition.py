@@ -80,6 +80,28 @@ class TestDiagramDefinition:
                 connections=(),
             )
 
+    def test_should_raise_value_error_when_from_node_missing(self) -> None:
+        # Arrange
+        nodes = (
+            DiagramNode(
+                identifier="a", label="A", node_type="onprem.compute.Server"
+            ),
+        )
+        connections = (DiagramConnection(from_node="x", to_node="a"),)
+
+        # Act & Assert
+        with pytest.raises(ValueError) as exc_info:
+            DiagramDefinition(
+                name="Test",
+                filename="test",
+                direction="LR",
+                nodes=nodes,
+                clusters=(),
+                connections=connections,
+            )
+        assert "x" in str(exc_info.value)
+        assert "a" in str(exc_info.value)
+
     def test_should_raise_value_error_when_cluster_node_identifier_duplicated(
         self,
     ) -> None:
