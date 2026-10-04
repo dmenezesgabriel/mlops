@@ -1,18 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
-from unittest.mock import MagicMock
 
 import pytest
 from videos.application.director import Director
 from videos.application.pipeline_context import PipelineContext
-from videos.application.ports.artifact_store import ArtifactStore
-from videos.application.ports.layout_engine import LayoutEngine
-from videos.application.ports.renderer import Renderer, RenderResult
-from videos.application.ports.scene_builder import SceneBuilder
-from videos.application.ports.telemetry import Telemetry
+from videos.application.production_pipeline import ProductionPipeline
 from videos.domain.entities.concept import (
     Concept,
     ConceptId,
@@ -26,7 +19,16 @@ from videos.domain.value_objects.narrative import (
     BeatKind,
     NarrationLine,
 )
-from videos.domain.value_objects.scene_spec import SceneSpec
+
+from tests._fakes import (
+    FakeSceneBuilder,
+    FixedConceptExtension,
+    PassthroughLayoutEngine,
+    RecordingLinter,
+    RecordingTelemetry,
+    StubArtifactStore,
+    StubRenderer,
+)
 
 
 def _minimal_concept() -> Concept:
@@ -48,63 +50,17 @@ def _minimal_narrative(concept: Concept | None = None) -> Narrative:
     )
 
 
-class StubTelemetry(Telemetry):
-    def __init__(self) -> None:
-        self.events: list[tuple[str, dict[str, object]]] = []
-
-    def record_event(
-        self, event_name: str, attributes: dict[str, object]
-    ) -> None:
-        self.events.append((event_name, attributes))
-
-
-class StubRenderer(Renderer):
-    def __init__(self) -> None:
-        self.jobs: list[tuple[object, Path, str]] = []
-
-    def render(
-        self, scene_job: object, output_path: Path, quality: str = "preview"
-    ) -> RenderResult:
-        self.jobs.append((scene_job, output_path, quality))
-        # Create dummy PNG + video artifacts for the visual-validation step
-        png_path = output_path.with_suffix(".png")
-        png_path.touch()
-        output_path.touch()
-        return RenderResult(
-            output_path=output_path, duration_ms=100.0, success=True
+def _registry_with_test_concept(
+    narrative: Narrative | None = None,
+) -> ConceptRegistry:
+    registry = ConceptRegistry()
+    concept = _minimal_concept()
+    registry.register(
+        FixedConceptExtension(
+            concept, narrative or _minimal_narrative(concept)
         )
-
-
-class StubSceneBuilder(SceneBuilder):
-    def __init__(self) -> None:
-        self.specs: list = []
-
-    def build(self, scene_spec: object) -> object:
-        self.specs.append(scene_spec)
-        return object()
-
-    def build_storyboard(
-        self, storyboard: object, layout_engine: object
-    ) -> object:
-        return object()
-
-
-class StubLayoutEngine(LayoutEngine):
-    def apply(self, scene: object) -> SceneSpec:
-        return cast(SceneSpec, scene)
-
-
-class StubArtifactStore(ArtifactStore):
-    def __init__(self) -> None:
-        self._tmp = Path("/tmp")
-
-    def resolve_output_path(self, concept_id: str, quality: str) -> Path:
-        return self._tmp / f"{concept_id}_{quality}.mp4"
-
-    def resolve_scene_preview_path(
-        self, concept_id: str, scene_id: str
-    ) -> Path:
-        return self._tmp / f"{concept_id}_{scene_id}.mp4"
+    )
+    return registry
 
 
 class TestDirector:
@@ -112,27 +68,17 @@ class TestDirector:
         self, tmp_path: Path
     ) -> None:
         # Arrange
-        registry = ConceptRegistry()
-        concept = _minimal_concept()
-        narrative = _minimal_narrative(concept)
-
-        mock_extension = MagicMock()
-        mock_extension.concept = concept
-        mock_extension.create_narrative.return_value = narrative
-        registry.register(mock_extension)
-
+        registry = _registry_with_test_concept()
         renderer = StubRenderer()
-        artifact_store = StubArtifactStore()
-        artifact_store._tmp = tmp_path
 
         director = Director(
             concept_id="test",
             renderer=renderer,
-            scene_builder=StubSceneBuilder(),
-            layout_engine=StubLayoutEngine(),
-            artifact_store=artifact_store,
-            telemetry=StubTelemetry(),
-            linter_service=MagicMock(),
+            scene_builder=FakeSceneBuilder(),
+            layout_engine=PassthroughLayoutEngine(),
+            artifact_store=StubArtifactStore(tmp_path),
+            telemetry=RecordingTelemetry(),
+            linter_service=RecordingLinter(),
             concept_registry=registry,
         )
 
@@ -152,10 +98,10 @@ class TestDirector:
         director = Director(
             concept_id="nonexistent",
             renderer=StubRenderer(),
-            scene_builder=StubSceneBuilder(),
-            layout_engine=StubLayoutEngine(),
-            artifact_store=StubArtifactStore(),
-            telemetry=StubTelemetry(),
+            scene_builder=FakeSceneBuilder(),
+            layout_engine=PassthroughLayoutEngine(),
+            artifact_store=StubArtifactStore(Path("/tmp")),
+            telemetry=RecordingTelemetry(),
             concept_registry=ConceptRegistry(),
         )
 
@@ -169,10 +115,10 @@ class TestDirector:
         director = Director(
             concept_id="test",
             renderer=renderer,
-            scene_builder=StubSceneBuilder(),
-            layout_engine=StubLayoutEngine(),
-            artifact_store=StubArtifactStore(),
-            telemetry=StubTelemetry(),
+            scene_builder=FakeSceneBuilder(),
+            layout_engine=PassthroughLayoutEngine(),
+            artifact_store=StubArtifactStore(Path("/tmp")),
+            telemetry=RecordingTelemetry(),
             concept_registry=ConceptRegistry(),
         )
 
@@ -183,32 +129,17 @@ class TestDirector:
 
     def test_director_produce_final_quality(self, tmp_path: Path) -> None:
         # Arrange
-        registry = ConceptRegistry()
-        concept = _minimal_concept()
-        narrative = _minimal_narrative(concept)
-
-        mock_extension = MagicMock()
-        mock_extension.concept = concept
-        mock_extension.create_narrative.return_value = narrative
-        registry.register(mock_extension)
-
-        renderer = StubRenderer()
-        artifact_store = MagicMock(spec=ArtifactStore)
-        artifact_store.resolve_output_path.return_value = (
-            tmp_path / "final.mp4"
-        )
-        artifact_store.resolve_scene_preview_path.return_value = (
-            tmp_path / "scene.mp4"
-        )
+        registry = _registry_with_test_concept()
+        artifact_store = StubArtifactStore(tmp_path)
 
         director = Director(
             concept_id="test",
-            renderer=renderer,
-            scene_builder=StubSceneBuilder(),
-            layout_engine=StubLayoutEngine(),
+            renderer=StubRenderer(),
+            scene_builder=FakeSceneBuilder(),
+            layout_engine=PassthroughLayoutEngine(),
             artifact_store=artifact_store,
-            telemetry=StubTelemetry(),
-            linter_service=MagicMock(),
+            telemetry=RecordingTelemetry(),
+            linter_service=RecordingLinter(),
             concept_registry=registry,
         )
 
@@ -217,19 +148,24 @@ class TestDirector:
 
         # Assert
         # Verify resolve_output_path was called with "final"
-        artifact_store.resolve_output_path.assert_any_call("test", "final")
+        assert ("test", "final") in artifact_store.output_calls
 
     def test_director_constructs_with_pipeline_only(self) -> None:
         # Arrange — an injected pipeline needs no adapters
         executed: list[PipelineContext] = []
 
-        @dataclass
-        class _RecordingPipeline:
+        class _RecordingPipeline(ProductionPipeline):
+            def __init__(self, sink: list[PipelineContext]) -> None:
+                super().__init__(steps=())
+                self._sink = sink
+
             def execute(self, context: PipelineContext) -> PipelineContext:
-                executed.append(context)
+                self._sink.append(context)
                 return context
 
-        director = Director(concept_id="test", pipeline=_RecordingPipeline())
+        director = Director(
+            concept_id="test", pipeline=_RecordingPipeline(executed)
+        )
 
         # Act
         context = director.produce()
@@ -244,25 +180,15 @@ class TestDirector:
 
     def test_produce_returns_pipeline_context(self, tmp_path: Path) -> None:
         # Arrange — produce must hand back the context carrying final_result
-        registry = ConceptRegistry()
-        concept = _minimal_concept()
-        mock_extension = MagicMock()
-        mock_extension.concept = concept
-        mock_extension.create_narrative.return_value = _minimal_narrative(
-            concept
-        )
-        registry.register(mock_extension)
-
-        artifact_store = StubArtifactStore()
-        artifact_store._tmp = tmp_path
+        registry = _registry_with_test_concept()
         director = Director(
             concept_id="test",
             renderer=StubRenderer(),
-            scene_builder=StubSceneBuilder(),
-            layout_engine=StubLayoutEngine(),
-            artifact_store=artifact_store,
-            telemetry=StubTelemetry(),
-            linter_service=MagicMock(),
+            scene_builder=FakeSceneBuilder(),
+            layout_engine=PassthroughLayoutEngine(),
+            artifact_store=StubArtifactStore(tmp_path),
+            telemetry=RecordingTelemetry(),
+            linter_service=RecordingLinter(),
             concept_registry=registry,
         )
 

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import contextlib
+from collections.abc import Iterator
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 from videos.application.director import Director
@@ -12,6 +12,13 @@ from videos.infrastructure.validation.linter_service import (
     LinterService,
 )
 
+from tests._fakes import (
+    FakeSceneBuilder,
+    PassthroughLayoutEngine,
+    RecordingTelemetry,
+    StubArtifactStore,
+)
+
 # Minimal ISO-BMFF header: verify_video rejects empty/undecodable mp4s, so a
 # stub renderer's success=True must leave a header-valid file behind.
 _FAKE_MP4_BYTES = b"\x00\x00\x00\x18ftypisom" + b"\x00" * 16
@@ -19,9 +26,7 @@ _FAKE_MP4_BYTES = b"\x00\x00\x00\x18ftypisom" + b"\x00" * 16
 
 class StubRenderer:
     @contextlib.contextmanager
-    def quality_context(
-        self, quality: str
-    ) -> contextlib.AbstractContextManager[None]:
+    def quality_context(self, quality: str) -> Iterator[None]:
         yield
 
     def render(
@@ -43,9 +48,7 @@ class StubRenderer:
 
 class GoodRenderer:
     @contextlib.contextmanager
-    def quality_context(
-        self, quality: str
-    ) -> contextlib.AbstractContextManager[None]:
+    def quality_context(self, quality: str) -> Iterator[None]:
         yield
 
     def render(
@@ -81,22 +84,14 @@ class TestLinterIntegration:
         register_all(registry, definitions_dir=test_defs)
 
         renderer = StubRenderer()
-        artifact_store = MagicMock()
-        # Use temp dir for output paths to avoid permission issues and cleanup
-        artifact_store.resolve_scene_preview_path.side_effect = (
-            lambda cid, sid: tmp_path / f"{cid}_{sid}.mp4"
-        )
-        artifact_store.resolve_output_path.return_value = (
-            tmp_path / "final.mp4"
-        )
 
         director = Director(
             concept_id=concept_id,
             renderer=renderer,
-            scene_builder=MagicMock(),
-            layout_engine=MagicMock(),
-            artifact_store=artifact_store,
-            telemetry=MagicMock(),
+            scene_builder=FakeSceneBuilder(),
+            layout_engine=PassthroughLayoutEngine(),
+            artifact_store=StubArtifactStore(tmp_path),
+            telemetry=RecordingTelemetry(),
             linter_service=LinterService(),
             concept_registry=registry,
         )
@@ -118,21 +113,14 @@ class TestLinterIntegration:
         register_all(registry, definitions_dir=test_defs)
 
         renderer = GoodRenderer()
-        artifact_store = MagicMock()
-        artifact_store.resolve_scene_preview_path.side_effect = (
-            lambda cid, sid: tmp_path / f"{cid}_{sid}.mp4"
-        )
-        artifact_store.resolve_output_path.return_value = (
-            tmp_path / "final.mp4"
-        )
 
         director = Director(
             concept_id=concept_id,
             renderer=renderer,
-            scene_builder=MagicMock(),
-            layout_engine=MagicMock(),
-            artifact_store=artifact_store,
-            telemetry=MagicMock(),
+            scene_builder=FakeSceneBuilder(),
+            layout_engine=PassthroughLayoutEngine(),
+            artifact_store=StubArtifactStore(tmp_path),
+            telemetry=RecordingTelemetry(),
             linter_service=LinterService(),
             concept_registry=registry,
         )

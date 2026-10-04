@@ -5,7 +5,7 @@ from videos.infrastructure.declarative.extension import (
     DeclarativeConceptExtension,
 )
 
-SAMPLE_DATA: dict = {
+SAMPLE_DATA: dict[str, object] = {
     "concept": {
         "id": {"value": "test_concept"},
         "metadata": {
@@ -45,14 +45,13 @@ class TestDeclarativeConceptExtension:
         assert narrative.beats[-1].kind.value == "recap"
 
     def test_rejects_missing_narrative(self) -> None:
-        raised = False
-        try:
-            DeclarativeConceptExtension(
-                {"concept": {"id": {"value": "x"}, "metadata": {}}}
-            )
-        except Exception:
-            raised = True
-        assert raised
+        # Valid concept metadata pins the raise to the extension's own
+        # beats guard — a bare try/except also passes when an upstream
+        # pydantic ValidationError names a different cause.
+        with pytest.raises(
+            ValueError, match="Narrative must have at least one beat for"
+        ):
+            DeclarativeConceptExtension({"concept": SAMPLE_DATA["concept"]})
 
 
 class TestDeclarativeConceptExtensionShapeValidation:
@@ -73,9 +72,18 @@ class TestDeclarativeConceptExtensionShapeValidation:
         with pytest.raises(ValueError, match="expected mapping at narrative"):
             DeclarativeConceptExtension({**SAMPLE_DATA, "narrative": 42})
 
-    def test_null_narrative_reports_missing_beats(self) -> None:
-        with pytest.raises(ValueError, match="at least one beat"):
-            DeclarativeConceptExtension({**SAMPLE_DATA, "narrative": None})
+    @pytest.mark.parametrize("narrative", [None, {}, {"beats": []}])
+    def test_empty_narrative_reports_missing_beats(
+        self, narrative: object
+    ) -> None:
+        # The extension's message — not Narrative's own validator ("Narrative
+        # for 'x' must have at least one beat") — must be what fires.
+        with pytest.raises(
+            ValueError, match="Narrative must have at least one beat for"
+        ):
+            DeclarativeConceptExtension(
+                {**SAMPLE_DATA, "narrative": narrative}
+            )
 
     @pytest.mark.parametrize("bad_beats", [42, "ab"])
     def test_rejects_non_list_beats(self, bad_beats: object) -> None:

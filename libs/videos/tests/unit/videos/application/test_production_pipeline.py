@@ -1,18 +1,11 @@
 from __future__ import annotations
 
-import contextlib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
-from unittest.mock import MagicMock
 
 import pytest
 from videos.application.pipeline_context import PipelineContext
-from videos.application.ports.artifact_store import ArtifactStore
-from videos.application.ports.layout_engine import LayoutEngine
 from videos.application.ports.renderer import RenderResult
-from videos.application.ports.scene_builder import SceneBuilder
-from videos.application.ports.telemetry import Telemetry
 from videos.application.production_pipeline import ProductionPipeline
 from videos.application.steps.final_render_step import FinalRenderStep
 from videos.application.steps.narrative_planning_step import (
@@ -44,6 +37,16 @@ from videos.domain.value_objects.narrative import (
 from videos.domain.value_objects.quality import RuleViolation
 from videos.domain.value_objects.scene_spec import SceneSpec
 
+from tests._fakes import (
+    FakeSceneBuilder,
+    FixedConceptExtension,
+    PassthroughLayoutEngine,
+    RecordingLinter,
+    RecordingTelemetry,
+    StubArtifactStore,
+    StubRenderer,
+)
+
 
 def _minimal_concept() -> Concept:
     return Concept(
@@ -67,82 +70,14 @@ def _minimal_narrative(concept: Concept | None = None) -> Narrative:
     )
 
 
-def _registered_ext() -> MagicMock:
-    mock_ext = MagicMock()
-    mock_ext.concept = _minimal_concept()
-    mock_ext.create_narrative.return_value = _minimal_narrative()
-    return mock_ext
-
-
-class StubTelemetry(Telemetry):
-    def __init__(self) -> None:
-        self.events: list[tuple[str, dict[str, object]]] = []
-
-    def record_event(
-        self, event_name: str, attributes: dict[str, object]
-    ) -> None:
-        self.events.append((event_name, attributes))
-
-
-class StubRenderer:
-    def __init__(self) -> None:
-        self.jobs: list = []
-
-    @contextlib.contextmanager
-    def quality_context(
-        self, quality: str
-    ) -> contextlib.AbstractContextManager[None]:
-        yield
-
-    def render(
-        self, scene_job: object, output_path: Path, quality: str = "preview"
-    ) -> RenderResult:
-        self.jobs.append((scene_job, output_path, quality))
-        png_path = output_path.with_suffix(".png")
-        png_path.parent.mkdir(parents=True, exist_ok=True)
-        png_path.touch()
-        output_path.touch()
-        return RenderResult(
-            output_path=output_path, duration_ms=100.0, success=True
-        )
-
-
-class StubSceneBuilder(SceneBuilder):
-    def build(self, scene_spec: object) -> object:
-        return object()
-
-    def build_storyboard(
-        self, storyboard: object, layout_engine: object
-    ) -> object:
-        return object()
-
-
-class StubLayoutEngine(LayoutEngine):
-    def apply(self, scene: object) -> SceneSpec:
-        return cast(SceneSpec, scene)
-
-
-class StubArtifactStore(ArtifactStore):
-    def __init__(self) -> None:
-        self._tmp = Path("/tmp")
-
-    def resolve_output_path(self, concept_id: str, quality: str) -> Path:
-        return self._tmp / f"{concept_id}_{quality}.mp4"
-
-    def resolve_scene_preview_path(
-        self, concept_id: str, scene_id: str
-    ) -> Path:
-        return self._tmp / f"{concept_id}_{scene_id}.mp4"
+def _registered_ext() -> FixedConceptExtension:
+    return FixedConceptExtension(_minimal_concept(), _minimal_narrative())
 
 
 class TestNarrativePlanningStep:
     def test_plans_narrative_from_registry(self, tmp_path: Path) -> None:
         registry = ConceptRegistry()
-        narrative = _minimal_narrative()
-        mock_ext = MagicMock()
-        mock_ext.concept = _minimal_concept()
-        mock_ext.create_narrative.return_value = narrative
-        registry.register(mock_ext)
+        registry.register(_registered_ext())
 
         step = NarrativePlanningStep(registry)
         ctx = PipelineContext(concept_id="test")
@@ -187,12 +122,11 @@ class TestNarrativePlanningStep:
                 tags=(),
             ),
         )
-        mock_ext = MagicMock()
-        mock_ext.concept = _minimal_concept()
-        mock_ext.create_narrative.return_value = _minimal_narrative(
-            concept=other
+        registry.register(
+            FixedConceptExtension(
+                _minimal_concept(), _minimal_narrative(concept=other)
+            )
         )
-        registry.register(mock_ext)
 
         step = NarrativePlanningStep(registry)
         ctx = PipelineContext(concept_id="test")
@@ -224,6 +158,11 @@ class TestStaticValidationStep:
         assert result.quality_report.passed
         assert result.storyboard is not None
 
+    def test_requires_narrative(self) -> None:
+        ctx = PipelineContext(concept_id="test")
+        with pytest.raises(RuntimeError, match="requires narrative"):
+            StaticValidationStep().execute(ctx)
+
     def test_fails_on_custom_validator(self) -> None:
         def always_fail(scene: SceneSpec) -> list[RuleViolation]:
             return [
@@ -254,20 +193,16 @@ class TestPreviewRenderStep:
             duration_seconds=5.0,
             layout=LayoutSpec(regions=(LayoutRegion.TITLE,)),
         )
-        storyboard = Storyboard(scenes=[scene])
+        storyboard = Storyboard(scenes=(scene,))
         ctx = PipelineContext(concept_id="test", correlation_id="test_123")
         ctx.storyboard = storyboard
 
-        renderer = StubRenderer()
-        store = StubArtifactStore()
-        store._tmp = tmp_path
-
         step = PreviewRenderStep(
-            renderer=renderer,
-            scene_builder=StubSceneBuilder(),
-            layout_engine=StubLayoutEngine(),
-            artifact_store=store,
-            telemetry=StubTelemetry(),
+            renderer=StubRenderer(),
+            scene_builder=FakeSceneBuilder(),
+            layout_engine=PassthroughLayoutEngine(),
+            artifact_store=StubArtifactStore(tmp_path),
+            telemetry=RecordingTelemetry(),
         )
         result = step.execute(ctx)
         assert result.scene_results is not None
@@ -284,7 +219,7 @@ class TestFinalRenderStep:
             duration_seconds=5.0,
             layout=LayoutSpec(regions=(LayoutRegion.TITLE,)),
         )
-        storyboard = Storyboard(scenes=[scene])
+        storyboard = Storyboard(scenes=(scene,))
         ctx = PipelineContext(
             concept_id="test",
             quality="final",
@@ -292,16 +227,12 @@ class TestFinalRenderStep:
         )
         ctx.storyboard = storyboard
 
-        renderer = StubRenderer()
-        store = StubArtifactStore()
-        store._tmp = tmp_path
-
         step = FinalRenderStep(
-            renderer=renderer,
-            scene_builder=StubSceneBuilder(),
-            layout_engine=StubLayoutEngine(),
-            artifact_store=store,
-            telemetry=StubTelemetry(),
+            renderer=StubRenderer(),
+            scene_builder=FakeSceneBuilder(),
+            layout_engine=PassthroughLayoutEngine(),
+            artifact_store=StubArtifactStore(tmp_path),
+            telemetry=RecordingTelemetry(),
         )
         result = step.execute(ctx)
         assert result.final_result is not None
@@ -315,10 +246,10 @@ class TestFinalRenderStep:
         )
         step = FinalRenderStep(
             renderer=StubRenderer(),
-            scene_builder=StubSceneBuilder(),
-            layout_engine=StubLayoutEngine(),
-            artifact_store=StubArtifactStore(),
-            telemetry=StubTelemetry(),
+            scene_builder=FakeSceneBuilder(),
+            layout_engine=PassthroughLayoutEngine(),
+            artifact_store=StubArtifactStore(Path("/tmp")),
+            telemetry=RecordingTelemetry(),
         )
         result = step.execute(ctx)
         assert result.final_result is None
@@ -326,15 +257,15 @@ class TestFinalRenderStep:
 
 class TestProductionPipeline:
     def test_executes_steps_in_order(self) -> None:
-        events = []
+        events: list[str] = []
 
         @dataclass
         class Step:
             name: str
 
-            def execute(self, ctx: PipelineContext) -> PipelineContext:
+            def execute(self, context: PipelineContext) -> PipelineContext:
                 events.append(self.name)
-                return ctx
+                return context
 
         pipeline = ProductionPipeline(steps=[Step("a"), Step("b"), Step("c")])
         ctx = PipelineContext(concept_id="test")
@@ -344,31 +275,19 @@ class TestProductionPipeline:
     def test_stops_on_failure(self) -> None:
         @dataclass
         class FailStep:
-            def execute(self, ctx: PipelineContext) -> PipelineContext:
+            def execute(self, context: PipelineContext) -> PipelineContext:
                 msg = "Step failed"
                 raise RuntimeError(msg)
 
         @dataclass
         class NeverReached:
-            def execute(self, ctx: PipelineContext) -> PipelineContext:
+            def execute(self, context: PipelineContext) -> PipelineContext:
                 pytest.fail("Should not be reached")
 
         pipeline = ProductionPipeline(steps=[FailStep(), NeverReached()])
         ctx = PipelineContext(concept_id="test")
         with pytest.raises(RuntimeError, match="Step failed"):
             pipeline.execute(ctx)
-
-
-class _RecordingLinter:
-    def __init__(self) -> None:
-        self.visual_calls: list[tuple[Path, str]] = []
-        self.video_calls: list[tuple[Path, str]] = []
-
-    def verify_visuals(self, image_path: Path, scene_id: str) -> None:
-        self.visual_calls.append((image_path, scene_id))
-
-    def verify_video(self, video_path: Path, scene_id: str) -> None:
-        self.video_calls.append((video_path, scene_id))
 
 
 class TestVisualValidationStep:
@@ -383,7 +302,7 @@ class TestVisualValidationStep:
             layout=LayoutSpec(regions=(LayoutRegion.TITLE,)),
         )
         ctx = PipelineContext(concept_id="test", correlation_id="c")
-        ctx.storyboard = Storyboard(scenes=[scene])
+        ctx.storyboard = Storyboard(scenes=(scene,))
         output_path = tmp_path / f"{scene_id}.mp4"
         ctx.scene_results = [
             RenderResult(
@@ -392,8 +311,15 @@ class TestVisualValidationStep:
         ]
         return ctx
 
+    def test_noop_without_linter(self, tmp_path: Path) -> None:
+        # No linter configured: the step must return early without touching
+        # the filesystem, even when results and a storyboard are present.
+        ctx = self._context_with_rendered_scene(tmp_path)
+        result = VisualValidationStep(linter_service=None).execute(ctx)
+        assert result is ctx
+
     def test_skips_when_no_scene_results(self) -> None:
-        step = VisualValidationStep(linter_service=MagicMock())
+        step = VisualValidationStep(linter_service=RecordingLinter())
         ctx = PipelineContext(concept_id="test", correlation_id="test_123")
         result = step.execute(ctx)
         assert result is ctx  # no-op
@@ -402,10 +328,11 @@ class TestVisualValidationStep:
         self, tmp_path: Path
     ) -> None:
         ctx = self._context_with_rendered_scene(tmp_path)
+        assert ctx.scene_results is not None
         result_path = ctx.scene_results[0].output_path
         result_path.touch()
         result_path.with_suffix(".png").touch()
-        linter = _RecordingLinter()
+        linter = RecordingLinter()
 
         VisualValidationStep(linter_service=linter).execute(ctx)
 
@@ -415,16 +342,18 @@ class TestVisualValidationStep:
 
     def test_raises_on_missing_preview_image(self, tmp_path: Path) -> None:
         ctx = self._context_with_rendered_scene(tmp_path)
+        assert ctx.scene_results is not None
         ctx.scene_results[0].output_path.touch()
-        linter = _RecordingLinter()
+        linter = RecordingLinter()
 
         with pytest.raises(RuntimeError, match="beat_0"):
             VisualValidationStep(linter_service=linter).execute(ctx)
 
     def test_raises_on_missing_video(self, tmp_path: Path) -> None:
         ctx = self._context_with_rendered_scene(tmp_path)
+        assert ctx.scene_results is not None
         ctx.scene_results[0].output_path.with_suffix(".png").touch()
-        linter = _RecordingLinter()
+        linter = RecordingLinter()
 
         with pytest.raises(RuntimeError, match="beat_0"):
             VisualValidationStep(linter_service=linter).execute(ctx)
@@ -442,6 +371,4 @@ class TestVisualValidationStep:
         ]
 
         with pytest.raises(RuntimeError, match="storyboard"):
-            VisualValidationStep(linter_service=_RecordingLinter()).execute(
-                ctx
-            )
+            VisualValidationStep(linter_service=RecordingLinter()).execute(ctx)

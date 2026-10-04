@@ -17,6 +17,12 @@ concepts = [
 [project.scripts]
 videos = "videos.infrastructure.cli:main"
 
+[tool.coverage.run]
+# bare `--cov` traces the editable `videos_linter` workspace dependency;
+# those modules are covered by videos-linter's own suite, so measure only
+# this package's code.
+source = ["src", "tests"]
+
 [tool.deptry]
 known_first_party = ["videos"]
 package_module_name_map = {videos = "videos"}

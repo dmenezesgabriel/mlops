@@ -52,14 +52,13 @@ class TestManimSceneBuilder:
     def test_build_storyboard_uses_static_scene_class(
         self, fake_manim: FakeManim
     ) -> None:
-        from unittest.mock import MagicMock
-
+        from tests._fakes import PassthroughLayoutEngine
         from videos.domain.entities.storyboard import Storyboard
 
         builder = ManimSceneBuilder()
         spec = _scene_spec()
-        storyboard = Storyboard(scenes=[spec])
-        layout_engine = MagicMock()
+        storyboard = Storyboard(scenes=(spec,))
+        layout_engine = PassthroughLayoutEngine()
 
         scene1 = builder.build_storyboard(storyboard, layout_engine)
         scene2 = builder.build_storyboard(storyboard, layout_engine)
@@ -78,10 +77,11 @@ class TestManimSceneBuilder:
     def test_build_storyboard_without_manim_raises_named_error(
         self, manim_absent: None
     ) -> None:
+        from tests._fakes import PassthroughLayoutEngine
         from videos.domain.entities.storyboard import Storyboard
 
         builder = ManimSceneBuilder()
         spec = _scene_spec()
-        storyboard = Storyboard(scenes=[spec])
+        storyboard = Storyboard(scenes=(spec,))
         with pytest.raises(RuntimeError, match=r"videos\[manim\]"):
-            builder.build_storyboard(storyboard, object())
+            builder.build_storyboard(storyboard, PassthroughLayoutEngine())

@@ -17,6 +17,23 @@ def _beat(visual_key: str, params: dict[str, object]) -> Beat:
 
 
 class TestComponentFactory:
+    @pytest.mark.parametrize(
+        ("visual_key", "expected_kind"),
+        [
+            ("target", "target"),
+            ("cycle", "cycle"),
+            ("phase_collect", "cycle"),
+        ],
+    )
+    def test_diagram_beats_produce_diagram_component(
+        self, visual_key: str, expected_kind: str
+    ) -> None:
+        # Diagram-dispatched keys must reach a builder — a presence assert
+        # pins the dispatch so a dropped rule can't render keyless beats.
+        specs = ComponentFactory().create_components(_beat(visual_key, {}))
+        diagram = next(s for s in specs if s.type == "diagram")
+        assert diagram.props["kind"] == expected_kind
+
     def test_rejects_kind_override_in_params(self) -> None:
         beat = _beat("target", {"kind": "cycle"})
         with pytest.raises(ValueError, match="kind"):

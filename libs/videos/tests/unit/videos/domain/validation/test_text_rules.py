@@ -45,6 +45,37 @@ class TestTextRules:
         assert len(violations) >= 1
         assert violations[0].rule == "max_words_per_text_block"
 
+    def test_passes_exactly_max_words(self) -> None:
+        # Fourteen words sits on the limit — the check is
+        # strictly-greater, not greater-or-equal.
+        rules = TextRules()
+        scene = _scene(
+            visual_objects=(
+                VisualObject(
+                    object_id="body_1",
+                    region="body",
+                    semantic_purpose="word " * 14,
+                ),
+            )
+        )
+        violations = rules.validate(scene)
+        assert len(violations) == 0
+
+    def test_fails_dense_paragraphs(self) -> None:
+        rules = TextRules()
+        scene = _scene(
+            visual_objects=(
+                VisualObject(
+                    object_id="body_1",
+                    region="body",
+                    semantic_purpose="One. Two. Three. Four.",
+                ),
+            )
+        )
+        violations = rules.validate(scene)
+        assert len(violations) == 1
+        assert violations[0].rule == "no_dense_paragraphs"
+
     def test_passes_empty_visual_objects(self) -> None:
         rules = TextRules()
         scene = _scene()

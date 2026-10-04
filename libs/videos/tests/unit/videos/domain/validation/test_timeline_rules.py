@@ -85,3 +85,26 @@ class TestTimelineRules:
         violations = rules.validate(scene)
         assert len(violations) == 1
         assert violations[0].rule == "timeline_event_exceeds_duration"
+
+    def test_passes_event_at_exact_duration(self) -> None:
+        # An event landing exactly on the scene's last second is inside
+        # the window — the check is strictly-greater, not greater-or-equal.
+        rules = TimelineRules()
+        scene = _scene(
+            visual_objects=(
+                VisualObject(
+                    object_id="o1", region="title", semantic_purpose="Display"
+                ),
+            ),
+            timeline=TimelineSpec(
+                events=(
+                    TimelineEvent(
+                        time_seconds=5.0,
+                        action="appear",
+                        target_object_id="o1",
+                    ),
+                )
+            ),
+        )
+        violations = rules.validate(scene)
+        assert len(violations) == 0

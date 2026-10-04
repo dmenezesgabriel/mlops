@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -61,12 +62,15 @@ class TestYamlToConceptExtension:
 
     def test_validates_beat_kind(self) -> None:
         bad_yaml = SAMPLE_YAML.replace("opening", "invalid_kind")
-        raised = False
-        try:
+        with pytest.raises(ValueError, match="kind"):
             yaml_to_concept_extension(bad_yaml)
-        except Exception:
-            raised = True
-        assert raised
+
+    def test_import_error_names_missing_yaml(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setitem(sys.modules, "yaml", None)
+        with pytest.raises(ImportError, match="'yaml' package is not"):
+            yaml_to_concept_extension(SAMPLE_YAML)
 
     def test_registers_with_registry(self) -> None:
         from videos.domain.entities.concept_registry import ConceptRegistry

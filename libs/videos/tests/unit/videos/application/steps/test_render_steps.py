@@ -1,130 +1,26 @@
 from __future__ import annotations
 
-import contextlib
 from pathlib import Path
 from typing import cast
-from unittest.mock import MagicMock
 
 import pytest
+from tests._fakes import (
+    FailingRenderer,
+    FakeSceneBuilder,
+    PassthroughLayoutEngine,
+    RecordingTelemetry,
+    StubArtifactStore,
+    StubRenderer,
+)
 from videos.application.pipeline_context import PipelineContext
 from videos.application.ports.artifact_store import ArtifactStore
+from videos.application.ports.layout_engine import LayoutEngine
 from videos.application.ports.scene_builder import SceneBuilder
 from videos.application.steps.final_render_step import FinalRenderStep
 from videos.application.steps.preview_render_step import PreviewRenderStep
 from videos.domain.entities.storyboard import Storyboard
 from videos.domain.value_objects.layout import LayoutRegion, LayoutSpec
 from videos.domain.value_objects.scene_spec import SceneSpec
-
-
-class SpyRenderer:
-    def __init__(self) -> None:
-        self.log: list[str] = []
-        self.context_calls = 0
-
-    @contextlib.contextmanager
-    def quality_context(
-        self, quality: str
-    ) -> contextlib.AbstractContextManager[None]:
-        self.log.append(f"enter_context_{quality}")
-        self.context_calls += 1
-        try:
-            yield
-        finally:
-            self.log.append(f"exit_context_{quality}")
-
-    def render(
-        self, scene_job: object, output_path: Path, quality: str = "preview"
-    ) -> MagicMock:
-        self.log.append("render_call")
-        mock_res = MagicMock()
-        mock_res.success = True
-        mock_res.output_path = output_path
-        mock_res.duration_ms = 50.0
-        return mock_res
-
-
-def test_preview_render_step_enters_quality_context() -> None:
-    renderer = SpyRenderer()
-    scene_builder = MagicMock()
-    scene_builder.build.side_effect = lambda spec: (
-        renderer.log.append("build_scene") or object()
-    )
-
-    layout_engine = MagicMock()
-    layout_engine.apply.side_effect = lambda spec: spec
-
-    artifact_store = MagicMock()
-    artifact_store.resolve_scene_preview_path.return_value = Path("scene.mp4")
-
-    telemetry = MagicMock()
-
-    step = PreviewRenderStep(
-        renderer=renderer,
-        scene_builder=scene_builder,
-        layout_engine=layout_engine,
-        artifact_store=artifact_store,
-        telemetry=telemetry,
-    )
-
-    scene = SceneSpec(
-        scene_id="s1",
-        title="Title",
-        goal="Goal",
-        duration_seconds=5.0,
-        layout=LayoutSpec(regions=(LayoutRegion.TITLE,)),
-    )
-    context = PipelineContext(concept_id="test", quality="preview")
-    context.storyboard = Storyboard(scenes=[scene])
-
-    step.execute(context)
-
-    assert renderer.log == [
-        "enter_context_preview",
-        "build_scene",
-        "render_call",
-        "exit_context_preview",
-    ]
-
-
-def test_final_render_step_enters_quality_context() -> None:
-    renderer = SpyRenderer()
-    scene_builder = MagicMock()
-    scene_builder.build_storyboard.side_effect = lambda sb, _le: (
-        renderer.log.append("build_storyboard") or object()
-    )
-
-    layout_engine = MagicMock()
-    artifact_store = MagicMock()
-    artifact_store.resolve_output_path.return_value = Path("final.mp4")
-
-    telemetry = MagicMock()
-
-    step = FinalRenderStep(
-        renderer=renderer,
-        scene_builder=scene_builder,
-        layout_engine=layout_engine,
-        artifact_store=artifact_store,
-        telemetry=telemetry,
-    )
-
-    scene = SceneSpec(
-        scene_id="s1",
-        title="Title",
-        goal="Goal",
-        duration_seconds=5.0,
-        layout=LayoutSpec(regions=(LayoutRegion.TITLE,)),
-    )
-    context = PipelineContext(concept_id="test", quality="final")
-    context.storyboard = Storyboard(scenes=[scene])
-
-    step.execute(context)
-
-    assert renderer.log == [
-        "enter_context_final",
-        "build_storyboard",
-        "render_call",
-        "exit_context_final",
-    ]
 
 
 def _one_scene_storyboard() -> Storyboard:
@@ -135,7 +31,13 @@ def _one_scene_storyboard() -> Storyboard:
         duration_seconds=5.0,
         layout=LayoutSpec(regions=(LayoutRegion.TITLE,)),
     )
-    return Storyboard(scenes=[scene])
+    return Storyboard(scenes=(scene,))
+
+
+def _context(quality: str) -> PipelineContext:
+    context = PipelineContext(concept_id="test", quality=quality)
+    context.storyboard = _one_scene_storyboard()
+    return context
 
 
 class BuildOnlySceneBuilder:
@@ -146,84 +48,178 @@ class BuildOnlySceneBuilder:
 
 
 class PartialSceneBuilder(SceneBuilder):
-    """Inherits the port but never overrides build_storyboard."""
+    """Inherits the port but provides no real build_storyboard — the
+    port-level NotImplementedError contract, made explicit."""
 
-    def build(self, scene_spec: object) -> object:
+    def build(self, scene_spec: SceneSpec) -> object:
         return object()
+
+    def build_storyboard(
+        self, storyboard: Storyboard, layout_engine: LayoutEngine
+    ) -> object:
+        raise NotImplementedError
 
 
 class PartialArtifactStore(ArtifactStore):
-    """Inherits the port but never overrides resolve_scene_preview_path."""
+    """Inherits the port but provides no real resolve_scene_preview_path —
+    the port-level NotImplementedError contract, made explicit."""
 
     def resolve_output_path(self, concept_id: str, quality: str) -> Path:
         return Path(f"{concept_id}_{quality}.mp4")
 
+    def resolve_scene_preview_path(
+        self, concept_id: str, scene_id: str
+    ) -> Path:
+        raise NotImplementedError
 
-def test_preview_step_enters_preview_context_on_final_run() -> None:
-    renderer = SpyRenderer()
-    scene_builder = MagicMock()
-    layout_engine = MagicMock()
-    layout_engine.apply.side_effect = lambda spec: spec
-    artifact_store = MagicMock()
-    artifact_store.resolve_scene_preview_path.return_value = Path("scene.mp4")
-    telemetry = MagicMock()
 
+def test_preview_render_step_enters_quality_context(tmp_path: Path) -> None:
+    log: list[str] = []
     step = PreviewRenderStep(
-        renderer=renderer,
-        scene_builder=scene_builder,
-        layout_engine=layout_engine,
-        artifact_store=artifact_store,
-        telemetry=telemetry,
+        renderer=StubRenderer(log=log),
+        scene_builder=FakeSceneBuilder(log=log),
+        layout_engine=PassthroughLayoutEngine(),
+        artifact_store=StubArtifactStore(tmp_path),
+        telemetry=RecordingTelemetry(),
     )
+
+    step.execute(_context(quality="preview"))
+
+    assert log == [
+        "enter_context_preview",
+        "build_scene",
+        "render_call",
+        "exit_context_preview",
+    ]
+
+
+def test_final_render_step_enters_quality_context(tmp_path: Path) -> None:
+    log: list[str] = []
+    step = FinalRenderStep(
+        renderer=StubRenderer(log=log),
+        scene_builder=FakeSceneBuilder(log=log),
+        layout_engine=PassthroughLayoutEngine(),
+        artifact_store=StubArtifactStore(tmp_path),
+        telemetry=RecordingTelemetry(),
+    )
+
+    step.execute(_context(quality="final"))
+
+    assert log == [
+        "enter_context_final",
+        "build_storyboard",
+        "render_call",
+        "exit_context_final",
+    ]
+
+
+def test_preview_step_enters_preview_context_on_final_run(
+    tmp_path: Path,
+) -> None:
+    log: list[str] = []
+    step = PreviewRenderStep(
+        renderer=StubRenderer(log=log),
+        scene_builder=FakeSceneBuilder(log=log),
+        layout_engine=PassthroughLayoutEngine(),
+        artifact_store=StubArtifactStore(tmp_path),
+        telemetry=RecordingTelemetry(),
+    )
+
+    step.execute(_context(quality="final"))
+
+    assert "enter_context_preview" in log
+    assert "enter_context_final" not in log
+
+
+def test_preview_step_requires_storyboard() -> None:
+    step = PreviewRenderStep(
+        renderer=StubRenderer(),
+        scene_builder=FakeSceneBuilder(),
+        layout_engine=PassthroughLayoutEngine(),
+        artifact_store=StubArtifactStore(Path("/tmp")),
+        telemetry=RecordingTelemetry(),
+    )
+
+    with pytest.raises(RuntimeError, match="requires storyboard"):
+        step.execute(PipelineContext(concept_id="test"))
+
+
+def test_preview_step_raises_on_failed_render(tmp_path: Path) -> None:
+    step = PreviewRenderStep(
+        renderer=FailingRenderer(),
+        scene_builder=FakeSceneBuilder(),
+        layout_engine=PassthroughLayoutEngine(),
+        artifact_store=StubArtifactStore(tmp_path),
+        telemetry=RecordingTelemetry(),
+    )
+
+    with pytest.raises(RuntimeError, match="Renderer failed"):
+        step.execute(_context(quality="preview"))
+
+
+def test_final_step_skips_when_final_run_has_no_storyboard() -> None:
+    step = FinalRenderStep(
+        renderer=StubRenderer(),
+        scene_builder=FakeSceneBuilder(),
+        layout_engine=PassthroughLayoutEngine(),
+        artifact_store=StubArtifactStore(Path("/tmp")),
+        telemetry=RecordingTelemetry(),
+    )
+
     context = PipelineContext(concept_id="test", quality="final")
-    context.storyboard = _one_scene_storyboard()
+    result = step.execute(context)
 
-    step.execute(context)
+    assert result is context
+    assert result.final_result is None
 
-    assert "enter_context_preview" in renderer.log
-    assert "enter_context_final" not in renderer.log
+
+def test_final_step_raises_on_failed_render(tmp_path: Path) -> None:
+    step = FinalRenderStep(
+        renderer=FailingRenderer(),
+        scene_builder=FakeSceneBuilder(),
+        layout_engine=PassthroughLayoutEngine(),
+        artifact_store=StubArtifactStore(tmp_path),
+        telemetry=RecordingTelemetry(),
+    )
+
+    with pytest.raises(RuntimeError, match="Final render failed"):
+        step.execute(_context(quality="final"))
 
 
 def test_final_step_raises_on_builder_without_build_storyboard() -> None:
     step = FinalRenderStep(
-        renderer=SpyRenderer(),
+        renderer=StubRenderer(),
         scene_builder=cast(SceneBuilder, BuildOnlySceneBuilder()),
-        layout_engine=MagicMock(),
-        artifact_store=MagicMock(),
-        telemetry=MagicMock(),
+        layout_engine=PassthroughLayoutEngine(),
+        artifact_store=StubArtifactStore(Path("/tmp")),
+        telemetry=RecordingTelemetry(),
     )
-    context = PipelineContext(concept_id="test", quality="final")
-    context.storyboard = _one_scene_storyboard()
 
     with pytest.raises(AttributeError):
-        step.execute(context)
+        step.execute(_context(quality="final"))
 
 
-def test_final_step_raises_when_inheriting_builder_skips_override() -> None:
+def test_final_step_propagates_unimplemented_storyboard_build() -> None:
     step = FinalRenderStep(
-        renderer=SpyRenderer(),
+        renderer=StubRenderer(),
         scene_builder=PartialSceneBuilder(),
-        layout_engine=MagicMock(),
-        artifact_store=MagicMock(),
-        telemetry=MagicMock(),
+        layout_engine=PassthroughLayoutEngine(),
+        artifact_store=StubArtifactStore(Path("/tmp")),
+        telemetry=RecordingTelemetry(),
     )
-    context = PipelineContext(concept_id="test", quality="final")
-    context.storyboard = _one_scene_storyboard()
 
     with pytest.raises(NotImplementedError):
-        step.execute(context)
+        step.execute(_context(quality="final"))
 
 
-def test_preview_step_raises_when_inheriting_store_skips_override() -> None:
+def test_preview_step_propagates_unimplemented_preview_path() -> None:
     step = PreviewRenderStep(
-        renderer=SpyRenderer(),
-        scene_builder=MagicMock(),
-        layout_engine=MagicMock(),
+        renderer=StubRenderer(),
+        scene_builder=FakeSceneBuilder(),
+        layout_engine=PassthroughLayoutEngine(),
         artifact_store=PartialArtifactStore(),
-        telemetry=MagicMock(),
+        telemetry=RecordingTelemetry(),
     )
-    context = PipelineContext(concept_id="test", quality="preview")
-    context.storyboard = _one_scene_storyboard()
 
     with pytest.raises(NotImplementedError):
-        step.execute(context)
+        step.execute(_context(quality="preview"))

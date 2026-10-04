@@ -7,8 +7,13 @@ consumers like `videos_linter`). The same convention applies to
 
 from __future__ import annotations
 
+import importlib
 import re
 from pathlib import Path
+
+from videos.application.use_cases.quality_gate import (
+    QualityGate as UseCaseQualityGate,
+)
 
 _PKG_ROOT = Path(__file__).resolve().parents[4]
 _SRC_ROOT = _PKG_ROOT / "src" / "videos"
@@ -68,9 +73,18 @@ class TestCanonicalImports:
         assert _offending_modules(_TESTS_ROOT) == []
 
     def test_shim_modules_still_re_export_for_external_consumers(self) -> None:
-        # The flat modules are the published compat surface — deleting one is
-        # an API break for out-of-package importers such as `videos_linter`.
+        # The flat modules are the published compat surface — deleting one,
+        # or letting its re-export drift from `__all__`, is an API break
+        # for out-of-package importers such as `videos_linter`.
         domain_dir = _SRC_ROOT / "domain"
         for name in sorted(_SHIM_MODULE_NAMES):
             assert (domain_dir / f"{name}.py").is_file(), name
         assert (_SRC_ROOT / "application" / "quality_gate.py").is_file()
+
+    def test_shim_modules_resolve_every_exported_name(self) -> None:
+        for name in sorted(_SHIM_MODULE_NAMES):
+            module = importlib.import_module(f"videos.domain.{name}")
+            missing = [n for n in module.__all__ if not hasattr(module, n)]
+            assert missing == [], f"{name}: {missing}"
+        gate = importlib.import_module("videos.application.quality_gate")
+        assert gate.QualityGate is UseCaseQualityGate
