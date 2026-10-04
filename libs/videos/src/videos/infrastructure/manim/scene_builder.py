@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from videos.application.components import ComponentRegistry
 from videos.domain.scene_spec import SceneSpec
+from videos.infrastructure.manim._missing import require_manim
 
 if TYPE_CHECKING:
     from videos.application.ports.layout_engine import LayoutEngine
@@ -16,7 +17,9 @@ if TYPE_CHECKING:
 try:
     from manim import Scene
 except ImportError:
-    # Fallback dummy for environments where manim is not installed
+    # Fallback keeps the module importable without the extra — cli.py imports
+    # ManimSceneBuilder unconditionally. Construction still fails fast via
+    # require_manim() rather than deferring a bare ImportError to construct().
     class Scene:  # type: ignore[no-redef]
         def __init__(self, *args: object, **_kwargs: object) -> None:
             pass
@@ -28,6 +31,7 @@ class ConfigurableScene(Scene):  # type: ignore
         scene_spec: SceneSpec,
         registry: ComponentRegistry,
     ) -> None:
+        require_manim()
         self._scene_spec = scene_spec
         self._registry = registry
         self._built_mobjects: list[object] = []
@@ -58,6 +62,7 @@ class StoryboardScene(Scene):  # type: ignore
         layout_engine: LayoutEngine,
         registry: ComponentRegistry,
     ) -> None:
+        require_manim()
         self._storyboard = storyboard
         self._layout_engine = layout_engine
         self._registry = registry
@@ -97,10 +102,10 @@ class ManimSceneBuilder:
     def __init__(self, registry: ComponentRegistry | None = None) -> None:
         self._registry = registry or ComponentRegistry()
 
-    def build(self, scene_spec: SceneSpec) -> object:
+    def build(self, scene_spec: SceneSpec) -> ConfigurableScene:
         return ConfigurableScene(scene_spec, self._registry)
 
     def build_storyboard(
         self, storyboard: Storyboard, layout_engine: LayoutEngine
-    ) -> object:
+    ) -> StoryboardScene:
         return StoryboardScene(storyboard, layout_engine, self._registry)
