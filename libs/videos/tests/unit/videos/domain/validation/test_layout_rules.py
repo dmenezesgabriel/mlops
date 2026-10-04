@@ -1,4 +1,4 @@
-from videos.domain.layout import LayoutSpec
+from videos.domain.layout import LayoutRegion, LayoutSpec
 from videos.domain.scene_spec import ComponentSpec, SceneSpec, VisualObject
 from videos.domain.validation.layout_rules import LayoutRules
 
@@ -6,13 +6,14 @@ from videos.domain.validation.layout_rules import LayoutRules
 def _scene(
     visual_objects: tuple[VisualObject, ...] = (),
     components: tuple[ComponentSpec, ...] = (),
+    layout: LayoutSpec | None = None,
 ) -> SceneSpec:
     return SceneSpec(
         scene_id="test_scene",
         title="Test",
         goal="Test goal",
         duration_seconds=5.0,
-        layout=LayoutSpec(),
+        layout=layout if layout is not None else LayoutSpec(),
         visual_objects=visual_objects,
         components=components,
     )
@@ -22,6 +23,7 @@ class TestLayoutRules:
     def test_passes_valid_regions(self) -> None:
         rules = LayoutRules()
         scene = _scene(
+            layout=LayoutSpec(regions=(LayoutRegion.TITLE, LayoutRegion.BODY)),
             visual_objects=(
                 VisualObject(
                     object_id="title_1",
@@ -33,7 +35,7 @@ class TestLayoutRules:
                     region="body",
                     semantic_purpose="Explain",
                 ),
-            )
+            ),
         )
         violations = rules.validate(scene)
         assert len(violations) == 0
@@ -52,6 +54,23 @@ class TestLayoutRules:
         violations = rules.validate(scene)
         assert len(violations) == 1
         assert violations[0].rule == "unknown_layout_region"
+
+    def test_fails_region_not_declared_by_scene_layout(self) -> None:
+        rules = LayoutRules()
+        scene = _scene(
+            layout=LayoutSpec(regions=(LayoutRegion.TITLE,)),
+            visual_objects=(
+                VisualObject(
+                    object_id="footer_1",
+                    region="footer",
+                    semantic_purpose="Attribution",
+                ),
+            ),
+        )
+        violations = rules.validate(scene)
+        assert len(violations) == 1
+        assert violations[0].rule == "unknown_layout_region"
+        assert "title" in violations[0].expected
 
     def test_fails_empty_region(self) -> None:
         rules = LayoutRules()

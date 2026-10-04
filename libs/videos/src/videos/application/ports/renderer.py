@@ -6,6 +6,10 @@ from typing import Protocol
 
 
 class RenderResult:
+    """A render's artifacts: `output_path` (the video) plus a `.png` preview
+    sibling that `VisualValidationStep` lints. `success=True` must mean both
+    files exist."""
+
     def __init__(
         self, output_path: Path, duration_ms: float, success: bool
     ) -> None:

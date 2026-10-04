@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import pytest
 from videos.application.components import ComponentRegistry
 from videos.domain.scene_spec import ComponentSpec
@@ -41,6 +43,16 @@ class TestComponentRegistry:
         registry.build(spec, object())
         assert len(b1.calls) == 0
         assert len(b2.calls) == 1
+
+    def test_register_warns_on_overwrite(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        registry = ComponentRegistry()
+        registry.register("x", _StubBuilder())
+        with caplog.at_level(logging.WARNING):
+            registry.register("x", _StubBuilder())
+        assert "Overwriting" in caplog.text
+        assert caplog.records[-1].type_name == "x"
 
     def test_build_passes_spec_and_scene(self) -> None:
         registry = ComponentRegistry()

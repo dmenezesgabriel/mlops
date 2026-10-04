@@ -45,6 +45,10 @@ class QualityGate:
         validators: Sequence[ValidatorProtocol] | None = None,
         static_rules: list[RuleValidator] | None = None,
     ) -> None:
+        if validators is not None and static_rules is not None:
+            raise ValueError(
+                "QualityGate accepts 'validators' or 'static_rules', not both"
+            )
         if static_rules is not None:
             self._validators: list[ValidatorProtocol] = [
                 _RulesWrapper(rules=static_rules)

@@ -70,9 +70,10 @@ class StubRenderer(Renderer):
         self, scene_job: object, output_path: Path, quality: str = "preview"
     ) -> RenderResult:
         self.jobs.append((scene_job, output_path, quality))
-        # Create dummy PNG for linter
+        # Create dummy PNG + video artifacts for the visual-validation step
         png_path = output_path.with_suffix(".png")
         png_path.touch()
+        output_path.touch()
         return RenderResult(
             output_path=output_path, duration_ms=100.0, success=True
         )

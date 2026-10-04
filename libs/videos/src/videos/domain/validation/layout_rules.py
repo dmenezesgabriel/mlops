@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Protocol, cast
 
-from videos.domain.layout import LayoutRegion
 from videos.domain.quality import RuleViolation
 from videos.domain.scene_spec import SceneSpec
 
@@ -31,18 +30,18 @@ class LayoutRules:
 
     def _check_known_regions(self, scene: SceneSpec) -> list[RuleViolation]:
         violations: list[RuleViolation] = []
-        known = LayoutRegion.all_region_names()
+        declared = scene.layout.region_names
         for obj in scene.visual_objects:
-            if obj.region not in known:
+            if obj.region not in declared:
                 violations.append(
                     RuleViolation(
                         scene_id=scene.scene_id,
                         object_id=obj.object_id,
                         rule="unknown_layout_region",
                         actual=obj.region,
-                        expected=f"one of {sorted(known)}",
+                        expected=f"one of {sorted(declared)}",
                         suggestion=(
-                            f"Assign '{obj.object_id}' to a valid layout region."
+                            f"Assign '{obj.object_id}' to a declared layout region."
                         ),
                     )
                 )

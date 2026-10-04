@@ -1,3 +1,4 @@
+import pytest
 from videos.application.use_cases.quality_gate import QualityGate
 from videos.domain.value_objects.layout import LayoutSpec
 from videos.domain.value_objects.quality import RuleViolation
@@ -36,3 +37,10 @@ class TestQualityGate:
         report = gate.validate([_make_scene()])
         assert not report.passed
         assert len(report.violations) == 1
+
+    def test_rejects_validators_and_static_rules_together(self) -> None:
+        def a_rule(scene: SceneSpec) -> list[RuleViolation]:
+            return []
+
+        with pytest.raises(ValueError, match="not both"):
+            QualityGate(validators=[_AlwaysFail()], static_rules=[a_rule])

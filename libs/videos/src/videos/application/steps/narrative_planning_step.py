@@ -11,6 +11,11 @@ class NarrativePlanningStep:
     def execute(self, context: PipelineContext) -> PipelineContext:
         extension = ConceptRegistry.get(ConceptId(context.concept_id))
         narrative = extension.create_narrative()
+        if narrative.concept.id.value != context.concept_id:
+            raise RuntimeError(
+                f"Narrative for concept {narrative.concept.id.value!r} does "
+                f"not match requested concept {context.concept_id!r}"
+            )
         context.concept_extension = extension
         context.narrative = narrative
         context.correlation_id = f"{context.concept_id}_{uuid.uuid4().hex[:8]}"

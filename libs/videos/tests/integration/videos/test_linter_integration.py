@@ -31,6 +31,7 @@ class StubRenderer:
         # Small centered rectangle
         draw.rectangle([400, 200, 450, 250], fill=(255, 255, 255))
         img.save(output_path.with_suffix(".png"))
+        output_path.touch()
         return RenderResult(
             output_path=output_path, duration_ms=10.0, success=True
         )
@@ -56,6 +57,7 @@ class GoodRenderer:
         # Body at center
         draw.rectangle([200, 200, 600, 300], fill=(255, 255, 255))
         img.save(output_path.with_suffix(".png"))
+        output_path.touch()
         return RenderResult(
             output_path=output_path, duration_ms=10.0, success=True
         )

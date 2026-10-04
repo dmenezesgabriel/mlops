@@ -99,6 +99,7 @@ class StubRenderer:
         png_path = output_path.with_suffix(".png")
         png_path.parent.mkdir(parents=True, exist_ok=True)
         png_path.touch()
+        output_path.touch()
         return RenderResult(
             output_path=output_path, duration_ms=100.0, success=True
         )
@@ -163,6 +164,28 @@ class TestNarrativePlanningStep:
         step = NarrativePlanningStep()
         ctx = PipelineContext(concept_id="nonexistent")
         with pytest.raises(LookupError, match="Unknown concept"):
+            step.execute(ctx)
+
+    def test_rejects_narrative_for_other_concept(self) -> None:
+        ConceptRegistry._extensions.clear()
+        other = Concept(
+            id=ConceptId("other"),
+            metadata=ConceptMetadata(
+                title=ConceptTitle(short="O", subtitle=""),
+                description="",
+                tags=(),
+            ),
+        )
+        mock_ext = MagicMock()
+        mock_ext.concept = _minimal_concept()
+        mock_ext.create_narrative.return_value = _minimal_narrative(
+            concept=other
+        )
+        ConceptRegistry.register(mock_ext)
+
+        step = NarrativePlanningStep()
+        ctx = PipelineContext(concept_id="test")
+        with pytest.raises(RuntimeError, match="other"):
             step.execute(ctx)
 
 
@@ -314,9 +337,89 @@ class TestProductionPipeline:
             pipeline.execute(ctx)
 
 
+class _RecordingLinter:
+    def __init__(self) -> None:
+        self.visual_calls: list[tuple[Path, str]] = []
+        self.video_calls: list[tuple[Path, str]] = []
+
+    def verify_visuals(self, image_path: Path, scene_id: str) -> None:
+        self.visual_calls.append((image_path, scene_id))
+
+    def verify_video(self, video_path: Path, scene_id: str) -> None:
+        self.video_calls.append((video_path, scene_id))
+
+
 class TestVisualValidationStep:
+    def _context_with_rendered_scene(
+        self, tmp_path: Path, scene_id: str = "beat_0"
+    ) -> PipelineContext:
+        scene = SceneSpec(
+            scene_id=scene_id,
+            title="T",
+            goal="G",
+            duration_seconds=5.0,
+            layout=LayoutSpec(regions=(LayoutRegion.TITLE,)),
+        )
+        ctx = PipelineContext(concept_id="test", correlation_id="c")
+        ctx.storyboard = Storyboard(scenes=[scene])
+        output_path = tmp_path / f"{scene_id}.mp4"
+        ctx.scene_results = [
+            RenderResult(
+                output_path=output_path, duration_ms=1.0, success=True
+            )
+        ]
+        return ctx
+
     def test_skips_when_no_scene_results(self) -> None:
         step = VisualValidationStep(linter_service=MagicMock())
         ctx = PipelineContext(concept_id="test", correlation_id="test_123")
         result = step.execute(ctx)
         assert result is ctx  # no-op
+
+    def test_verifies_artifacts_with_real_scene_ids(
+        self, tmp_path: Path
+    ) -> None:
+        ctx = self._context_with_rendered_scene(tmp_path)
+        result_path = ctx.scene_results[0].output_path
+        result_path.touch()
+        result_path.with_suffix(".png").touch()
+        linter = _RecordingLinter()
+
+        VisualValidationStep(linter_service=linter).execute(ctx)
+
+        png_path = result_path.with_suffix(".png")
+        assert linter.visual_calls == [(png_path, "beat_0")]
+        assert linter.video_calls == [(result_path, "beat_0")]
+
+    def test_raises_on_missing_preview_image(self, tmp_path: Path) -> None:
+        ctx = self._context_with_rendered_scene(tmp_path)
+        ctx.scene_results[0].output_path.touch()
+        linter = _RecordingLinter()
+
+        with pytest.raises(RuntimeError, match="beat_0"):
+            VisualValidationStep(linter_service=linter).execute(ctx)
+
+    def test_raises_on_missing_video(self, tmp_path: Path) -> None:
+        ctx = self._context_with_rendered_scene(tmp_path)
+        ctx.scene_results[0].output_path.with_suffix(".png").touch()
+        linter = _RecordingLinter()
+
+        with pytest.raises(RuntimeError, match="beat_0"):
+            VisualValidationStep(linter_service=linter).execute(ctx)
+
+    def test_requires_storyboard_when_results_present(
+        self, tmp_path: Path
+    ) -> None:
+        ctx = PipelineContext(concept_id="test")
+        output_path = tmp_path / "beat_0.mp4"
+        output_path.touch()
+        ctx.scene_results = [
+            RenderResult(
+                output_path=output_path, duration_ms=1.0, success=True
+            )
+        ]
+
+        with pytest.raises(RuntimeError, match="storyboard"):
+            VisualValidationStep(linter_service=_RecordingLinter()).execute(
+                ctx
+            )
