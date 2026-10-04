@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from videos.application.pipeline_context import PipelineContext
 
 
@@ -12,6 +13,10 @@ class TestPipelineContext:
     def test_accepts_quality(self) -> None:
         ctx = PipelineContext(concept_id="test", quality="final")
         assert ctx.quality == "final"
+
+    def test_rejects_unknown_quality(self) -> None:
+        with pytest.raises(ValueError, match="quality"):
+            PipelineContext(concept_id="test", quality="bogus")
 
     def test_default_state_is_none(self) -> None:
         ctx = PipelineContext(concept_id="test")

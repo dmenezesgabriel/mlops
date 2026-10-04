@@ -175,6 +175,24 @@ class TestDirector:
         with pytest.raises(LookupError, match="Unknown concept"):
             director.produce()
 
+    def test_director_rejects_unknown_quality(self) -> None:
+        # Arrange
+        ConceptRegistry._extensions.clear()
+        renderer = StubRenderer()
+        director = Director(
+            concept_id="test",
+            renderer=renderer,
+            scene_builder=StubSceneBuilder(),
+            layout_engine=StubLayoutEngine(),
+            artifact_store=StubArtifactStore(),
+            telemetry=StubTelemetry(),
+        )
+
+        # Act & Assert — must fail before any scene renders
+        with pytest.raises(ValueError, match="quality"):
+            director.produce(quality="bogus")
+        assert renderer.jobs == []
+
     def test_director_produce_final_quality(self, tmp_path: Path) -> None:
         # Arrange
         ConceptRegistry._extensions.clear()

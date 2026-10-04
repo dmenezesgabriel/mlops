@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import field
+from collections.abc import Mapping
 from enum import Enum
 
-from pydantic import field_validator
+from pydantic import Field, field_serializer, field_validator
 from pydantic.dataclasses import dataclass
 
-from videos.domain._base import PydanticModel
+from videos.domain._base import PydanticModel, freeze_mapping
 
 
 class BeatKind(Enum):
@@ -43,4 +43,17 @@ class Beat(PydanticModel):
     kind: BeatKind
     narration: NarrationLine
     visual_key: str
-    params: dict[str, object] = field(default_factory=dict)
+    params: Mapping[str, object] = Field(
+        default_factory=dict, validate_default=True
+    )
+
+    @field_validator("params")
+    @classmethod
+    def _params_immutable(
+        cls, v: Mapping[str, object]
+    ) -> Mapping[str, object]:
+        return freeze_mapping(v)
+
+    @field_serializer("params")
+    def _serialize_params(self, v: Mapping[str, object]) -> dict[str, object]:
+        return dict(v)

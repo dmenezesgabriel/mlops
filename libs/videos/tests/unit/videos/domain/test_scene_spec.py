@@ -14,12 +14,35 @@ class TestSceneSpec:
                 layout=LayoutSpec(),
             )
 
+    @pytest.mark.parametrize(
+        "bad_id", ["../escape", "a/b", "with space", "UPPER.Case"]
+    )
+    def test_rejects_non_slug_scene_id(self, bad_id: str) -> None:
+        with pytest.raises(ValueError, match="scene_id"):
+            SceneSpec(
+                scene_id=bad_id,
+                title="T",
+                goal="G",
+                duration_seconds=5.0,
+                layout=LayoutSpec(),
+            )
+
     def test_rejects_empty_goal(self) -> None:
         with pytest.raises(ValueError, match="goal"):
             SceneSpec(
                 scene_id="s1",
                 title="T",
                 goal="",
+                duration_seconds=5.0,
+                layout=LayoutSpec(),
+            )
+
+    def test_goal_error_names_the_scene(self) -> None:
+        with pytest.raises(ValueError, match="'s1'"):
+            SceneSpec(
+                scene_id="s1",
+                title="T",
+                goal=" ",
                 duration_seconds=5.0,
                 layout=LayoutSpec(),
             )

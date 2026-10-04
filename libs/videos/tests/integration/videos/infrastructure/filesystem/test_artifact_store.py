@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from videos.infrastructure.filesystem.artifact_store import (
     FileSystemArtifactStore,
 )
@@ -54,6 +55,50 @@ class TestFileSystemArtifactStore:
         assert "previews" in str(path)
         assert "scenes" in str(path)
         assert path.name == "concept_a_beat_0.mp4"
+
+    @pytest.mark.parametrize(
+        "concept_id",
+        ["../escape", "a/b", "with space", "UPPER.Case", ""],
+    )
+    def test_resolve_scene_preview_path_rejects_non_slug_concept_id(
+        self, tmp_path: Path, concept_id: str
+    ) -> None:
+        store = FileSystemArtifactStore(output_root=tmp_path)
+
+        with pytest.raises(ValueError, match="concept_id"):
+            store.resolve_scene_preview_path(concept_id, "beat_0")
+
+    @pytest.mark.parametrize(
+        "scene_id", ["../escape", "a/b", "with space", "UPPER.Case", ""]
+    )
+    def test_resolve_scene_preview_path_rejects_non_slug_scene_id(
+        self, tmp_path: Path, scene_id: str
+    ) -> None:
+        store = FileSystemArtifactStore(output_root=tmp_path)
+
+        with pytest.raises(ValueError, match="scene_id"):
+            store.resolve_scene_preview_path("concept_a", scene_id)
+
+    @pytest.mark.parametrize("quality", ["preview", "final"])
+    def test_resolve_output_path_rejects_non_slug_concept_id(
+        self, tmp_path: Path, quality: str
+    ) -> None:
+        store = FileSystemArtifactStore(output_root=tmp_path)
+
+        with pytest.raises(ValueError, match="concept_id"):
+            store.resolve_output_path("../escape", quality)
+
+    def test_write_methods_reject_non_slug_concept_id(
+        self, tmp_path: Path
+    ) -> None:
+        source = tmp_path / "source.mp4"
+        source.write_text("fake video content")
+        store = FileSystemArtifactStore(output_root=tmp_path)
+
+        with pytest.raises(ValueError, match="concept_id"):
+            store.write_preview(source, "../escape")
+        with pytest.raises(ValueError, match="concept_id"):
+            store.write_final(source, "../escape")
 
     def test_creates_directories_on_init(self, tmp_path: Path) -> None:
         # Act

@@ -30,6 +30,23 @@ def _beat(
     )
 
 
+class TestBeat:
+    def test_params_reject_interior_mutation(self) -> None:
+        with pytest.raises(TypeError):
+            _beat().params["injected"] = 1  # type: ignore[index]
+
+    def test_params_isolated_from_source_dict(self) -> None:
+        source = {"a": 1}
+        beat = Beat(
+            kind=BeatKind.REVEAL,
+            narration=NarrationLine("x", 2.0),
+            visual_key="v",
+            params=source,
+        )
+        source["b"] = 2
+        assert "b" not in beat.params
+
+
 class TestNarrationLine:
     def test_rejects_zero_duration(self) -> None:
         with pytest.raises(ValueError, match="duration_seconds"):

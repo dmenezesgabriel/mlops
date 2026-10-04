@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import field
+from collections.abc import Mapping
 
-from pydantic import field_validator
+from pydantic import (
+    Field,
+    ValidationInfo,
+    field_serializer,
+    field_validator,
+)
 from pydantic.dataclasses import dataclass
 
-from videos.domain._base import PydanticModel
+from videos.domain._base import PydanticModel, freeze_mapping, require_slug
 from videos.domain.value_objects.layout import LayoutSpec
 from videos.domain.value_objects.style import StyleSpec
 from videos.domain.value_objects.timeline import TimelineSpec
@@ -17,7 +22,18 @@ from videos.domain.value_objects.timeline import TimelineSpec
 class ComponentSpec(PydanticModel):
     type: str
     region: str
-    props: dict[str, object] = field(default_factory=dict)
+    props: Mapping[str, object] = Field(
+        default_factory=dict, validate_default=True
+    )
+
+    @field_validator("props")
+    @classmethod
+    def _props_immutable(cls, v: Mapping[str, object]) -> Mapping[str, object]:
+        return freeze_mapping(v)
+
+    @field_serializer("props")
+    def _serialize_props(self, v: Mapping[str, object]) -> dict[str, object]:
+        return dict(v)
 
 
 @dataclass(frozen=True)
@@ -41,16 +57,17 @@ class SceneSpec(PydanticModel):
 
     @field_validator("scene_id")
     @classmethod
-    def _scene_id_must_not_be_empty(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError(f"scene_id must not be empty, got {v!r}")
-        return v
+    def _scene_id_must_be_slug(cls, v: str) -> str:
+        return require_slug(v, "scene_id")
 
     @field_validator("goal")
     @classmethod
-    def _goal_must_not_be_empty(cls, v: str) -> str:
+    def _goal_must_not_be_empty(cls, v: str, info: ValidationInfo) -> str:
         if not v.strip():
-            raise ValueError(f"goal must not be empty for scene {v!r}")
+            raise ValueError(
+                f"goal must not be empty for scene "
+                f"{info.data.get('scene_id')!r}"
+            )
         return v
 
     @field_validator("duration_seconds")

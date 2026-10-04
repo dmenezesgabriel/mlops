@@ -4,6 +4,8 @@ import logging
 import shutil
 from pathlib import Path
 
+from videos.domain._base import require_slug
+
 logger = logging.getLogger(__name__)
 
 
@@ -24,8 +26,14 @@ class FileSystemArtifactStore:
         self._final_dir.mkdir(parents=True, exist_ok=True)
         self._scenes_dir.mkdir(parents=True, exist_ok=True)
 
+    @staticmethod
+    def _concept_filename(concept_id: str) -> str:
+        # Validated at the sink too: a direct store call bypasses the VO
+        # boundary, and an unbounded id escapes the output dirs via "../".
+        return f"{require_slug(concept_id, 'concept_id')}.mp4"
+
     def write_final(self, source_path: Path, concept_id: str) -> Path:
-        dest = self._final_dir / f"{concept_id}.mp4"
+        dest = self._final_dir / self._concept_filename(concept_id)
         shutil.copy2(source_path, dest)
         logger.info(
             "Copied final artifact",
@@ -34,7 +42,7 @@ class FileSystemArtifactStore:
         return dest
 
     def write_preview(self, source_path: Path, concept_id: str) -> Path:
-        dest = self._preview_dir / f"{concept_id}.mp4"
+        dest = self._preview_dir / self._concept_filename(concept_id)
         shutil.copy2(source_path, dest)
         logger.info(
             "Copied preview artifact",
@@ -44,10 +52,12 @@ class FileSystemArtifactStore:
 
     def resolve_output_path(self, concept_id: str, quality: str) -> Path:
         if quality == "final":
-            return self._final_dir / f"{concept_id}.mp4"
-        return self._preview_dir / f"{concept_id}.mp4"
+            return self._final_dir / self._concept_filename(concept_id)
+        return self._preview_dir / self._concept_filename(concept_id)
 
     def resolve_scene_preview_path(
         self, concept_id: str, scene_id: str
     ) -> Path:
-        return self._scenes_dir / f"{concept_id}_{scene_id}.mp4"
+        concept_slug = require_slug(concept_id, "concept_id")
+        scene_slug = require_slug(scene_id, "scene_id")
+        return self._scenes_dir / f"{concept_slug}_{scene_slug}.mp4"

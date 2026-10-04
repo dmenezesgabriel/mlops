@@ -14,7 +14,7 @@ class RuleViolation(PydanticModel):
     rule: str
     suggestion: str
     object_id: str = ""
-    actual: object = None
+    actual: str | int | float | None = None
     expected: str = ""
 
 

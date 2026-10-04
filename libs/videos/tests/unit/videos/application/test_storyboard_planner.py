@@ -6,6 +6,7 @@ from videos.domain.concept import (
     ConceptMetadata,
     ConceptTitle,
 )
+from videos.domain.layout import LayoutRegion
 from videos.domain.narrative import (
     Beat,
     BeatKind,
@@ -88,3 +89,15 @@ class TestStoryboardPlanner:
             assert len(scene.components) > 0
             # Each scene should at least have a title component
             assert any(c.type == "title" for c in scene.components)
+
+    def test_scene_regions_have_deterministic_order(self) -> None:
+        # Set-iteration order varies with PYTHONHASHSEED; the planned
+        # layout must be identical across processes.
+        planner = StoryboardPlanner()
+        sb = planner.plan(_narrative())
+        for scene in sb.scenes:
+            assert scene.layout.regions == (
+                LayoutRegion.TITLE,
+                LayoutRegion.BODY,
+                LayoutRegion.DIAGRAM,
+            )

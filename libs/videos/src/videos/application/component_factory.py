@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 from videos.domain.narrative import Beat
 from videos.domain.scene_spec import ComponentSpec
@@ -24,11 +24,27 @@ class ComponentFactory:
         ]
 
     @staticmethod
+    def _diagram_props(
+        kind: str, params: Mapping[str, object], visual_key: str
+    ) -> dict[str, object]:
+        # `kind` is the dispatch result — a params copy silently re-dispatches
+        # to a different component, so the reserved key is rejected instead.
+        if "kind" in params:
+            raise ValueError(
+                f"Beat params must not contain 'kind' (dispatch sets it "
+                f"from visual_key), got {visual_key!r} params "
+                f"{dict(params)!r}"
+            )
+        return {"kind": kind, **params}
+
+    @staticmethod
     def _build_target_diagram(beat: Beat) -> ComponentSpec | None:
         return ComponentSpec(
             type="diagram",
             region="diagram",
-            props={"kind": "target", **beat.params},
+            props=ComponentFactory._diagram_props(
+                "target", beat.params, beat.visual_key
+            ),
         )
 
     @staticmethod
@@ -36,7 +52,9 @@ class ComponentFactory:
         return ComponentSpec(
             type="diagram",
             region="diagram",
-            props={"kind": "cycle", **beat.params},
+            props=ComponentFactory._diagram_props(
+                "cycle", beat.params, beat.visual_key
+            ),
         )
 
     def create_components(self, beat: Beat) -> list[ComponentSpec]:

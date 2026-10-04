@@ -1,5 +1,27 @@
+import pytest
 from pydantic import ValidationError
 from videos.domain.value_objects.quality import QualityReport, RuleViolation
+
+
+class TestRuleViolation:
+    def test_rejects_non_scalar_actual(self) -> None:
+        with pytest.raises(ValidationError):
+            RuleViolation(
+                scene_id="s1", rule="r", suggestion="fix", actual=object()
+            )
+
+    def test_rejects_collection_actual(self) -> None:
+        with pytest.raises(ValidationError):
+            RuleViolation(
+                scene_id="s1", rule="r", suggestion="fix", actual={"a", "b"}
+            )
+
+    @pytest.mark.parametrize("value", ["text", 38, 1.5, None])
+    def test_accepts_scalar_actual(self, value: object) -> None:
+        v = RuleViolation(
+            scene_id="s1", rule="r", suggestion="fix", actual=value
+        )
+        assert v.actual == value
 
 
 class TestQualityReport:

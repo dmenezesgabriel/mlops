@@ -24,6 +24,13 @@ class TestConcept:
         with pytest.raises(ValidationError):
             ConceptId(value="")
 
+    @pytest.mark.parametrize(
+        "bad", ["../escape", "a/b", "with space", "Upper.Case", ""]
+    )
+    def test_concept_id_rejects_non_slug(self, bad: str) -> None:
+        with pytest.raises(ValidationError):
+            ConceptId(bad)
+
     def test_concept_title_requires_non_empty_short(self) -> None:
         with pytest.raises(ValidationError):
             ConceptTitle(short="")

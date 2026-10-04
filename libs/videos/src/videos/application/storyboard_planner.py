@@ -8,6 +8,14 @@ from videos.domain.storyboard import Storyboard
 from videos.domain.style import StyleSpec
 from videos.domain.timeline import TimelineEvent, TimelineSpec
 
+# Enum-member order, not a set: the engine is deterministic, so the same
+# narrative must produce the identical regions tuple under any hash seed.
+_SCENE_REGIONS: tuple[LayoutRegion, ...] = (
+    LayoutRegion.TITLE,
+    LayoutRegion.BODY,
+    LayoutRegion.DIAGRAM,
+)
+
 
 class StoryboardPlanner:
     def __init__(
@@ -19,12 +27,6 @@ class StoryboardPlanner:
         scenes: list[SceneSpec] = []
         for index, beat in enumerate(narrative.beats):
             scene_id = f"{narrative.concept.id.value}_beat_{index}"
-            region_names = {"title", "body", "diagram"}
-            regions = tuple(
-                LayoutRegion(r)
-                for r in region_names
-                if r in LayoutRegion.all_region_names()
-            )
 
             visual_objects = (
                 VisualObject(
@@ -59,7 +61,7 @@ class StoryboardPlanner:
                 title=beat.visual_key.replace("_", " ").title(),
                 goal=beat.narration.text[:80],
                 duration_seconds=beat.narration.duration_seconds,
-                layout=LayoutSpec(regions=regions),
+                layout=LayoutSpec(regions=_SCENE_REGIONS),
                 visual_objects=visual_objects,
                 timeline=TimelineSpec(events=timeline_events),
                 style=StyleSpec(),
