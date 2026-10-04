@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from videos.domain.concept import ConceptId
-from videos.domain.concept_registry import ConceptRegistry
+from videos.domain.entities.concept import ConceptId
+from videos.domain.entities.concept_registry import ConceptRegistry
 from videos.infrastructure.declarative import register_all
 
 

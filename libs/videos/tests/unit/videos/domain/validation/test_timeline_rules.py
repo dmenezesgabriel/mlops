@@ -1,7 +1,7 @@
-from videos.domain.layout import LayoutRegion, LayoutSpec
-from videos.domain.scene_spec import SceneSpec, VisualObject
-from videos.domain.timeline import TimelineEvent, TimelineSpec
 from videos.domain.validation.timeline_rules import TimelineRules
+from videos.domain.value_objects.layout import LayoutRegion, LayoutSpec
+from videos.domain.value_objects.scene_spec import SceneSpec, VisualObject
+from videos.domain.value_objects.timeline import TimelineEvent, TimelineSpec
 
 
 def _scene(

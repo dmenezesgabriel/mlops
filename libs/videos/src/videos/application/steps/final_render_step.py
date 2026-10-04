@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING
 
 from videos.application.pipeline_context import PipelineContext
@@ -11,9 +10,7 @@ if TYPE_CHECKING:
     from videos.application.ports.renderer import Renderer
     from videos.application.ports.scene_builder import SceneBuilder
     from videos.application.ports.telemetry import Telemetry
-    from videos.domain.storyboard import Storyboard
-
-logger = logging.getLogger(__name__)
+    from videos.domain.entities.storyboard import Storyboard
 
 
 class FinalRenderStep:

@@ -1,4 +1,4 @@
-from videos.domain.transitions import TransitionType
+from videos.domain.value_objects.transitions import TransitionType
 
 
 class TestTransitionType:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from videos.domain.quality import RuleViolation
+from videos.domain.value_objects.quality import RuleViolation
 from videos.infrastructure.validation.geometry_rules import OverlapDetector
 from videos.infrastructure.validation.visual_linter import (
     DensityAnalyzer,

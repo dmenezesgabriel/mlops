@@ -6,8 +6,8 @@ pytest.importorskip("manim")
 pytestmark = pytest.mark.docker
 
 from videos.application.components import ComponentRegistry  # noqa: I001, E402
-from videos.domain.layout import LayoutRegion, LayoutSpec  # noqa: I001, E402
-from videos.domain.scene_spec import ComponentSpec, SceneSpec  # noqa: I001, E402
+from videos.domain.value_objects.layout import LayoutRegion, LayoutSpec  # noqa: I001, E402
+from videos.domain.value_objects.scene_spec import ComponentSpec, SceneSpec  # noqa: I001, E402
 from videos.infrastructure.manim.components import register_default_components  # noqa: I001, E402
 from videos.infrastructure.manim.scene_builder import ManimSceneBuilder  # noqa: I001, E402
 

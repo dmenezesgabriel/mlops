@@ -1,6 +1,10 @@
 import pytest
 from videos.application.component_factory import ComponentFactory
-from videos.domain.narrative import Beat, BeatKind, NarrationLine
+from videos.domain.value_objects.narrative import (
+    Beat,
+    BeatKind,
+    NarrationLine,
+)
 
 
 def _beat(visual_key: str, params: dict[str, object]) -> Beat:

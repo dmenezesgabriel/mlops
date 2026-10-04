@@ -1,5 +1,5 @@
 import pytest
-from videos.domain.quality import QualityReport, RuleViolation
+from videos.domain.value_objects.quality import QualityReport, RuleViolation
 
 VIOLATION = RuleViolation(
     scene_id="s1",

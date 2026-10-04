@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-import logging
-
 from videos.application.pipeline_context import PipelineContext
-from videos.application.quality_gate import QualityGate
 from videos.application.storyboard_planner import StoryboardPlanner
-
-logger = logging.getLogger(__name__)
+from videos.application.use_cases.quality_gate import QualityGate
 
 
 class StaticValidationStep:

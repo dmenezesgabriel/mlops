@@ -16,7 +16,7 @@ def _make_scene(scene_id: str = "s1") -> SceneSpec:
 
 
 class _AlwaysFail:
-    """ValidatorProtocol stub that always returns one violation."""
+    """SceneValidator stub that always returns one violation."""
 
     def validate(self, scene: SceneSpec) -> list[RuleViolation]:
         return [

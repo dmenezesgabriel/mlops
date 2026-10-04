@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from videos.domain.layout import LayoutRegion, LayoutSpec
-from videos.domain.quality import RuleViolation
-from videos.domain.scene_spec import SceneSpec, VisualObject
 from videos.domain.validation.layout_rules import LayoutRules
 from videos.domain.validation.scene_rules import SceneRules
 from videos.domain.validation.text_rules import TextRules
 from videos.domain.validation.timeline_rules import (
     TimelineRules,
 )
+from videos.domain.value_objects.layout import LayoutRegion, LayoutSpec
+from videos.domain.value_objects.quality import RuleViolation
+from videos.domain.value_objects.scene_spec import SceneSpec, VisualObject
 
 
 class TestLayoutRulesOCP:
@@ -125,8 +125,8 @@ class TestTimelineRulesOCP:
 
 class TestQualityGateOCP:
     def test_accepts_custom_rules(self) -> None:
-        from videos.application.quality_gate import QualityGate
-        from videos.domain.quality import RuleViolation
+        from videos.application.use_cases.quality_gate import QualityGate
+        from videos.domain.value_objects.quality import RuleViolation
 
         def custom_validator(scene: SceneSpec) -> list[RuleViolation]:
             return [

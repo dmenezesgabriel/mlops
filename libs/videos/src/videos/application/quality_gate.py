@@ -1,8 +1,4 @@
 # Backward-compatible re-export — import from canonical location instead.
-from videos.application.use_cases.quality_gate import (
-    QualityGate,
-    RuleValidator,
-    ValidatorProtocol,
-)
+from videos.application.use_cases.quality_gate import QualityGate
 
-__all__ = ["RuleValidator", "ValidatorProtocol", "QualityGate"]
+__all__ = ["QualityGate"]

@@ -1,19 +1,12 @@
 from __future__ import annotations
 
-from typing import Protocol
-
-from videos.domain.quality import RuleViolation
-from videos.domain.scene_spec import SceneSpec
-
-
-class TimelineRuleValidator(Protocol):
-    def __call__(self, scene: SceneSpec) -> list[RuleViolation]: ...
+from videos.domain.validation.scene_rule import SceneRule
+from videos.domain.value_objects.quality import RuleViolation
+from videos.domain.value_objects.scene_spec import SceneSpec
 
 
 class TimelineRules:
-    def __init__(
-        self, rules: list[TimelineRuleValidator] | None = None
-    ) -> None:
+    def __init__(self, rules: list[SceneRule] | None = None) -> None:
         self._rules = (
             rules
             if rules is not None

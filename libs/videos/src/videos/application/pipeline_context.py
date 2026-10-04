@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -7,10 +8,10 @@ from videos.domain.value_objects.identifiers import require_quality
 
 if TYPE_CHECKING:
     from videos.application.ports.renderer import RenderResult
-    from videos.domain.concept_extension import ConceptExtension
-    from videos.domain.narrative import Narrative
-    from videos.domain.quality import QualityReport
-    from videos.domain.storyboard import Storyboard
+    from videos.domain.entities.concept_extension import ConceptExtension
+    from videos.domain.entities.narrative import Narrative
+    from videos.domain.entities.storyboard import Storyboard
+    from videos.domain.value_objects.quality import QualityReport
 
 
 @dataclass
@@ -30,3 +31,8 @@ class PipelineContext:
         # constructed `execute(context)` reject a quality that would skip
         # the final-render branch and mislead at the artifact store.
         require_quality(self.quality)
+        # The context owns the correlation id so every pipeline run —
+        # including partial runs that never reach the narrative step —
+        # carries one identifier end to end.
+        if not self.correlation_id:
+            self.correlation_id = f"{self.concept_id}_{uuid.uuid4().hex[:8]}"

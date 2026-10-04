@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from videos.domain.layout import LayoutSpec
-from videos.domain.scene_spec import SceneSpec
+from videos.domain.value_objects.layout import LayoutSpec
+from videos.domain.value_objects.scene_spec import SceneSpec
 
 
 class LayoutEngine(Protocol):

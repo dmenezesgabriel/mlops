@@ -1,4 +1,4 @@
-from videos.domain.layouts import (
+from videos.domain.value_objects.layouts import (
     BUILT_IN_LAYOUTS,
     COMPARISON,
     DIAGRAM_WITH_LABELS,

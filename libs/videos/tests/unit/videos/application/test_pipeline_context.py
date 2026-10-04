@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import pytest
 from videos.application.pipeline_context import PipelineContext
 
@@ -9,6 +11,14 @@ class TestPipelineContext:
         ctx = PipelineContext(concept_id="test")
         assert ctx.concept_id == "test"
         assert ctx.quality == "preview"
+
+    def test_generates_correlation_id_at_construction(self) -> None:
+        ctx = PipelineContext(concept_id="test")
+        assert re.fullmatch(r"test_[0-9a-f]{8}", ctx.correlation_id)
+
+    def test_preserves_explicit_correlation_id(self) -> None:
+        ctx = PipelineContext(concept_id="test", correlation_id="test_123")
+        assert ctx.correlation_id == "test_123"
 
     def test_accepts_quality(self) -> None:
         ctx = PipelineContext(concept_id="test", quality="final")

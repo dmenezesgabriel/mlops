@@ -8,10 +8,10 @@ from videos.application.ports.layout_engine import LayoutEngine
 from videos.application.ports.renderer import Renderer, RenderResult
 from videos.application.ports.scene_builder import SceneBuilder
 from videos.application.ports.telemetry import Telemetry
-from videos.application.quality_gate import QualityGate
 from videos.application.storyboard_planner import StoryboardPlanner
-from videos.domain.concept import ConceptId
-from videos.domain.concept_registry import ConceptRegistry
+from videos.application.use_cases.quality_gate import QualityGate
+from videos.domain.entities.concept import ConceptId
+from videos.domain.entities.concept_registry import ConceptRegistry
 from videos.infrastructure.declarative.loader import (
     load_concept_from_yaml_file,
 )

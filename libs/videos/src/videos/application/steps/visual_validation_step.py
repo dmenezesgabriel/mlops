@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-import logging
-
 from videos.application.pipeline_context import PipelineContext
 from videos.application.ports.linter import Linter
-
-logger = logging.getLogger(__name__)
 
 
 class VisualValidationStep:

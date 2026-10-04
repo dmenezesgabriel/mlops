@@ -7,7 +7,7 @@ from pathlib import Path
 from videos.application.components import ComponentRegistry
 from videos.application.director import Director
 from videos.application.ports.telemetry import Telemetry
-from videos.domain.concept_registry import ConceptRegistry
+from videos.domain.entities.concept_registry import ConceptRegistry
 from videos.infrastructure.declarative import register_all
 from videos.infrastructure.filesystem.artifact_store import (
     FileSystemArtifactStore,

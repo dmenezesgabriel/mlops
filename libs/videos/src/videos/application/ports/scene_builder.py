@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Protocol
 
 from videos.application.ports.layout_engine import LayoutEngine
-from videos.domain.scene_spec import SceneSpec
-from videos.domain.storyboard import Storyboard
+from videos.domain.entities.storyboard import Storyboard
+from videos.domain.value_objects.scene_spec import SceneSpec
 
 
 class SceneBuilder(Protocol):

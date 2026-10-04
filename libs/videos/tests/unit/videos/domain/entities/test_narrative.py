@@ -1,3 +1,5 @@
+import dataclasses
+
 import pytest
 from videos.domain.entities.concept import (
     Concept,
@@ -60,3 +62,17 @@ class TestNarrative:
             ),
         )
         assert narrative.total_duration == 10.0
+
+    def test_narrative_is_a_frozen_dataclass(self) -> None:
+        # Domain convention: data-carrying types are frozen pydantic
+        # dataclasses (Concept, all value objects) — Narrative must follow.
+        narrative = Narrative(
+            concept=_make_concept(),
+            beats=(
+                _make_beat(BeatKind.OPENING),
+                _make_beat(BeatKind.RECAP),
+            ),
+        )
+        assert dataclasses.is_dataclass(narrative)
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            narrative.concept = _make_concept()

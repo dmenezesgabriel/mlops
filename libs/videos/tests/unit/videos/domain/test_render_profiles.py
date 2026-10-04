@@ -1,4 +1,8 @@
-from videos.domain.render_profiles import BUILT_IN_PROFILES, FINAL, PREVIEW
+from videos.domain.value_objects.render_profiles import (
+    BUILT_IN_PROFILES,
+    FINAL,
+    PREVIEW,
+)
 
 
 class TestRenderProfiles:

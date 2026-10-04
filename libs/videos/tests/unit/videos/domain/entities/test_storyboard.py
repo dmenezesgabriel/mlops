@@ -1,3 +1,5 @@
+import dataclasses
+
 import pytest
 from videos.domain.entities.storyboard import Storyboard
 from videos.domain.value_objects.layout import LayoutSpec
@@ -30,3 +32,11 @@ class TestStoryboard:
     def test_total_expected_duration(self) -> None:
         sb = Storyboard(scenes=[_make_scene("s1"), _make_scene("s2")])
         assert sb.total_expected_duration == 2.0
+
+    def test_storyboard_is_a_frozen_dataclass(self) -> None:
+        # Domain convention: data-carrying types are frozen pydantic
+        # dataclasses (Concept, all value objects) — Storyboard must follow.
+        sb = Storyboard(scenes=[_make_scene("s1")])
+        assert dataclasses.is_dataclass(sb)
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            sb.scenes = (_make_scene("s2"),)

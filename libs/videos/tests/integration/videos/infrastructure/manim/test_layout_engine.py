@@ -3,7 +3,7 @@ import pytest
 pytest.importorskip("manim")
 pytestmark = pytest.mark.docker
 
-from videos.domain.layout import LayoutRegion, LayoutSpec  # noqa: I001, E402
+from videos.domain.value_objects.layout import LayoutRegion, LayoutSpec  # noqa: I001, E402
 from videos.infrastructure.manim.layout_engine import ManimLayoutEngine  # noqa: I001, E402
 
 

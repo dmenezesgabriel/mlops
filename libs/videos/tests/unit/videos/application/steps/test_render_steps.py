@@ -11,9 +11,9 @@ from videos.application.ports.artifact_store import ArtifactStore
 from videos.application.ports.scene_builder import SceneBuilder
 from videos.application.steps.final_render_step import FinalRenderStep
 from videos.application.steps.preview_render_step import PreviewRenderStep
-from videos.domain.layout import LayoutRegion, LayoutSpec
-from videos.domain.scene_spec import SceneSpec
-from videos.domain.storyboard import Storyboard
+from videos.domain.entities.storyboard import Storyboard
+from videos.domain.value_objects.layout import LayoutRegion, LayoutSpec
+from videos.domain.value_objects.scene_spec import SceneSpec
 
 
 class SpyRenderer:

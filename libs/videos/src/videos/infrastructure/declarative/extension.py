@@ -10,10 +10,11 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-from videos.domain.concept import Concept
-from videos.domain.concept_extension import ConceptExtension
-from videos.domain.narrative import Beat, Narrative
-from videos.domain.scene_spec import SceneSpec
+from videos.domain.entities.concept import Concept
+from videos.domain.entities.concept_extension import ConceptExtension
+from videos.domain.entities.narrative import Narrative
+from videos.domain.value_objects.narrative import Beat
+from videos.domain.value_objects.scene_spec import SceneSpec
 
 
 def _require_mapping(value: object, context: str) -> dict[str, Any]:

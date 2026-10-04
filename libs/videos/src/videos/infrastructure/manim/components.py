@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, cast
 
 from videos.application.components import ComponentRegistry
-from videos.domain.scene_spec import ComponentSpec
+from videos.domain.value_objects.scene_spec import ComponentSpec
 
 if TYPE_CHECKING:
     from manim import Scene, VGroup

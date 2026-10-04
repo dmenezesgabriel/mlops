@@ -1,23 +1,23 @@
 class TestImportBoundaries:
     def test_core_domain_does_not_import_manim(self) -> None:
-        import videos.domain.concept
-        import videos.domain.layout
-        import videos.domain.narrative
-        import videos.domain.quality
-        import videos.domain.scene_spec
-        import videos.domain.storyboard
-        import videos.domain.style
-        import videos.domain.timeline
+        import videos.domain.entities.concept
+        import videos.domain.entities.narrative
+        import videos.domain.entities.storyboard
+        import videos.domain.value_objects.layout
+        import videos.domain.value_objects.quality
+        import videos.domain.value_objects.scene_spec
+        import videos.domain.value_objects.style
+        import videos.domain.value_objects.timeline
 
         mods = [
-            videos.domain.concept,
-            videos.domain.narrative,
-            videos.domain.storyboard,
-            videos.domain.scene_spec,
-            videos.domain.layout,
-            videos.domain.timeline,
-            videos.domain.style,
-            videos.domain.quality,
+            videos.domain.entities.concept,
+            videos.domain.entities.narrative,
+            videos.domain.entities.storyboard,
+            videos.domain.value_objects.scene_spec,
+            videos.domain.value_objects.layout,
+            videos.domain.value_objects.timeline,
+            videos.domain.value_objects.style,
+            videos.domain.value_objects.quality,
         ]
         for mod in mods:
             src = getattr(mod, "__file__", "") or ""
@@ -27,13 +27,13 @@ class TestImportBoundaries:
 
     def test_core_application_does_not_import_manim(self) -> None:
         import videos.application.director
-        import videos.application.quality_gate
         import videos.application.storyboard_planner
+        import videos.application.use_cases.quality_gate
 
         mods = [
             videos.application.director,
             videos.application.storyboard_planner,
-            videos.application.quality_gate,
+            videos.application.use_cases.quality_gate,
         ]
         for mod in mods:
             src = getattr(mod, "__file__", "") or ""

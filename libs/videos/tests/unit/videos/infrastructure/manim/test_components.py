@@ -7,7 +7,7 @@ reject arms need no fake-manim fixture — the named ValueError fires first.
 from __future__ import annotations
 
 import pytest
-from videos.domain.scene_spec import ComponentSpec
+from videos.domain.value_objects.scene_spec import ComponentSpec
 from videos.infrastructure.manim.components import DiagramComponent
 
 

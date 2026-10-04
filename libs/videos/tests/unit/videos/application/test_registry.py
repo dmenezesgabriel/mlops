@@ -4,7 +4,7 @@ import logging
 
 import pytest
 from videos.application.components import ComponentRegistry
-from videos.domain.scene_spec import ComponentSpec
+from videos.domain.value_objects.scene_spec import ComponentSpec
 
 
 class _StubBuilder:

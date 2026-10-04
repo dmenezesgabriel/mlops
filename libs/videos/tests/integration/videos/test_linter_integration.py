@@ -73,7 +73,7 @@ class TestLinterIntegration:
         self, concept_id: str, tmp_path: Path
     ) -> None:
         # Arrange
-        from videos.domain.concept_registry import ConceptRegistry
+        from videos.domain.entities.concept_registry import ConceptRegistry
         from videos.infrastructure.declarative import register_all
 
         registry = ConceptRegistry()
@@ -110,7 +110,7 @@ class TestLinterIntegration:
         self, concept_id: str, tmp_path: Path
     ) -> None:
         # Arrange
-        from videos.domain.concept_registry import ConceptRegistry
+        from videos.domain.entities.concept_registry import ConceptRegistry
         from videos.infrastructure.declarative import register_all
 
         registry = ConceptRegistry()

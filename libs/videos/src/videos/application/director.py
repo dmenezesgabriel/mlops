@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING
-
 from videos.application.pipeline_context import PipelineContext
 from videos.application.ports.artifact_store import ArtifactStore
 from videos.application.ports.layout_engine import LayoutEngine
@@ -22,12 +19,7 @@ from videos.application.steps.static_validation_step import (
 from videos.application.steps.visual_validation_step import (
     VisualValidationStep,
 )
-from videos.domain.concept_registry import ConceptRegistry
-
-if TYPE_CHECKING:
-    pass
-
-logger = logging.getLogger(__name__)
+from videos.domain.entities.concept_registry import ConceptRegistry
 
 
 class Director:

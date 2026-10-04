@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-import logging
-
 from videos.application.pipeline_context import PipelineContext
 from videos.application.ports.artifact_store import ArtifactStore
 from videos.application.ports.layout_engine import LayoutEngine
 from videos.application.ports.renderer import Renderer, RenderResult
 from videos.application.ports.scene_builder import SceneBuilder
 from videos.application.ports.telemetry import Telemetry
-
-logger = logging.getLogger(__name__)
 
 
 class PreviewRenderStep:

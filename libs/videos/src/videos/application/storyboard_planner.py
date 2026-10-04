@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from videos.application.component_factory import ComponentFactory
-from videos.domain.layout import LayoutRegion, LayoutSpec
-from videos.domain.narrative import Narrative
-from videos.domain.scene_spec import SceneSpec, VisualObject
-from videos.domain.storyboard import Storyboard
-from videos.domain.style import StyleSpec
-from videos.domain.timeline import TimelineEvent, TimelineSpec
+from videos.domain.entities.narrative import Narrative
+from videos.domain.entities.storyboard import Storyboard
+from videos.domain.value_objects.layout import LayoutRegion, LayoutSpec
+from videos.domain.value_objects.scene_spec import SceneSpec, VisualObject
+from videos.domain.value_objects.style import StyleSpec
+from videos.domain.value_objects.timeline import (
+    TimelineEvent,
+    TimelineSpec,
+)
 
 # Enum-member order, not a set: the engine is deterministic, so the same
 # narrative must produce the identical regions tuple under any hash seed.
@@ -69,4 +72,4 @@ class StoryboardPlanner:
             )
             scenes.append(scene)
 
-        return Storyboard(scenes=scenes)
+        return Storyboard(scenes=tuple(scenes))

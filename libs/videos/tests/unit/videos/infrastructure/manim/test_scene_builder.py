@@ -8,12 +8,12 @@ from videos.application.components import ComponentRegistry
 from videos.infrastructure.manim.scene_builder import ManimSceneBuilder
 
 if TYPE_CHECKING:
-    from videos.domain.scene_spec import SceneSpec
+    from videos.domain.value_objects.scene_spec import SceneSpec
 
 
 def _scene_spec() -> SceneSpec:
-    from videos.domain.layout import LayoutRegion, LayoutSpec
-    from videos.domain.scene_spec import SceneSpec
+    from videos.domain.value_objects.layout import LayoutRegion, LayoutSpec
+    from videos.domain.value_objects.scene_spec import SceneSpec
 
     return SceneSpec(
         scene_id="s1",
@@ -54,7 +54,7 @@ class TestManimSceneBuilder:
     ) -> None:
         from unittest.mock import MagicMock
 
-        from videos.domain.storyboard import Storyboard
+        from videos.domain.entities.storyboard import Storyboard
 
         builder = ManimSceneBuilder()
         spec = _scene_spec()
@@ -78,7 +78,7 @@ class TestManimSceneBuilder:
     def test_build_storyboard_without_manim_raises_named_error(
         self, manim_absent: None
     ) -> None:
-        from videos.domain.storyboard import Storyboard
+        from videos.domain.entities.storyboard import Storyboard
 
         builder = ManimSceneBuilder()
         spec = _scene_spec()

@@ -13,20 +13,20 @@ from videos.application.ports.layout_engine import LayoutEngine
 from videos.application.ports.renderer import Renderer, RenderResult
 from videos.application.ports.scene_builder import SceneBuilder
 from videos.application.ports.telemetry import Telemetry
-from videos.domain.concept import (
+from videos.domain.entities.concept import (
     Concept,
     ConceptId,
     ConceptMetadata,
     ConceptTitle,
 )
-from videos.domain.concept_registry import ConceptRegistry
-from videos.domain.narrative import (
+from videos.domain.entities.concept_registry import ConceptRegistry
+from videos.domain.entities.narrative import Narrative
+from videos.domain.value_objects.narrative import (
     Beat,
     BeatKind,
     NarrationLine,
-    Narrative,
 )
-from videos.domain.scene_spec import SceneSpec
+from videos.domain.value_objects.scene_spec import SceneSpec
 
 
 def _minimal_concept() -> Concept:

@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import logging
 from collections.abc import Sequence
 
 from videos.application.pipeline_context import PipelineContext
 from videos.application.ports.pipeline_step import PipelineStep
-
-logger = logging.getLogger(__name__)
 
 
 class ProductionPipeline:

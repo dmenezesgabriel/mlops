@@ -1,4 +1,4 @@
-from videos.domain.brand import DEFAULT_BRAND, BrandColors
+from videos.domain.value_objects.brand import DEFAULT_BRAND, BrandColors
 
 
 class TestBrandColors:

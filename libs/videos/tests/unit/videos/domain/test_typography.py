@@ -1,4 +1,7 @@
-from videos.domain.typography import DEFAULT_TYPOGRAPHY, TypographyPreset
+from videos.domain.value_objects.typography import (
+    DEFAULT_TYPOGRAPHY,
+    TypographyPreset,
+)
 
 
 class TestTypographyPreset:

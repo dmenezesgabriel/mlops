@@ -1,17 +1,20 @@
 import pytest
-from videos.domain.concept import (
+from videos.domain.entities.concept import (
     Concept,
     ConceptId,
     ConceptMetadata,
     ConceptTitle,
 )
-from videos.domain.concept_extension import ConceptExtension
-from videos.domain.concept_registry import ConceptRegistry, UnknownConceptError
-from videos.domain.narrative import (
+from videos.domain.entities.concept_extension import ConceptExtension
+from videos.domain.entities.concept_registry import (
+    ConceptRegistry,
+    UnknownConceptError,
+)
+from videos.domain.entities.narrative import Narrative
+from videos.domain.value_objects.narrative import (
     Beat,
     BeatKind,
     NarrationLine,
-    Narrative,
 )
 
 

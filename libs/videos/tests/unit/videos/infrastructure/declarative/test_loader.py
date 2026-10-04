@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from videos.domain.concept import ConceptId
+from videos.domain.entities.concept import ConceptId
 from videos.infrastructure.declarative.loader import (
     load_concept_from_yaml_file,
     yaml_to_concept_extension,
@@ -69,7 +69,7 @@ class TestYamlToConceptExtension:
         assert raised
 
     def test_registers_with_registry(self) -> None:
-        from videos.domain.concept_registry import ConceptRegistry
+        from videos.domain.entities.concept_registry import ConceptRegistry
 
         registry = ConceptRegistry()
         ext = yaml_to_concept_extension(SAMPLE_YAML)

@@ -3,8 +3,8 @@ from typing import Self
 
 import pytest
 from videos.domain._base import PydanticModel
-from videos.domain.concept import Concept
-from videos.domain.concept_extension import ConceptExtension
+from videos.domain.entities.concept import Concept
+from videos.domain.entities.concept_extension import ConceptExtension
 
 
 class TestConceptExtension:

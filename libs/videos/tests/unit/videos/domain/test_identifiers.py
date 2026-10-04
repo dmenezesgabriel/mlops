@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import pytest
-from videos.domain.identifiers import ComponentType, QualityLevel, SceneId
+from videos.domain.value_objects.identifiers import (
+    ComponentType,
+    QualityLevel,
+    SceneId,
+)
 
 
 class TestSceneId:

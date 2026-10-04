@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import uuid
-
 from videos.application.pipeline_context import PipelineContext
-from videos.domain.concept import ConceptId
-from videos.domain.concept_registry import ConceptRegistry
+from videos.domain.entities.concept import ConceptId
+from videos.domain.entities.concept_registry import ConceptRegistry
 
 
 class NarrativePlanningStep:
@@ -21,5 +19,4 @@ class NarrativePlanningStep:
             )
         context.concept_extension = extension
         context.narrative = narrative
-        context.correlation_id = f"{context.concept_id}_{uuid.uuid4().hex[:8]}"
         return context

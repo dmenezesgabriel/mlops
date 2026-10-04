@@ -14,7 +14,6 @@ from videos.application.ports.renderer import RenderResult
 from videos.application.ports.scene_builder import SceneBuilder
 from videos.application.ports.telemetry import Telemetry
 from videos.application.production_pipeline import ProductionPipeline
-from videos.application.quality_gate import QualityGate
 from videos.application.steps.final_render_step import FinalRenderStep
 from videos.application.steps.narrative_planning_step import (
     NarrativePlanningStep,
@@ -26,23 +25,24 @@ from videos.application.steps.static_validation_step import (
 from videos.application.steps.visual_validation_step import (
     VisualValidationStep,
 )
-from videos.domain.concept import (
+from videos.application.use_cases.quality_gate import QualityGate
+from videos.domain.entities.concept import (
     Concept,
     ConceptId,
     ConceptMetadata,
     ConceptTitle,
 )
-from videos.domain.concept_registry import ConceptRegistry
-from videos.domain.layout import LayoutRegion, LayoutSpec
-from videos.domain.narrative import (
+from videos.domain.entities.concept_registry import ConceptRegistry
+from videos.domain.entities.narrative import Narrative
+from videos.domain.entities.storyboard import Storyboard
+from videos.domain.value_objects.layout import LayoutRegion, LayoutSpec
+from videos.domain.value_objects.narrative import (
     Beat,
     BeatKind,
     NarrationLine,
-    Narrative,
 )
-from videos.domain.quality import RuleViolation
-from videos.domain.scene_spec import SceneSpec
-from videos.domain.storyboard import Storyboard
+from videos.domain.value_objects.quality import RuleViolation
+from videos.domain.value_objects.scene_spec import SceneSpec
 
 
 def _minimal_concept() -> Concept:
@@ -209,6 +209,17 @@ class TestNarrativePlanningStep:
         ctx = PipelineContext(concept_id="test")
         with pytest.raises(RuntimeError, match="other"):
             step.execute(ctx)
+
+    def test_preserves_correlation_id(self) -> None:
+        # The context owns correlation-id generation; a step must not
+        # overwrite an id the caller already set.
+        registry = ConceptRegistry()
+        registry.register(_registered_ext())
+
+        ctx = PipelineContext(concept_id="test", correlation_id="test_123")
+        result = NarrativePlanningStep(registry).execute(ctx)
+
+        assert result.correlation_id == "test_123"
 
 
 class TestStaticValidationStep:

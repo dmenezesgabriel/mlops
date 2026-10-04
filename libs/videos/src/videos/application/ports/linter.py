@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Protocol
 
-from videos.domain.quality import RuleViolation
+from videos.domain.value_objects.quality import RuleViolation
 
 
 class Linter(Protocol):

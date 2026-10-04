@@ -1,5 +1,5 @@
 import pytest
-from videos.domain.timeline import TimelineEvent, TimelineSpec
+from videos.domain.value_objects.timeline import TimelineEvent, TimelineSpec
 
 
 class TestTimelineEvent:

@@ -1,6 +1,6 @@
-from videos.domain.layout import LayoutRegion, LayoutSpec
-from videos.domain.scene_spec import SceneSpec
 from videos.domain.validation.scene_rules import SceneRules
+from videos.domain.value_objects.layout import LayoutRegion, LayoutSpec
+from videos.domain.value_objects.scene_spec import SceneSpec
 
 
 def _scene(

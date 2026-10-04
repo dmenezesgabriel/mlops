@@ -1,5 +1,5 @@
 import pytest
-from videos.domain.layout import LayoutRegion, LayoutSpec
+from videos.domain.value_objects.layout import LayoutRegion, LayoutSpec
 
 
 class TestLayoutRegion:

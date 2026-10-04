@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from videos.domain.layout import LayoutRegion, LayoutSpec
-from videos.domain.scene_spec import ComponentSpec, SceneSpec
+from videos.domain.value_objects.layout import LayoutRegion, LayoutSpec
+from videos.domain.value_objects.scene_spec import ComponentSpec, SceneSpec
 from videos.infrastructure.manim.layout_engine import ManimLayoutEngine
 
 

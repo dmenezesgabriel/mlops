@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 
-from videos.domain.narrative import Beat
-from videos.domain.scene_spec import ComponentSpec
+from videos.domain.value_objects.narrative import Beat
+from videos.domain.value_objects.scene_spec import ComponentSpec
 
 
 def _diagram_props(

@@ -6,12 +6,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from videos.application.components import ComponentRegistry
-from videos.domain.scene_spec import SceneSpec
+from videos.domain.value_objects.scene_spec import SceneSpec
 from videos.infrastructure.manim._missing import require_manim
 
 if TYPE_CHECKING:
     from videos.application.ports.layout_engine import LayoutEngine
-    from videos.domain.storyboard import Storyboard
+    from videos.domain.entities.storyboard import Storyboard
 
 
 try:

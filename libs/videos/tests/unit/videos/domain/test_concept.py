@@ -1,4 +1,4 @@
-from videos.domain.concept import (
+from videos.domain.entities.concept import (
     Concept,
     ConceptId,
     ConceptMetadata,

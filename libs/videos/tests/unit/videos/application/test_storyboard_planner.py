@@ -1,17 +1,17 @@
 import pytest
 from videos.application.storyboard_planner import StoryboardPlanner
-from videos.domain.concept import (
+from videos.domain.entities.concept import (
     Concept,
     ConceptId,
     ConceptMetadata,
     ConceptTitle,
 )
-from videos.domain.layout import LayoutRegion
-from videos.domain.narrative import (
+from videos.domain.entities.narrative import Narrative
+from videos.domain.value_objects.layout import LayoutRegion
+from videos.domain.value_objects.narrative import (
     Beat,
     BeatKind,
     NarrationLine,
-    Narrative,
 )
 
 

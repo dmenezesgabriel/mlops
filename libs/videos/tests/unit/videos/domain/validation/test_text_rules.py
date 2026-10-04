@@ -1,6 +1,6 @@
-from videos.domain.layout import LayoutRegion, LayoutSpec
-from videos.domain.scene_spec import SceneSpec, VisualObject
 from videos.domain.validation.text_rules import TextRules
+from videos.domain.value_objects.layout import LayoutRegion, LayoutSpec
+from videos.domain.value_objects.scene_spec import SceneSpec, VisualObject
 
 
 def _scene(visual_objects: tuple[VisualObject, ...] = ()) -> SceneSpec:

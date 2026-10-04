@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Protocol
 
-from videos.domain.scene_spec import ComponentSpec
+from videos.domain.value_objects.scene_spec import ComponentSpec
 
 logger = logging.getLogger(__name__)
 
