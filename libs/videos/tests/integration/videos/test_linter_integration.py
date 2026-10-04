@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -13,6 +14,12 @@ from videos.infrastructure.validation.linter_service import (
 
 
 class StubRenderer:
+    @contextlib.contextmanager
+    def quality_context(
+        self, quality: str
+    ) -> contextlib.AbstractContextManager[None]:
+        yield
+
     def render(
         self, scene_job: object, output_path: Path, quality: str = "preview"
     ) -> RenderResult:
@@ -30,6 +37,12 @@ class StubRenderer:
 
 
 class GoodRenderer:
+    @contextlib.contextmanager
+    def quality_context(
+        self, quality: str
+    ) -> contextlib.AbstractContextManager[None]:
+        yield
+
     def render(
         self, scene_job: object, output_path: Path, quality: str = "preview"
     ) -> RenderResult:

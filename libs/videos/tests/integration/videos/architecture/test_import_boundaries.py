@@ -28,14 +28,12 @@ class TestImportBoundaries:
     def test_core_application_does_not_import_manim(self) -> None:
         import videos.application.director
         import videos.application.quality_gate
-        import videos.application.render_pipeline
         import videos.application.storyboard_planner
 
         mods = [
             videos.application.director,
             videos.application.storyboard_planner,
             videos.application.quality_gate,
-            videos.application.render_pipeline,
         ]
         for mod in mods:
             src = getattr(mod, "__file__", "") or ""

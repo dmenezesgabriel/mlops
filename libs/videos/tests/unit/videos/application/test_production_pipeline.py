@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
@@ -84,6 +85,12 @@ class StubTelemetry(Telemetry):
 class StubRenderer:
     def __init__(self) -> None:
         self.jobs: list = []
+
+    @contextlib.contextmanager
+    def quality_context(
+        self, quality: str
+    ) -> contextlib.AbstractContextManager[None]:
+        yield
 
     def render(
         self, scene_job: object, output_path: Path, quality: str = "preview"

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import logging
 from typing import TYPE_CHECKING
 
@@ -38,12 +37,7 @@ class FinalRenderStep:
         if context.storyboard is None:
             return context
 
-        renderer_context = (
-            self._renderer.quality_context(context.quality)
-            if hasattr(self._renderer, "quality_context")
-            else contextlib.nullcontext()
-        )
-        with renderer_context:
+        with self._renderer.quality_context("final"):
             full_scene = self._build_full_storyboard(context.storyboard)
             final_path = self._artifact_store.resolve_output_path(
                 context.concept_id, "final"
@@ -61,10 +55,6 @@ class FinalRenderStep:
         return context
 
     def _build_full_storyboard(self, storyboard: Storyboard) -> object:
-        if hasattr(self._scene_builder, "build_storyboard"):
-            return self._scene_builder.build_storyboard(
-                storyboard, self._layout_engine
-            )
-        return self._scene_builder.build(
-            self._layout_engine.apply(storyboard.scenes[0])
+        return self._scene_builder.build_storyboard(
+            storyboard, self._layout_engine
         )

@@ -8,8 +8,10 @@ from videos.domain.storyboard import Storyboard
 
 
 class SceneBuilder(Protocol):
-    def build(self, scene_spec: SceneSpec) -> object: ...
+    def build(self, scene_spec: SceneSpec) -> object:
+        raise NotImplementedError
 
     def build_storyboard(
         self, storyboard: Storyboard, layout_engine: LayoutEngine
-    ) -> object: ...
+    ) -> object:
+        raise NotImplementedError

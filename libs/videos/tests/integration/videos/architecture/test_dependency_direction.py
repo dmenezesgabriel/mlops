@@ -43,7 +43,6 @@ class TestDependencyDirection:
                 "videos.application.director",
                 "videos.application.storyboard_planner",
                 "videos.application.quality_gate",
-                "videos.application.render_pipeline",
             ],
             ("infrastructure", "presentation"),
         )

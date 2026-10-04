@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import logging
 
 from videos.application.pipeline_context import PipelineContext
@@ -34,12 +33,7 @@ class PreviewRenderStep:
                 "PreviewRenderStep requires storyboard to be set in context"
             )
         results: list[RenderResult] = []
-        renderer_context = (
-            self._renderer.quality_context(context.quality)
-            if hasattr(self._renderer, "quality_context")
-            else contextlib.nullcontext()
-        )
-        with renderer_context:
+        with self._renderer.quality_context("preview"):
             for index, scene_spec in enumerate(context.storyboard.scenes):
                 positioned = self._layout_engine.apply(scene_spec)
                 built_scene = self._scene_builder.build(positioned)

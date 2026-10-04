@@ -9,7 +9,6 @@ from videos.application.ports.renderer import Renderer, RenderResult
 from videos.application.ports.scene_builder import SceneBuilder
 from videos.application.ports.telemetry import Telemetry
 from videos.application.quality_gate import QualityGate
-from videos.application.render_pipeline import RenderPipeline
 from videos.application.storyboard_planner import StoryboardPlanner
 from videos.domain.concept import ConceptId
 from videos.domain.concept_registry import ConceptRegistry
@@ -114,28 +113,6 @@ class TestE2EYamlConcepts:
 
         # Assert
         assert report.passed, f"Quality gate failed: {report.violations}"
-
-    def test_render_pipeline_with_yaml_concept(self) -> None:
-        # Arrange
-        path = TEST_YAML_DIR / "test_e2e.yaml"
-        ext = load_concept_from_yaml_file(str(path))
-        narrative = ext.create_narrative()
-        planner = StoryboardPlanner()
-        storyboard = planner.plan(narrative)
-        pipeline = RenderPipeline(
-            renderer=StubRenderer(),
-            scene_builder=StubSceneBuilder(),
-            layout_engine=StubLayoutEngine(),
-            artifact_store=StubArtifactStore(),
-            telemetry=StubTelemetry(),
-        )
-
-        # Act
-        results = pipeline.execute(storyboard, "test_e2e")
-
-        # Assert
-        assert len(results) == len(narrative.beats)
-        assert all(r.success for r in results)
 
 
 class TestE2EDirector:

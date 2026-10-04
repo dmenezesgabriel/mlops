@@ -9,8 +9,11 @@ from videos.domain.quality import RuleViolation
 class Linter(Protocol):
     def verify_geometry(
         self, mobjects: list[Any], scene_id: str
-    ) -> list[RuleViolation]: ...
+    ) -> list[RuleViolation]:
+        raise NotImplementedError
 
-    def verify_visuals(self, image_path: Path, scene_id: str) -> None: ...
+    def verify_visuals(self, image_path: Path, scene_id: str) -> None:
+        raise NotImplementedError
 
-    def verify_video(self, video_path: Path, scene_id: str) -> None: ...
+    def verify_video(self, video_path: Path, scene_id: str) -> None:
+        raise NotImplementedError

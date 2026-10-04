@@ -7,6 +7,8 @@ from videos.domain.scene_spec import SceneSpec
 
 
 class LayoutEngine(Protocol):
-    def apply(self, scene: SceneSpec) -> SceneSpec: ...
+    def apply(self, scene: SceneSpec) -> SceneSpec:
+        raise NotImplementedError
 
-    def validate_placement(self, layout: LayoutSpec) -> list[str]: ...
+    def validate_placement(self, layout: LayoutSpec) -> list[str]:
+        raise NotImplementedError

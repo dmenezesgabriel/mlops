@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import contextlib
 from pathlib import Path
+from typing import cast
 from unittest.mock import MagicMock
 
+import pytest
 from videos.application.pipeline_context import PipelineContext
+from videos.application.ports.artifact_store import ArtifactStore
+from videos.application.ports.scene_builder import SceneBuilder
 from videos.application.steps.final_render_step import FinalRenderStep
 from videos.application.steps.preview_render_step import PreviewRenderStep
 from videos.domain.layout import LayoutRegion, LayoutSpec
@@ -121,3 +125,105 @@ def test_final_render_step_enters_quality_context() -> None:
         "render_call",
         "exit_context_final",
     ]
+
+
+def _one_scene_storyboard() -> Storyboard:
+    scene = SceneSpec(
+        scene_id="s1",
+        title="Title",
+        goal="Goal",
+        duration_seconds=5.0,
+        layout=LayoutSpec(regions=(LayoutRegion.TITLE,)),
+    )
+    return Storyboard(scenes=[scene])
+
+
+class BuildOnlySceneBuilder:
+    """Structural fake missing the port-declared build_storyboard."""
+
+    def build(self, scene_spec: object) -> object:
+        return object()
+
+
+class PartialSceneBuilder(SceneBuilder):
+    """Inherits the port but never overrides build_storyboard."""
+
+    def build(self, scene_spec: object) -> object:
+        return object()
+
+
+class PartialArtifactStore(ArtifactStore):
+    """Inherits the port but never overrides resolve_scene_preview_path."""
+
+    def resolve_output_path(self, concept_id: str, quality: str) -> Path:
+        return Path(f"{concept_id}_{quality}.mp4")
+
+
+def test_preview_step_enters_preview_context_on_final_run() -> None:
+    renderer = SpyRenderer()
+    scene_builder = MagicMock()
+    layout_engine = MagicMock()
+    layout_engine.apply.side_effect = lambda spec: spec
+    artifact_store = MagicMock()
+    artifact_store.resolve_scene_preview_path.return_value = Path("scene.mp4")
+    telemetry = MagicMock()
+
+    step = PreviewRenderStep(
+        renderer=renderer,
+        scene_builder=scene_builder,
+        layout_engine=layout_engine,
+        artifact_store=artifact_store,
+        telemetry=telemetry,
+    )
+    context = PipelineContext(concept_id="test", quality="final")
+    context.storyboard = _one_scene_storyboard()
+
+    step.execute(context)
+
+    assert "enter_context_preview" in renderer.log
+    assert "enter_context_final" not in renderer.log
+
+
+def test_final_step_raises_on_builder_without_build_storyboard() -> None:
+    step = FinalRenderStep(
+        renderer=SpyRenderer(),
+        scene_builder=cast(SceneBuilder, BuildOnlySceneBuilder()),
+        layout_engine=MagicMock(),
+        artifact_store=MagicMock(),
+        telemetry=MagicMock(),
+    )
+    context = PipelineContext(concept_id="test", quality="final")
+    context.storyboard = _one_scene_storyboard()
+
+    with pytest.raises(AttributeError):
+        step.execute(context)
+
+
+def test_final_step_raises_when_inheriting_builder_skips_override() -> None:
+    step = FinalRenderStep(
+        renderer=SpyRenderer(),
+        scene_builder=PartialSceneBuilder(),
+        layout_engine=MagicMock(),
+        artifact_store=MagicMock(),
+        telemetry=MagicMock(),
+    )
+    context = PipelineContext(concept_id="test", quality="final")
+    context.storyboard = _one_scene_storyboard()
+
+    with pytest.raises(NotImplementedError):
+        step.execute(context)
+
+
+def test_preview_step_raises_when_inheriting_store_skips_override() -> None:
+    step = PreviewRenderStep(
+        renderer=SpyRenderer(),
+        scene_builder=MagicMock(),
+        layout_engine=MagicMock(),
+        artifact_store=PartialArtifactStore(),
+        telemetry=MagicMock(),
+    )
+    context = PipelineContext(concept_id="test", quality="preview")
+    context.storyboard = _one_scene_storyboard()
+
+    with pytest.raises(NotImplementedError):
+        step.execute(context)

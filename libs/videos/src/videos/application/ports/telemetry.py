@@ -6,8 +6,10 @@ from typing import Protocol
 class Telemetry(Protocol):
     def record_event(
         self, event_name: str, attributes: dict[str, object]
-    ) -> None: ...
+    ) -> None:
+        raise NotImplementedError
 
     def record_error(
         self, error: Exception, attributes: dict[str, object]
-    ) -> None: ...
+    ) -> None:
+        raise NotImplementedError

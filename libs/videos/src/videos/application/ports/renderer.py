@@ -22,4 +22,5 @@ class Renderer(Protocol):
 
     def render(
         self, scene_job: object, output_path: Path, quality: str = "preview"
-    ) -> RenderResult: ...
+    ) -> RenderResult:
+        raise NotImplementedError
