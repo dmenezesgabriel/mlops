@@ -124,3 +124,30 @@ class TestContrastChecker:
         checker = ContrastChecker(min_ratio=4.5)
         violations = checker.check_image(img_path)
         assert len(violations) == 0
+
+    def test_skips_thin_elements_below_5px(self, temp_image_dir: Path) -> None:
+        # A 4px-wide low-contrast bar falls under the w<5 noise floor even
+        # though it is 50px tall — the skip is `or`, not `and`.
+        img = Image.new("RGB", (200, 200), color=(30, 30, 30))
+        draw = ImageDraw.Draw(img)
+        draw.rectangle([10, 50, 13, 99], fill=(45, 45, 45))
+        path = temp_image_dir / "thin.png"
+        img.save(path)
+
+        checker = ContrastChecker(min_ratio=4.5)
+        assert checker.check_image(path) == []
+
+    def test_measures_background_inside_bounding_box(
+        self, temp_image_dir: Path
+    ) -> None:
+        # A hollow bright ring leaves dark pixels inside its bounding box —
+        # the background percentile must come from the ROI, not the
+        # whole-image fallback.
+        img = Image.new("RGB", (200, 200), color=(30, 30, 30))
+        draw = ImageDraw.Draw(img)
+        draw.rectangle([50, 50, 149, 149], outline=(255, 255, 255), width=8)
+        path = temp_image_dir / "ring.png"
+        img.save(path)
+
+        checker = ContrastChecker(min_ratio=4.5)
+        assert checker.check_image(path) == []

@@ -81,7 +81,8 @@
   silently green-lights missing/corrupt artifacts and has two measured
   false-PASS paths — phantom `[30,30,30]` background, same-channel overlap
   merge.)
-- [ ] Remediate promoted S1+ gaps.
+- [x] Remediate promoted S1+ gaps. (AF-65…AF-79 all shipped — every
+  AU-11…AU-14 gap dispositioned; register has zero open rows.)
 
 ## MA-6 — ML workspace
 

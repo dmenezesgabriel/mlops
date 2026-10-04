@@ -16,6 +16,12 @@ dev = ["Pillow>=10.0"]
 [tool.uv.sources]
 videos = { workspace = true }
 
+[tool.coverage.run]
+# bare `--cov` traces the editable `videos` workspace dependency; those
+# modules are covered by videos' own suite, so measure only this package's
+# code.
+source = ["src", "tests"]
+
 [tool.deptry]
 known_first_party = ["videos_linter"]
 # Pillow's importable module is PIL; without the map deptry cannot attribute
