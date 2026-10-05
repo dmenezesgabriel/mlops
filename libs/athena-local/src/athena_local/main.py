@@ -54,7 +54,7 @@ from athena_local.trino_client import create_trino_client
 from athena_local.workgroups import register_workgroup_handlers
 
 TRINO_URL_ENV = "ATHENA_LOCAL_TRINO_URL"
-TRINO_URL_DEFAULT = "http://localhost:8080"
+TRINO_URL_DEFAULT = "http://localhost:8485"
 MAX_CONCURRENT_QUERIES_ENV = "ATHENA_LOCAL_MAX_CONCURRENT_QUERIES"
 MAX_RETAINED_EXECUTIONS_ENV = "ATHENA_LOCAL_MAX_RETAINED_EXECUTIONS"
 # The canonical model's largest request member is QueryString (max 262144

@@ -42,7 +42,7 @@ from botocore.client import BaseClient
 from botocore.config import Config
 from tests.integration.conftest import LiveAthenaServer
 
-TRINO_URL = os.environ.get("ATHENA_LOCAL_TRINO_URL", "http://localhost:8080")
+TRINO_URL = os.environ.get("ATHENA_LOCAL_TRINO_URL", "http://localhost:8485")
 BRIDGE_URL_ENV = "ATHENA_LOCAL_MOTO_ENDPOINT_URL"
 # The compose moto service publishes :5000 on the host; the env var overrides
 # the default when moto is reached another way (e.g. inside mlops_net).

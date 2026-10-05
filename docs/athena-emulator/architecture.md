@@ -208,7 +208,7 @@ Trino statement and records `CANCELLED` (ADR-0009).
   - `athena` — built from `docker/athena/Dockerfile` (locked `uv export` +
     `pip --require-hashes` install, non-root `10001:10001`, uvicorn serving
     `athena_local.main:app` on `:5001`); env `ATHENA_LOCAL_TRINO_URL` (default
-    `http://localhost:8080`, compose `http://trino:8080`),
+    `http://localhost:8485`, compose `http://trino:8080`),
     `ATHENA_MOTO_ENDPOINT_URL` (default `http://127.0.0.1:5000`, compose
     `http://moto:5000`), `ATHENA_LOCAL_MAX_CONCURRENT_QUERIES` (default 4,
     bounds the executor semaphore), `ATHENA_LOCAL_MAX_RETAINED_EXECUTIONS`

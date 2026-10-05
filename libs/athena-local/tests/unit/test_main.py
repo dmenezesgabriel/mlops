@@ -412,7 +412,7 @@ def test_build_query_executor_uses_compose_default_endpoints(
     executor = build_query_executor(ExecutionStore())
 
     assert (
-        executor._client._statement_url == "http://localhost:8080/v1/statement"
+        executor._client._statement_url == "http://localhost:8485/v1/statement"
     )
     assert (
         executor._writer._s3._client.meta.endpoint_url

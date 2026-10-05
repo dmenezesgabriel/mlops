@@ -36,7 +36,7 @@ from botocore.client import BaseClient
 from botocore.exceptions import ClientError
 from tests.integration.conftest import LiveAthenaServer
 
-TRINO_URL = os.environ.get("ATHENA_LOCAL_TRINO_URL", "http://localhost:8080")
+TRINO_URL = os.environ.get("ATHENA_LOCAL_TRINO_URL", "http://localhost:8485")
 RESULT_LOCATION = "s3://athena-local/results/"
 CTAS_TABLE_PREFIX = "athena_local_qe5_dup"
 

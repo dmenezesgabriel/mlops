@@ -20,8 +20,9 @@ Once up:
 
 - athena — `http://localhost:5001`; `GET /health` → `{"status": "ok"}`
 - moto — `http://localhost:5000` (S3, Glue, STS)
-- trino — `http://localhost:8080` (Hive connector → moto Glue, native S3 →
-  moto S3)
+- trino — `http://localhost:8485` (host publish — `:8080` stays inside
+  mlops_net, free for sagemaker-local serve containers; Hive connector →
+  moto Glue, native S3 → moto S3)
 
 The `jupyterlab` compose service is already wired: `AWS_ENDPOINT_URL` → moto
 and `AWS_ENDPOINT_URL_ATHENA` → the emulator.
@@ -36,7 +37,7 @@ uv run uvicorn athena_local.main:app --port 5001
 
 | Variable | Default | Compose value |
 |---|---|---|
-| `ATHENA_LOCAL_TRINO_URL` | `http://localhost:8080` | `http://trino:8080` |
+| `ATHENA_LOCAL_TRINO_URL` | `http://localhost:8485` | `http://trino:8080` |
 | `ATHENA_MOTO_ENDPOINT_URL` | `http://127.0.0.1:5000` | `http://moto:5000` |
 | `ATHENA_LOCAL_MAX_CONCURRENT_QUERIES` | `4` | unset |
 | `ATHENA_LOCAL_MAX_RETAINED_EXECUTIONS` | `10000` | unset |

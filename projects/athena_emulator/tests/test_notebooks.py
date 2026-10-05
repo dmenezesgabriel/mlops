@@ -2,8 +2,9 @@
 
 Executes the parity notebooks via nbclient against the running compose stack
 (athena :5001 / moto :5000 / trino :8080, or their localhost ports from the
-host). Skips when the emulator endpoint is unreachable so a cold stack never
-fails collection. Run inside the JupyterLab container:
+host — trino publishes :8485 there). Skips when the emulator endpoint is
+unreachable so a cold stack never fails collection. Run inside the
+JupyterLab container:
 
     /opt/mlops-venv/bin/python -m pytest projects/athena_emulator/tests -m integration
 

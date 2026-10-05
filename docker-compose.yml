@@ -23,8 +23,14 @@ services:
     volumes:
       - ./docker/trino/config.properties:/etc/trino/config.properties:ro
       - ./docker/trino/catalog:/etc/trino/catalog:ro
+    # Host publish sits on 8485, not trino's canonical 8080: sagemaker-local
+    # serve containers publish `serving_port:8080` (SDK host_config, default
+    # 8080 in libs/sagemaker-local/src/sagemaker_local/config.py) and the same
+    # value is the client URL port, so it cannot move — trino's publish must.
+    # `TRINO_PORT=8080 docker compose up` restores the old bind when no
+    # sagemaker-local notebooks run. In-stack consumers use trino:8080 anyway.
     ports:
-      - "8080:8080"
+      - "${TRINO_PORT:-8485}:8080"
     # The image jvm.config sizes heap at 80% of *visible* RAM; without a
     # container limit that is the host's 30 GiB. A 4 GiB cap keeps the
     # emulator workload inside this host's budget (heap lands at ~3.2 GiB).

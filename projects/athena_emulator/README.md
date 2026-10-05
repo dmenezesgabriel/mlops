@@ -9,7 +9,8 @@ integration test suite: integrated consumer tests live in
 notebooks to regenerate evidence.
 
 Stack (`docker-compose.yml`, network `mlops_net`): `athena` :5001 (emulator),
-`trino` :8080 (query engine), `moto` :5000 (S3/Glue), `jupyterlab` :8888.
+`trino` :8485 host / :8080 in-net (query engine), `moto` :5000 (S3/Glue),
+`jupyterlab` :8888.
 
 ## Layout
 

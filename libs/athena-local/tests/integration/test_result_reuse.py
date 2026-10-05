@@ -31,7 +31,7 @@ from botocore.client import BaseClient
 from moto.backends import get_backend
 from tests.integration.conftest import LiveAthenaServer, LiveMotoServer
 
-TRINO_URL = os.environ.get("ATHENA_LOCAL_TRINO_URL", "http://localhost:8080")
+TRINO_URL = os.environ.get("ATHENA_LOCAL_TRINO_URL", "http://localhost:8485")
 
 REUSE_ENABLED = {
     "ResultReuseByAgeConfiguration": {"Enabled": True, "MaxAgeInMinutes": 60}
