@@ -98,6 +98,11 @@ services:
       - jupyter-data:/home/jupyter/.local/share/jupyter
       - uv-data:/home/jupyter/.local/share/uv
       - uv-cache:/tmp/uv-cache
+      # sklearn's fetch_california_housing caches under ~/scikit_learn_data —
+      # container-local, so a recreated jupyterlab re-downloads (or fails
+      # offline). The vendored pkz (produced by the images' sklearn 1.6.1)
+      # seeds it read-only; the dir stays writable for other fetch_* datasets.
+      - ./docker/scikit_learn_data/cal_housing_py3.pkz:/home/jupyter/scikit_learn_data/cal_housing_py3.pkz:ro
     environment:
       JUPYTER_TOKEN: ""
       AWS_ACCESS_KEY_ID: "test"

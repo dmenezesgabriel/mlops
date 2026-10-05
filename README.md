@@ -47,6 +47,13 @@ make preview-site
 - `make render-video`: Render a single Manim scene (requires Docker).
 - `make check-videos`: Run the full quality gate for videos (render all, lint, and test).
 
+### Local Stack (Docker)
+- **Prerequisite**: `docker network create mlops_net` — once per Docker daemon. The compose services share this external network with the sagemaker-local job containers the SDK spawns.
+- `make jupyterlab-build`: Build the `mlops-jupyterlab` image.
+- `make jupyterlab`: Bring up the stack — JupyterLab plus its moto/trino/athena dependencies (creates `mlops_net` if missing).
+- **Endpoints**: JupyterLab `http://localhost:8888` (token disabled); moto S3/Glue/STS `:5000`; Athena emulator `:5001`; Trino `:8485` host / `:8080` in-network.
+- The `sagemaker_*` training images bake sklearn's `california_housing` cache and JupyterLab seeds it read-only, so the `sagemaker_*` notebooks run fully offline.
+
 ## Architecture
 
 Shared libraries and static-site tooling follow clean architecture. Project ML pipeline scripts use standard data science conventions with `argparse`, pandas, scikit-learn, Feast, and MLflow.

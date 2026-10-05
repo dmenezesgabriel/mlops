@@ -16,6 +16,11 @@ RUN apt-get update \
         gunicorn==23.0.0 \
         'sagemaker-training==5.1.1'
 
+# train.py's default `california_housing` dataset must load offline: job
+# containers are ephemeral, so bake sklearn's ~/scikit_learn_data cache at
+# build time rather than letting fetch_california_housing hit figshare per run.
+RUN python -c "from sklearn.datasets import fetch_california_housing; fetch_california_housing()"
+
 # The serving entry point and inference hooks come from the library's docker
 # assets (single source of truth). Build with context = libs/sagemaker-local/docker
 # so these COPY sources resolve.

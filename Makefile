@@ -168,5 +168,6 @@ jupyterlab-build:
 	docker compose build jupyterlab
 
 jupyterlab:
+	docker network inspect mlops_net >/dev/null 2>&1 || docker network create mlops_net
 	docker compose up jupyterlab
 
