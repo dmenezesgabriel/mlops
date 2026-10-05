@@ -17,7 +17,7 @@ features:
 feast:
   repo_path: feature_repo
 mlflow:
-  tracking_uri: sqlite:///projects/nyc_taxi_demand_forecasting/mlflow.db
+  tracking_uri: sqlite:///mlflow.db
   experiment_name: nyc_taxi_demand_forecasting
   registered_model_name: nyc_taxi_demand_forecaster
 training:

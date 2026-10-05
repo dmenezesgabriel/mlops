@@ -92,14 +92,14 @@
   AF-87…AF-90 — AF-91 still open. AU-16 done: 4 open gaps — S3×3, S4×1 —
   `SM_HPS` raw-parse boundary on all 4 `train.py` clones, scikit's doubled
   `fetch_california_housing`, `build_model` annotation asymmetry, test
-  assertion depth. AU-17 done: 16 open gaps — S1×1, S3×13, S4×2 — ndarray
-  pyfunc predict 500s through the `cast` (S1); pipeline `run()`s log
+  assertion depth. AU-17 done: S1 shipped via AF-92/93 (ndarray pyfunc
+  predict 500s); 15 open — S3×13, S4×2 — pipeline `run()`s log
   "completed" over an unwired stub surface that fabricates artifacts;
   coverage gate green at polluted 84% while scoped own-tree is 73% < 75
-  floor. AU-18 done: 24 open gaps — S1×3, S3×20, S4×1 — `shift(-1)`
-  mislabels targets across hour gaps; evaluate tags before the gate +
-  deploy ignores tags (promotion ungated); cwd-relative `tracking_uri`
-  → 3 divergent `mlflow.db` stores.)
+  floor. AU-18 done: S1×3 shipped via AF-94/95/96 (`shift(-1)` labels,
+  ungated promotion, cwd-relative `tracking_uri`); 21 open — S3×20,
+  S4×1 — `include:` stubs, monitor `@champion` fallback lie, hardcoded
+  `+0.00%` drift rows, feast `apply(repoB)` gets repoA's objects.)
 - [ ] Remediate promoted S1+ gaps.
 
 ## MA-7 — athena-local (per plane)

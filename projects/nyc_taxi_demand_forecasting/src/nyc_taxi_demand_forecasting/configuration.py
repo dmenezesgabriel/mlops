@@ -89,7 +89,7 @@ class ProjectConfigLoader:
             paths=self._paths(raw_config, project_root, resolver),
             collection=self._collection(raw_config),
             features=self._features(raw_config, resolver),
-            mlflow=self._mlflow(raw_config),
+            mlflow=self._mlflow(raw_config, project_root),
             training=self._training(raw_config),
             evaluation=self._evaluation(raw_config),
             feast=self._feast(raw_config, resolver),
@@ -137,15 +137,40 @@ class ProjectConfigLoader:
             ),
         )
 
-    def _mlflow(self, raw_config: dict[str, object]) -> MlflowConfig:
+    def _mlflow(
+        self, raw_config: dict[str, object], project_root: Path
+    ) -> MlflowConfig:
         mlflow = self._mapping(raw_config, "mlflow")
         return MlflowConfig(
-            tracking_uri=self._string(mlflow, "tracking_uri"),
+            tracking_uri=self._absolute_tracking_uri(
+                self._string(mlflow, "tracking_uri"), project_root
+            ),
             experiment_name=self._string(mlflow, "experiment_name"),
             registered_model_name=self._string(
                 mlflow, "registered_model_name"
             ),
         )
+
+    def _absolute_tracking_uri(
+        self, tracking_uri: str, project_root: Path
+    ) -> str:
+        # Reference bug (scaffold): a relative sqlite URI resolved against the
+        # current working directory, producing stray mlflow.db files. Anchor
+        # relative sqlite URIs to the project root instead.
+        sqlite_prefix = "sqlite:///"
+        if not tracking_uri.startswith(sqlite_prefix):
+            return tracking_uri
+
+        relative_path = tracking_uri[len(sqlite_prefix) :]
+        if (
+            not relative_path
+            or relative_path == ":memory:"
+            or Path(relative_path).is_absolute()
+        ):
+            return tracking_uri
+
+        absolute_path = project_root / relative_path
+        return f"{sqlite_prefix}/{absolute_path}"
 
     def _training(self, raw_config: dict[str, object]) -> TrainingConfig:
         training = self._mapping(raw_config, "training")
