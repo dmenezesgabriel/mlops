@@ -86,7 +86,7 @@
 
 ## MA-6 — ML workspace
 
-- [ ] **AU-15** sagemaker-local → **AU-16** `sagemaker_*` batch → **AU-17**
+- [x] **AU-15** sagemaker-local → **AU-16** `sagemaker_*` batch → **AU-17**
   ml_specialization → **AU-18** nyc_taxi → **AU-19** athena_emulator parity.
   (AU-15 done; its 14 gaps remediated via AF-80…AF-86, e2e-sweep gaps via
   AF-87…AF-90 — AF-91 still open. AU-16 done: 4 open gaps — S3×3, S4×1 —
@@ -99,7 +99,13 @@
   floor. AU-18 done: S1×3 shipped via AF-94/95/96 (`shift(-1)` labels,
   ungated promotion, cwd-relative `tracking_uri`); 21 open — S3×20,
   S4×1 — `include:` stubs, monitor `@champion` fallback lie, hardcoded
-  `+0.00%` drift rows, feast `apply(repoB)` gets repoA's objects.)
+  `+0.00%` drift rows, feast `apply(repoB)` gets repoA's objects.
+  AU-19 done: 12 open — S3×10, S4×2 — recorded FAIL verdicts never turn
+  the run red, README's host pytest path errors on missing `nbclient`,
+  import-time health probe escapes `except OSError` on non-HTTP endpoints,
+  `_evidence.py` has zero unit tests, `persist` allows `../` escapes +
+  loses sections under concurrent writers, the glue is outside every gate
+  but pre-commit ruff.)
 - [ ] Remediate promoted S1+ gaps.
 
 ## MA-7 — athena-local (per plane)
