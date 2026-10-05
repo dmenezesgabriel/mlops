@@ -19,10 +19,21 @@ class NextHourDemandDatasetBuilder:
 
     def build_from_trips(self, trips: pd.DataFrame) -> pd.DataFrame:
         hourly_demand = self._hourly_pickups(trips)
-        hourly_demand["next_hour_pickup_count"] = hourly_demand.groupby(
-            "pickup_location_id"
-        )["pickup_count"].shift(-1)
-        complete_rows = hourly_demand.dropna(
+        # Join on the actual next hour: a next-observed-row shift mislabels
+        # across gaps, and an absent (location, hour+1) row is ambiguous
+        # (idle hour vs uncollected data), so only observed labels survive.
+        next_hour = hourly_demand.loc[
+            :, ["pickup_location_id", "pickup_hour", "pickup_count"]
+        ].copy()
+        next_hour["pickup_hour"] -= pd.Timedelta(hours=1)
+        labeled = hourly_demand.merge(
+            next_hour.rename(
+                columns={"pickup_count": "next_hour_pickup_count"}
+            ),
+            on=["pickup_location_id", "pickup_hour"],
+            how="left",
+        )
+        complete_rows = labeled.dropna(
             subset=["next_hour_pickup_count"]
         ).copy()
         complete_rows["next_hour_pickup_count"] = complete_rows[
