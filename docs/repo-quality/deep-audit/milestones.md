@@ -88,6 +88,9 @@
 
 - [ ] **AU-15** sagemaker-local → **AU-16** `sagemaker_*` batch → **AU-17**
   ml_specialization → **AU-18** nyc_taxi → **AU-19** athena_emulator parity.
+  (AU-15 done; 14 open gaps — S1×1, S3×12, S4×1 — awaiting the remediation
+  step below. The S1: `cleanup_stale_serving_containers` `docker rm -f`s
+  every `sagemaker.local=true` container, running training jobs included.)
 - [ ] Remediate promoted S1+ gaps.
 
 ## MA-7 — athena-local (per plane)
