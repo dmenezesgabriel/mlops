@@ -41,6 +41,13 @@ work items in `backlog.md`.
   labelled container's network IP). → AF-89.
 - **G-188** (S3) — trino's host publish owns 8080, collides with
   `serving_port`. First transform run died at `Bind failed`. → AF-90.
+- **G-189** (S3) — `mlops_net` is `external: true` yet the only
+  `docker network create mlops_net` instruction lives in
+  `libs/athena-local/README.md`; cold `docker compose up` fails with the
+  cryptic "declared as external, but could not be found". → AF-91.
+- **G-190** (S3) — the "offline" stack isn't: `fetch_california_housing`
+  downloads `cal_housing_py3.pkz` from figshare into `~/scikit_learn_data`
+  at first notebook run; a fresh volume + no internet fails mid-cell. → AF-91.
 
 ## Surfaces still not covered
 
