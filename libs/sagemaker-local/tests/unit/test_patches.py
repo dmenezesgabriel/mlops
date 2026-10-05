@@ -1,5 +1,7 @@
 """Unit tests for sagemaker_local.patches."""
 
+import json
+import subprocess
 import textwrap
 from pathlib import Path
 
@@ -359,11 +361,80 @@ class TestCleanupStaleServingContainers:
         assert len(runner.calls) == 1
 
 
-class DockerlessRunner:
-    """Fails if anything tries to shell out — proves gateway came from routes."""
+CONTAINER_ROUTE_TABLE = textwrap.dedent(
+    """\
+    Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT
+    eth0\t00000000\t010013AC\t0003\t0\t0\t0\t00000000\t0\t0\t0
+    eth0\t000013AC\t00000000\t0001\t0\t0\t0\t0000FFFF\t0\t0\t0
+    """
+)
 
-    def __call__(self, *args, **_kwargs):  # noqa: ANN002, ANN003
-        raise AssertionError(f"subprocess called unexpectedly: {args}")
+
+def inspect_doc(status: str, networks: dict[str, str]) -> dict:
+    """Scripted ``docker container inspect`` body: status + IP per network."""
+    return {
+        "State": {"Status": status},
+        "NetworkSettings": {
+            "Networks": {
+                name: {"IPAddress": ip, "IPPrefixLen": 16}
+                for name, ip in networks.items()
+            }
+        },
+    }
+
+
+class FakeDocker:
+    """Named fake for the docker CLI calls the docker-host patch issues.
+
+    ``ls`` returns ``serve_ids``, or pops the next id list from ``ls_script``
+    when given (the last entry repeats once exhausted) so a test can script a
+    container that only exists on a later poll — the SDK spawns
+    ``compose up`` asynchronously. ``inspect <cid>`` pops the next scripted
+    document for that id (the last one repeats once exhausted). Inspecting an
+    unlisted id fails like real docker (rc=1); any other command raises —
+    the gateway arm must not depend on the daemon.
+    """
+
+    def __init__(
+        self,
+        serve_ids: list[str] | None = None,
+        inspect_docs: dict[str, list[dict]] | None = None,
+        ls_script: list[list[str]] | None = None,
+    ) -> None:
+        self.serve_ids = serve_ids or []
+        self.ls_script = list(ls_script) if ls_script is not None else None
+        self.inspect_docs = {
+            cid: list(docs) for cid, docs in (inspect_docs or {}).items()
+        }
+        self.calls: list[list[str]] = []
+
+    def __call__(self, cmd, **_kwargs):  # noqa: ANN003
+        self.calls.append(list(cmd))
+        if "inspect" in cmd:
+            docs = self.inspect_docs.get(cmd[-1])
+            if docs is None:
+                raise subprocess.CalledProcessError(1, list(cmd))
+            doc = docs.pop(0) if len(docs) > 1 else docs[0]
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout=json.dumps([doc])
+            )
+        if "ls" in cmd:
+            ids = self.serve_ids
+            if self.ls_script is not None:
+                ids = (
+                    self.ls_script.pop(0)
+                    if len(self.ls_script) > 1
+                    else self.ls_script[0]
+                )
+            return subprocess.CompletedProcess(cmd, 0, stdout="\n".join(ids))
+        raise AssertionError(f"unexpected docker call: {cmd}")
+
+
+class DockerCliAbsent:
+    """Raises FileNotFoundError on any call — docker binary not on PATH."""
+
+    def __call__(self, cmd, **_kwargs):  # noqa: ANN003
+        raise FileNotFoundError(cmd[0])
 
 
 class TestApplyDockerHostPatch:
@@ -375,7 +446,7 @@ class TestApplyDockerHostPatch:
         marker.touch()
         monkeypatch.setattr(patches, "_PROC_NET_ROUTE", routes)
         monkeypatch.setattr(patches, "_DOCKERENV_PATH", marker)
-        monkeypatch.setattr(patches.subprocess, "run", DockerlessRunner())
+        monkeypatch.setattr(patches.subprocess, "run", FakeDocker())
         return marker
 
     def _all_getters(self) -> list:
@@ -417,9 +488,150 @@ class TestApplyDockerHostPatch:
         monkeypatch.setattr(
             patches, "_DOCKERENV_PATH", tmp_path / "absent-marker"
         )
-        monkeypatch.setattr(patches.subprocess, "run", DockerlessRunner())
+        monkeypatch.setattr(patches.subprocess, "run", FakeDocker())
 
         patches.apply_docker_host_patch(force=True)
 
         for getter in self._all_getters():
             assert getter() == "172.18.0.1"
+
+
+class TestServingContainerIpResolution:
+    """Shared-network resolution (the patched getter must prefer a running
+    ``role=serve`` container's IP when it sits on one of the caller's
+    connected subnets — the bridge gateway is unreachable from sibling
+    containers on hosts that drop same-bridge DNAT traffic)."""
+
+    @pytest.fixture()
+    def container_routes(self, monkeypatch, tmp_path: Path):
+        routes = tmp_path / "route"
+        routes.write_text(CONTAINER_ROUTE_TABLE, encoding="utf-8")
+        monkeypatch.setattr(patches, "_PROC_NET_ROUTE", routes)
+
+    def _docker_host(self) -> str:
+        import sagemaker.local.utils as sm_utils
+
+        return sm_utils.get_docker_host()
+
+    def test_shared_network_container_ip_wins_over_gateway(
+        self, monkeypatch, container_routes
+    ):
+        docker = FakeDocker(
+            serve_ids=["c1"],
+            inspect_docs={
+                "c1": [
+                    inspect_doc(
+                        "running",
+                        {
+                            "foreign-net": "10.99.0.9",
+                            "mlops_net": "172.19.0.4",
+                        },
+                    )
+                ]
+            },
+        )
+        monkeypatch.setattr(patches.subprocess, "run", docker)
+        patches.apply_docker_host_patch(force=True)
+
+        assert self._docker_host() == "172.19.0.4"
+
+    def test_foreign_network_only_falls_back_to_gateway(
+        self, monkeypatch, container_routes
+    ):
+        monkeypatch.setattr(patches, "_SERVE_IP_WAIT_S", 0.0)
+        docker = FakeDocker(
+            serve_ids=["c1"],
+            inspect_docs={
+                "c1": [inspect_doc("running", {"other-net": "10.99.0.9"})]
+            },
+        )
+        monkeypatch.setattr(patches.subprocess, "run", docker)
+        patches.apply_docker_host_patch(force=True)
+
+        assert self._docker_host() == "172.19.0.1"
+
+    def test_waits_while_running_container_lacks_shared_ip(
+        self, monkeypatch, container_routes
+    ):
+        monkeypatch.setattr(patches, "_SERVE_IP_WAIT_S", 60.0)
+        monkeypatch.setattr(patches, "_SERVE_IP_POLL_S", 0.0)
+        docker = FakeDocker(
+            serve_ids=["c1"],
+            inspect_docs={
+                "c1": [
+                    inspect_doc("running", {"mlops_net": ""}),
+                    inspect_doc("running", {"mlops_net": "172.19.0.4"}),
+                ]
+            },
+        )
+        monkeypatch.setattr(patches.subprocess, "run", docker)
+        patches.apply_docker_host_patch(force=True)
+
+        assert self._docker_host() == "172.19.0.4"
+        assert [cmd[2] for cmd in docker.calls] == [
+            "ls",
+            "inspect",
+            "ls",
+            "inspect",
+        ]
+
+    def test_no_serving_container_uses_gateway(
+        self, monkeypatch, container_routes
+    ):
+        # Zero wait budget: nothing can appear, so resolution is one `ls`.
+        monkeypatch.setattr(patches, "_SERVE_IP_WAIT_S", 0.0)
+        docker = FakeDocker()
+        monkeypatch.setattr(patches.subprocess, "run", docker)
+        patches.apply_docker_host_patch(force=True)
+
+        assert self._docker_host() == "172.19.0.1"
+        assert [cmd[2] for cmd in docker.calls] == ["ls"]
+
+    def test_waits_for_serve_container_spawned_late(
+        self, monkeypatch, container_routes
+    ):
+        # Real-stack regression (G-187): the SDK's container.serve() launches
+        # `compose up` via Popen, so get_docker_host() races container
+        # creation — the first `ls` can legitimately come back empty.
+        monkeypatch.setattr(patches, "_SERVE_IP_WAIT_S", 60.0)
+        monkeypatch.setattr(patches, "_SERVE_IP_POLL_S", 0.0)
+        docker = FakeDocker(
+            ls_script=[[], ["c1"]],
+            inspect_docs={
+                "c1": [inspect_doc("running", {"mlops_net": "172.19.0.4"})]
+            },
+        )
+        monkeypatch.setattr(patches.subprocess, "run", docker)
+        patches.apply_docker_host_patch(force=True)
+
+        assert self._docker_host() == "172.19.0.4"
+        assert [cmd[2] for cmd in docker.calls] == ["ls", "ls", "inspect"]
+
+    def test_exited_serving_container_does_not_block(
+        self, monkeypatch, container_routes
+    ):
+        monkeypatch.setattr(patches, "_SERVE_IP_WAIT_S", 60.0)
+        docker = FakeDocker(
+            serve_ids=["c1"],
+            inspect_docs={"c1": [inspect_doc("exited", {})]},
+        )
+        monkeypatch.setattr(patches.subprocess, "run", docker)
+        patches.apply_docker_host_patch(force=True)
+
+        assert self._docker_host() == "172.19.0.1"
+        assert [cmd[2] for cmd in docker.calls] == ["ls", "inspect"]
+
+    def test_inspect_failure_uses_gateway(self, monkeypatch, container_routes):
+        docker = FakeDocker(serve_ids=["c1"])  # no doc: inspect exits rc=1
+        monkeypatch.setattr(patches.subprocess, "run", docker)
+        patches.apply_docker_host_patch(force=True)
+
+        assert self._docker_host() == "172.19.0.1"
+
+    def test_docker_cli_absent_uses_gateway(
+        self, monkeypatch, container_routes
+    ):
+        monkeypatch.setattr(patches.subprocess, "run", DockerCliAbsent())
+        patches.apply_docker_host_patch(force=True)
+
+        assert self._docker_host() == "172.19.0.1"

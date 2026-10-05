@@ -13,6 +13,11 @@ Evidence for each patch (sagemaker 2.257.1 source):
   network namespace when the caller itself runs in a container. It is imported
   by name into ``sagemaker.local.entities`` and
   ``sagemaker.local.local_session``, so all three sites must be replaced.
+  The replacement first resolves a running ``sagemaker.local.role=serve``
+  container that sits on one of the caller's connected subnets — the bridge
+  gateway is unreachable from sibling containers on hosts that drop
+  same-bridge DNAT traffic — then the default-route gateway, then the SDK's
+  own resolution.
 
 These functions reassign private attributes of a third-party untyped module,
 so the boundary is the only place in this lib that reaches into private SDK
@@ -21,9 +26,12 @@ interfaces on purpose.
 
 from __future__ import annotations
 
+import ipaddress
+import json
 import logging
 import shutil
 import subprocess
+import time
 from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
@@ -37,6 +45,11 @@ logger = logging.getLogger(__name__)
 
 _PROC_NET_ROUTE = Path("/proc/net/route")
 _DOCKERENV_PATH = Path("/.dockerenv")
+
+_SERVE_ROLE_LABEL = "sagemaker.local.role=serve"
+_SERVE_IP_WAIT_S = 15.0
+_SERVE_IP_POLL_S = 0.5
+_PENDING_CONTAINER_STATES = frozenset({"created", "running", "restarting"})
 
 _COMPOSE_FILE_LABEL = "-f"
 _COMPOSE_CALLBACK = Callable[..., list[str]]
@@ -181,13 +194,146 @@ def resolve_gateway_from_routes(route_lines: list[str]) -> str | None:
     return None
 
 
-def _gateway_from_proc() -> str | None:
+def _route_lines() -> list[str]:
     try:
-        lines = _PROC_NET_ROUTE.read_text(encoding="utf-8").splitlines()
+        return _PROC_NET_ROUTE.read_text(encoding="utf-8").splitlines()
     except OSError as exc:
         logger.warning("cannot read %s: %s", _PROC_NET_ROUTE, exc)
+        return []
+
+
+def _gateway_from_proc() -> str | None:
+    return resolve_gateway_from_routes(_route_lines())
+
+
+def _route_hex_to_int(raw: str) -> int:
+    return int.from_bytes(bytes.fromhex(raw)[::-1])
+
+
+def _connected_subnets(route_lines: list[str]) -> list[tuple[int, int]]:
+    """(network, mask) int pairs for directly-reachable routes (no gateway)."""
+    subnets: list[tuple[int, int]] = []
+    for line in route_lines:
+        fields = line.split()
+        if len(fields) < 8:
+            continue
+        destination, gateway, mask = fields[1], fields[2], fields[7]
+        if (
+            destination == "00000000"
+            or gateway != "00000000"
+            or mask == "00000000"
+        ):
+            continue
+        try:
+            subnets.append(
+                (_route_hex_to_int(destination), _route_hex_to_int(mask))
+            )
+        except ValueError:
+            continue
+    return subnets
+
+
+def _ip_on_subnets(ip: str, subnets: list[tuple[int, int]]) -> bool:
+    try:
+        value = int(ipaddress.IPv4Address(ip))
+    except ValueError:
+        return False
+    return any(value & mask == base for base, mask in subnets)
+
+
+def _serve_container_ids() -> list[str] | None:
+    """``None`` when the daemon can't be queried (vs an empty listing)."""
+    try:
+        return _list_sagemaker_local_containers(None, _SERVE_ROLE_LABEL)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        logger.warning("cannot list serving containers: %s", exc)
         return None
-    return resolve_gateway_from_routes(lines)
+
+
+def _inspect_serving_container(cid: str) -> dict[str, Any] | None:
+    try:
+        inspected = subprocess.run(  # noqa: S603
+            ["docker", "container", "inspect", cid],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        docs = cast(list[dict[str, Any]], json.loads(inspected.stdout))
+    except (OSError, subprocess.CalledProcessError, ValueError) as exc:
+        logger.warning("cannot inspect container %s: %s", cid, exc)
+        return None
+    return docs[0] if docs else None
+
+
+def _as_str_dict(value: Any) -> dict[str, Any]:
+    """Narrow untyped ``docker inspect`` JSON to a mapping (else ``{}``)."""
+    if not isinstance(value, dict):
+        return {}
+    return cast(dict[str, Any], value)
+
+
+def _container_pending(doc: dict[str, Any]) -> bool:
+    status = _as_str_dict(doc.get("State")).get("Status")
+    return status in _PENDING_CONTAINER_STATES
+
+
+def _shared_subnet_ip(
+    doc: dict[str, Any], subnets: list[tuple[int, int]]
+) -> str | None:
+    networks = _as_str_dict(
+        _as_str_dict(doc.get("NetworkSettings")).get("Networks")
+    )
+    for net in networks.values():
+        ip = _as_str_dict(net).get("IPAddress")
+        if isinstance(ip, str) and ip and _ip_on_subnets(ip, subnets):
+            return ip
+    return None
+
+
+def _scan_serving_ips(
+    subnets: list[tuple[int, int]],
+) -> tuple[str | None, bool]:
+    """One poll round: (shared-network IP if found, result may still change)."""
+    ids = _serve_container_ids()
+    if ids is None:
+        return None, False  # daemon unreachable — retrying won't help
+    if not ids:
+        # Every get_docker_host call site runs while the SDK's async
+        # `compose up` (Popen in _HostingContainer.start) may still be
+        # creating the serve container, so an empty listing is pending.
+        return None, True
+    pending = False
+    for cid in ids:
+        doc = _inspect_serving_container(cid)
+        if doc is None:
+            continue
+        pending = pending or _container_pending(doc)
+        ip = _shared_subnet_ip(doc, subnets)
+        if ip is not None:
+            return ip, pending
+    return None, pending
+
+
+def _await_serving_ip() -> str | None:
+    """IP of a ``role=serve`` container reachable on a shared docker network.
+
+    Polls briefly while the serve container is still being created or has no
+    assigned IP yet — ``_SageMakerContainer.serve`` launches ``compose up``
+    via ``Popen``, so this getter races container creation, and the SDK builds
+    its ``/ping`` URL once from this result: falling through to the gateway
+    early is unrecoverable downstream.
+    """
+    subnets = _connected_subnets(_route_lines())
+    if not subnets:
+        return None
+    deadline = time.monotonic() + _SERVE_IP_WAIT_S
+    while True:
+        ip, pending = _scan_serving_ips(subnets)
+        if ip is not None:
+            return ip
+        if not pending or time.monotonic() >= deadline:
+            return None
+        time.sleep(_SERVE_IP_POLL_S)
 
 
 def _running_inside_container() -> bool:
@@ -203,7 +349,12 @@ def _replace_module_attr(
 
 
 def apply_docker_host_patch(force: bool = False) -> None:
-    """Resolve serving containers via the docker bridge gateway.
+    """Resolve the serving host for in-container callers.
+
+    Order: a running ``role=serve`` container's IP when it shares a docker
+    network with the caller (subnet membership — the bridge gateway is
+    unreachable for same-bridge traffic on some hosts), then the default-route
+    gateway, then the SDK's own ``get_docker_host``.
 
     Only activates when running inside a container unless ``force`` is set.
     Replaces ``get_docker_host`` in the three modules that import it by name.
@@ -221,7 +372,14 @@ def apply_docker_host_patch(force: bool = False) -> None:
 
     fallback = cast(Callable[[], str], sm_utils.get_docker_host)
 
-    def gateway_getter() -> str:
+    def docker_host() -> str:
+        serving_ip = _await_serving_ip()
+        if serving_ip is not None:
+            logger.info(
+                "resolved serving container ip on shared network: %s",
+                serving_ip,
+            )
+            return serving_ip
         gateway = _gateway_from_proc()
         if gateway:
             logger.info("resolved docker host gateway: %s", gateway)
@@ -234,7 +392,7 @@ def apply_docker_host_patch(force: bool = False) -> None:
         getattr(sm_local_session, "get_docker_host"),  # noqa: B009
     )
     for module in (sm_utils, sm_entities, sm_local_session):
-        _replace_module_attr(module, "get_docker_host", gateway_getter)
+        _replace_module_attr(module, "get_docker_host", docker_host)
     logger.info("sagemaker-local docker-host patch installed")
 
 
@@ -303,7 +461,7 @@ def cleanup_stale_serving_containers() -> int:
         3
     """
     return _remove_containers(
-        _list_sagemaker_local_containers(None, "sagemaker.local.role=serve")
+        _list_sagemaker_local_containers(None, _SERVE_ROLE_LABEL)
     )
 
 
