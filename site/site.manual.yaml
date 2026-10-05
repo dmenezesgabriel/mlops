@@ -1,0 +1,58 @@
+site:
+  title: MLOps Lab
+  description: Real-world machine learning projects and end-to-end MLOps workflows.
+extensions:
+  i18n:
+    default_locale: en
+    locales: en,pt-BR
+    translations_path: i18n
+    generated_path: .ssg/generated-i18n
+    translation_mode: manual
+  syntax_highlighting:
+    style: gruvbox-dark
+  latex:
+    katex_css_url: https://cdn.jsdelivr.net/npm/katex@0.17.0/dist/katex.min.css
+collections:
+  - name: nyc_taxi_demand_forecasting
+    title: NYC Taxi Demand Forecasting
+    source_root: ../projects/nyc_taxi_demand_forecasting
+    output_slug: nyc-taxi-demand-forecasting
+    pages:
+      - slug: overview
+        title: Overview
+        source: notebooks/index.ipynb
+      - slug: problem-framing
+        title: Problem Framing
+        source: docs/01_problem_framing.md
+      - slug: data-collection
+        title: Data Collection
+        source: docs/02_data_collection.md
+      - slug: exploratory-data-analysis
+        title: Exploratory Data Analysis
+        source: notebooks/eda.ipynb
+      - slug: data-preprocessing
+        title: Data Preprocessing
+        source: docs/03_data_preprocessing.md
+      - slug: feature-engineering
+        title: Feature Engineering
+        source: notebooks/feature_engineering.ipynb
+      - slug: model-training
+        title: Train
+        source: docs/05_train.md
+      - slug: hyperparameter-tuning
+        title: Tune
+        source: notebooks/tuning.ipynb
+      - slug: model-evaluation
+        title: Evaluate
+        source: docs/06_evaluate.md
+      - slug: model-deployment
+        title: Deploy
+        source: docs/07_deploy.md
+      - slug: model-monitoring
+        title: Monitoring
+        source: docs/08_monitoring.md
+    assets:
+      videos:
+        mlops_lifecycle: ../videos/output/previews/mlops_lifecycle.mp4
+      images:
+        mlops_lifecycle: ../diagrams/output/mlops_lifecycle.png
