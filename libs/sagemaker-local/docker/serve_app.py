@@ -81,8 +81,12 @@ def output_fn_default(prediction, accept: str):
             buf.getvalue(), content_type="application/x-npy"
         )
     if accept.startswith("text/csv"):
+        # np.savetxt rows are the sagemaker-inference _array_to_csv contract:
+        # one value per line for 1-D, comma-joined rows for 2-D.
+        buf = io.StringIO()
+        np.savetxt(buf, arr, delimiter=",", fmt="%s")
         return app.response_class(
-            np.array2string(arr, separator=","),
+            buf.getvalue(),
             content_type="text/csv",
         )
     return app.response_class(
