@@ -92,7 +92,11 @@
   AF-87…AF-90 — AF-91 still open. AU-16 done: 4 open gaps — S3×3, S4×1 —
   `SM_HPS` raw-parse boundary on all 4 `train.py` clones, scikit's doubled
   `fetch_california_housing`, `build_model` annotation asymmetry, test
-  assertion depth.)
+  assertion depth. AU-17 done: 16 open gaps — S1×1, S3×13, S4×2 — ndarray
+  pyfunc predict 500s through the `cast` (S1); pipeline `run()`s log
+  "completed" over an unwired stub surface that fabricates artifacts;
+  coverage gate green at polluted 84% while scoped own-tree is 73% < 75
+  floor.)
 - [ ] Remediate promoted S1+ gaps.
 
 ## MA-7 — athena-local (per plane)
