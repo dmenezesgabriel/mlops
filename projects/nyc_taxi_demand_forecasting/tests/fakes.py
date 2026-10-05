@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import ClassVar
 
 import pandas as pd
+from mlflow.exceptions import MlflowException
 from nyc_taxi_demand_forecasting.configuration import (
     CollectionConfig,
     EvaluationConfig,
@@ -215,7 +216,7 @@ class FakeMlflowClient:
     ) -> FakeModelVersion:
         key = (name, alias)
         if key not in self._alias_versions:
-            raise RuntimeError(
+            raise MlflowException(
                 f"Invalid alias lookup {key}: expected a registered alias"
             )
         return self._alias_versions[key]

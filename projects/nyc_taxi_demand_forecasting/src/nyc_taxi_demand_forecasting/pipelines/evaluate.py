@@ -6,10 +6,33 @@ from typing import cast
 import mlflow
 import pandas as pd
 from mlflow.client import MlflowClient
-from mlops_shared.evaluation import RegressionMetricCalculator
+from mlops_shared.evaluation import (
+    RegressionMetricCalculator,
+    RegressionMetrics,
+)
 
 from nyc_taxi_demand_forecasting.configuration import ProjectConfigLoader
 from nyc_taxi_demand_forecasting.models.training import DemandDatasetSplitter
+
+
+def _tag_evaluation_outcome(
+    client: MlflowClient,
+    model_name: str,
+    model_version: str,
+    outcome: str,
+    metrics: RegressionMetrics,
+) -> None:
+    for key, value in (
+        ("evaluated", outcome),
+        ("mae", str(round(metrics.mae, 4))),
+        ("rmse", str(round(metrics.rmse, 4))),
+    ):
+        client.set_model_version_tag(
+            name=model_name,
+            version=model_version,
+            key=key,
+            value=value,
+        )
 
 
 def run(config_path: Path) -> None:
@@ -86,25 +109,21 @@ def run(config_path: Path) -> None:
         },
     )
 
-    # 5. Tag the candidate model version with its evaluation results
-    client.set_model_version_tag(
-        name=model_name,
-        version=latest_version,
-        key="evaluated",
-        value="true",
+    # 5. Gate before tagging — only a pass marks the version deployable via
+    # the candidate alias; a failure records its truthful outcome so a
+    # gate-failed version is distinguishable from a never-evaluated one.
+    try:
+        metrics.require_within(config.evaluation)
+    except ValueError:
+        _tag_evaluation_outcome(
+            client, model_name, latest_version, "failed", metrics
+        )
+        raise
+    _tag_evaluation_outcome(
+        client, model_name, latest_version, "true", metrics
     )
-    client.set_model_version_tag(
+    client.set_registered_model_alias(
         name=model_name,
+        alias="candidate",
         version=latest_version,
-        key="mae",
-        value=str(round(metrics.mae, 4)),
     )
-    client.set_model_version_tag(
-        name=model_name,
-        version=latest_version,
-        key="rmse",
-        value=str(round(metrics.rmse, 4)),
-    )
-
-    # Validate against thresholds
-    metrics.require_within(config.evaluation)

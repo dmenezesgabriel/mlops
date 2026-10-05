@@ -6,13 +6,16 @@ In modern CD4ML systems, deployment does not mean copying binary files around. I
 Our inference services (like batch prediction scripts or APIs) do not hardcode a specific model version number. Instead, they request the model using a logical alias:
 `models:/nyc_taxi_demand_forecaster@champion`
 
-The `deploy` pipeline promotes the newly evaluated model version by binding the alias `champion` to it. The promotion is instant and fully tracked:
+The `deploy` pipeline promotes the newly evaluated model version by binding the alias `champion` to it. Only a version that passed the evaluation quality gate is promotable: `evaluate` marks it with the `candidate` alias, and `deploy` promotes exactly that version — never an unevaluated latest. The promotion is instant and fully tracked:
 
 ```python
+candidate_version = client.get_model_version_by_alias(
+    model_name, "candidate"
+)
 client.set_registered_model_alias(
     name=model_name,
     alias="champion",
-    version=latest_version.version,
+    version=candidate_version.version,
 )
 ```
 
