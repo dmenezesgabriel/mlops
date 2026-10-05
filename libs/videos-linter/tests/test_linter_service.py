@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 import videos_linter
+from PIL import Image, ImageDraw
 from videos.application.ports.linter import Linter
 from videos.domain.quality import RuleViolation
 from videos_linter.linter_service import LinterError, LinterService
@@ -13,6 +14,7 @@ from tests._fakes import (
     RecordingContrastChecker,
     RecordingMotionAnalyzer,
     RecordingOverlapDetector,
+    flat_convexity_defects,
 )
 
 
@@ -100,6 +102,26 @@ class TestLinterService:
     def test_package_ships_py_typed_marker(self) -> None:
         package_dir = Path(videos_linter.__file__).parent
         assert (package_dir / "py.typed").is_file()
+
+    def test_verify_visuals_under_flat_cv2_defect_rows(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # opencv 5.x returns convexityDefects as flat (N, 4) rows where 4.x
+        # returns (N, 1, 4); (N, 1, 4)-only indexing IndexError'd every real
+        # render's VisualValidationStep under the container's cv2 5.0.0.
+        monkeypatch.setattr(
+            "videos_linter.linter_service.cv2.convexityDefects",
+            flat_convexity_defects,
+        )
+        img = Image.new("RGB", (300, 300), color=(30, 30, 30))
+        draw = ImageDraw.Draw(img)
+        draw.rectangle([50, 50, 150, 150], fill=(255, 255, 255))
+        draw.rectangle([120, 120, 220, 220], fill=(255, 255, 255))
+        path = tmp_path / "fused.png"
+        img.save(path)
+
+        with pytest.raises(LinterError, match="overlapping elements"):
+            LinterService().verify_visuals(path, "scene_a")
 
     def test_verify_visuals_reports_all_failing_checkers(self) -> None:
         # Arrange — all three checkers fail; the error must carry every

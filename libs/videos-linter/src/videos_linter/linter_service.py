@@ -193,8 +193,9 @@ def _deepest_defect_depth(contour: np.ndarray) -> float:
     defects = cv2.convexityDefects(contour, hull)
     if defects is None:
         return 0.0
-    # cv2 reports defect depth in 8.24 fixed-point units.
-    return float(max(d[0][3] for d in defects) / 256.0)
+    # cv2 reports defect depth in 8.24 fixed-point units; 4.x returns
+    # (N, 1, 4) rows while 5.x flattens to (N, 4) — reshape normalizes both.
+    return float(max(d[3] for d in defects.reshape(-1, 4)) / 256.0)
 
 
 def _detect_boxes(img: np.ndarray) -> list[_DetectedBlob]:

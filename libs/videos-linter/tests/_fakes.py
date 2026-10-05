@@ -58,6 +58,23 @@ class RecordingMotionAnalyzer(VideoMotionAnalyzer):
         return list(self._violations)
 
 
+_REAL_CONVEXITY_DEFECTS = cv2.convexityDefects
+
+
+def flat_convexity_defects(
+    contour: np.ndarray, hull: np.ndarray
+) -> np.ndarray | None:
+    """cv2 5.x-shaped `convexityDefects`: flat (N, 4) rows vs 4.x (N, 1, 4).
+
+    Wraps the real implementation and reshapes its output so tests exercise
+    the flat-row contract under an installed 4.x cv2.
+    """
+    defects = _REAL_CONVEXITY_DEFECTS(contour, hull)
+    if defects is None:
+        return None
+    return defects.reshape(-1, 4)
+
+
 class FakeVideoCapture:
     """Scripted `cv2.VideoCapture`: `frames` are consumed one per `read()`,
     `fps` answers `get(CAP_PROP_FPS)`, `is_opened` controls `isOpened()`,
