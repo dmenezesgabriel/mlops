@@ -2,6 +2,7 @@ from collections.abc import Iterator
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
@@ -42,7 +43,7 @@ def mock_model() -> Iterator[MagicMock]:
 @given("the champion model is promoted and loaded")
 def step_model_loaded(mock_model: MagicMock) -> None:
     # Arrange
-    mock_model.predict.return_value = pd.Series([12.5])
+    mock_model.predict.return_value = np.array([12.5])
 
 
 @given("online features exist for pickup location 142")

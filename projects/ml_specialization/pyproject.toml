@@ -39,14 +39,13 @@ mlops-shared = "mlops_shared"
 DEP001 = ["data_sources", "entities"]
 # httpx2 is imported by starlette.testclient (via fastapi.testclient)
 # to avoid a StarletteDeprecationWarning; not imported by project code.
-# numpy and requests are scaffolded dependencies for the reference
-# implementation; the generated stubs do not import them yet.
+# requests is a scaffolded dependency for the reference
+# implementation; the generated stubs do not import it yet.
 DEP002 = [
   "duckdb",
   "httpx2",
   "mlflow",
   "pyarrow",
-  "numpy",
   "requests",
   "ipykernel",
   "jupyter-ai-magic-commands",
