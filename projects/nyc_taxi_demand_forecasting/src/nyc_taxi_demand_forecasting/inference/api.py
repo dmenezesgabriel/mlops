@@ -1,7 +1,8 @@
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import mlflow
+import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from feast import FeatureStore
@@ -85,11 +86,10 @@ def predict_demand(location_id: int) -> dict[str, Any]:
     ]
     pred_features = features[feature_cols]
 
-    prediction = cast(
-        pd.Series,
-        _model.predict(pred_features),  # pyright: ignore[reportUnknownMemberType]
+    raw_prediction: Any = _model.predict(  # pyright: ignore[reportUnknownMemberType]
+        pred_features
     )
-    pred_val = float(prediction.iloc[0])
+    pred_val = float(np.asarray(raw_prediction).ravel()[0])
 
     return {
         "pickup_location_id": location_id,

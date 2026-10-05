@@ -76,6 +76,23 @@ def test_generated_project_gates_match_live_shape(tmp_path: Path) -> None:
     ]
 
 
+def test_rendered_predict_normalizes_pyfunc_output(tmp_path: Path) -> None:
+    # The scaffold env lacks feast/mlflow, so api.py can't be exec'd here;
+    # pin the rendered normalization + ndarray mock shapes by source instead.
+    generated = generate("dummy_test_proj", tmp_path)
+
+    api_source = (
+        generated / "src" / "dummy_test_proj" / "inference" / "api.py"
+    ).read_text(encoding="utf-8")
+    test_source = (
+        generated / "tests" / "unit" / "inference" / "test_api.py"
+    ).read_text(encoding="utf-8")
+
+    assert "np.asarray(raw_prediction).ravel()[0]" in api_source
+    assert "cast(" not in api_source
+    assert "np.array([12.5])" in test_source
+
+
 def test_rendered_config_loader_rejects_non_string_section_keys(
     tmp_path: Path,
 ) -> None:

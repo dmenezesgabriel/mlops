@@ -1,6 +1,8 @@
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pandas as pd
+import pytest
 from fakes import FakeFeatureStore
 from fastapi.testclient import TestClient
 from nyc_taxi_demand_forecasting.inference.api import (
@@ -9,10 +11,13 @@ from nyc_taxi_demand_forecasting.inference.api import (
 )
 
 
+@pytest.mark.parametrize(
+    "predict_return", [np.array([12.5]), pd.Series([12.5])]
+)
 @patch("nyc_taxi_demand_forecasting.inference.api._model")
 @patch("nyc_taxi_demand_forecasting.inference.api.fetch_online_features")
 def test_predict_returns_prediction(
-    mock_fetch: MagicMock, mock_model: MagicMock
+    mock_fetch: MagicMock, mock_model: MagicMock, predict_return: object
 ) -> None:
     # Arrange
     client = TestClient(app)
@@ -32,7 +37,7 @@ def test_predict_returns_prediction(
     mock_fetch.return_value = features_df
 
     # Mock model prediction return
-    mock_model.predict.return_value = pd.Series([12.5])
+    mock_model.predict.return_value = predict_return
 
     # Act
     response = client.get("/predict/142")
