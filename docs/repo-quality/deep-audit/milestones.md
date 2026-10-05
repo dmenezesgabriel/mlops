@@ -96,7 +96,10 @@
   pyfunc predict 500s through the `cast` (S1); pipeline `run()`s log
   "completed" over an unwired stub surface that fabricates artifacts;
   coverage gate green at polluted 84% while scoped own-tree is 73% < 75
-  floor.)
+  floor. AU-18 done: 24 open gaps — S1×3, S3×20, S4×1 — `shift(-1)`
+  mislabels targets across hour gaps; evaluate tags before the gate +
+  deploy ignores tags (promotion ungated); cwd-relative `tracking_uri`
+  → 3 divergent `mlflow.db` stores.)
 - [ ] Remediate promoted S1+ gaps.
 
 ## MA-7 — athena-local (per plane)
