@@ -1,6 +1,8 @@
 """Unit tests for sagemaker_local.patches."""
 
+import inspect
 import json
+import logging
 import subprocess
 import textwrap
 from pathlib import Path
@@ -30,21 +32,58 @@ def restore_global_patches():
 
 
 class FakeRunner:
-    """Named fake for subprocess.run calls issued by the patches."""
+    """Named fake for subprocess.run calls issued by the patches.
 
-    def __init__(self, listed_ids: list[str] | None = None):
+    ``remove_*`` fields script the ``docker rm`` result — the CLI echoes each
+    removed id on stdout, so ``remove_stdout=None`` echoes ``listed_ids``
+    (all removed) while a partial removal echoes fewer than listed. Emulates
+    ``check=`` semantics: a non-zero remove result raises
+    ``CalledProcessError`` when the call requests it.
+    """
+
+    def __init__(
+        self,
+        listed_ids: list[str] | None = None,
+        remove_rc: int = 0,
+        remove_stdout: str | None = None,
+        remove_stderr: str = "",
+    ):
         self.listed_ids = listed_ids or []
+        self.remove_rc = remove_rc
+        self.remove_stdout = remove_stdout
+        self.remove_stderr = remove_stderr
         self.calls: list[list[str]] = []
 
-    def __call__(self, cmd, **_kwargs):  # noqa: ANN003
+    def __call__(self, cmd, **kwargs):  # noqa: ANN003
         self.calls.append(cmd)
         if "--filter" in cmd:
             return type(
                 "R",
                 (),
-                {"stdout": "\n".join(self.listed_ids), "returncode": 0},
+                {
+                    "stdout": "\n".join(self.listed_ids),
+                    "returncode": 0,
+                    "stderr": "",
+                },
             )()
-        return type("R", (), {"stdout": "", "returncode": 0})()
+        if kwargs.get("check") and self.remove_rc:
+            raise subprocess.CalledProcessError(
+                self.remove_rc, cmd, stderr=self.remove_stderr
+            )
+        removed_echo = (
+            "\n".join(self.listed_ids)
+            if self.remove_stdout is None
+            else self.remove_stdout
+        )
+        return type(
+            "R",
+            (),
+            {
+                "stdout": removed_echo,
+                "stderr": self.remove_stderr,
+                "returncode": self.remove_rc,
+            },
+        )()
 
 
 class TestInjectNetwork:
@@ -263,6 +302,21 @@ class TestComposeCommandDetection:
         with pytest.raises(ImportError, match="docker compose"):
             patches.tolerant_compose_cmd_prefix()
 
+    def test_docker_cli_absent_falls_back_to_legacy_binary(self, monkeypatch):
+        monkeypatch.setattr(subprocess, "check_output", DockerCliAbsent())
+        monkeypatch.setattr(
+            patches.shutil, "which", lambda _name: "/usr/bin/docker-compose"
+        )
+
+        assert patches.tolerant_compose_cmd_prefix() == ["docker-compose"]
+
+    def test_docker_cli_absent_raises_named_import_error(self, monkeypatch):
+        monkeypatch.setattr(subprocess, "check_output", DockerCliAbsent())
+        monkeypatch.setattr(patches.shutil, "which", lambda _name: None)
+
+        with pytest.raises(ImportError, match="docker compose"):
+            patches.tolerant_compose_cmd_prefix()
+
     def test_applied_patch_survives_container_init(self, monkeypatch):
         import subprocess
 
@@ -281,6 +335,33 @@ class TestComposeCommandDetection:
             "docker",
             "compose",
         ]
+
+
+class TestResetAll:
+    """``reset_all`` must restore the SDK's descriptor shape, not just the
+    callable — pre-patch ``_get_compose_cmd_prefix`` is a ``@staticmethod``
+    (image.py:139), so a plain-function restore breaks instance calls."""
+
+    def test_reset_restores_staticmethod_descriptor(self, monkeypatch):
+        import sagemaker.local.image as sm_image
+
+        monkeypatch.setattr(
+            subprocess,
+            "check_output",
+            lambda *_, **__: "Docker Compose version v2.29.0\n",
+        )
+        monkeypatch.setattr(patches.shutil, "which", lambda _name: None)
+        patches.apply_compose_patches(make_config())
+
+        patches.reset_all()
+
+        container_cls = sm_image._SageMakerContainer
+        assert isinstance(
+            inspect.getattr_static(container_cls, "_get_compose_cmd_prefix"),
+            staticmethod,
+        )
+        instance = container_cls.__new__(container_cls)
+        assert instance._get_compose_cmd_prefix() == ["docker", "compose"]
 
 
 ROUTE_TABLE = textwrap.dedent(
@@ -321,6 +402,22 @@ class TestCleanupStoppedContainers:
         assert "label=sagemaker.local=true" in list_cmd
         assert "status=exited" in list_cmd
         assert remove_cmd == ["docker", "rm", "-f", "abc123", "def456"]
+
+    def test_failed_removal_reports_actual_count(self, monkeypatch, caplog):
+        # docker rm echoes only the ids it removed on stdout; rc=1 + stderr
+        # names the ones it could not (measured on docker 29.8.0).
+        runner = FakeRunner(
+            listed_ids=["a1", "b2", "c3"],
+            remove_rc=1,
+            remove_stdout="a1\n",
+            remove_stderr="denied",
+        )
+        monkeypatch.setattr(patches.subprocess, "run", runner)
+
+        with caplog.at_level(logging.WARNING):
+            assert patches.cleanup_stopped_containers() == 1
+
+        assert "denied" in caplog.text
 
     def test_noop_when_none_found(self, monkeypatch):
         runner = FakeRunner(listed_ids=[])

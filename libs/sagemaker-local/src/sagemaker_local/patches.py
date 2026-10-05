@@ -118,7 +118,7 @@ def tolerant_compose_cmd_prefix() -> list[str]:
             stderr=subprocess.DEVNULL,
             encoding="UTF-8",
         )
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, OSError):
         output = ""
     if output.strip():
         return ["docker", "compose"]
@@ -419,14 +419,25 @@ def _list_sagemaker_local_containers(
 def _remove_containers(ids: list[str]) -> int:
     if not ids:
         return 0
-    subprocess.run(  # noqa: S603
+    result = subprocess.run(  # noqa: S603
         ["docker", "rm", "-f", *ids],
         capture_output=True,
         text=True,
         check=False,
     )
-    logger.info("removed %d stopped sagemaker-local container(s)", len(ids))
-    return len(ids)
+    if result.returncode != 0:
+        logger.warning(
+            "docker rm failed (rc=%d): %s",
+            result.returncode,
+            result.stderr.strip(),
+        )
+    # `docker rm` echoes each removed id on stdout — under -f an already-gone
+    # container exits 0 silently, so the echo is the true removal count.
+    removed = result.stdout.split()
+    logger.info(
+        "removed %d stopped sagemaker-local container(s)", len(removed)
+    )
+    return len(removed)
 
 
 def cleanup_stopped_containers() -> int:
@@ -473,9 +484,11 @@ def reset_all() -> None:
 
         container_cls = sm_image._SageMakerContainer
         container_cls._compose = _original_compose
-        # pyright cannot type the staticmethod slot, so disassemble the raw
-        # wrapper here; ruff's B010 does not apply to this roundabout restore.
-        setattr(container_cls, "_get_compose_cmd_prefix", _original_prefix)  # noqa: B010
+        # The SDK slot is a @staticmethod (image.py:139) but class access
+        # captured the bare function, so rewrap it — a plain function binds as
+        # a method and instance calls raise TypeError.
+        assert _original_prefix is not None
+        container_cls._get_compose_cmd_prefix = staticmethod(_original_prefix)
         _original_compose = None
         _original_prefix = None
     if _original_get_docker_host is not None:
