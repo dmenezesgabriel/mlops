@@ -56,6 +56,7 @@ _COMPOSE_CALLBACK = Callable[..., list[str]]
 _original_compose: _COMPOSE_CALLBACK | None = None
 _original_prefix: _COMPOSE_CALLBACK | None = None
 _original_get_docker_host: tuple[Callable[[], str], ...] | None = None
+_installed_cfg: LocalModeConfig | None = None
 
 
 def inject_network(compose: dict[str, Any], network: str) -> None:
@@ -130,10 +131,37 @@ def tolerant_compose_cmd_prefix() -> list[str]:
     )
 
 
+# Config fields the installed compose patches consume; divergence between
+# the installed cfg and a later apply means the later values are dropped.
+_PATCH_CFG_FIELDS = ("inject_compose_network", "network", "harden_containers")
+
+
+def _warn_if_divergent_cfg(cfg: LocalModeConfig) -> None:
+    """Warn when a re-apply carries settings the installed patch ignores."""
+    assert _installed_cfg is not None
+    divergent = [
+        f"{field}={getattr(cfg, field)!r} "
+        f"(installed {getattr(_installed_cfg, field)!r})"
+        for field in _PATCH_CFG_FIELDS
+        if getattr(cfg, field) != getattr(_installed_cfg, field)
+    ]
+    if divergent:
+        logger.warning(
+            "sagemaker-local compose patches already installed; "
+            "ignoring divergent config: %s",
+            "; ".join(divergent),
+        )
+
+
 def apply_compose_patches(cfg: LocalModeConfig) -> None:
-    """Install compose rewriting + detection patches exactly once per process."""
-    global _original_compose, _original_prefix
+    """Install compose rewriting + detection patches exactly once per process.
+
+    A later call whose consumed fields differ from the installed config is
+    ignored with a warning naming both values.
+    """
+    global _original_compose, _original_prefix, _installed_cfg
     if _original_compose is not None:
+        _warn_if_divergent_cfg(cfg)
         return
     import sagemaker.local.image as sm_image
 
@@ -145,7 +173,15 @@ def apply_compose_patches(cfg: LocalModeConfig) -> None:
     def patched_compose(self: object, detached: bool = False) -> list[str]:
         assert _original_compose is not None
         compose_cmd = _original_compose(self, detached)
-        path = Path(compose_cmd[compose_cmd.index(_COMPOSE_FILE_LABEL) + 1])
+        try:
+            path = Path(
+                compose_cmd[compose_cmd.index(_COMPOSE_FILE_LABEL) + 1]
+            )
+        except (ValueError, IndexError) as exc:
+            raise RuntimeError(
+                "expected '-f <compose path>' in the SDK _compose "
+                f"command, got {compose_cmd!r}"
+            ) from exc
         _rewrite_compose_file(path, cfg)
         return compose_cmd
 
@@ -155,11 +191,82 @@ def apply_compose_patches(cfg: LocalModeConfig) -> None:
     # Runtime reassignment of bound-method slots on a third-party class.
     container_cls._compose = patched_compose
     container_cls._get_compose_cmd_prefix = staticmethod(patched_prefix)
+    _installed_cfg = cfg
     logger.info("sagemaker-local compose patches installed")
 
 
+def _shape_name(value: object) -> str:
+    return "null" if value is None else type(value).__name__
+
+
+def _require_mapping(value: object, what: str, path: Path) -> dict[str, Any]:
+    """Narrow a YAML node to a mapping or fail citing file + expected shape."""
+    if isinstance(value, dict):
+        return cast(dict[str, Any], value)
+    raise RuntimeError(
+        f"{path}: {what} must be a mapping, got {_shape_name(value)}"
+    )
+
+
+def _validate_compose_service(
+    name: object, service: object, path: Path, *, inject: bool, harden: bool
+) -> None:
+    service_dict = _require_mapping(service, f"service {name!r}", path)
+    if inject:
+        _require_mapping(
+            service_dict.get("networks", {}),
+            f"service {name!r} 'networks'",
+            path,
+        )
+    if not harden:
+        return
+    if "labels" in service_dict and not isinstance(
+        service_dict["labels"], (dict, list)
+    ):
+        raise RuntimeError(
+            f"{path}: service {name!r} 'labels' must be a mapping or "
+            f"list, got {_shape_name(service_dict['labels'])}"
+        )
+    logging_cfg = _require_mapping(
+        service_dict.get("logging", {}), f"service {name!r} 'logging'", path
+    )
+    _require_mapping(
+        logging_cfg.get("options", {}),
+        f"service {name!r} 'logging.options'",
+        path,
+    )
+
+
+def _validate_compose_shape(
+    compose: object, path: Path, *, inject: bool, harden: bool
+) -> dict[str, Any]:
+    """Reject drifted SDK compose shapes, citing the file + offending key.
+
+    Only the shapes the enabled features consume are checked: an untouched
+    field (e.g. list-form ``networks`` with injection off) round-trips as-is.
+    """
+    document = _require_mapping(compose, "compose document", path)
+    if not (inject or harden):
+        return document
+    services = _require_mapping(
+        document.get("services", {}), "'services'", path
+    )
+    for name, service in services.items():
+        _validate_compose_service(
+            name, service, path, inject=inject, harden=harden
+        )
+    if inject:
+        _require_mapping(document.get("networks", {}), "'networks'", path)
+    return document
+
+
 def _rewrite_compose_file(path: Path, cfg: LocalModeConfig) -> None:
-    compose = yaml.safe_load(path.read_text(encoding="utf-8"))
+    compose = _validate_compose_shape(
+        yaml.safe_load(path.read_text(encoding="utf-8")),
+        path,
+        inject=cfg.inject_compose_network and bool(cfg.network),
+        harden=cfg.harden_containers,
+    )
     services = compose.get("services", {})
     if cfg.inject_compose_network and cfg.network:
         inject_network(compose, cfg.network)
@@ -187,10 +294,17 @@ def resolve_gateway_from_routes(route_lines: list[str]) -> str | None:
         if len(fields) < 3:
             continue
         destination, gateway_hex = fields[1], fields[2]
-        if destination != "00000000" or gateway_hex == "00000000":
+        if (
+            destination != "00000000"
+            or gateway_hex == "00000000"
+            or len(gateway_hex) != 8
+        ):
             continue
-        octets = (int(gateway_hex[i : i + 2], 16) for i in (6, 4, 2, 0))
-        return ".".join(str(octet) for octet in octets)
+        try:
+            octets = (int(gateway_hex[i : i + 2], 16) for i in (6, 4, 2, 0))
+            return ".".join(str(octet) for octet in octets)
+        except ValueError:
+            continue
     return None
 
 
@@ -479,6 +593,7 @@ def cleanup_stale_serving_containers() -> int:
 def reset_all() -> None:
     """Undo every patch applied by this module (used by tests and teardown)."""
     global _original_compose, _original_prefix, _original_get_docker_host
+    global _installed_cfg
     if _original_compose is not None:
         import sagemaker.local.image as sm_image
 
@@ -491,6 +606,7 @@ def reset_all() -> None:
         container_cls._get_compose_cmd_prefix = staticmethod(_original_prefix)
         _original_compose = None
         _original_prefix = None
+        _installed_cfg = None
     if _original_get_docker_host is not None:
         import sagemaker.local.entities as sm_entities
         import sagemaker.local.local_session as sm_local_session

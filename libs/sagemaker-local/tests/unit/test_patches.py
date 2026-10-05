@@ -191,21 +191,29 @@ COMPOSE_TEMPLATE = {
 }
 
 
-@pytest.fixture()
-def compose_project(tmp_path: Path, monkeypatch) -> Path:
-    """Fake SDK ``_compose`` that writes a minimal project; returns its path."""
+def _install_fake_compose(tmp_path: Path, monkeypatch, content: str) -> Path:
+    """Fake SDK ``_compose`` writing ``content`` verbatim; returns the path."""
     import sagemaker.local.image as sm_image
 
+    path = tmp_path / "job" / "docker-compose.yaml"
+
     def fake_original_compose(self, detached=False):  # noqa: ANN001, ARG001
-        path = tmp_path / "job" / "docker-compose.yaml"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(yaml.dump(COMPOSE_TEMPLATE), encoding="utf-8")
+        path.write_text(content, encoding="utf-8")
         return ["docker", "compose", "-f", str(path), "up"]
 
     monkeypatch.setattr(
         sm_image._SageMakerContainer, "_compose", fake_original_compose
     )
-    return tmp_path / "job" / "docker-compose.yaml"
+    return path
+
+
+@pytest.fixture()
+def compose_project(tmp_path: Path, monkeypatch) -> Path:
+    """Fake SDK ``_compose`` that writes a minimal project; returns its path."""
+    return _install_fake_compose(
+        tmp_path, monkeypatch, yaml.dump(COMPOSE_TEMPLATE)
+    )
 
 
 def invoke_patched_compose() -> dict:
@@ -244,6 +252,40 @@ class TestApplyComposePatches:
         assert compose["services"]["sm-alpha"]["networks"] == {"proj-net": {}}
         assert "other-net" not in compose["services"]["sm-alpha"]["networks"]
 
+    def test_divergent_second_config_warns_naming_both_networks(
+        self, compose_project, caplog
+    ):
+        # A second make_local_session with a different network silently
+        # produced the first's before the warning — the caller must be told
+        # its config was dropped.
+        patches.apply_compose_patches(make_config())
+
+        with caplog.at_level(logging.WARNING):
+            patches.apply_compose_patches(make_config(network="other-net"))
+
+        assert "proj-net" in caplog.text
+        assert "other-net" in caplog.text
+
+    def test_divergent_flag_warns_with_field_values(
+        self, compose_project, caplog
+    ):
+        patches.apply_compose_patches(make_config(harden_containers=True))
+
+        with caplog.at_level(logging.WARNING):
+            patches.apply_compose_patches(make_config(harden_containers=False))
+
+        assert "harden_containers" in caplog.text
+
+    def test_identical_second_config_stays_silent(
+        self, compose_project, caplog
+    ):
+        patches.apply_compose_patches(make_config())
+
+        with caplog.at_level(logging.WARNING):
+            patches.apply_compose_patches(make_config())
+
+        assert caplog.text == ""
+
     def test_disabled_flags_leave_services_untouched(self, compose_project):
         patches.apply_compose_patches(
             make_config(
@@ -259,6 +301,109 @@ class TestApplyComposePatches:
         assert "networks" not in service
         assert "init" not in service
         assert set(compose.get("networks", {})) == {"sagemaker-local"}
+
+
+class TestComposeShapeDrift:
+    """The SDK-generated compose file + command shape is a private contract
+    the patches consume mid-``fit()``; drift must fail with a named error
+    citing the file and the offending key, not a raw ``AttributeError``."""
+
+    @pytest.mark.parametrize(
+        "content,match",
+        [
+            ("", "compose document"),
+            ("- a\n- b\n", "compose document"),
+            ("services:\n- image: x\n", "'services'"),
+            ("services: null\n", "'services'"),
+            ("services:\n  alpha: just-a-string\n", "service 'alpha'"),
+            (
+                "services:\n  alpha:\n    networks:\n      - other\n",
+                "'networks'",
+            ),
+            (
+                "networks:\n- sagemaker-local\nservices:\n  alpha: {}\n",
+                "'networks'",
+            ),
+            ("services:\n  alpha:\n    labels: just-a-string\n", "'labels'"),
+            ("services:\n  alpha:\n    labels: null\n", "'labels'"),
+            ("services:\n  alpha:\n    logging: json-file\n", "'logging'"),
+            (
+                "services:\n  alpha:\n    logging:\n      options: ~\n",
+                "'logging.options'",
+            ),
+        ],
+        ids=[
+            "empty-file",
+            "non-dict-root",
+            "services-as-list",
+            "services-null",
+            "service-non-dict",
+            "service-networks-list-form",
+            "top-networks-list-form",
+            "labels-str",
+            "labels-null",
+            "logging-str",
+            "logging-options-null",
+        ],
+    )
+    def test_malformed_compose_raises_named_error(
+        self, tmp_path: Path, monkeypatch, content: str, match: str
+    ):
+        _install_fake_compose(tmp_path, monkeypatch, content)
+        patches.apply_compose_patches(make_config())
+
+        with pytest.raises(RuntimeError, match=match) as excinfo:
+            invoke_patched_compose()
+
+        assert "docker-compose.yaml" in str(excinfo.value)
+
+    def test_untouched_service_shapes_pass_when_features_disabled(
+        self, tmp_path: Path, monkeypatch
+    ):
+        # Shapes are only validated where the enabled features consume them:
+        # a list-form `networks` is legal compose and round-trips untouched
+        # when neither injection nor hardening runs.
+        _install_fake_compose(
+            tmp_path,
+            monkeypatch,
+            "services:\n- a\nnetworks:\n- n\n",
+        )
+        patches.apply_compose_patches(
+            make_config(
+                network=None,
+                inject_compose_network=False,
+                harden_containers=False,
+            )
+        )
+
+        assert invoke_patched_compose()["services"] == ["a"]
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            ["docker", "compose", "up"],
+            ["docker", "compose", "up", "-f"],
+        ],
+        ids=["no-flag", "flag-without-path"],
+    )
+    def test_compose_command_without_f_path_raises_named_error(
+        self, monkeypatch, cmd: list[str]
+    ):
+        import sagemaker.local.image as sm_image
+
+        def fake_compose(self, detached=False):  # noqa: ANN001, ARG001
+            return cmd
+
+        monkeypatch.setattr(
+            sm_image._SageMakerContainer, "_compose", fake_compose
+        )
+        patches.apply_compose_patches(make_config())
+
+        container = sm_image._SageMakerContainer.__new__(
+            sm_image._SageMakerContainer
+        )
+        with pytest.raises(RuntimeError, match="-f"):
+            container._compose()
 
 
 class TestComposeCommandDetection:
@@ -386,6 +531,26 @@ class TestResolveGatewayFromRoutes:
         ).splitlines()
 
         assert patches.resolve_gateway_from_routes(routes) is None
+
+    @pytest.mark.parametrize(
+        "gateway",
+        ["ZZZZ", "01", "NOTHEX!!", "010012ACFF"],
+        ids=["short", "two-char", "non-hex", "overlong"],
+    )
+    def test_skips_malformed_gateway_fields(self, gateway: str):
+        # Malformed hex must not escape through gateway_getter into the
+        # patched get_docker_host — skip the line instead of raising.
+        line = f"eth0\t00000000\t{gateway}\t0003\t0\t0\t0\t00000000\t0\t0\t0"
+
+        assert patches.resolve_gateway_from_routes([line]) is None
+
+    def test_skips_malformed_line_to_later_valid_default(self):
+        lines = [
+            "eth0\t00000000\tZZZZZZZZ\t0003\t0\t0\t0\t00000000\t0\t0\t0",
+            "eth0\t00000000\t010012AC\t0003\t0\t0\t0\t00000000\t0\t0\t0",
+        ]
+
+        assert patches.resolve_gateway_from_routes(lines) == "172.18.0.1"
 
 
 class TestCleanupStoppedContainers:
