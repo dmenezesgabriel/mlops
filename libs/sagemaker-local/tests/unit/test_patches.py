@@ -88,6 +88,49 @@ class TestHardenService:
         assert service["logging"]["driver"] == "json-file"
         assert service["logging"]["options"]["max-size"] == "10m"
         assert service["labels"]["sagemaker.local"] == "true"
+        assert service["labels"]["sagemaker.local.role"] == "job"
+
+    def test_stamps_serve_role_on_sdk_serving_service(self):
+        # The SDK writes `command: serve` only for serving services
+        # (image.py); it is the role marker the cleanup filter keys on.
+        service = {"command": "serve"}
+
+        patches.harden_service(service)
+
+        assert service["labels"]["sagemaker.local"] == "true"
+        assert service["labels"]["sagemaker.local.role"] == "serve"
+
+    @pytest.mark.parametrize(
+        "service",
+        [{"command": "train"}, {"entrypoint": ["python", "train.py"]}],
+        ids=["train-command", "entrypoint-only"],
+    )
+    def test_stamps_job_role_on_non_serving_service(self, service):
+        patches.harden_service(service)
+
+        assert service["labels"]["sagemaker.local.role"] == "job"
+
+    def test_stamps_role_labels_in_list_form(self):
+        service = {"command": "serve", "labels": ["team=ml"]}
+
+        patches.harden_service(service)
+
+        assert service["labels"] == [
+            "team=ml",
+            "sagemaker.local=true",
+            "sagemaker.local.role=serve",
+        ]
+
+    def test_role_labels_idempotent_on_repeated_calls(self):
+        service = {"command": "serve"}
+
+        patches.harden_service(service)
+        patches.harden_service(service)
+
+        assert service["labels"] == {
+            "sagemaker.local": "true",
+            "sagemaker.local.role": "serve",
+        }
 
     def test_preserves_existing_settings(self):
         service = {"ports": ["8080:8080"], "mem_limit": "512m", "init": None}
@@ -287,7 +330,8 @@ class TestCleanupStoppedContainers:
 
 class TestCleanupStaleServingContainers:
     """Serving containers persist across host-process death and hold the
-    bound port; they must be reaped regardless of run state."""
+    bound port; they must be reaped regardless of run state. Only the
+    ``role=serve`` label marks them — job containers must survive."""
 
     def test_removes_running_and_exited_labelled_containers(self, monkeypatch):
         runner = FakeRunner(listed_ids=["a1", "b2", "c3"])
@@ -302,7 +346,7 @@ class TestCleanupStaleServingContainers:
             "ls",
             "-a",
             "--filter",
-            "label=sagemaker.local=true",
+            "label=sagemaker.local.role=serve",
             "-q",
         ]
         assert remove_cmd == ["docker", "rm", "-f", "a1", "b2", "c3"]

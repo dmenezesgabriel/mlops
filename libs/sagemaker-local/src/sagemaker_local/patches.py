@@ -62,18 +62,28 @@ def inject_network(compose: dict[str, Any], network: str) -> None:
 
 
 def harden_service(service: dict[str, Any]) -> None:
-    """Add zombie-reaping init, bounded logs and a cleanup label (idempotent)."""
+    """Add zombie-reaping init, bounded logs and cleanup labels (idempotent).
+
+    The ``sagemaker.local.role`` label is ``serve`` only when the service
+    carries the SDK's ``command: serve`` marker — ``_create_docker_host``
+    writes it for serving containers alone (sagemaker 2.257.1 image.py), so
+    ``cleanup_stale_serving_containers`` can reap port-holders without
+    touching running train/process jobs.
+    """
     service.setdefault("init", True)
     logging_cfg = service.setdefault("logging", {})
     logging_cfg.setdefault("driver", "json-file")
     logging_cfg.setdefault("options", {}).setdefault("max-size", "10m")
+    role = "serve" if service.get("command") == "serve" else "job"
     labels = service.setdefault("labels", {})
     if isinstance(labels, list):
         labels_list = cast(list[str], labels)
-        if "sagemaker.local=true" not in labels_list:
-            labels_list.append("sagemaker.local=true")
+        for label in ("sagemaker.local=true", f"sagemaker.local.role={role}"):
+            if label not in labels_list:
+                labels_list.append(label)
     else:
         labels.setdefault("sagemaker.local", "true")
+        labels.setdefault("sagemaker.local.role", role)
 
 
 def tolerant_compose_cmd_prefix() -> list[str]:
@@ -228,14 +238,16 @@ def apply_docker_host_patch(force: bool = False) -> None:
     logger.info("sagemaker-local docker-host patch installed")
 
 
-def _list_sagemaker_local_containers(status: str | None) -> list[str]:
+def _list_sagemaker_local_containers(
+    status: str | None, label: str
+) -> list[str]:
     cmd = [
         "docker",
         "container",
         "ls",
         "-a",
         "--filter",
-        "label=sagemaker.local=true",
+        f"label={label}",
     ]
     if status is not None:
         cmd += ["--filter", f"status={status}"]
@@ -269,15 +281,19 @@ def cleanup_stopped_containers() -> int:
         >>> cleanup_stopped_containers()  # doctest: +SKIP
         3
     """
-    return _remove_containers(_list_sagemaker_local_containers("exited"))
+    return _remove_containers(
+        _list_sagemaker_local_containers("exited", "sagemaker.local=true")
+    )
 
 
 def cleanup_stale_serving_containers() -> int:
-    """Remove any ``sagemaker.local=true`` container regardless of run state.
+    """Remove every ``sagemaker.local.role=serve`` container regardless of state.
 
     Serving containers live on without a bound host process, so on process
-    death (or a killed predict) they linger and grab the serving port. Their
-    label marks them as disposable.
+    death (or a killed predict) they linger and grab the serving port.
+    ``harden_service`` stamps the role only on services the SDK marks
+    ``command: serve`` — running train/process jobs carry ``role=job`` (or
+    no role) and are never reaped here.
 
     Returns:
         Number of containers removed.
@@ -286,7 +302,9 @@ def cleanup_stale_serving_containers() -> int:
         >>> cleanup_stale_serving_containers()  # doctest: +SKIP
         3
     """
-    return _remove_containers(_list_sagemaker_local_containers(None))
+    return _remove_containers(
+        _list_sagemaker_local_containers(None, "sagemaker.local.role=serve")
+    )
 
 
 def reset_all() -> None:
