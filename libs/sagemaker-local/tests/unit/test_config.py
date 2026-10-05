@@ -54,7 +54,7 @@ class TestLocalModeConfigDefaults:
 
 class TestLocalModeConfigValidation:
     @pytest.mark.parametrize(
-        "bad_url", ["moto:5000", "ftp://moto:5000", "", "http://"]
+        "bad_url", ["moto:5000", "ftp://moto:5000", "", "http://", "https://"]
     )
     def test_rejects_non_http_endpoint_with_offending_value(
         self, bad_url: str
@@ -70,9 +70,44 @@ class TestLocalModeConfigValidation:
                 serving_port=0,
             )
 
+    @pytest.mark.parametrize("bad_port", [65536, 70000, 99999])
+    def test_rejects_out_of_range_serving_port(self, bad_port: int):
+        with pytest.raises(ValueError, match="serving_port"):
+            LocalModeConfig(
+                s3_endpoint_url="http://moto:5000",
+                bucket="my-bucket",
+                serving_port=bad_port,
+            )
+
+    def test_accepts_max_tcp_port(self):
+        cfg = LocalModeConfig(
+            s3_endpoint_url="http://moto:5000",
+            bucket="my-bucket",
+            serving_port=65535,
+        )
+
+        assert cfg.serving_port == 65535
+
     def test_rejects_empty_bucket_name(self):
         with pytest.raises(ValueError, match="bucket"):
             LocalModeConfig(s3_endpoint_url="http://moto:5000", bucket="")
+
+    @pytest.mark.parametrize(
+        "bad_bucket", ["x", "ab", "A-bucket", "a_b", "-abc", "abc-"]
+    )
+    def test_rejects_invalid_s3_bucket_name(self, bad_bucket: str):
+        with pytest.raises(ValueError, match="bucket"):
+            LocalModeConfig(
+                s3_endpoint_url="http://moto:5000", bucket=bad_bucket
+            )
+
+    def test_rejects_empty_network_name(self):
+        with pytest.raises(ValueError, match="network"):
+            LocalModeConfig(
+                s3_endpoint_url="http://moto:5000",
+                bucket="my-bucket",
+                network="",
+            )
 
 
 ENV_VARS = {
@@ -83,6 +118,15 @@ ENV_VARS = {
     "SAGEMAKER_LOCAL_SERVING_PORT": "9090",
     "SAGEMAKER_LOCAL_CONTAINER_ROOT": "/workspace/.sm-tmp",
     "SAGEMAKER_LOCAL_IMAGE_TAG": "my-sm:v2",
+    "SAGEMAKER_LOCAL_AWS_ACCESS_KEY_ID": "envkey",
+    "SAGEMAKER_LOCAL_AWS_SECRET_ACCESS_KEY": "envsecret",
+    "SAGEMAKER_LOCAL_INJECT_COMPOSE_NETWORK": "false",
+    "SAGEMAKER_LOCAL_HARDEN_CONTAINERS": "false",
+}
+
+_REQUIRED_ENV = {
+    "SAGEMAKER_LOCAL_S3_ENDPOINT_URL": "http://moto:5000",
+    "SAGEMAKER_LOCAL_BUCKET": "env-bucket",
 }
 
 
@@ -101,6 +145,31 @@ class TestConfigFromEnv:
         assert cfg.container_root == "/workspace/.sm-tmp"
         assert cfg.image_tag == "my-sm:v2"
 
+    def test_reads_credential_and_switch_variables(self, monkeypatch):
+        for key, value in ENV_VARS.items():
+            monkeypatch.setenv(key, value)
+
+        cfg = config_from_env()
+
+        assert cfg.aws_access_key_id == "envkey"
+        assert cfg.aws_secret_access_key == "envsecret"
+        assert cfg.inject_compose_network is False
+        assert cfg.harden_containers is False
+
+    def test_unset_optional_variables_use_defaults(self, monkeypatch):
+        for key in ENV_VARS:
+            monkeypatch.delenv(key, raising=False)
+        for key, value in _REQUIRED_ENV.items():
+            monkeypatch.setenv(key, value)
+
+        cfg = config_from_env()
+
+        assert cfg.aws_access_key_id == "test"
+        assert cfg.aws_secret_access_key == "test"
+        assert cfg.inject_compose_network is True
+        assert cfg.harden_containers is True
+        assert cfg.serving_port == 8080
+
     def test_missing_required_variable_raises_with_variable_name(
         self, monkeypatch
     ):
@@ -110,4 +179,33 @@ class TestConfigFromEnv:
         with pytest.raises(
             ValueError, match="SAGEMAKER_LOCAL_S3_ENDPOINT_URL"
         ):
+            config_from_env()
+
+    def test_non_integer_serving_port_names_the_variable(self, monkeypatch):
+        for key in ENV_VARS:
+            monkeypatch.delenv(key, raising=False)
+        for key, value in _REQUIRED_ENV.items():
+            monkeypatch.setenv(key, value)
+        monkeypatch.setenv("SAGEMAKER_LOCAL_SERVING_PORT", "abc")
+
+        with pytest.raises(ValueError, match="SAGEMAKER_LOCAL_SERVING_PORT"):
+            config_from_env()
+
+    @pytest.mark.parametrize(
+        "bad_bool_var",
+        [
+            "SAGEMAKER_LOCAL_INJECT_COMPOSE_NETWORK",
+            "SAGEMAKER_LOCAL_HARDEN_CONTAINERS",
+        ],
+    )
+    def test_non_boolean_value_names_the_variable(
+        self, monkeypatch, bad_bool_var: str
+    ):
+        for key in ENV_VARS:
+            monkeypatch.delenv(key, raising=False)
+        for key, value in _REQUIRED_ENV.items():
+            monkeypatch.setenv(key, value)
+        monkeypatch.setenv(bad_bool_var, "maybe")
+
+        with pytest.raises(ValueError, match=bad_bool_var):
             config_from_env()

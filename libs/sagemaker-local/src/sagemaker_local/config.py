@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 # The account ID moto returns for the static "test" credentials, and a role ARN
 # under it. Local mode never contacts IAM; SageMaker only stores the ARN.
@@ -61,28 +63,68 @@ class LocalModeConfig:
 
     def __post_init__(self) -> None:
         _validate_endpoint(self.s3_endpoint_url)
-        if not self.bucket:
+        _validate_bucket_name(self.bucket)
+        if not 1 <= self.serving_port <= 65535:
             raise ValueError(
-                f"bucket must be a non-empty S3 bucket name, got: {self.bucket!r}"
+                f"serving_port must be a TCP port in 1..65535, "
+                f"got: {self.serving_port}"
             )
-        if self.serving_port <= 0:
+        if self.network == "":
             raise ValueError(
-                f"serving_port must be a positive TCP port, got: {self.serving_port}"
+                "network must be a docker network name or None, got: ''"
             )
+
+
+# S3's documented character set and 3-63 length, checked in one match; the
+# finer rules (no adjacent dots, no IP format) stay S3's job — moto enforces
+# the same contract and errors surface with the bucket name.
+_S3_BUCKET_NAME = re.compile(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]")
 
 
 def _validate_endpoint(url: str) -> None:
-    if (
-        not url.startswith(("http://", "https://"))
-        or not url[len("http://") :]
-    ):
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
         raise ValueError(
             f"s3_endpoint_url must be an http(s) URL with a host, got: {url!r}"
         )
 
 
+def _validate_bucket_name(bucket: str) -> None:
+    if _S3_BUCKET_NAME.fullmatch(bucket) is None:
+        raise ValueError(
+            "bucket must be a valid S3 bucket name (3-63 chars of a-z, "
+            f"0-9, '.', '-', starting and ending alphanumeric), got: {bucket!r}"
+        )
+
+
 def _env(name: str) -> str | None:
     return os.environ.get(_ENV_PREFIX + name)
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = _env(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise ValueError(
+            f"{_ENV_PREFIX}{name} must be an integer, got: {raw!r}"
+        ) from exc
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = _env(name)
+    if raw is None:
+        return default
+    lowered = raw.casefold()
+    if lowered == "true":
+        return True
+    if lowered == "false":
+        return False
+    raise ValueError(
+        f"{_ENV_PREFIX}{name} must be 'true' or 'false', got: {raw!r}"
+    )
 
 
 def config_from_env() -> LocalModeConfig:
@@ -100,24 +142,30 @@ def config_from_env() -> LocalModeConfig:
     """
     endpoint = _env("S3_ENDPOINT_URL")
     bucket = _env("BUCKET")
-    missing = [
-        f"{_ENV_PREFIX}{name}"
-        for name, value in (("S3_ENDPOINT_URL", endpoint), ("BUCKET", bucket))
-        if not value
-    ]
-    if missing:
+    if not endpoint or not bucket:
+        missing = [
+            f"{_ENV_PREFIX}{name}"
+            for name, value in (
+                ("S3_ENDPOINT_URL", endpoint),
+                ("BUCKET", bucket),
+            )
+            if not value
+        ]
         raise ValueError(
             f"missing required environment variable(s): {', '.join(missing)}"
         )
 
-    port_raw = _env("SERVING_PORT")
     return LocalModeConfig(
-        s3_endpoint_url=endpoint,  # type: ignore[arg-type]
-        bucket=bucket,  # type: ignore[arg-type]
+        s3_endpoint_url=endpoint,
+        bucket=bucket,
         region=_env("REGION") or "us-east-1",
         network=_env("NETWORK"),
-        serving_port=int(port_raw) if port_raw else 8080,
+        serving_port=_env_int("SERVING_PORT", 8080),
         container_root=_env("CONTAINER_ROOT"),
         image_tag=_env("IMAGE_TAG") or "sagemaker-local:latest",
         role_arn=_env("ROLE_ARN") or DEFAULT_ROLE_ARN,
+        aws_access_key_id=_env("AWS_ACCESS_KEY_ID") or "test",
+        aws_secret_access_key=_env("AWS_SECRET_ACCESS_KEY") or "test",
+        inject_compose_network=_env_bool("INJECT_COMPOSE_NETWORK", True),
+        harden_containers=_env_bool("HARDEN_CONTAINERS", True),
     )

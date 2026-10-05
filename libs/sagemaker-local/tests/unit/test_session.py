@@ -7,6 +7,7 @@ from sagemaker.utils import resolve_value_from_config
 from sagemaker.workflow.pipeline_context import LocalPipelineSession
 from sagemaker_local.config import LocalModeConfig
 from sagemaker_local.session import (
+    _TELEMETRY_OPT_OUT_CONFIG,
     _ensure_bucket,
     make_local_pipeline_session,
     make_local_session,
@@ -104,6 +105,21 @@ class TestMakeLocalSession:
 
         assert opted_out is True
 
+    def test_ignores_ambient_sagemaker_config_override(
+        self, tmp_path, monkeypatch
+    ):
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "SchemaVersion: '1.0'\n"
+            "Session:\n  DefaultS3ObjectKeyPrefix: leaked-prefix\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("SAGEMAKER_USER_CONFIG_OVERRIDE", str(config_file))
+
+        _, sm_session = make_local_session(make_config(tmp_path))
+
+        assert sm_session.default_bucket_prefix is None
+
 
 class TestMakeLocalPipelineSession:
     def test_returns_local_pipeline_session_sharing_settings(self, tmp_path):
@@ -132,6 +148,50 @@ class TestMakeLocalPipelineSession:
         )
 
         assert opted_out is True
+
+    @pytest.mark.parametrize(
+        "override_var",
+        [
+            "SAGEMAKER_USER_CONFIG_OVERRIDE",
+            "SAGEMAKER_ADMIN_CONFIG_OVERRIDE",
+        ],
+    )
+    def test_ignores_ambient_sagemaker_config_override(
+        self, tmp_path, monkeypatch, override_var
+    ):
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "SchemaVersion: '1.0'\n"
+            "Session:\n  DefaultS3ObjectKeyPrefix: leaked-prefix\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv(override_var, str(config_file))
+
+        _, pipeline_session = make_local_pipeline_session(
+            make_config(tmp_path)
+        )
+
+        assert pipeline_session.default_bucket_prefix is None
+
+    @pytest.mark.parametrize(
+        "override_var",
+        [
+            "SAGEMAKER_USER_CONFIG_OVERRIDE",
+            "SAGEMAKER_ADMIN_CONFIG_OVERRIDE",
+        ],
+    )
+    def test_survives_malformed_ambient_sagemaker_config(
+        self, tmp_path, monkeypatch, override_var
+    ):
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("BogusKey: 123\n", encoding="utf-8")
+        monkeypatch.setenv(override_var, str(config_file))
+
+        _, pipeline_session = make_local_pipeline_session(
+            make_config(tmp_path)
+        )
+
+        assert pipeline_session.sagemaker_config == _TELEMETRY_OPT_OUT_CONFIG
 
 
 class TestEnsureBucket:

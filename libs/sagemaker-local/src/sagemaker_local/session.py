@@ -58,11 +58,6 @@ def make_local_pipeline_session(
     """Like :func:`make_local_session` but returns a ``LocalPipelineSession``
     so ``Pipeline.start()`` executes every step locally.
 
-    Note:
-        Unlike ``LocalSession``, ``LocalPipelineSession.__init__`` has no
-        ``sagemaker_config`` parameter, so the telemetry opt-out is applied by
-        assigning the attribute after construction.
-
     Example:
         >>> cfg = LocalModeConfig(s3_endpoint_url="http://moto:5000",
         ...                       bucket="artifacts")
@@ -73,12 +68,21 @@ def make_local_pipeline_session(
 
     boto_session = _boto_session(cfg)
     _ensure_bucket(_s3_client(boto_session, cfg), cfg)
-    pipeline_session = LocalPipelineSession(
+    # LocalPipelineSession.__init__ is a pure forwarder that drops the
+    # sagemaker_config parameter (sagemaker 2.257.1 pipeline_context.py:251),
+    # so the constructor would run load_sagemaker_config on ambient
+    # ~/.sagemaker / SAGEMAKER_*_CONFIG_OVERRIDE files. Calling the LocalSession
+    # constructor on the instance forwards the opt-out dict through the MRO
+    # (PipelineSession.__init__ -> Session.__init__ -> LocalSession._initialize),
+    # where it is schema-validated and assigned instead.
+    pipeline_session = LocalPipelineSession.__new__(LocalPipelineSession)
+    LocalSession.__init__(
+        pipeline_session,
         boto_session=boto_session,
         default_bucket=cfg.bucket,
         s3_endpoint_url=cfg.s3_endpoint_url,
+        sagemaker_config=_TELEMETRY_OPT_OUT_CONFIG,
     )
-    pipeline_session.sagemaker_config = _TELEMETRY_OPT_OUT_CONFIG
     _apply_local_mode_config(pipeline_session, cfg)
     return boto_session, pipeline_session
 

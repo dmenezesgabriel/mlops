@@ -47,7 +47,9 @@ class TestSessionAgainstLiveMoto:
 
     def test_sts_caller_identity_routes_to_moto(self, live_moto_server):
         boto_session, _ = make_local_session(
-            LocalModeConfig(s3_endpoint_url=live_moto_server.url, bucket="x")
+            LocalModeConfig(
+                s3_endpoint_url=live_moto_server.url, bucket="sts-probe"
+            )
         )
         sts = boto_session.client("sts", endpoint_url=live_moto_server.url)
 
