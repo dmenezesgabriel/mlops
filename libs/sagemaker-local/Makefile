@@ -27,8 +27,8 @@ dependencies:
 	uv run deptry .
 
 security:
-	uv run bandit -q -r src -ll
-	uv run vulture --min-confidence 80 src
+	uv run bandit -q -r src docker -ll
+	uv run vulture --min-confidence 80 src docker
 	uv run semgrep --quiet --config auto .
 
 maintainability:

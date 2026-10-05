@@ -51,8 +51,4 @@ reportMissingImports = false
 
 [tool.vulture]
 min_confidence = 80
-# Test fixtures used for side effects (compose_project materializes a patched
-# compose file, fake_host_env fakes container env) — the param name must match
-# the fixture name, so the test body never references it.
-ignore_names = ["compose_project", "fake_host_env", "detached"]
 sort_by_size = true
