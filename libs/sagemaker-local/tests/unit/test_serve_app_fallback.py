@@ -7,11 +7,13 @@ package, so each test imports a fresh module copy from that file path.
 from __future__ import annotations
 
 import importlib.util
+import io
 import os
 import tempfile
 import types
 from pathlib import Path
 
+import joblib
 import numpy as np
 import pytest
 from sagemaker_local.images import dockerfile_dir
@@ -134,3 +136,94 @@ class TestOutputFnCsvContract:
 
         assert response.status_code == 200
         assert response.get_data(as_text=True) == "1.0\n2.0\n"
+
+
+class _EchoModel:
+    """Module-level so joblib can pickle it for the default-path probe."""
+
+    def predict(self, data):
+        return np.asarray(data)
+
+
+class TestEndpoints:
+    """The serving contract: /ping health + /invocations request path."""
+
+    def test_ping_reports_health(self):
+        module = _load_serve_app("train.py")
+
+        response = module.app.test_client().get("/ping")
+
+        assert response.status_code == 200
+        assert response.get_data() == b""
+
+    def test_create_app_returns_the_module_app(self):
+        module = _load_serve_app("train.py")
+
+        assert module.create_app() is module.app
+
+
+class TestDefaultHandlers:
+    """BYOC serving mounts no user script — input/predict/output fall back
+    to the joblib + generic defaults, which must run end-to-end."""
+
+    def test_input_fn_decodes_json_body(self):
+        module = _load_serve_app("train.py")
+
+        parsed = module.input_fn_default("application/json", b"[1.0, 2.0]")
+
+        np.testing.assert_array_equal(parsed, np.array([1.0, 2.0]))
+
+    def test_input_fn_decodes_npy_body(self):
+        module = _load_serve_app("train.py")
+        buf = io.BytesIO()
+        np.save(buf, np.array([1.0, 2.0]), allow_pickle=False)
+
+        parsed = module.input_fn_default("application/x-npy", buf.getvalue())
+
+        np.testing.assert_array_equal(parsed, np.array([1.0, 2.0]))
+
+    def test_input_fn_passes_unknown_content_type_through(self):
+        module = _load_serve_app("train.py")
+
+        assert (
+            module.input_fn_default("application/octet-stream", b"\x00\x01")
+            == b"\x00\x01"
+        )
+
+    def test_output_fn_encodes_npy_response(self):
+        module = _load_serve_app("train.py")
+
+        response = module.output_fn_default(
+            np.array([1.0, 2.0]), "application/x-npy"
+        )
+
+        parsed = np.load(io.BytesIO(response.get_data()), allow_pickle=False)
+        np.testing.assert_array_equal(parsed, np.array([1.0, 2.0]))
+
+    def test_output_fn_defaults_to_json(self):
+        module = _load_serve_app("train.py")
+
+        response = module.output_fn_default(
+            np.array([1.0, 2.0]), "application/json"
+        )
+
+        assert response.get_json() == [1.0, 2.0]
+
+    def test_invocations_runs_full_default_pipeline(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        # No user script: model_fn loads the dumped joblib artifact and
+        # predict_fn calls its .predict — model_loaded caches across calls.
+        module = _load_serve_app("train.py")
+        joblib.dump(_EchoModel(), tmp_path / "model.joblib")
+        monkeypatch.setattr(module, "MODEL_DIR", str(tmp_path))
+        monkeypatch.setattr(module, "_CODE_PATH", "/nonexistent/train.py")
+
+        response = module.app.test_client().post(
+            "/invocations", data=b"1.5\n2.5\n", content_type="text/csv"
+        )
+        model = module._model_instance()
+
+        assert response.status_code == 200
+        assert response.get_json() == [1.5, 2.5]
+        assert module._model_instance() is model

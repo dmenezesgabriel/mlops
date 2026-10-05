@@ -6,6 +6,21 @@ from pathlib import Path
 
 import pytest
 from moto.server import ThreadedMotoServer
+from sagemaker_local import patches
+
+
+@pytest.fixture(autouse=True)
+def restore_global_patches():
+    """Every test starts and ends with unpatched SDK modules.
+
+    ``make_local_session``/``make_local_pipeline_session`` install real
+    monkey-patches on the sagemaker SDK; without a reset the leak is
+    order-dependent — the suite only passed because the patching file
+    sorted last.
+    """
+    patches.reset_all()
+    yield
+    patches.reset_all()
 
 
 class LiveMotoServer:

@@ -9,6 +9,7 @@ IMAGE_TAG = "sagemaker-local:latest"
 
 
 @pytest.mark.integration
+@pytest.mark.docker
 class TestDockerImage:
     def test_builds_image_idempotently(self):
         assert build_image(IMAGE_TAG) == IMAGE_TAG

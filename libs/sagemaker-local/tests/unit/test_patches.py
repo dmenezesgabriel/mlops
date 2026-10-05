@@ -1,16 +1,22 @@
 """Unit tests for sagemaker_local.patches."""
 
 import inspect
-import json
 import logging
 import subprocess
-import textwrap
 from pathlib import Path
 
 import pytest
 import yaml
 from sagemaker_local import patches
 from sagemaker_local.config import LocalModeConfig
+
+from tests._fakes import (
+    CONTAINER_ROUTE_TABLE,
+    ROUTE_TABLE,
+    DockerCliAbsent,
+    FakeDocker,
+    inspect_doc,
+)
 
 
 def make_config(**overrides) -> LocalModeConfig:
@@ -21,14 +27,6 @@ def make_config(**overrides) -> LocalModeConfig:
     }
     values.update(overrides)
     return LocalModeConfig(**values)
-
-
-@pytest.fixture(autouse=True)
-def restore_global_patches():
-    """Every test starts and ends with unpatched SDK modules."""
-    patches.reset_all()
-    yield
-    patches.reset_all()
 
 
 class FakeRunner:
@@ -378,6 +376,24 @@ class TestComposeShapeDrift:
 
         assert invoke_patched_compose()["services"] == ["a"]
 
+    def test_harden_off_skips_service_field_validation(
+        self, tmp_path: Path, monkeypatch
+    ):
+        # With hardening disabled the service's 'labels'/'logging' shapes are
+        # never consumed, so malformed values round-trip untouched while
+        # network injection still validates its own field.
+        _install_fake_compose(
+            tmp_path,
+            monkeypatch,
+            "services:\n  alpha:\n    labels: oops\n    logging: nope\n",
+        )
+        patches.apply_compose_patches(make_config(harden_containers=False))
+
+        service = invoke_patched_compose()["services"]["alpha"]
+
+        assert service["networks"] == {"proj-net": {}}
+        assert service["labels"] == "oops"
+
     @pytest.mark.parametrize(
         "cmd",
         [
@@ -509,16 +525,6 @@ class TestResetAll:
         assert instance._get_compose_cmd_prefix() == ["docker", "compose"]
 
 
-ROUTE_TABLE = textwrap.dedent(
-    """\
-    Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT
-    eth0\t00000000\t010012AC\t0003\t0\t0\t0\t00000000\t0\t0\t0
-    eth0\t000012AC\t00000000\t0001\t0\t0\t0\t000CFFFF\t0\t0\t0
-    lo\t00000000\t00000000\t0001\t0\t0\t0\t000000FF\t0\t0\t0
-    """
-)
-
-
 class TestResolveGatewayFromRoutes:
     def test_parses_default_route_gateway_little_endian_hex(self):
         result = patches.resolve_gateway_from_routes(ROUTE_TABLE.splitlines())
@@ -621,82 +627,6 @@ class TestCleanupStaleServingContainers:
 
         assert patches.cleanup_stale_serving_containers() == 0
         assert len(runner.calls) == 1
-
-
-CONTAINER_ROUTE_TABLE = textwrap.dedent(
-    """\
-    Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT
-    eth0\t00000000\t010013AC\t0003\t0\t0\t0\t00000000\t0\t0\t0
-    eth0\t000013AC\t00000000\t0001\t0\t0\t0\t0000FFFF\t0\t0\t0
-    """
-)
-
-
-def inspect_doc(status: str, networks: dict[str, str]) -> dict:
-    """Scripted ``docker container inspect`` body: status + IP per network."""
-    return {
-        "State": {"Status": status},
-        "NetworkSettings": {
-            "Networks": {
-                name: {"IPAddress": ip, "IPPrefixLen": 16}
-                for name, ip in networks.items()
-            }
-        },
-    }
-
-
-class FakeDocker:
-    """Named fake for the docker CLI calls the docker-host patch issues.
-
-    ``ls`` returns ``serve_ids``, or pops the next id list from ``ls_script``
-    when given (the last entry repeats once exhausted) so a test can script a
-    container that only exists on a later poll — the SDK spawns
-    ``compose up`` asynchronously. ``inspect <cid>`` pops the next scripted
-    document for that id (the last one repeats once exhausted). Inspecting an
-    unlisted id fails like real docker (rc=1); any other command raises —
-    the gateway arm must not depend on the daemon.
-    """
-
-    def __init__(
-        self,
-        serve_ids: list[str] | None = None,
-        inspect_docs: dict[str, list[dict]] | None = None,
-        ls_script: list[list[str]] | None = None,
-    ) -> None:
-        self.serve_ids = serve_ids or []
-        self.ls_script = list(ls_script) if ls_script is not None else None
-        self.inspect_docs = {
-            cid: list(docs) for cid, docs in (inspect_docs or {}).items()
-        }
-        self.calls: list[list[str]] = []
-
-    def __call__(self, cmd, **_kwargs):  # noqa: ANN003
-        self.calls.append(list(cmd))
-        if "inspect" in cmd:
-            docs = self.inspect_docs.get(cmd[-1])
-            if docs is None:
-                raise subprocess.CalledProcessError(1, list(cmd))
-            doc = docs.pop(0) if len(docs) > 1 else docs[0]
-            return subprocess.CompletedProcess(
-                cmd, 0, stdout=json.dumps([doc])
-            )
-        if "ls" in cmd:
-            ids = self.serve_ids
-            if self.ls_script is not None:
-                ids = (
-                    self.ls_script.pop(0)
-                    if len(self.ls_script) > 1
-                    else self.ls_script[0]
-                )
-            return subprocess.CompletedProcess(cmd, 0, stdout="\n".join(ids))
-        raise AssertionError(f"unexpected docker call: {cmd}")
-
-
-class DockerCliAbsent:
-    """Raises FileNotFoundError on any call — docker binary not on PATH."""
-
-    def __call__(self, cmd, **_kwargs):  # noqa: ANN003
-        raise FileNotFoundError(cmd[0])
 
 
 class TestApplyDockerHostPatch:

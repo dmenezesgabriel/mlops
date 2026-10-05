@@ -3,7 +3,11 @@
 import dataclasses
 
 import pytest
-from sagemaker_local.config import LocalModeConfig, config_from_env
+from sagemaker_local.config import (
+    DEFAULT_ROLE_ARN,
+    LocalModeConfig,
+    config_from_env,
+)
 
 
 class TestLocalModeConfigDefaults:
@@ -54,13 +58,26 @@ class TestLocalModeConfigDefaults:
 
 class TestLocalModeConfigValidation:
     @pytest.mark.parametrize(
-        "bad_url", ["moto:5000", "ftp://moto:5000", "", "http://", "https://"]
+        "bad_url", ["moto:5000", "ftp://moto:5000", "http://", "https://"]
     )
     def test_rejects_non_http_endpoint_with_offending_value(
         self, bad_url: str
     ):
         with pytest.raises(ValueError, match=bad_url):
             LocalModeConfig(s3_endpoint_url=bad_url, bucket="my-bucket")
+
+    def test_rejects_empty_endpoint_naming_the_field(self):
+        # "" can never appear in the message, so this arm needs a real
+        # pattern — match="" would vacuously pass any exception.
+        with pytest.raises(ValueError, match="s3_endpoint_url"):
+            LocalModeConfig(s3_endpoint_url="", bucket="my-bucket")
+
+    def test_accepts_https_endpoint(self):
+        cfg = LocalModeConfig(
+            s3_endpoint_url="https://moto:5000", bucket="my-bucket"
+        )
+
+        assert cfg.s3_endpoint_url == "https://moto:5000"
 
     def test_rejects_non_positive_serving_port(self):
         with pytest.raises(ValueError, match="serving_port"):
@@ -164,11 +181,31 @@ class TestConfigFromEnv:
 
         cfg = config_from_env()
 
-        assert cfg.aws_access_key_id == "test"
-        assert cfg.aws_secret_access_key == "test"
-        assert cfg.inject_compose_network is True
-        assert cfg.harden_containers is True
-        assert cfg.serving_port == 8080
+        assert cfg == LocalModeConfig(
+            s3_endpoint_url="http://moto:5000",
+            bucket="env-bucket",
+            role_arn=DEFAULT_ROLE_ARN,
+        )
+
+    @pytest.mark.parametrize(
+        "bool_var",
+        [
+            "SAGEMAKER_LOCAL_INJECT_COMPOSE_NETWORK",
+            "SAGEMAKER_LOCAL_HARDEN_CONTAINERS",
+        ],
+    )
+    def test_explicit_true_boolean_value(self, monkeypatch, bool_var: str):
+        # ENV_VARS only ever sets "false"; the "true" arm needs its own case.
+        for key in ENV_VARS:
+            monkeypatch.delenv(key, raising=False)
+        for key, value in _REQUIRED_ENV.items():
+            monkeypatch.setenv(key, value)
+        monkeypatch.setenv(bool_var, "true")
+
+        cfg = config_from_env()
+
+        field = bool_var.removeprefix("SAGEMAKER_LOCAL_").lower()
+        assert getattr(cfg, field) is True
 
     def test_missing_required_variable_raises_with_variable_name(
         self, monkeypatch

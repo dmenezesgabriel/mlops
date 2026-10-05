@@ -1,5 +1,5 @@
 .SILENT:
-.PHONY: format lint type-check test coverage complexity dependencies security maintainability
+.PHONY: format lint type-check test test-docker coverage complexity dependencies security maintainability
 
 format:
 	uv run ruff format .
@@ -12,10 +12,15 @@ type-check:
 	uv run pyright src
 
 test:
-	uv run pytest -m "not integration"
+	uv run pytest -m "not docker"
+
+# The moto-backed integration tests run in `test`/`coverage`; only the
+# daemon-dependent docker tests are opt-in.
+test-docker:
+	uv run pytest -m docker
 
 coverage:
-	uv run pytest -m "not integration" --cov --cov-report=term-missing:skip-covered --cov-fail-under=75
+	uv run pytest -m "not docker" --cov --cov-report=term-missing:skip-covered --cov-fail-under=95
 
 complexity:
 	tmp=$$(mktemp); \

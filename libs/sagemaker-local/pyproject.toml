@@ -19,6 +19,12 @@ dev = [
   "moto[server]==5.1.16",
 ]
 
+[tool.coverage.run]
+# Pin measurement to this package's own code — including docker/, which holds
+# the image-runtime module the security gate already scans — so serve_app's
+# request path stays coverage-visible instead of silently unscanned.
+source = ["src", "tests", "docker"]
+
 [tool.deptry]
 known_first_party = ["sagemaker_local"]
 # docker/serve_app.py is the SageMaker hosting runtime baked into the image;
@@ -39,6 +45,10 @@ packages = ["src/sagemaker_local"]
 testpaths = ["tests"]
 addopts = "-q -rfEs --tb=short --show-capture=no --import-mode=importlib"
 console_output_style = "classic"
+markers = [
+    "integration: round-trips against an in-process moto server (no docker needed)",
+    "docker: requires the docker daemon (image build/inspect)",
+]
 
 [tool.pyright]
 pythonVersion = "3.11"

@@ -8,7 +8,9 @@ from sagemaker.workflow.pipeline_context import LocalPipelineSession
 from sagemaker_local.config import LocalModeConfig
 from sagemaker_local.session import (
     _TELEMETRY_OPT_OUT_CONFIG,
+    _boto_session,
     _ensure_bucket,
+    _s3_client,
     make_local_pipeline_session,
     make_local_session,
 )
@@ -36,13 +38,15 @@ class _FakeS3Client:
     def __init__(self) -> None:
         self.head_bucket_calls = 0
         self.create_bucket_calls = 0
+        self.create_bucket_kwargs: list[dict] = []
 
     def head_bucket(self, **_kwargs):
         self.head_bucket_calls += 1
         raise ClientError("404")
 
-    def create_bucket(self, **_kwargs):
+    def create_bucket(self, **kwargs):
         self.create_bucket_calls += 1
+        self.create_bucket_kwargs.append(kwargs)
 
 
 @pytest.fixture(autouse=True)
@@ -194,6 +198,19 @@ class TestMakeLocalPipelineSession:
         assert pipeline_session.sagemaker_config == _TELEMETRY_OPT_OUT_CONFIG
 
 
+class TestS3Client:
+    def test_targets_the_configured_endpoint_and_region(self):
+        # Building a boto3 client is offline; the factory body only runs
+        # un-faked when called directly (the autouse fixture patches the
+        # module attribute, not this function object).
+        cfg = make_config()
+
+        client = _s3_client(_boto_session(cfg), cfg)
+
+        assert client.meta.endpoint_url == cfg.s3_endpoint_url
+        assert client.meta.region_name == cfg.region
+
+
 class TestEnsureBucket:
     def test_missing_bucket_gets_created(self):
         fake = _FakeS3Client()
@@ -201,6 +218,14 @@ class TestEnsureBucket:
         _ensure_bucket(fake, make_config())
 
         assert fake.create_bucket_calls == 1
+
+    def test_existing_bucket_is_left_untouched(self):
+        fake = _FakeS3Client()
+        fake.head_bucket = lambda **_: None
+
+        _ensure_bucket(fake, make_config())
+
+        assert fake.create_bucket_calls == 0
 
     def test_forbidden_bucket_is_left_untouched(self):
         fake = _FakeS3Client()
@@ -211,3 +236,38 @@ class TestEnsureBucket:
         _ensure_bucket(fake, make_config())
 
         assert fake.create_bucket_calls == 0
+
+    def test_unexpected_client_error_propagates(self):
+        fake = _FakeS3Client()
+        fake.head_bucket = lambda **_: (_ for _ in ()).throw(
+            ClientError("500")
+        )
+
+        with pytest.raises(ClientError, match="500"):
+            _ensure_bucket(fake, make_config())
+
+    def test_default_region_sends_no_location_constraint(self):
+        # AWS rejects LocationConstraint="us-east-1"; the default region
+        # must create the bucket with no constraint payload at all.
+        fake = _FakeS3Client()
+
+        _ensure_bucket(fake, make_config())
+
+        (kwargs,) = fake.create_bucket_kwargs
+        assert kwargs["Bucket"] == "artifacts"
+        assert "CreateBucketConfiguration" not in kwargs
+
+    def test_non_default_region_sends_location_constraint(self):
+        fake = _FakeS3Client()
+        cfg = LocalModeConfig(
+            s3_endpoint_url="http://moto:5000",
+            bucket="artifacts",
+            region="eu-west-1",
+        )
+
+        _ensure_bucket(fake, cfg)
+
+        (kwargs,) = fake.create_bucket_kwargs
+        assert kwargs["CreateBucketConfiguration"] == {
+            "LocationConstraint": "eu-west-1"
+        }
