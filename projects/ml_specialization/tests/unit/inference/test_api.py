@@ -230,6 +230,26 @@ def test_predict_returns_404_when_pickup_count_missing(
     )
 
 
+def test_predict_returns_404_when_pickup_count_is_na(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange — a row exists but its pickup_count cell is null.
+    _inject_resources(monkeypatch, FakePyfuncModel(predictions=[12.5]))
+    frame = _features_frame()
+    frame["pickup_count"] = pd.NA
+    FakeFeatureStore.online_result = frame
+    client = TestClient(app)
+
+    # Act
+    response = client.get("/predict/142")
+
+    # Assert — a null cell takes the 404 contract, not a raw 500.
+    assert response.status_code == 404
+    assert response.json()["detail"] == (
+        "No online features found for location ID 142"
+    )
+
+
 def test_predict_returns_generic_500_and_logs_fetch_failure(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:

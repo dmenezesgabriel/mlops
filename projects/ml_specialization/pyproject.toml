@@ -69,6 +69,12 @@ pythonpath = ["tests"]
 addopts = "-q -rfEs --tb=short --show-capture=no --import-mode=importlib"
 console_output_style = "classic"
 
+[tool.coverage.run]
+# bare `--cov` traces the editable `mlops-shared` workspace dependency and
+# skips never-imported modules; mlops-shared is covered by its own suite,
+# so measure only this package's code.
+source = ["src", "tests"]
+
 [tool.pyright]
 pythonVersion = "3.11"
 typeCheckingMode = "strict"

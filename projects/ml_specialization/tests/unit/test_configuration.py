@@ -63,6 +63,19 @@ def test_project_config_loader_anchors_relative_mlflow_uri_to_project_root(
             "expected number",
             id="bool_test_size",
         ),
+        pytest.param(
+            (
+                "collection:\n  year: 2023\n  months: [1]\n  taxi_type: yellow",
+                "collection: 42",
+            ),
+            "expected mapping",
+            id="non_mapping_collection",
+        ),
+        pytest.param(
+            ("taxi_type: yellow", "taxi_type: 42"),
+            "expected string",
+            id="non_string_taxi_type",
+        ),
     ],
 )
 def test_project_config_loader_rejects_yaml_coerced_values(
@@ -96,15 +109,24 @@ def test_project_config_loader_rejects_config_outside_configs_dir(
         ProjectConfigLoader().load(config_path)
 
 
-def test_project_config_loader_passes_through_in_memory_sqlite_uri(
-    tmp_path: Path, project_config_yaml: str
+@pytest.mark.parametrize(
+    "tracking_uri",
+    [
+        pytest.param("sqlite:///:memory:", id="in_memory_sqlite"),
+        pytest.param("https://tracking.example.com", id="non_sqlite"),
+        pytest.param("sqlite:////var/data/mlflow.db", id="absolute_sqlite"),
+        pytest.param("sqlite:///", id="empty_sqlite_path"),
+    ],
+)
+def test_project_config_loader_passes_through_non_relative_tracking_uris(
+    tmp_path: Path, project_config_yaml: str, tracking_uri: str
 ) -> None:
     # Arrange
     config_path = tmp_path / "configs" / "project.yaml"
     config_path.parent.mkdir()
     config_path.write_text(
         project_config_yaml.replace(
-            "sqlite:///mlflow.db", '"sqlite:///:memory:"'
+            "sqlite:///mlflow.db", f'"{tracking_uri}"'
         ),
         encoding="utf-8",
     )
@@ -112,5 +134,23 @@ def test_project_config_loader_passes_through_in_memory_sqlite_uri(
     # Act
     config = ProjectConfigLoader().load(config_path)
 
+    # Assert — only relative sqlite paths are anchored to the project root.
+    assert config.mlflow.tracking_uri == tracking_uri
+
+
+def test_project_config_loader_accepts_integer_for_float_key(
+    tmp_path: Path, project_config_yaml: str
+) -> None:
+    # Arrange — YAML `1` parses as int; the number contract accepts it.
+    config_path = tmp_path / "configs" / "project.yaml"
+    config_path.parent.mkdir()
+    config_path.write_text(
+        project_config_yaml.replace("max_mae: 1.0", "max_mae: 1"),
+        encoding="utf-8",
+    )
+
+    # Act
+    config = ProjectConfigLoader().load(config_path)
+
     # Assert
-    assert config.mlflow.tracking_uri == "sqlite:///:memory:"
+    assert config.evaluation.max_mae == 1.0

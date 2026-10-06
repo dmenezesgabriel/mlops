@@ -1,12 +1,14 @@
+import logging
 import sys
 from pathlib import Path
 
 import pytest
-from fakes import FailingRunner
+from fakes import FailingRunner, RecordingRunner
 from ml_specialization.interfaces import cli
 from ml_specialization.interfaces.cli import (
     create_parser,
     create_registry,
+    run_command,
 )
 from mlops_shared.pipeline import PipelineCommandRegistry
 
@@ -24,15 +26,65 @@ def test_cli_parser_accepts_pipeline_subcommands() -> None:
     assert arguments.command == "collect"
 
 
-def test_pipeline_command_registry_reports_invalid_command() -> None:
+def test_pipeline_command_registry_lists_pipeline_commands() -> None:
     # Arrange
     registry = create_registry()
 
     # Act
     command_names = registry.names()
 
-    # Assert
-    assert "train" in command_names
+    # Assert — every Makefile recipe must resolve to a registered runner.
+    assert command_names == (
+        "collect",
+        "preprocess",
+        "features",
+        "train",
+        "tune",
+        "evaluate",
+        "deploy",
+        "monitor",
+    )
+
+
+def test_run_command_logs_completed_on_success(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # Arrange
+    runner = RecordingRunner()
+    registry = PipelineCommandRegistry({"collect": runner})
+    config_path = Path("configs/project.yaml")
+
+    # Act
+    with caplog.at_level(logging.INFO, logger="ml_specialization.cli"):
+        run_command(registry, "collect", config_path)
+
+    # Assert — a successful run logs started then completed.
+    assert runner.calls == [config_path]
+    messages = [record.getMessage() for record in caplog.records]
+    assert messages == [
+        "pipeline_command_started",
+        "pipeline_command_completed",
+    ]
+
+
+def test_run_command_propagates_runner_failure(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # Arrange — a swallowed failure would still log "completed" and return.
+    error = ValueError("bad config value")
+    registry = PipelineCommandRegistry({"collect": FailingRunner(error)})
+    config_path = Path("configs/project.yaml")
+
+    # Act / Assert
+    with (
+        caplog.at_level(logging.INFO, logger="ml_specialization.cli"),
+        pytest.raises(ValueError, match="bad config value"),
+    ):
+        run_command(registry, "collect", config_path)
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert "pipeline_command_failed" in messages
+    assert "pipeline_command_completed" not in messages
 
 
 def test_main_missing_config_exits_one_line(

@@ -119,6 +119,16 @@ class FailingRunner:
         raise self._error
 
 
+class RecordingRunner:
+    """Pipeline runner stand-in recording the config paths it ran with."""
+
+    def __init__(self) -> None:
+        self.calls: list[Path] = []
+
+    def __call__(self, config_path: Path) -> None:
+        self.calls.append(config_path)
+
+
 def import_module_for(mapping: dict[str, object]) -> Callable[[str], object]:
     """Build an `import_module` replacement dispatching to the mapping."""
 
