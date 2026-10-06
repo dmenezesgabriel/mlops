@@ -136,7 +136,7 @@ def test_load_champion_model_rejects_empty_registry(
     client = FakeMlflowClient(versions=[])
 
     # Act / Assert
-    with pytest.raises(ValueError, match="No model found for monitoring"):
+    with pytest.raises(ValueError, match="No registered model found"):
         monitor._load_champion_model(client, "model")
 
 

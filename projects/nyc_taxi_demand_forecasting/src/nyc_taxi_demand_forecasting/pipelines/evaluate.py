@@ -13,6 +13,7 @@ from mlops_shared.evaluation import (
 )
 
 from nyc_taxi_demand_forecasting.configuration import ProjectConfigLoader
+from nyc_taxi_demand_forecasting.models.registry import latest_model_version
 from nyc_taxi_demand_forecasting.models.training import DemandDatasetSplitter
 
 
@@ -71,11 +72,7 @@ def run(config_path: Path) -> None:
     client = MlflowClient()
 
     model_name = config.mlflow.registered_model_name
-    latest_versions = client.get_latest_versions(name=model_name)
-    if not latest_versions:
-        raise ValueError(f"No registered model found with name {model_name}")
-
-    latest_version = latest_versions[0].version
+    latest_version = latest_model_version(client, model_name)
     model_uri = f"models:/{model_name}/{latest_version}"
 
     # 3. Load the model and make predictions

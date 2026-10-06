@@ -213,9 +213,15 @@ class FakeMlflowClient:
         self._alias_versions = dict(alias_versions or {})
         self.alias_calls: list[dict[str, object]] = []
         self.tag_calls: list[dict[str, object]] = []
+        self.search_calls: list[str] = []
         type(self).instances.append(self)
 
-    def get_latest_versions(self, name: str) -> list[FakeModelVersion]:
+    def search_model_versions(
+        self, filter_string: str
+    ) -> list[FakeModelVersion]:
+        # Mirrors the real store contract: a missing or versionless model
+        # name returns an empty page — it never raises.
+        self.search_calls.append(filter_string)
         return list(self._versions)
 
     def get_model_version_by_alias(

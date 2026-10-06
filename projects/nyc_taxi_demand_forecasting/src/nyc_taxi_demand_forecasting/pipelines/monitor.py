@@ -12,6 +12,7 @@ from mlflow.pyfunc import PyFuncModel
 from mlops_shared.evaluation import RegressionMetricCalculator
 
 from nyc_taxi_demand_forecasting.configuration import ProjectConfigLoader
+from nyc_taxi_demand_forecasting.models.registry import latest_model_version
 
 
 def _load_champion_model(
@@ -27,12 +28,7 @@ def _load_champion_model(
     except MlflowException:
         champion = None
     if champion is None:
-        latest_versions = client.get_latest_versions(name=model_name)
-        if not latest_versions:
-            raise ValueError(
-                f"No model found for monitoring under name {model_name}"
-            )
-        version = latest_versions[0].version
+        version = latest_model_version(client, model_name)
         model_uri = f"models:/{model_name}/{version}"
         return mlflow.pyfunc.load_model(model_uri), version, None
     model_uri = f"models:/{model_name}@champion"
