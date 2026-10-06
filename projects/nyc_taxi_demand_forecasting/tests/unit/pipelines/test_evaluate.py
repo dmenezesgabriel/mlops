@@ -2,9 +2,9 @@ from dataclasses import replace
 from functools import partial
 from pathlib import Path
 
-import feast
 import pytest
 from fakes import (
+    FakeFeastModule,
     FakeFeatureStore,
     FakeMlflowClient,
     FakeMlflowModule,
@@ -12,6 +12,7 @@ from fakes import (
     FakeProjectConfigLoader,
     FakePyfuncModel,
     entity_frame,
+    import_module_for,
     project_config,
     training_frame,
 )
@@ -52,7 +53,11 @@ def _patch_seams(
     monkeypatch.setattr(
         evaluate, "MlflowClient", partial(FakeMlflowClient, versions=versions)
     )
-    monkeypatch.setattr(feast, "FeatureStore", FakeFeatureStore)
+    monkeypatch.setattr(
+        evaluate,
+        "import_module",
+        import_module_for({"feast": FakeFeastModule}),
+    )
 
 
 def test_evaluate_scores_and_tags_latest_version(

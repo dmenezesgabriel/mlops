@@ -79,18 +79,6 @@ class FakeFeastModule:
     FeatureStore = FakeFeatureStore
 
 
-class FakeFeatureRepoEntitiesModule:
-    """`entities` feature-repo module stand-in; sentinel attribute."""
-
-    pickup_location = object()
-
-
-class FakeFeatureRepoViewsModule:
-    """`feature_views` feature-repo module stand-in; sentinel attribute."""
-
-    hourly_pickup_demand_view = object()
-
-
 class FakeModelVersion:
     def __init__(self, version: str) -> None:
         self.version = version
@@ -420,15 +408,25 @@ class RecordingRunner:
         self.calls.append(config_path)
 
 
-def import_module_for(mapping: dict[str, object]) -> Callable[[str], object]:
-    """Build an `import_module` replacement dispatching to the mapping."""
+def import_module_for(
+    mapping: dict[str, object],
+    fallback: Callable[[str], object] | None = None,
+) -> Callable[[str], object]:
+    """Build an `import_module` replacement dispatching to the mapping.
+
+    Unmapped names raise unless `fallback` is given — pass the real
+    `import_module` when the test needs genuine import machinery for names
+    outside the faked set (e.g. feature-repo definition modules).
+    """
 
     def _import(name: str) -> object:
-        if name not in mapping:
-            raise ImportError(
-                f"Unexpected import {name}: expected one of {sorted(mapping)}"
-            )
-        return mapping[name]
+        if name in mapping:
+            return mapping[name]
+        if fallback is not None:
+            return fallback(name)
+        raise ImportError(
+            f"Unexpected import {name}: expected one of {sorted(mapping)}"
+        )
 
     return _import
 

@@ -11,6 +11,7 @@ from fakes import (
     FakeFeatureStore,
     FakeMlflowModule,
     FakePyfuncModel,
+    import_module_for,
 )
 from fastapi.testclient import TestClient
 from mlflow.exceptions import MlflowException
@@ -50,7 +51,9 @@ def _fake_boundaries(
     monkeypatch: pytest.MonkeyPatch, fake_mlflow: FakeMlflowModule
 ) -> None:
     monkeypatch.setattr(api, "mlflow", fake_mlflow)
-    monkeypatch.setattr(api, "FeatureStore", FakeFeatureStore)
+    monkeypatch.setattr(
+        api, "import_module", import_module_for({"feast": FakeFeastModule})
+    )
     monkeypatch.setattr(api, "_resources", None)
 
 

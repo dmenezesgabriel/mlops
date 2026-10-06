@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Iterable
+from importlib import import_module
 from pathlib import Path
 from typing import cast
 
@@ -47,9 +48,8 @@ def run(config_path: Path) -> None:
         ["pickup_location_id", "event_timestamp", "next_hour_pickup_count"]
     ]
 
-    from feast import FeatureStore
-
-    store = FeatureStore(repo_path=str(config.feast.repo_path))
+    feature_store_type = import_module("feast").FeatureStore
+    store = feature_store_type(repo_path=str(config.feast.repo_path))
     training_data = store.get_historical_features(
         entity_df=entity_df,
         features=[

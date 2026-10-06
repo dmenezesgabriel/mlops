@@ -1,8 +1,8 @@
 from datetime import timedelta
+from importlib import import_module
 from pathlib import Path
 
 import pandas as pd
-from feast import FeatureStore
 
 from nyc_taxi_demand_forecasting.configuration import ProjectConfigLoader
 from nyc_taxi_demand_forecasting.data.supervised_dataset import (
@@ -31,7 +31,8 @@ def run(config_path: Path) -> None:
     LocalFeastMaterializer().apply(config.feast.repo_path)
 
     # Materialize features from offline store into the online SQLite database
-    store = FeatureStore(repo_path=str(config.feast.repo_path))
+    feature_store_type = import_module("feast").FeatureStore
+    store = feature_store_type(repo_path=str(config.feast.repo_path))
     event_timestamps = pd.read_parquet(
         config.features.offline_features_path, columns=["event_timestamp"]
     )["event_timestamp"]

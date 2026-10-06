@@ -1,17 +1,20 @@
 import logging
 from dataclasses import dataclass
+from importlib import import_module
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import mlflow
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
-from feast import FeatureStore
 from mlflow.exceptions import MlflowException
 from mlflow.pyfunc import PyFuncModel
 
 from nyc_taxi_demand_forecasting.configuration import ProjectConfigLoader
+
+if TYPE_CHECKING:
+    from feast import FeatureStore
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +34,7 @@ _FEATURE_COLUMNS = [
 
 @dataclass(frozen=True)
 class _ServingResources:
-    store: FeatureStore
+    store: "FeatureStore"
     model: PyFuncModel | None
 
 
@@ -42,7 +45,8 @@ def _load_serving_resources() -> _ServingResources:
     """Build the store and champion model; a registry-level load failure logs
     the cause and degrades to the 503 contract — anything else propagates."""
     config = ProjectConfigLoader().load(_CONFIG_PATH)
-    store = FeatureStore(repo_path=str(config.feast.repo_path))
+    feature_store_type = import_module("feast").FeatureStore
+    store = feature_store_type(repo_path=str(config.feast.repo_path))
     mlflow.set_tracking_uri(config.mlflow.tracking_uri)
     model_uri = f"models:/{config.mlflow.registered_model_name}@champion"
     try:

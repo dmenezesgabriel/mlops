@@ -6,9 +6,11 @@ import pandas as pd
 import pytest
 from fakes import (
     FakeFeastMaterializer,
+    FakeFeastModule,
     FakeFeatureStore,
     FakeProjectConfigLoader,
     FakeRecordingBuilder,
+    import_module_for,
     project_config,
 )
 from nyc_taxi_demand_forecasting.pipelines import features
@@ -24,7 +26,11 @@ def _stub_builders(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         features, "LocalFeastMaterializer", FakeFeastMaterializer
     )
-    monkeypatch.setattr(features, "FeatureStore", FakeFeatureStore)
+    monkeypatch.setattr(
+        features,
+        "import_module",
+        import_module_for({"feast": FakeFeastModule}),
+    )
 
 
 def test_features_run_builds_datasets_and_materializes(
