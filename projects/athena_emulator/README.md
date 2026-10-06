@@ -17,6 +17,7 @@ Stack (`docker-compose.yml`, network `mlops_net`): `athena` :5001 (emulator),
 - `notebooks/NN_*.ipynb` — one notebook per surface; committed executed
   outputs are the evidence
 - `notebooks/_evidence.py` — shared evidence recorder
+- `notebooks/_helpers.py` — shared probe/cleanup helpers (imported like `_evidence`)
 - `parity/NN_*.md` — per-notebook matrix fragments (generated)
 - `PARITY.md` — consolidated matrix (generated; do not edit by hand)
 - `tests/test_notebooks.py` — nbclient execution hook (`integration` marker,

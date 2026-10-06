@@ -34,14 +34,11 @@ import pytest
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 NOTEBOOKS_DIR = PROJECT_DIR / "notebooks"
+PARITY_DIR = PROJECT_DIR / "parity"
 
-NOTEBOOKS = [
-    "01_smoke_and_endpoints.ipynb",
-    "02_boto3_control_plane.ipynb",
-    "03_boto3_query_lifecycle.ipynb",
-    "04_wrangler_read_paths.ipynb",
-    "05_wrangler_write_catalog_and_gaps.ipynb",
-]
+# Parametrized from the directory so a new .ipynb is executed automatically —
+# a literal list would silently leave new notebooks unexecuted/unpersisted.
+NOTEBOOKS = [path.name for path in sorted(NOTEBOOKS_DIR.glob("*.ipynb"))]
 
 ATHENA_URL = os.environ.get("AWS_ENDPOINT_URL_ATHENA", "http://localhost:5001")
 
@@ -87,13 +84,40 @@ def _execute_notebook(name: str) -> None:
     nbformat.write(notebook, notebook_path)
 
 
+def _fragment_mtime(stem: str) -> int:
+    fragment = PARITY_DIR / f"{stem}.md"
+    return fragment.stat().st_mtime_ns if fragment.is_file() else 0
+
+
+def test_notebooks_parametrized_from_disk() -> None:
+    """Every ``notebooks/*.ipynb`` must be a test parameter."""
+    expected = [path.name for path in sorted(NOTEBOOKS_DIR.glob("*.ipynb"))]
+    assert NOTEBOOKS == expected
+
+
+def test_every_notebook_persisted_a_fragment() -> None:
+    """Each notebook stem needs a committed ``parity/<stem>.md`` — a
+    notebook that never ran (or never persisted) shows up here."""
+    stems = {path.stem for path in NOTEBOOKS_DIR.glob("*.ipynb")}
+    fragments = {path.stem for path in PARITY_DIR.glob("*.md")}
+    missing = stems - fragments
+    assert not missing, (
+        f"notebooks without a parity fragment: {sorted(missing)}"
+    )
+
+
 @pytest.mark.integration
 @pytest.mark.parametrize("notebook_name", NOTEBOOKS)
 def test_notebook_runs_end_to_end(
     notebook_name: str, live_emulator: None
 ) -> None:
-    """Each parity notebook must execute cleanly against the live stack."""
+    """Each parity notebook must execute cleanly and persist its fragment."""
+    stem = Path(notebook_name).stem
+    persisted_before = _fragment_mtime(stem)
     _execute_notebook(notebook_name)
+    assert _fragment_mtime(stem) > persisted_before, (
+        f"{notebook_name} executed without writing parity/{stem}.md"
+    )
 
 
 @pytest.mark.parametrize(
