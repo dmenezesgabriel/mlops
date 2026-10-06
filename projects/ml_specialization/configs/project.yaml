@@ -10,7 +10,6 @@ collection:
   year: 2023
   months: [1]
   taxi_type: yellow
-  source_url_template: https://d37ci6vzurychx.cloudfront.net/trip-data/{taxi_type}_tripdata_{year}-{month:02d}.parquet
 features:
   training_dataset_path: data/processed/training_dataset.parquet
   offline_features_path: data/processed/hourly_demand_features.parquet

@@ -81,6 +81,13 @@ reportMissingImports = false
 [tool.vulture]
 min_confidence = 80
 # Stub implementations for the specialization exercises keep the documented
-# parameter names (see each class docstring) even though the bodies are TODO.
-ignore_names = ["raw_directory", "n_trials"]
+# parameter names (see each class docstring) even though the bodies raise
+# NotImplementedError.
+ignore_names = [
+  "raw_directory",
+  "n_trials",
+  "output_directory",
+  "trips_path",
+  "training_dataset_path",
+]
 sort_by_size = true

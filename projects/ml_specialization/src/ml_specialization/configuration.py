@@ -23,12 +23,6 @@ class CollectionConfig:
     year: int
     months: tuple[int, ...]
     taxi_type: str
-    source_url_template: str
-
-    def source_url(self, month: int) -> str:
-        return self.source_url_template.format(
-            year=self.year, month=month, taxi_type=self.taxi_type
-        )
 
 
 @dataclass(frozen=True)
@@ -127,9 +121,6 @@ class ProjectConfigLoader:
             year=self._integer(collection, "year"),
             months=tuple(self._integer_list(collection, "months")),
             taxi_type=self._string(collection, "taxi_type"),
-            source_url_template=self._string(
-                collection, "source_url_template"
-            ),
         )
 
     def _features(

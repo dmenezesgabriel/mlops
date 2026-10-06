@@ -30,4 +30,5 @@ make evaluate PROJECT=ml_specialization
 
 Scaffolded with `make scaffold PROJECT=ml_specialization`. The pipeline stubs,
 configs, feature repo, and MLflow tracking exist per the monorepo template even
-though the primary use is note and notebook organization.
+though the primary use is note and notebook organization; every pipeline
+`run()` and unimplemented domain stub raises `NotImplementedError`.
