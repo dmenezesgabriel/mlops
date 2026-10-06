@@ -1,11 +1,10 @@
-from collections.abc import Iterator
 from typing import Any
-from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pandas as pd
 import pytest
+from fakes import FakeFeatureStore, FakePyfuncModel
 from fastapi.testclient import TestClient
+from ml_specialization.inference import api
 from ml_specialization.inference.api import app
 from pytest_bdd import given, scenario, then, when
 
@@ -27,29 +26,27 @@ def test_client() -> TestClient:
 
 
 @pytest.fixture
-def mock_fetch() -> Iterator[MagicMock]:
-    with patch(
-        "ml_specialization.inference.api.fetch_online_features"
-    ) as mock:
-        yield mock
-
-
-@pytest.fixture
-def mock_model() -> Iterator[MagicMock]:
-    with patch("ml_specialization.inference.api._model") as mock:
-        yield mock
+def serving_resources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> api._ServingResources:
+    store = FakeFeatureStore(repo_path="repo")
+    resources = api._ServingResources(
+        store=store, model=FakePyfuncModel(predictions=[12.5])
+    )
+    monkeypatch.setattr(api, "_resources", resources)
+    return resources
 
 
 @given("the champion model is promoted and loaded")
-def step_model_loaded(mock_model: MagicMock) -> None:
-    # Arrange
-    mock_model.predict.return_value = np.array([12.5])
+def step_model_loaded(serving_resources: api._ServingResources) -> None:
+    # Arrange — the injected champion model already returns 12.5
+    assert serving_resources.model is not None
 
 
 @given("online features exist for pickup location 142")
-def step_features_exist(mock_fetch: MagicMock) -> None:
+def step_features_exist() -> None:
     # Arrange
-    mock_fetch.return_value = pd.DataFrame(
+    FakeFeatureStore.online_result = pd.DataFrame(
         [
             {
                 "pickup_count": 10,
