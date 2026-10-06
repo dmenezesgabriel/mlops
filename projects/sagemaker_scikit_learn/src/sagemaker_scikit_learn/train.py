@@ -34,14 +34,11 @@ from sklearn.preprocessing import StandardScaler
 
 MODEL_DIR = os.environ.get("SM_MODEL_DIR", "/opt/ml/model")
 
-# dataset -> (task, loader). loaders return (X, y) from sklearn's Bunch.
+# dataset -> (task, loader). loaders return (X, y).
 _DATASETS = {
     "california_housing": (
         "regression",
-        lambda: (
-            fetch_california_housing().data,
-            fetch_california_housing().target,
-        ),
+        lambda: fetch_california_housing(return_X_y=True),
     ),
     "breast_cancer": (
         "classification",
@@ -63,10 +60,22 @@ def build_model(task: str) -> Pipeline:
     raise ValueError(f"unknown task: {task!r}")
 
 
+def _parse_sm_hps() -> dict[str, object]:
+    raw = os.environ.get("SM_HPS", "{}")
+    try:
+        hps = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"SM_HPS is not valid JSON: {exc}") from exc
+    if not isinstance(hps, dict):
+        raise ValueError(
+            f"SM_HPS must be a JSON object, got {hps!r} ({type(hps).__name__})"
+        )
+    return hps
+
+
 def main() -> None:
-    hps = json.loads(os.environ.get("SM_HPS", "{}"))
-    dataset = hps.get("dataset", "california_housing")
-    if dataset not in _DATASETS:
+    dataset = _parse_sm_hps().get("dataset", "california_housing")
+    if not isinstance(dataset, str) or dataset not in _DATASETS:
         raise ValueError(
             f"unsupported dataset: {dataset!r}; expected one of "
             f"{sorted(_DATASETS)}"

@@ -33,7 +33,7 @@ from xgboost import XGBClassifier, XGBRegressor
 
 MODEL_DIR = os.environ.get("SM_MODEL_DIR", "/opt/ml/model")
 
-# dataset -> (task, loader). loaders return (X, y) from sklearn's Bunch.
+# dataset -> (task, loader). loaders return (X, y).
 _DATASETS = {
     "diabetes": (
         "regression",
@@ -46,7 +46,7 @@ _DATASETS = {
 }
 
 
-def build_model(task: str):
+def build_model(task: str) -> XGBRegressor | XGBClassifier:
     if task == "regression":
         return XGBRegressor(n_estimators=50)
     if task == "classification":
@@ -54,10 +54,22 @@ def build_model(task: str):
     raise ValueError(f"unknown task: {task!r}")
 
 
+def _parse_sm_hps() -> dict[str, object]:
+    raw = os.environ.get("SM_HPS", "{}")
+    try:
+        hps = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"SM_HPS is not valid JSON: {exc}") from exc
+    if not isinstance(hps, dict):
+        raise ValueError(
+            f"SM_HPS must be a JSON object, got {hps!r} ({type(hps).__name__})"
+        )
+    return hps
+
+
 def main() -> None:
-    hps = json.loads(os.environ.get("SM_HPS", "{}"))
-    dataset = hps.get("dataset", "diabetes")
-    if dataset not in _DATASETS:
+    dataset = _parse_sm_hps().get("dataset", "diabetes")
+    if not isinstance(dataset, str) or dataset not in _DATASETS:
         raise ValueError(
             f"unsupported dataset: {dataset!r}; expected one of {sorted(_DATASETS)}"
         )

@@ -74,6 +74,17 @@ def test_build_model_rejects_unknown_task(train_module: ModuleType) -> None:
         train_module.build_model("unknown")
 
 
+def test_build_model_declares_return_annotation(
+    train_module: ModuleType,
+) -> None:
+    # Assert: pyright infers the return silently, so the declared annotation
+    # is the parity contract with the scikit sibling (`-> Pipeline`).
+    assert (
+        train_module.build_model.__annotations__["return"]
+        == "XGBRegressor | XGBClassifier"
+    )
+
+
 def test_main_trains_and_persists_model(
     train_module: ModuleType,
     tmp_path: Path,
@@ -113,6 +124,36 @@ def test_main_rejects_unsupported_dataset(
 ) -> None:
     # Arrange
     monkeypatch.setenv("SM_HPS", json.dumps({"dataset": "cifar"}))
+    monkeypatch.setattr(train_module, "MODEL_DIR", str(tmp_path))
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="unsupported dataset"):
+        train_module.main()
+
+
+@pytest.mark.parametrize("raw_hps", ["not-json", "", "[1, 2]", "42"])
+def test_main_rejects_invalid_sm_hps(
+    raw_hps: str,
+    train_module: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    monkeypatch.setenv("SM_HPS", raw_hps)
+    monkeypatch.setattr(train_module, "MODEL_DIR", str(tmp_path))
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="SM_HPS"):
+        train_module.main()
+
+
+def test_main_rejects_non_string_dataset(
+    train_module: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    monkeypatch.setenv("SM_HPS", json.dumps({"dataset": ["x"]}))
     monkeypatch.setattr(train_module, "MODEL_DIR", str(tmp_path))
 
     # Act / Assert

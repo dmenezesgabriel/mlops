@@ -13,15 +13,28 @@ import pytest
 from sagemaker_scikit_learn import train as train_module
 from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.pipeline import Pipeline
-from sklearn.utils import Bunch
 
 
-def _fake_california_housing() -> Bunch:
-    # The real fetcher downloads from the network; a tiny Bunch keeps main()
-    # fast and offline.
-    return Bunch(
-        data=[[1.0], [2.0], [3.0], [4.0]], target=[0.1, 0.2, 0.3, 0.4]
-    )
+def _fake_california_housing(
+    *args: object, **kwargs: object
+) -> tuple[list[list[float]], list[float]]:
+    # The real fetcher downloads from the network and is called with
+    # return_X_y=True, so it yields a (data, target) tuple — a tiny frame
+    # keeps main() fast and offline.
+    return [[1.0], [2.0], [3.0], [4.0]], [0.1, 0.2, 0.3, 0.4]
+
+
+class _CountingCaliforniaHousingFetch:
+    """``fetch_california_housing`` stand-in that records its call count."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def __call__(
+        self, *args: object, **kwargs: object
+    ) -> tuple[list[list[float]], list[float]]:
+        self.calls += 1
+        return _fake_california_housing()
 
 
 def test_build_model_returns_ridge_pipeline_for_regression() -> None:
@@ -92,3 +105,48 @@ def test_main_rejects_unsupported_dataset(
     # Act / Assert
     with pytest.raises(ValueError, match="unsupported dataset"):
         train_module.main()
+
+
+@pytest.mark.parametrize("raw_hps", ["not-json", "", "[1, 2]", "42"])
+def test_main_rejects_invalid_sm_hps(
+    raw_hps: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    monkeypatch.setenv("SM_HPS", raw_hps)
+    monkeypatch.setattr(train_module, "MODEL_DIR", str(tmp_path))
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="SM_HPS"):
+        train_module.main()
+
+
+def test_main_rejects_non_string_dataset(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    monkeypatch.setenv("SM_HPS", json.dumps({"dataset": ["x"]}))
+    monkeypatch.setattr(train_module, "MODEL_DIR", str(tmp_path))
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="unsupported dataset"):
+        train_module.main()
+
+
+def test_main_fetches_california_housing_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    fetch = _CountingCaliforniaHousingFetch()
+    monkeypatch.delenv("SM_HPS", raising=False)
+    monkeypatch.setattr(train_module, "MODEL_DIR", str(tmp_path))
+    monkeypatch.setattr(train_module, "fetch_california_housing", fetch)
+
+    # Act
+    train_module.main()
+
+    # Assert
+    assert fetch.calls == 1
