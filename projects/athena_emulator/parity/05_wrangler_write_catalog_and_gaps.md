@@ -2,18 +2,18 @@
 
 | feature | status | detail | latency_ms |
 |---|---|---|---|
-| wr.s3.to_parquet(dataset=True) registers tables + partitions | PASS | nb05_orders_6079d3a0 + nb05_sales_6079d3a0 registered; sales partitions=[['EU'], ['US']] |  |
-| wr.athena.create_ctas_table (named CTAS → Glue table + parquet) | PASS | 18426968-9143-42fd-a48d-73eca03eb0ee read back (2, 3); 1 object(s) at external_location; manifest=18426968-9143-42fd-a48d-73eca03eb0ee-manifest.csv | 2338 |
+| wr.s3.to_parquet(dataset=True) registers tables + partitions | PASS | nb05_orders_ddd8fd36 + nb05_sales_ddd8fd36 registered; sales partitions=[['EU'], ['US']] |  |
+| wr.athena.create_ctas_table (named CTAS → Glue table + parquet) | PASS | 735f8b12-2a70-43a1-a83f-6099f3488838 read back (2, 3); 1 object(s) at external_location; manifest=735f8b12-2a70-43a1-a83f-6099f3488838-manifest.csv | 2388.7 |
 | generate_create_query emits CREATE EXTERNAL TABLE DDL | PASS | 562 chars; external=True partitioned=True |  |
 | wr.catalog.add_parquet_partitions registers a staged partition | PASS | 3 partitions after add: [['EU'], ['US'], ['AP']] |  |
 | wr.catalog.delete_partitions unregisters a partition | PASS | 2 partitions after delete: [['EU'], ['US']] |  |
-| wr.s3.store_parquet_metadata registers inferred schema + partitions | PASS | nb05_meta_6079d3a0 columns=['amount', 'quantity'] partition_types={'region': 'string'} values=[['EU'], ['US']] |  |
-| wr.s3.delete_objects removes a staged prefix | PASS | s3://nb05-1b9e365e30b6/meta/sales/ emptied |  |
-| wr.catalog.delete_all_partitions empties the registry | PASS | nb05_meta_6079d3a0 has 0 partitions |  |
-| wr.catalog.delete_table_if_exists drops the table | PASS | nb05_meta_6079d3a0 absent from the catalog |  |
-| wr.catalog.delete_database removes an empty database | PASS | nb05_scratch_6079d3a0 absent from get_databases |  |
-| CREATE EXTERNAL TABLE via StartQueryExecution (Athena DDL) | PASS | SUCCEEDED: fdf48afb-7f8a-4c67-9b9b-9e77b79f344d |  |
-| ALTER TABLE … ADD PARTITION (Athena DDL) | PASS | SUCCEEDED: bdb593e4-b090-46ac-8fd3-fecde58e9d50 |  |
+| wr.s3.store_parquet_metadata registers inferred schema + partitions | PASS | nb05_meta_ddd8fd36 columns=['amount', 'quantity'] partition_types={'region': 'string'} values=[['EU'], ['US']] |  |
+| wr.s3.delete_objects removes a staged prefix | PASS | s3://nb05-89462785e785/meta/sales/ emptied |  |
+| wr.catalog.delete_all_partitions empties the registry | PASS | nb05_meta_ddd8fd36 has 0 partitions |  |
+| wr.catalog.delete_table_if_exists drops the table | PASS | nb05_meta_ddd8fd36 absent from the catalog |  |
+| wr.catalog.delete_database removes an empty database | PASS | nb05_scratch_ddd8fd36 absent from get_databases |  |
+| CREATE EXTERNAL TABLE via StartQueryExecution (Athena DDL) | PASS | SUCCEEDED: dbc227c2-5e1d-4dde-9df8-85400d13751a |  |
+| ALTER TABLE … ADD PARTITION (Athena DDL) | PASS | SUCCEEDED: bf963cf8-e43b-4a77-b8a0-2c8a6852ed26 |  |
 | wr.athena.to_iceberg (Iceberg table write) | PASS | created |  |
 | wr.athena.delete_from_iceberg_table (row delete) | PASS | deleted |  |
 | SSE_KMS EncryptionConfiguration on CTAS | PASS | EncryptionConfiguration={'EncryptionOption': 'SSE_KMS', 'KmsKey': 'arn:aws:kms:us-east-1:123456789012:key/00000000-0000-0000-0000-000000000000'} |  |
