@@ -10,10 +10,7 @@
 ├── .gitignore                      <- Files and folders ignored by Git.
 │
 ├── configs                         <- Runtime configuration files for reproducible jobs and pipelines.
-│   ├── train.yaml                  <- Training config: dataset paths, features, model params, split strategy.
-│   ├── evaluate.yaml               <- Evaluation config: metrics, thresholds, validation datasets.
-│   ├── predict.yaml                <- Prediction config: model path, input data, output destination.
-│   └── materialize.yaml            <- Feature materialization config: time range, feature views, offline/online targets.
+│   └── project.yaml                <- Project config: paths, collection, features, mlflow, training, evaluation, feast.
 │
 ├── feature_repo                    <- Feature store repository, e.g. Feast feature definitions and store config.
 │   ├── feature_store.yaml          <- Feature store config: registry, provider, offline store, online store.

@@ -115,6 +115,69 @@ def test_project_config_loader_rejects_invalid_sections(
         ProjectConfigLoader().load(config_path)
 
 
+@pytest.mark.parametrize(
+    ("config_edit", "match"),
+    [
+        pytest.param(
+            ("months: [1]", "months: [1]\n  1: a\n  '1': b"),
+            "expected string key",
+            id="non_string_collection_keys",
+        ),
+        pytest.param(
+            ("months: [1]", "months: [1]\n  on: x"),
+            "expected string key",
+            id="yaml_bool_collection_key",
+        ),
+        pytest.param(
+            ("months: [1]", "months: [on, off]"),
+            "expected integer list",
+            id="bool_months",
+        ),
+        pytest.param(
+            ("year: 2023", "year: yes"),
+            "expected integer",
+            id="bool_year",
+        ),
+        pytest.param(
+            ("test_size: 0.2", "test_size: on"),
+            "expected number",
+            id="bool_test_size",
+        ),
+        pytest.param(
+            ("months: [1]", "months: []"),
+            "expected a non-empty integer list",
+            id="empty_months",
+        ),
+    ],
+)
+def test_project_config_loader_rejects_yaml_coerced_values(
+    tmp_path: Path, config_edit: tuple[str, str], match: str
+) -> None:
+    # Arrange
+    config_path = tmp_path / "configs" / "project.yaml"
+    config_path.parent.mkdir()
+    old, new = config_edit
+    config_path.write_text(
+        _project_config().replace(old, new), encoding="utf-8"
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match=match):
+        ProjectConfigLoader().load(config_path)
+
+
+def test_project_config_loader_rejects_config_outside_configs_dir(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    config_path = tmp_path / "project.yaml"
+    config_path.write_text(_project_config(), encoding="utf-8")
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="configs/"):
+        ProjectConfigLoader().load(config_path)
+
+
 def _mutate(
     config: dict[str, object],
     section: str | None,
