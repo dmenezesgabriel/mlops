@@ -12,6 +12,11 @@ from nyc_taxi_demand_forecasting.configuration import (
     FeastConfig,
     MlflowConfig,
 )
+from nyc_taxi_demand_forecasting.features.hourly_demand import (
+    FEATURE_COLUMNS,
+    FEATURE_REFS,
+    load_entity_df,
+)
 from nyc_taxi_demand_forecasting.models.training import (
     DemandDatasetSplitter,
     RidgeDemandRegressor,
@@ -33,14 +38,6 @@ class DemandModelTuner:
         )
     """
 
-    _feature_columns = (
-        "pickup_count",
-        "hour",
-        "day_of_week",
-        "is_weekend",
-        "month",
-    )
-
     def select_best(
         self,
         dataset_path: Path,
@@ -49,7 +46,7 @@ class DemandModelTuner:
         feast_config: FeastConfig,
         mlflow_config: MlflowConfig,
     ) -> TuningResult:
-        entity_df = self._load_entity_df(dataset_path)
+        entity_df = load_entity_df(dataset_path)
         training_data = self._fetch_features(entity_df, feast_config)
         train_frame, val_frame = DemandDatasetSplitter().split(
             training_data, test_size
@@ -60,23 +57,6 @@ class DemandModelTuner:
             train_frame, val_frame, target_column
         )
         return TuningResult(alpha=best_alpha, validation_mae=best_mae)
-
-    def _load_entity_df(self, dataset_path: Path) -> pd.DataFrame:
-        entity_df = pd.read_parquet(dataset_path)
-        if "event_timestamp" not in entity_df.columns:
-            entity_df["event_timestamp"] = pd.to_datetime(
-                entity_df["pickup_hour"]
-            )
-        entity_df["event_timestamp"] = pd.to_datetime(
-            entity_df["event_timestamp"]
-        )
-        return entity_df[
-            [
-                "pickup_location_id",
-                "event_timestamp",
-                "next_hour_pickup_count",
-            ]
-        ]
 
     def _fetch_features(
         self, entity_df: pd.DataFrame, feast_config: FeastConfig
@@ -89,13 +69,7 @@ class DemandModelTuner:
             pd.DataFrame,
             store.get_historical_features(
                 entity_df=entity_df,
-                features=[
-                    "hourly_pickup_demand:pickup_count",
-                    "hourly_pickup_demand:hour",
-                    "hourly_pickup_demand:day_of_week",
-                    "hourly_pickup_demand:is_weekend",
-                    "hourly_pickup_demand:month",
-                ],
+                features=list(FEATURE_REFS),
             ).to_df(),
         )
 
@@ -144,11 +118,11 @@ class DemandModelTuner:
         ):
             model = RidgeDemandRegressor(alpha=alpha)
             model.fit(
-                train_frame.loc[:, list(self._feature_columns)],
+                train_frame.loc[:, list(FEATURE_COLUMNS)],
                 train_frame[target_column],
             )
             predictions = model.predict(
-                val_frame.loc[:, list(self._feature_columns)]
+                val_frame.loc[:, list(FEATURE_COLUMNS)]
             )
             metrics = RegressionMetricCalculator().calculate(
                 val_frame[target_column], predictions

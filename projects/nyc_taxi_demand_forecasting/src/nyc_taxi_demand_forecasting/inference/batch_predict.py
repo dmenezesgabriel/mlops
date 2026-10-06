@@ -5,6 +5,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from nyc_taxi_demand_forecasting.features.hourly_demand import FEATURE_COLUMNS
+
 
 class BatchDemandPredictor:
     """Score processed demand rows with an MLflow model URI.
@@ -12,14 +14,6 @@ class BatchDemandPredictor:
     Example:
         BatchDemandPredictor().predict("models:/name/latest", input_path, output_path)
     """
-
-    _feature_columns = (
-        "pickup_count",
-        "hour",
-        "day_of_week",
-        "is_weekend",
-        "month",
-    )
 
     def predict(
         self, model_uri: str, input_path: Path, output_path: Path
@@ -30,7 +24,7 @@ class BatchDemandPredictor:
         # pyfunc emits an ndarray, so normalize the output shape before the
         # frame assignment instead of trusting a Series.
         raw_predictions: Any = model.predict(
-            input_frame.loc[:, list(self._feature_columns)]
+            input_frame.loc[:, list(FEATURE_COLUMNS)]
         )
         predictions = np.asarray(raw_predictions).ravel()
         output_frame = input_frame.assign(prediction=predictions)

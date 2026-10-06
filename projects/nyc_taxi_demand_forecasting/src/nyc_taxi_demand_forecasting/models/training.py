@@ -17,6 +17,11 @@ from nyc_taxi_demand_forecasting.configuration import (
     TrainingConfig,
 )
 from nyc_taxi_demand_forecasting.evaluation.metrics import RegressionMetrics
+from nyc_taxi_demand_forecasting.features.hourly_demand import (
+    FEATURE_COLUMNS,
+    FEATURE_REFS,
+    load_entity_df,
+)
 
 
 class DemandRegressor(Protocol):
@@ -117,14 +122,6 @@ class DemandModelTrainer:
         DemandModelTrainer().train(dataset_path, models_path, training, mlflow, feast)
     """
 
-    _feature_columns = (
-        "pickup_count",
-        "hour",
-        "day_of_week",
-        "is_weekend",
-        "month",
-    )
-
     def __init__(self, splitter: DemandDatasetSplitter | None = None) -> None:
         self._splitter = splitter or DemandDatasetSplitter()
 
@@ -137,31 +134,14 @@ class DemandModelTrainer:
         feast_config: FeastConfig,
         alpha: float = 1.0,
     ) -> RegressionMetrics:
-        # Load entities dataframe
-        entity_df = pd.read_parquet(dataset_path)
-        if "event_timestamp" not in entity_df.columns:
-            entity_df["event_timestamp"] = pd.to_datetime(
-                entity_df["pickup_hour"]
-            )
-        entity_df["event_timestamp"] = pd.to_datetime(
-            entity_df["event_timestamp"]
-        )
-        entity_df = entity_df[
-            ["pickup_location_id", "event_timestamp", "next_hour_pickup_count"]
-        ]
+        entity_df = load_entity_df(dataset_path)
 
         # Fetch historical features from Feast Feature Store
         feature_store_type = import_module("feast").FeatureStore
         store = feature_store_type(repo_path=str(feast_config.repo_path))
         training_data = store.get_historical_features(
             entity_df=entity_df,
-            features=[
-                "hourly_pickup_demand:pickup_count",
-                "hourly_pickup_demand:hour",
-                "hourly_pickup_demand:day_of_week",
-                "hourly_pickup_demand:is_weekend",
-                "hourly_pickup_demand:month",
-            ],
+            features=list(FEATURE_REFS),
         ).to_df()
 
         train_frame, test_frame = self._splitter.split(
@@ -169,13 +149,11 @@ class DemandModelTrainer:
         )
         model = RidgeDemandRegressor(alpha=alpha)
         model.fit(
-            train_frame.loc[:, list(self._feature_columns)],
+            train_frame.loc[:, list(FEATURE_COLUMNS)],
             train_frame[training_config.target_column],
         )
 
-        predictions = model.predict(
-            test_frame.loc[:, list(self._feature_columns)]
-        )
+        predictions = model.predict(test_frame.loc[:, list(FEATURE_COLUMNS)])
         metrics = RegressionMetricCalculator().calculate(
             test_frame[training_config.target_column], predictions
         )

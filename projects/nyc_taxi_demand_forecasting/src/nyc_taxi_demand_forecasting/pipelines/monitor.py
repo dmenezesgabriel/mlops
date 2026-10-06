@@ -1,5 +1,6 @@
 import logging
 import math
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,7 @@ from mlflow.pyfunc import PyFuncModel
 from mlops_shared.evaluation import RegressionMetricCalculator
 
 from nyc_taxi_demand_forecasting.configuration import ProjectConfigLoader
+from nyc_taxi_demand_forecasting.features.hourly_demand import FEATURE_COLUMNS
 from nyc_taxi_demand_forecasting.models.registry import latest_model_version
 
 
@@ -59,7 +61,7 @@ def _drift_stats(
 def _feature_drift_rows(
     training_data: pd.DataFrame,
     simulated_prod: pd.DataFrame,
-    feature_columns: list[str],
+    feature_columns: Sequence[str],
 ) -> tuple[list[str], bool, float]:
     """Markdown drift rows per feature plus summary scalars.
 
@@ -110,18 +112,10 @@ def run(config_path: Path) -> None:
         (simulated_prod["pickup_count"] * 1.12).round().astype(int)
     )
 
-    feature_columns = [
-        "pickup_count",
-        "hour",
-        "day_of_week",
-        "is_weekend",
-        "month",
-    ]
-
     # 4. Score the incoming production data — pyfunc emits an ndarray, so
     # normalize the output shape instead of asserting a Series.
     raw_predictions: Any = model.predict(  # pyright: ignore[reportUnknownMemberType]
-        simulated_prod.loc[:, feature_columns]
+        simulated_prod.loc[:, list(FEATURE_COLUMNS)]
     )
     predictions = np.asarray(raw_predictions).ravel()
     simulated_prod["prediction"] = predictions
@@ -133,7 +127,7 @@ def run(config_path: Path) -> None:
 
     # 6. Analyze data drift on every scored feature
     drift_rows, any_drift, pickup_drift_pct = _feature_drift_rows(
-        training_data, simulated_prod, feature_columns
+        training_data, simulated_prod, FEATURE_COLUMNS
     )
 
     # 7. Write the monitoring report markdown
