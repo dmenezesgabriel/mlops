@@ -29,7 +29,7 @@ def _seed_entity_dataset(tmp_path: Path) -> None:
 def _patch_seams(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
-    versions: list[FakeModelVersion],
+    versions: dict[str, list[FakeModelVersion]],
     evaluation: EvaluationConfig | None = None,
     predictions: list[float] | None = None,
     as_2d: bool = False,
@@ -66,7 +66,7 @@ def test_evaluate_scores_and_tags_latest_version(
 ) -> None:
     # Arrange
     _seed_entity_dataset(tmp_path)
-    _patch_seams(monkeypatch, tmp_path, [FakeModelVersion("7")])
+    _patch_seams(monkeypatch, tmp_path, {"model": [FakeModelVersion("7")]})
 
     # Act
     evaluate.run(tmp_path / "configs" / "project.yaml")
@@ -102,7 +102,7 @@ def test_evaluate_gate_failure_tags_failed_and_skips_candidate(
     _patch_seams(
         monkeypatch,
         tmp_path,
-        [FakeModelVersion("7")],
+        {"model": [FakeModelVersion("7")]},
         evaluation=EvaluationConfig(max_mae=0.001, max_rmse=0.001),
         predictions=[29.0, 30.0],
     )
@@ -126,7 +126,7 @@ def test_evaluate_rejects_missing_registered_model(
 ) -> None:
     # Arrange
     _seed_entity_dataset(tmp_path)
-    _patch_seams(monkeypatch, tmp_path, [])
+    _patch_seams(monkeypatch, tmp_path, {})
 
     # Act / Assert
     with pytest.raises(ValueError, match="No registered model found"):
@@ -139,7 +139,9 @@ def test_evaluate_flattens_matrix_predictions(
     # Arrange — pyfunc wrappers may emit a 2-D matrix; scoring must
     # normalize it before the metrics calculator iterates it.
     _seed_entity_dataset(tmp_path)
-    _patch_seams(monkeypatch, tmp_path, [FakeModelVersion("7")], as_2d=True)
+    _patch_seams(
+        monkeypatch, tmp_path, {"model": [FakeModelVersion("7")]}, as_2d=True
+    )
 
     # Act
     evaluate.run(tmp_path / "configs" / "project.yaml")

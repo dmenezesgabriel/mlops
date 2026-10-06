@@ -49,6 +49,39 @@ def test_preprocessor_removes_invalid_trips() -> None:
     assert cleaned_trips.loc[0, "duration_minutes"] == 10
 
 
+def test_clean_applies_boundary_filters() -> None:
+    # Arrange — boundary values: a zero-duration trip (0 is not > 0) and a
+    # zero-id location trip are invalid; a zero-distance trip is legal.
+    trips = pd.DataFrame(
+        {
+            "tpep_pickup_datetime": [
+                "2023-01-01 00:00:00",
+                "2023-01-01 01:00:00",
+                "2023-01-01 02:00:00",
+                "2023-01-01 03:00:00",
+            ],
+            "tpep_dropoff_datetime": [
+                "2023-01-01 00:10:00",
+                "2023-01-01 01:00:00",
+                "2023-01-01 02:20:00",
+                "2023-01-01 03:30:00",
+            ],
+            "PULocationID": [1, 1, 0, 1],
+            "DOLocationID": [2, 2, 2, 2],
+            "passenger_count": [1, 1, 1, 1],
+            "trip_distance": [1.0, 1.0, 1.0, 0.0],
+            "fare_amount": [8.0, 9.0, 8.0, 8.0],
+        }
+    )
+
+    # Act
+    cleaned_trips = YellowTaxiTripPreprocessor().clean(trips)
+
+    # Assert — only the valid trip and the zero-distance trip survive.
+    assert cleaned_trips["duration_minutes"].to_list() == [10, 30]
+    assert cleaned_trips["trip_distance"].to_list() == [1.0, 0.0]
+
+
 def test_preprocess_writes_cleaned_parquet(tmp_path: Path) -> None:
     # Arrange
     raw_directory = tmp_path / "raw"

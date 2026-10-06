@@ -6,6 +6,7 @@ inject these fakes. Frame builders live here because the parquet round-trip
 tests repeat the same arrange shape.
 """
 
+import re
 from collections.abc import Callable
 from contextlib import nullcontext
 from pathlib import Path
@@ -92,25 +93,22 @@ class FakeMlflowExperiment:
 class FakePyfuncModel:
     """MLflow pyfunc model stand-in returning configured predictions.
 
-    `as_ndarray` returns the canonical ndarray the real pyfunc contract
-    emits; the Series default stays until the remaining predict sites stop
-    casting (their flip is a later fix item). `as_2d` returns a `(1, N)`
-    row-matrix — the shape list-of-rows wrappers emit; it is 2-D rather
-    than `(N, 1)` because pandas squeezes a column matrix on assignment.
+    `predict` returns the canonical ndarray the real pyfunc contract
+    emits. `as_2d` returns a `(1, N)` row-matrix — the shape
+    list-of-rows wrappers emit; it is 2-D rather than `(N, 1)` because
+    pandas squeezes a column matrix on assignment.
     """
 
     def __init__(
         self,
         predictions: list[float] | None = None,
-        as_ndarray: bool = False,
         as_2d: bool = False,
     ) -> None:
         self.predictions = predictions
-        self.as_ndarray = as_ndarray
         self.as_2d = as_2d
         self.predicted_frames: list[pd.DataFrame] = []
 
-    def predict(self, features: pd.DataFrame) -> pd.Series | np.ndarray:
+    def predict(self, features: pd.DataFrame) -> np.ndarray:
         self.predicted_frames.append(features)
         values = (
             self.predictions
@@ -119,9 +117,7 @@ class FakePyfuncModel:
         )
         if self.as_2d:
             return np.array([values])
-        if self.as_ndarray:
-            return np.array(values)
-        return pd.Series(values)
+        return np.array(values)
 
 
 class FakeMlflowPyfunc:
@@ -210,12 +206,16 @@ class FakeMlflowClient:
 
     instances: ClassVar[list["FakeMlflowClient"]] = []
 
+    _NAME_FILTER = re.compile(r"^name='(?P<name>[^']+)'$")
+
     def __init__(
         self,
-        versions: list[FakeModelVersion] | None = None,
+        versions: dict[str, list[FakeModelVersion]] | None = None,
         alias_versions: dict[tuple[str, str], FakeModelVersion] | None = None,
     ) -> None:
-        self._versions = list(versions or [])
+        self._versions = {
+            name: list(vs) for name, vs in (versions or {}).items()
+        }
         self._alias_versions = dict(alias_versions or {})
         self.alias_calls: list[dict[str, object]] = []
         self.tag_calls: list[dict[str, object]] = []
@@ -225,10 +225,17 @@ class FakeMlflowClient:
     def search_model_versions(
         self, filter_string: str
     ) -> list[FakeModelVersion]:
-        # Mirrors the real store contract: a missing or versionless model
-        # name returns an empty page — it never raises.
+        # Mirrors the real store contract: results are scoped to the model
+        # the filter names; a missing or versionless name returns an empty
+        # page — it never raises.
         self.search_calls.append(filter_string)
-        return list(self._versions)
+        match = self._NAME_FILTER.match(filter_string)
+        if match is None:
+            raise ValueError(
+                f"Unsupported search filter {filter_string!r}: "
+                "expected name='<model_name>'"
+            )
+        return list(self._versions.get(match.group("name"), []))
 
     def get_model_version_by_alias(
         self, name: str, alias: str
@@ -243,6 +250,7 @@ class FakeMlflowClient:
     def set_registered_model_alias(
         self, name: str, alias: str, version: str
     ) -> None:
+        self._require_version(name, version)
         self.alias_calls.append(
             {"name": name, "alias": alias, "version": version}
         )
@@ -250,9 +258,25 @@ class FakeMlflowClient:
     def set_model_version_tag(
         self, name: str, version: str, key: str, value: str
     ) -> None:
+        self._require_version(name, version)
         self.tag_calls.append(
             {"name": name, "version": version, "key": key, "value": value}
         )
+
+    def _require_version(self, name: str, version: str) -> None:
+        # The real client raises RESOURCE_DOES_NOT_EXIST when a write names
+        # an unregistered model or an unknown version of a registered one.
+        versions = self._versions.get(name)
+        if versions is None:
+            raise MlflowException(
+                f"Invalid registry write for model {name!r}: "
+                "expected a registered model name"
+            )
+        if all(mv.version != version for mv in versions):
+            raise MlflowException(
+                f"Invalid registry write for {name!r} version {version!r}: "
+                "expected a registered version of the model"
+            )
 
 
 class FakeHttpResponse:

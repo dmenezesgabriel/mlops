@@ -186,6 +186,24 @@ def test_project_config_loader_rejects_yaml_coerced_values(
         ProjectConfigLoader().load(config_path)
 
 
+def test_project_config_loader_accepts_integer_for_float_keys(
+    tmp_path: Path,
+) -> None:
+    # Arrange — an int is a valid YAML number; the float guard must accept it.
+    config_path = tmp_path / "configs" / "project.yaml"
+    config_path.parent.mkdir()
+    config_path.write_text(
+        _project_config().replace("max_mae: 1.0", "max_mae: 1"),
+        encoding="utf-8",
+    )
+
+    # Act
+    config = ProjectConfigLoader().load(config_path)
+
+    # Assert
+    assert config.evaluation.max_mae == 1.0
+
+
 def test_project_config_loader_rejects_config_outside_configs_dir(
     tmp_path: Path,
 ) -> None:

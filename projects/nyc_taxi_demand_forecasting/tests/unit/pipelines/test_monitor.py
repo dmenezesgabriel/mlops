@@ -21,8 +21,14 @@ from nyc_taxi_demand_forecasting.pipelines import monitor
     ("production_mean", "expected_status"),
     [
         pytest.param(112.0, "Drift Detected", id="warning_over_10pct"),
+        pytest.param(110.0, "Mild Drift", id="caution_at_10pct_boundary"),
         pytest.param(106.0, "Mild Drift", id="caution_over_5pct"),
+        pytest.param(105.0, "Normal", id="normal_at_5pct_boundary"),
         pytest.param(102.0, "Normal", id="normal_under_5pct"),
+        pytest.param(95.0, "Normal", id="normal_at_negative_5pct_boundary"),
+        pytest.param(
+            90.0, "Mild Drift", id="caution_at_negative_10pct_boundary"
+        ),
         pytest.param(88.0, "Drift Detected", id="warning_negative_12pct"),
     ],
 )
@@ -97,7 +103,7 @@ def test_load_champion_model_falls_back_to_latest(
     # Arrange — no alias registered, so the client's alias lookup raises.
     fake_mlflow = FakeMlflowModule()
     monkeypatch.setattr(monitor, "mlflow", fake_mlflow)
-    client = FakeMlflowClient(versions=[FakeModelVersion("9")])
+    client = FakeMlflowClient(versions={"model": [FakeModelVersion("9")]})
 
     # Act
     model, version, alias = monitor._load_champion_model(client, "model")
@@ -119,7 +125,7 @@ def test_load_champion_model_propagates_champion_load_failure(
     }
     monkeypatch.setattr(monitor, "mlflow", fake_mlflow)
     client = FakeMlflowClient(
-        versions=[FakeModelVersion("9")],
+        versions={"model": [FakeModelVersion("9")]},
         alias_versions={("model", "champion"): FakeModelVersion("2")},
     )
 
@@ -134,7 +140,7 @@ def test_load_champion_model_rejects_empty_registry(
     # Arrange
     fake_mlflow = FakeMlflowModule()
     monkeypatch.setattr(monitor, "mlflow", fake_mlflow)
-    client = FakeMlflowClient(versions=[])
+    client = FakeMlflowClient(versions={})
 
     # Act / Assert
     with pytest.raises(ValueError, match="No registered model found"):
@@ -204,7 +210,10 @@ def test_monitor_run_reports_served_alias_on_fallback(
     monkeypatch.setattr(
         monitor,
         "MlflowClient",
-        partial(FakeMlflowClient, versions=[FakeModelVersion("9")]),
+        partial(
+            FakeMlflowClient,
+            versions={"model": [FakeModelVersion("9")]},
+        ),
     )
 
     # Act

@@ -1,7 +1,6 @@
 import importlib
 import logging
 import sys
-from unittest.mock import patch
 
 import nyc_taxi_demand_forecasting.inference.api as api
 import pandas as pd
@@ -57,15 +56,17 @@ def _fake_boundaries(
     monkeypatch.setattr(api, "_resources", None)
 
 
-def test_import_does_not_load_model_or_store() -> None:
+def test_import_does_not_load_model_or_store(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # Arrange — faked boundary modules let a module-body re-run be observed.
     fake_mlflow = FakeMlflowModule()
+    monkeypatch.setitem(sys.modules, "mlflow", fake_mlflow)
+    monkeypatch.setitem(sys.modules, "feast", FakeFeastModule())
 
     # Act — re-executing the module under the fakes.
-    with patch.dict(
-        sys.modules, {"mlflow": fake_mlflow, "feast": FakeFeastModule()}
-    ):
-        importlib.reload(api)
+    importlib.reload(api)
+    monkeypatch.undo()
     importlib.reload(api)
 
     # Assert — import alone must not touch the store, tracker, or registry.
@@ -141,12 +142,11 @@ def test_missing_champion_returns_503_and_logs(
     assert fake_mlflow.pyfunc.loaded_uris == [_MODEL_URI]
 
 
-@pytest.mark.parametrize("as_ndarray", [True, False])
 def test_predict_returns_prediction(
-    monkeypatch: pytest.MonkeyPatch, as_ndarray: bool
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Arrange
-    model = FakePyfuncModel(predictions=[12.5], as_ndarray=as_ndarray)
+    # Arrange — the real pyfunc contract emits an ndarray.
+    model = FakePyfuncModel(predictions=[12.5])
     store = _inject_resources(monkeypatch, model)
     FakeFeatureStore.online_result = _features_frame()
     client = TestClient(app)

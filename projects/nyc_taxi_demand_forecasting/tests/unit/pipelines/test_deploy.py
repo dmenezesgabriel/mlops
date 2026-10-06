@@ -15,7 +15,7 @@ from nyc_taxi_demand_forecasting.pipelines import deploy
 def _patch_seams(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
-    versions: list[FakeModelVersion],
+    versions: dict[str, list[FakeModelVersion]],
     alias_versions: dict[tuple[str, str], FakeModelVersion] | None = None,
 ) -> FakeMlflowModule:
     config = project_config(tmp_path)
@@ -45,7 +45,7 @@ def test_deploy_promotes_candidate_to_champion(
     fake_mlflow = _patch_seams(
         monkeypatch,
         tmp_path,
-        [],
+        {"model": [FakeModelVersion("3")]},
         alias_versions={("model", "candidate"): FakeModelVersion("3")},
     )
 
@@ -65,7 +65,7 @@ def test_deploy_refuses_unevaluated_version(
 ) -> None:
     # Arrange — v9 is registered but the candidate alias was never set,
     # so no version was gated for promotion.
-    _patch_seams(monkeypatch, tmp_path, [FakeModelVersion("9")])
+    _patch_seams(monkeypatch, tmp_path, {"model": [FakeModelVersion("9")]})
 
     # Act / Assert
     with pytest.raises(ValueError, match="candidate"):
