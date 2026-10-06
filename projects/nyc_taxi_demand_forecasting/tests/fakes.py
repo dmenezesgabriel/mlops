@@ -11,6 +11,7 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import ClassVar
 
+import numpy as np
 import pandas as pd
 from mlflow.exceptions import MlflowException
 from nyc_taxi_demand_forecasting.configuration import (
@@ -41,6 +42,7 @@ class FakeFeatureStore:
     instances: ClassVar[list["FakeFeatureStore"]] = []
     historical_result: ClassVar[pd.DataFrame] = pd.DataFrame()
     online_result: ClassVar[pd.DataFrame] = pd.DataFrame()
+    online_error: ClassVar[Exception | None] = None
 
     def __init__(self, repo_path: str) -> None:
         self.repo_path = repo_path
@@ -59,6 +61,8 @@ class FakeFeatureStore:
     def get_online_features(
         self, features: list[str], entity_rows: list[dict[str, int]]
     ) -> FakeRetrievalJob:
+        if type(self).online_error is not None:
+            raise type(self).online_error
         self.online_calls.append((features, entity_rows))
         return FakeRetrievalJob(type(self).online_result)
 
@@ -98,17 +102,32 @@ class FakeMlflowExperiment:
 
 
 class FakePyfuncModel:
-    """MLflow pyfunc model stand-in returning configured predictions."""
+    """MLflow pyfunc model stand-in returning configured predictions.
 
-    def __init__(self, predictions: list[float] | None = None) -> None:
+    `as_ndarray` returns the canonical ndarray the real pyfunc contract
+    emits; the Series default stays until the remaining predict sites stop
+    casting (their flip is a later fix item).
+    """
+
+    def __init__(
+        self,
+        predictions: list[float] | None = None,
+        as_ndarray: bool = False,
+    ) -> None:
         self.predictions = predictions
+        self.as_ndarray = as_ndarray
         self.predicted_frames: list[pd.DataFrame] = []
 
-    def predict(self, features: pd.DataFrame) -> pd.Series:
+    def predict(self, features: pd.DataFrame) -> pd.Series | np.ndarray:
         self.predicted_frames.append(features)
-        if self.predictions is None:
-            return pd.Series([1.0] * len(features))
-        return pd.Series(self.predictions)
+        values = (
+            self.predictions
+            if self.predictions is not None
+            else [1.0] * len(features)
+        )
+        if self.as_ndarray:
+            return np.array(values)
+        return pd.Series(values)
 
 
 class FakeMlflowPyfunc:
@@ -376,6 +395,26 @@ class FakeProjectConfigLoader:
         return self._config
 
 
+class FailingRunner:
+    """Pipeline runner stand-in raising a scripted exception."""
+
+    def __init__(self, error: Exception) -> None:
+        self._error = error
+
+    def __call__(self, config_path: Path) -> None:
+        raise self._error
+
+
+class RecordingRunner:
+    """Pipeline runner stand-in recording the config paths it ran with."""
+
+    def __init__(self) -> None:
+        self.calls: list[Path] = []
+
+    def __call__(self, config_path: Path) -> None:
+        self.calls.append(config_path)
+
+
 def import_module_for(mapping: dict[str, object]) -> Callable[[str], object]:
     """Build an `import_module` replacement dispatching to the mapping."""
 
@@ -502,4 +541,5 @@ def reset_fake_state() -> None:
         holder_type.instances.clear()
     FakeFeatureStore.historical_result = pd.DataFrame()
     FakeFeatureStore.online_result = pd.DataFrame()
+    FakeFeatureStore.online_error = None
     FakeDemandModelTuner.result = None
