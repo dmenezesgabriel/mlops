@@ -32,6 +32,7 @@ def _patch_seams(
     versions: list[FakeModelVersion],
     evaluation: EvaluationConfig | None = None,
     predictions: list[float] | None = None,
+    as_2d: bool = False,
 ) -> None:
     config = project_config(tmp_path)
     if evaluation is not None:
@@ -43,7 +44,7 @@ def _patch_seams(
     model_predictions = (
         predictions if predictions is not None else [19.0, 20.0]
     )
-    fake_mlflow.pyfunc.model = FakePyfuncModel(model_predictions)
+    fake_mlflow.pyfunc.model = FakePyfuncModel(model_predictions, as_2d=as_2d)
     monkeypatch.setattr(
         evaluate,
         "ProjectConfigLoader",
@@ -130,3 +131,23 @@ def test_evaluate_rejects_missing_registered_model(
     # Act / Assert
     with pytest.raises(ValueError, match="No registered model found"):
         evaluate.run(tmp_path / "configs" / "project.yaml")
+
+
+def test_evaluate_flattens_matrix_predictions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Arrange — pyfunc wrappers may emit a 2-D matrix; scoring must
+    # normalize it before the metrics calculator iterates it.
+    _seed_entity_dataset(tmp_path)
+    _patch_seams(monkeypatch, tmp_path, [FakeModelVersion("7")], as_2d=True)
+
+    # Act
+    evaluate.run(tmp_path / "configs" / "project.yaml")
+
+    # Assert
+    client = FakeMlflowClient.instances[0]
+    tags = {(call["key"], call["value"]) for call in client.tag_calls}
+    assert ("evaluated", "true") in tags
+    assert client.alias_calls == [
+        {"name": "model", "alias": "candidate", "version": "7"}
+    ]

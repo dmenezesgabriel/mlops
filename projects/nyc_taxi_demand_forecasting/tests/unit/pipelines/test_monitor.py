@@ -10,6 +10,7 @@ from fakes import (
     FakeMlflowModule,
     FakeModelVersion,
     FakeProjectConfigLoader,
+    FakePyfuncModel,
     project_config,
     training_frame,
 )
@@ -216,6 +217,44 @@ def test_monitor_run_reports_served_alias_on_fallback(
     assert "Version: `9`" in report
     assert "Alias: `@champion`" not in report
     assert "latest" in report
+
+
+def test_monitor_run_flattens_matrix_predictions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Arrange — pyfunc wrappers may emit a 2-D matrix; the monitor must
+    # normalize it before assigning the prediction column.
+    config = project_config(tmp_path)
+    config.features.training_dataset_path.parent.mkdir(parents=True)
+    training_frame().to_parquet(
+        config.features.training_dataset_path, index=False
+    )
+    fake_mlflow = FakeMlflowModule()
+    fake_mlflow.pyfunc.model = FakePyfuncModel([1.0] * 10, as_2d=True)
+    monkeypatch.setattr(
+        monitor,
+        "ProjectConfigLoader",
+        partial(FakeProjectConfigLoader, config),
+    )
+    monkeypatch.setattr(monitor, "mlflow", fake_mlflow)
+    monkeypatch.setattr(
+        monitor,
+        "MlflowClient",
+        partial(
+            FakeMlflowClient,
+            alias_versions={("model", "champion"): FakeModelVersion("2")},
+        ),
+    )
+
+    # Act
+    monitor.run(tmp_path / "configs" / "project.yaml")
+
+    # Assert
+    report = (config.paths.reports / "monitoring.md").read_text(
+        encoding="utf-8"
+    )
+    assert "# Model Monitoring Report" in report
+    assert "Version: `2`" in report
 
 
 def test_monitor_run_does_not_touch_global_rng(

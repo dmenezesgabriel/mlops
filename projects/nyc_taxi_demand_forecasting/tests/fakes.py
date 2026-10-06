@@ -94,16 +94,20 @@ class FakePyfuncModel:
 
     `as_ndarray` returns the canonical ndarray the real pyfunc contract
     emits; the Series default stays until the remaining predict sites stop
-    casting (their flip is a later fix item).
+    casting (their flip is a later fix item). `as_2d` returns a `(1, N)`
+    row-matrix — the shape list-of-rows wrappers emit; it is 2-D rather
+    than `(N, 1)` because pandas squeezes a column matrix on assignment.
     """
 
     def __init__(
         self,
         predictions: list[float] | None = None,
         as_ndarray: bool = False,
+        as_2d: bool = False,
     ) -> None:
         self.predictions = predictions
         self.as_ndarray = as_ndarray
+        self.as_2d = as_2d
         self.predicted_frames: list[pd.DataFrame] = []
 
     def predict(self, features: pd.DataFrame) -> pd.Series | np.ndarray:
@@ -113,6 +117,8 @@ class FakePyfuncModel:
             if self.predictions is not None
             else [1.0] * len(features)
         )
+        if self.as_2d:
+            return np.array([values])
         if self.as_ndarray:
             return np.array(values)
         return pd.Series(values)

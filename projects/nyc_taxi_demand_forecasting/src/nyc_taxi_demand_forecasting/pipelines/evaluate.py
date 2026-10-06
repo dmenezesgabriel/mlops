@@ -1,10 +1,10 @@
 import logging
-from collections.abc import Iterable
 from importlib import import_module
 from pathlib import Path
-from typing import cast
+from typing import Any
 
 import mlflow
+import numpy as np
 import pandas as pd
 from mlflow.client import MlflowClient
 from mlops_shared.evaluation import (
@@ -84,12 +84,12 @@ def run(config_path: Path) -> None:
         "is_weekend",
         "month",
     ]
-    predictions = cast(
-        Iterable[float],
-        model.predict(  # pyright: ignore[reportUnknownMemberType]
-            test_frame.loc[:, feature_columns]
-        ),
+    # pyfunc emits an ndarray, so normalize the output shape instead of
+    # asserting a Series — same contract the api/monitor sites carry.
+    raw_predictions: Any = model.predict(  # pyright: ignore[reportUnknownMemberType]
+        test_frame.loc[:, feature_columns]
     )
+    predictions = np.asarray(raw_predictions).ravel()
 
     # 4. Compute metrics
     metrics = RegressionMetricCalculator().calculate(

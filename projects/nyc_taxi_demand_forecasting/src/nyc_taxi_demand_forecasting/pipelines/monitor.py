@@ -2,9 +2,10 @@ import logging
 import math
 from datetime import datetime
 from pathlib import Path
-from typing import cast
+from typing import Any
 
 import mlflow
+import numpy as np
 import pandas as pd
 from mlflow.client import MlflowClient
 from mlflow.exceptions import MlflowException
@@ -117,13 +118,12 @@ def run(config_path: Path) -> None:
         "month",
     ]
 
-    # 4. Score the incoming production data
-    predictions = cast(
-        pd.Series,
-        model.predict(  # pyright: ignore[reportUnknownMemberType]
-            simulated_prod.loc[:, feature_columns]
-        ),
+    # 4. Score the incoming production data — pyfunc emits an ndarray, so
+    # normalize the output shape instead of asserting a Series.
+    raw_predictions: Any = model.predict(  # pyright: ignore[reportUnknownMemberType]
+        simulated_prod.loc[:, feature_columns]
     )
+    predictions = np.asarray(raw_predictions).ravel()
     simulated_prod["prediction"] = predictions
 
     # 5. Compute performance metrics on production data

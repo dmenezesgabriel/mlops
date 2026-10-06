@@ -83,6 +83,8 @@ class DemandModelTuner:
     ) -> pd.DataFrame:
         feature_store_type = import_module("feast").FeatureStore
         store = feature_store_type(repo_path=str(feast_config.repo_path))
+        # feast ships no type information, so this cast is the typing
+        # bridge: the retrieval job's ``to_df`` returns a plain DataFrame.
         return cast(
             pd.DataFrame,
             store.get_historical_features(
