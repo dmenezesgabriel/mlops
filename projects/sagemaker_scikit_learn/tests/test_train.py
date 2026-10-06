@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 import pytest
+from joblib import load
 from sagemaker_scikit_learn import train as train_module
 from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.pipeline import Pipeline
@@ -53,6 +54,7 @@ def test_build_model_returns_logistic_pipeline_for_classification() -> None:
     # Assert
     assert isinstance(model, Pipeline)
     assert isinstance(model.named_steps["model"], LogisticRegression)
+    assert model.named_steps["model"].max_iter == 1000
 
 
 def test_build_model_rejects_unknown_task() -> None:
@@ -90,8 +92,10 @@ def test_main_defaults_to_california_housing_dataset(
     # Act
     train_module.main()
 
-    # Assert
-    assert (tmp_path / "model.joblib").is_file()
+    # Assert: the artifact is the regression model — a flipped default would
+    # persist the classification pipeline instead.
+    model = load(tmp_path / "model.joblib")
+    assert isinstance(model.named_steps["model"], Ridge)
 
 
 def test_main_rejects_unsupported_dataset(
@@ -102,8 +106,12 @@ def test_main_rejects_unsupported_dataset(
     monkeypatch.setenv("SM_HPS", json.dumps({"dataset": "cifar"}))
     monkeypatch.setattr(train_module, "MODEL_DIR", str(tmp_path))
 
-    # Act / Assert
-    with pytest.raises(ValueError, match="unsupported dataset"):
+    # Act / Assert: the full sorted list pins the message — a `sorted` drop
+    # reorders it (insertion order: california_housing first).
+    with pytest.raises(
+        ValueError,
+        match=r"expected one of \['breast_cancer', 'california_housing'\]",
+    ):
         train_module.main()
 
 

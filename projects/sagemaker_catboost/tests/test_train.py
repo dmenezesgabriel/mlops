@@ -14,6 +14,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from joblib import load
 
 
 class FakeCatBoostRegressor:
@@ -56,6 +57,9 @@ def test_build_model_returns_regressor_for_regression(
     # Assert
     assert type(model) is FakeCatBoostRegressor
     assert model.kwargs["iterations"] == 50
+    assert model.kwargs["verbose"] == 0
+    # Without train_dir, CatBoost writes catboost_info/ into the job cwd.
+    assert model.kwargs["train_dir"] == train_module.CATBOOST_TRAIN_DIR
 
 
 def test_build_model_returns_classifier_for_classification(
@@ -66,6 +70,9 @@ def test_build_model_returns_classifier_for_classification(
 
     # Assert
     assert type(model) is FakeCatBoostClassifier
+    assert model.kwargs["iterations"] == 50
+    assert model.kwargs["verbose"] == 0
+    assert model.kwargs["train_dir"] == train_module.CATBOOST_TRAIN_DIR
 
 
 def test_build_model_rejects_unknown_task(train_module: ModuleType) -> None:
@@ -113,8 +120,10 @@ def test_main_defaults_to_diabetes_dataset(
     # Act
     train_module.main()
 
-    # Assert
-    assert (tmp_path / "model.joblib").is_file()
+    # Assert: the artifact is the regression model — a flipped default would
+    # persist the classifier instead.
+    model = load(tmp_path / "model.joblib")
+    assert type(model) is FakeCatBoostRegressor
 
 
 def test_main_rejects_unsupported_dataset(
@@ -126,8 +135,11 @@ def test_main_rejects_unsupported_dataset(
     monkeypatch.setenv("SM_HPS", json.dumps({"dataset": "cifar"}))
     monkeypatch.setattr(train_module, "MODEL_DIR", str(tmp_path))
 
-    # Act / Assert
-    with pytest.raises(ValueError, match="unsupported dataset"):
+    # Act / Assert: the full sorted list pins the message — a `sorted` drop
+    # reorders it (insertion order: diabetes first).
+    with pytest.raises(
+        ValueError, match=r"expected one of \['breast_cancer', 'diabetes'\]"
+    ):
         train_module.main()
 
 
