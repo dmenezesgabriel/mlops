@@ -1,12 +1,13 @@
 import logging
+import math
 from datetime import datetime
 from pathlib import Path
 from typing import cast
 
 import mlflow
-import numpy as np
 import pandas as pd
 from mlflow.client import MlflowClient
+from mlflow.exceptions import MlflowException
 from mlflow.pyfunc import PyFuncModel
 from mlops_shared.evaluation import RegressionMetricCalculator
 
@@ -15,42 +16,75 @@ from nyc_taxi_demand_forecasting.configuration import ProjectConfigLoader
 
 def _load_champion_model(
     client: MlflowClient, model_name: str
-) -> tuple[PyFuncModel, str]:
-    """Champion alias, falling back to the latest version if unset."""
+) -> tuple[PyFuncModel, str, str | None]:
+    """Champion alias, falling back to the latest version if unset.
+
+    A corrupt champion artifact propagates — the monitor must not silently
+    evaluate a different model than the one the report claims.
+    """
     try:
-        model_uri = f"models:/{model_name}@champion"
-        model = mlflow.pyfunc.load_model(model_uri)
-        champion_version_info = client.get_model_version_by_alias(
-            model_name, "champion"
-        )
-        return model, champion_version_info.version
-    except Exception as err:
-        # Fallback if champion alias is not yet set
+        champion = client.get_model_version_by_alias(model_name, "champion")
+    except MlflowException:
+        champion = None
+    if champion is None:
         latest_versions = client.get_latest_versions(name=model_name)
         if not latest_versions:
             raise ValueError(
                 f"No model found for monitoring under name {model_name}"
-            ) from err
+            )
         version = latest_versions[0].version
         model_uri = f"models:/{model_name}/{version}"
-        return mlflow.pyfunc.load_model(model_uri), version
+        return mlflow.pyfunc.load_model(model_uri), version, None
+    model_uri = f"models:/{model_name}@champion"
+    model = mlflow.pyfunc.load_model(model_uri)
+    return model, champion.version, "@champion"
 
 
-def _pickup_drift_stats(
-    training_data: pd.DataFrame, simulated_prod: pd.DataFrame
+def _drift_stats(
+    training: pd.Series, production: pd.Series
 ) -> tuple[float, float, float, str]:
-    train_mean = float(training_data["pickup_count"].mean())
-    prod_mean = float(simulated_prod["pickup_count"].mean())
-    drift_pct = (
-        ((prod_mean - train_mean) / train_mean) * 100
-        if train_mean != 0
-        else 0.0
-    )
+    train_mean = float(training.mean())
+    prod_mean = float(production.mean())
+    if train_mean == 0:
+        # A 0→nonzero shift is unbounded relative drift, not 0%.
+        drift_pct = (
+            0.0 if prod_mean == 0 else math.copysign(math.inf, prod_mean)
+        )
+    else:
+        drift_pct = (prod_mean - train_mean) / train_mean * 100
     if abs(drift_pct) > 10.0:
         return train_mean, prod_mean, drift_pct, "🚨 Drift Detected (Warning)"
     if abs(drift_pct) > 5.0:
         return train_mean, prod_mean, drift_pct, "⚠️ Mild Drift (Caution)"
     return train_mean, prod_mean, drift_pct, "Normal"
+
+
+def _feature_drift_rows(
+    training_data: pd.DataFrame,
+    simulated_prod: pd.DataFrame,
+    feature_columns: list[str],
+) -> tuple[list[str], bool, float]:
+    """Markdown drift rows per feature plus summary scalars.
+
+    Returns (rows, any-drift flag, pickup_count drift pct) — pickup_count is
+    the report's designated "main volume feature".
+    """
+    drift_rows: list[str] = []
+    any_drift = False
+    pickup_drift_pct = 0.0
+    for feature in feature_columns:
+        train_mean, prod_mean, drift_pct, status = _drift_stats(
+            training_data[feature], simulated_prod[feature]
+        )
+        if "Drift" in status:
+            any_drift = True
+        if feature == "pickup_count":
+            pickup_drift_pct = drift_pct
+        drift_rows.append(
+            f"| **{feature}** | `{train_mean:.4f}` | `{prod_mean:.4f}` | "
+            f"`{drift_pct:+.2f}%` | `{status}` |"
+        )
+    return drift_rows, any_drift, pickup_drift_pct
 
 
 def run(config_path: Path) -> None:
@@ -64,10 +98,14 @@ def run(config_path: Path) -> None:
     client = MlflowClient()
 
     model_name = config.mlflow.registered_model_name
-    model, version = _load_champion_model(client, model_name)
+    model, version, served_alias = _load_champion_model(client, model_name)
+    alias_label = (
+        served_alias
+        if served_alias is not None
+        else "none (latest-version fallback)"
+    )
 
     # 3. Create simulated production inference dataset with custom demand drift
-    np.random.seed(config.training.random_state)
     simulated_prod = training_data.copy()
 
     # Shift pickup count by ~12% to simulate a demand drift event
@@ -97,9 +135,9 @@ def run(config_path: Path) -> None:
         simulated_prod[config.training.target_column], predictions
     )
 
-    # 6. Analyze data drift on the key feature 'pickup_count'
-    train_mean, prod_mean, drift_pct, drift_status = _pickup_drift_stats(
-        training_data, simulated_prod
+    # 6. Analyze data drift on every scored feature
+    drift_rows, any_drift, pickup_drift_pct = _feature_drift_rows(
+        training_data, simulated_prod, feature_columns
     )
 
     # 7. Write the monitoring report markdown
@@ -118,7 +156,7 @@ def run(config_path: Path) -> None:
     )
     rec_action = (
         "No action required. Model is performing well."
-        if "Drift" not in drift_status
+        if not any_drift
         else "Initiate retraining run because significant drift is detected."
     )
 
@@ -127,7 +165,7 @@ def run(config_path: Path) -> None:
         "# Model Monitoring Report",
         "",
         f"**Report Generated At:** `{now_str}`",
-        f"**Target Model:** `{model_name}` (Version: `{version}`, Alias: `@champion`)",
+        f"**Target Model:** `{model_name}` (Version: `{version}`, Alias: `{alias_label}`)",
         f"**Monitored Samples:** `{len(simulated_prod)}`",
         "",
         "---",
@@ -152,26 +190,7 @@ def run(config_path: Path) -> None:
         "",
         "| Feature | Train Mean (Baseline) | Production Mean | Drift (Diff %) | Drift Status |",
         "| :--- | :---: | :---: | :---: | :---: |",
-        (
-            f"| **pickup_count** | `{train_mean:.4f}` | `{prod_mean:.4f}` | "
-            f"`{drift_pct:+.2f}%` | `{drift_status}` |"
-        ),
-        (
-            f"| **hour** | `{training_data['hour'].mean():.2f}` | "
-            f"`{simulated_prod['hour'].mean():.2f}` | `+0.00%` | `Normal` |"
-        ),
-        (
-            f"| **day_of_week** | `{training_data['day_of_week'].mean():.2f}` | "
-            f"`{simulated_prod['day_of_week'].mean():.2f}` | `+0.00%` | `Normal` |"
-        ),
-        (
-            f"| **is_weekend** | `{training_data['is_weekend'].mean():.4f}` | "
-            f"`{simulated_prod['is_weekend'].mean():.4f}` | `+0.00%` | `Normal` |"
-        ),
-        (
-            f"| **month** | `{training_data['month'].mean():.2f}` | "
-            f"`{simulated_prod['month'].mean():.2f}` | `+0.00%` | `Normal` |"
-        ),
+        *drift_rows,
         "",
         "---",
         "",
@@ -179,7 +198,7 @@ def run(config_path: Path) -> None:
         "",
         (
             f"- **Data Drift**: The main volume feature `pickup_count` "
-            f"shows a `{drift_pct:+.2f}%` shift from baseline."
+            f"shows a `{pickup_drift_pct:+.2f}%` shift from baseline."
         ),
         "- **Model Health**: Model predictions remain within the evaluation thresholds.",
         f"- **Recommended Action**: {rec_action}",
