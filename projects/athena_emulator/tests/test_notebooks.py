@@ -12,14 +12,21 @@ or from the host:
 
     uv run pytest projects/athena_emulator/tests -m integration
 
-nbclient is imported lazily so non-notebook environments still collect this
-module. Executed outputs are written back in place — the executed notebook
-itself is the committed evidence.
+The emulator health probe runs in a fixture at test setup, not at module
+import, so collecting this file never touches the network. nbclient/ipykernel
+absence degrades to a skip, not an import error. Executed outputs are written
+back in place — the executed notebook itself is the committed evidence.
 """
 
 from __future__ import annotations
 
+import http.client
+import importlib.util
+import io
 import os
+import sys
+import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -41,13 +48,30 @@ ATHENA_URL = os.environ.get("AWS_ENDPOINT_URL_ATHENA", "http://localhost:5001")
 
 def _emulator_reachable() -> bool:
     try:
+        # Only http(s) endpoints may answer the probe — file:// and other
+        # schemes must never count as "reachable" via urlopen.
+        if urllib.parse.urlparse(ATHENA_URL).scheme not in ("http", "https"):
+            return False
         urllib.request.urlopen(f"{ATHENA_URL}/health", timeout=2)
-    except OSError:
+    except (OSError, http.client.HTTPException, ValueError):
         return False
     return True
 
 
+@pytest.fixture(scope="module")
+def live_emulator() -> None:
+    """One health probe per module run, only when tests are selected."""
+    if not _emulator_reachable():
+        pytest.skip(f"athena emulator unreachable at {ATHENA_URL}")
+
+
 def _execute_notebook(name: str) -> None:
+    for package in ("nbclient", "ipykernel"):
+        if importlib.util.find_spec(package) is None:
+            pytest.skip(
+                f"{package} not installed; sync the dev group or run "
+                "inside the jupyterlab container"
+            )
     import nbformat
     from nbclient import NotebookClient
 
@@ -63,16 +87,100 @@ def _execute_notebook(name: str) -> None:
     nbformat.write(notebook, notebook_path)
 
 
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.skipif(
-        not _emulator_reachable(),
-        reason=f"athena emulator unreachable at {ATHENA_URL}",
-    ),
-]
-
-
+@pytest.mark.integration
 @pytest.mark.parametrize("notebook_name", NOTEBOOKS)
-def test_notebook_runs_end_to_end(notebook_name: str) -> None:
+def test_notebook_runs_end_to_end(
+    notebook_name: str, live_emulator: None
+) -> None:
     """Each parity notebook must execute cleanly against the live stack."""
     _execute_notebook(notebook_name)
+
+
+@pytest.mark.parametrize(
+    "raised",
+    [
+        http.client.BadStatusLine("NOT-HTTP-GARBAGE"),
+        http.client.LineTooLong("header"),
+    ],
+)
+def test_probe_returns_false_on_http_exception(
+    monkeypatch: pytest.MonkeyPatch, raised: Exception
+) -> None:
+    def refuse(request: object, timeout: float) -> object:
+        raise raised
+
+    monkeypatch.setattr(urllib.request, "urlopen", refuse)
+    monkeypatch.setattr(
+        sys.modules[__name__], "ATHENA_URL", "http://localhost:59999"
+    )
+    assert _emulator_reachable() is False
+
+
+def test_probe_rejects_non_http_scheme(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "health").write_text("ok")
+    monkeypatch.setattr(sys.modules[__name__], "ATHENA_URL", tmp_path.as_uri())
+    assert _emulator_reachable() is False
+
+
+def test_probe_returns_false_on_malformed_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sys.modules[__name__], "ATHENA_URL", "not a url")
+    assert _emulator_reachable() is False
+
+
+@pytest.mark.parametrize(
+    "raised",
+    [urllib.error.URLError("down"), TimeoutError("timeout")],
+)
+def test_probe_returns_false_on_oserror(
+    monkeypatch: pytest.MonkeyPatch, raised: OSError
+) -> None:
+    def refuse(request: object, timeout: float) -> object:
+        raise raised
+
+    monkeypatch.setattr(urllib.request, "urlopen", refuse)
+    monkeypatch.setattr(
+        sys.modules[__name__], "ATHENA_URL", "http://10.255.255.1"
+    )
+    assert _emulator_reachable() is False
+
+
+def test_probe_returns_true_when_health_responds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        urllib.request, "urlopen", lambda req, timeout: io.BytesIO(b"")
+    )
+    monkeypatch.setattr(
+        sys.modules[__name__], "ATHENA_URL", "http://localhost:5001"
+    )
+    assert _emulator_reachable() is True
+
+
+def test_collection_performs_no_network_io(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[object] = []
+
+    def record(request: object, timeout: float) -> object:
+        calls.append(request)
+        raise urllib.error.URLError("no network in unit tests")
+
+    monkeypatch.setattr(urllib.request, "urlopen", record)
+    spec = importlib.util.spec_from_file_location(
+        "test_notebooks_copy", Path(__file__).resolve()
+    )
+    assert spec is not None and spec.loader is not None
+    spec.loader.exec_module(importlib.util.module_from_spec(spec))
+    assert calls == []
+
+
+def test_execute_notebook_skips_without_kernel_deps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name: None)
+    with pytest.raises(pytest.skip.Exception):
+        _execute_notebook("01_smoke_and_endpoints.ipynb")
