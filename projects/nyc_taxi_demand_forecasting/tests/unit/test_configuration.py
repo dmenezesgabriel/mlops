@@ -20,6 +20,26 @@ def test_project_config_loader_resolves_project_paths(tmp_path: Path) -> None:
     assert config.collection.source_url(1).endswith("2023-01.parquet")
 
 
+def test_collection_config_derives_trip_file_names(tmp_path: Path) -> None:
+    # Arrange
+    config_path = tmp_path / "configs" / "project.yaml"
+    config_path.parent.mkdir()
+    config_path.write_text(
+        _project_config().replace("months: [1]", "months: [1, 3]"),
+        encoding="utf-8",
+    )
+
+    # Act
+    collection = ProjectConfigLoader().load(config_path).collection
+
+    # Assert
+    assert collection.file_name(1) == "yellow_tripdata_2023-01.parquet"
+    assert collection.file_names() == (
+        "yellow_tripdata_2023-01.parquet",
+        "yellow_tripdata_2023-03.parquet",
+    )
+
+
 def test_project_config_loader_anchors_relative_mlflow_uri_to_project_root(
     tmp_path: Path,
 ) -> None:

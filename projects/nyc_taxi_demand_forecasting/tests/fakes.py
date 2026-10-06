@@ -319,13 +319,18 @@ class FakeTripPreprocessor:
     instances: ClassVar[list["FakeTripPreprocessor"]] = []
 
     def __init__(self) -> None:
-        self.preprocess_calls: list[tuple[object, object]] = []
+        self.preprocess_calls: list[tuple[object, object, object]] = []
         type(self).instances.append(self)
 
     def preprocess(
-        self, raw_directory: object, output_directory: object
+        self,
+        raw_directory: object,
+        output_directory: object,
+        collection: object,
     ) -> None:
-        self.preprocess_calls.append((raw_directory, output_directory))
+        self.preprocess_calls.append(
+            (raw_directory, output_directory, collection)
+        )
 
 
 class FakeDemandModelTrainer:

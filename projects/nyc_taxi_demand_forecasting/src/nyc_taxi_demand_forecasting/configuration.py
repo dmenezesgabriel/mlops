@@ -28,6 +28,12 @@ class CollectionConfig:
             year=self.year, month=month, taxi_type=self.taxi_type
         )
 
+    def file_name(self, month: int) -> str:
+        return f"{self.taxi_type}_tripdata_{self.year}-{month:02d}.parquet"
+
+    def file_names(self) -> tuple[str, ...]:
+        return tuple(self.file_name(month) for month in self.months)
+
 
 @dataclass(frozen=True)
 class FeatureConfig:

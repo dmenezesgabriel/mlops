@@ -1,7 +1,7 @@
-import calendar
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
+import pandas as pd
 from feast import FeatureStore
 
 from nyc_taxi_demand_forecasting.configuration import ProjectConfigLoader
@@ -32,10 +32,17 @@ def run(config_path: Path) -> None:
 
     # Materialize features from offline store into the online SQLite database
     store = FeatureStore(repo_path=str(config.feast.repo_path))
-    year = config.collection.year
-    months = config.collection.months
-    start_date = datetime(year, min(months), 1)
-    last_day = calendar.monthrange(year, max(months))[1]
-    end_date = datetime(year, max(months), last_day) + timedelta(days=1)
-
-    store.materialize(start_date, end_date)
+    event_timestamps = pd.read_parquet(
+        config.features.offline_features_path, columns=["event_timestamp"]
+    )["event_timestamp"]
+    if event_timestamps.empty:
+        raise ValueError(
+            f"Cannot materialize {config.features.offline_features_path}: "
+            f"expected at least one feature row"
+        )
+    # The window follows the built dataset, not the configured months — rows
+    # are floored to the hour, so the exclusive end needs one step past max.
+    store.materialize(
+        event_timestamps.min().to_pydatetime(),
+        event_timestamps.max().to_pydatetime() + timedelta(hours=1),
+    )

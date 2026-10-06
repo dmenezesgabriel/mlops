@@ -30,5 +30,9 @@ def test_preprocess_runs_trip_preprocessor(
     # Assert
     preprocessor = FakeTripPreprocessor.instances[0]
     assert preprocessor.preprocess_calls == [
-        (config.paths.raw_data, config.paths.interim_data)
+        (
+            config.paths.raw_data,
+            config.paths.interim_data,
+            config.collection,
+        )
     ]
