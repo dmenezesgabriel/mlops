@@ -1,5 +1,7 @@
 """Named fakes for the feast/mlflow serving boundaries (ADR-0005)."""
 
+from collections.abc import Callable
+from pathlib import Path
 from typing import ClassVar
 
 import numpy as np
@@ -83,8 +85,56 @@ class FakeMlflowModule:
         self.tracking_uri = tracking_uri
 
 
+class FakeMlflowClient:
+    """`mlflow.client.MlflowClient` stand-in recording uri + alias calls."""
+
+    instances: ClassVar[list["FakeMlflowClient"]] = []
+
+    def __init__(self, tracking_uri: str | None = None) -> None:
+        self.tracking_uri = tracking_uri
+        self.alias_calls: list[dict[str, str]] = []
+        type(self).instances.append(self)
+
+    def set_registered_model_alias(
+        self, name: str, alias: str, version: str
+    ) -> None:
+        self.alias_calls.append(
+            {"name": name, "alias": alias, "version": version}
+        )
+
+
+class FakeMlflowClientModule:
+    """`mlflow.client` module stand-in for the `import_module` seam."""
+
+    MlflowClient = FakeMlflowClient
+
+
+class FailingRunner:
+    """Pipeline runner stand-in raising a scripted exception."""
+
+    def __init__(self, error: Exception) -> None:
+        self._error = error
+
+    def __call__(self, config_path: Path) -> None:
+        raise self._error
+
+
+def import_module_for(mapping: dict[str, object]) -> Callable[[str], object]:
+    """Build an `import_module` replacement dispatching to the mapping."""
+
+    def _import(name: str) -> object:
+        if name not in mapping:
+            raise ImportError(
+                f"Unexpected import {name}: expected one of {sorted(mapping)}"
+            )
+        return mapping[name]
+
+    return _import
+
+
 def reset_fake_state() -> None:
     """Reset ClassVar fake state between tests."""
     FakeFeatureStore.instances = []
     FakeFeatureStore.online_result = pd.DataFrame()
     FakeFeatureStore.online_error = None
+    FakeMlflowClient.instances = []

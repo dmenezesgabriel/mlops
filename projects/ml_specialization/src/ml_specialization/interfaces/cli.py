@@ -67,7 +67,15 @@ def main() -> None:
     MlopsLoggingConfigurator().configure()
     registry = create_registry()
     arguments = create_parser(registry).parse_args()
-    run_command(registry, arguments.command, Path(arguments.config))
+    try:
+        run_command(registry, arguments.command, Path(arguments.config))
+    except (
+        ValueError,
+        FileNotFoundError,
+        ImportError,
+        NotImplementedError,
+    ) as exc:
+        raise SystemExit(str(exc)) from exc
 
 
 if __name__ == "__main__":
