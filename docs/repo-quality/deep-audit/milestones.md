@@ -137,7 +137,18 @@
   iceberg name collision, G-266 quadratic comment scaling — 32.6 s @ 10k
   comments, 187k chars < cap, G-267 guard-arm/mutation test depth; D6
   clean — cache bounded 10k/3.7 MB, D7 holds — construction + 8000-op
-  stress, D8 clean — escaping probed) → **AU-24** execution →
+  stress, D8 clean — escaping probed) → **AU-24** execution ✅ (9 gaps —
+  S1×3, S3×5, S4×1; G-268 concurrent same-token StartQueryExecution
+  double-executes — 2 ids/2 Trino submissions, G-269 cancel inside
+  `await writer.write` dies as an unretrieved CANCELLED→SUCCEEDED ValueError,
+  G-270 QUEUED-cancel never DELETEs the preflight-submitted statement —
+  37/40 stress cancels unstopped; G-271 ClientRequestToken 1..36 vs model
+  32..128, G-272 ExecutionParameters/Database member bounds unenforced,
+  G-273 BatchGet 51-ids cap + MaxResults=0, G-274 parenthesized queries →
+  UTILITY/None + `.txt` → wrangler empty DataFrame, G-275 backtick spans
+  unlexed by the placeholder/USING scanners, G-276 8/571 stmts uncovered +
+  M-2 survives; D2 linear 0.89-0.99, D6 documented live-count bound,
+  D8 clean, D10 live CLI/consumer suites) →
   **AU-25** boundary/artifacts → **AU-26** test-suite quality.
 - [ ] Remediate promoted S1+ gaps.
 
