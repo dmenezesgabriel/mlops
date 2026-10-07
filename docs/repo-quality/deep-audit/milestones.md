@@ -106,7 +106,8 @@
   `_evidence.py` has zero unit tests, `persist` allows `../` escapes +
   loses sections under concurrent writers, the glue is outside every gate
   but pre-commit ruff.)
-- [ ] Remediate promoted S1+ gaps.
+- [x] Remediate promoted S1+ gaps. (AF-80…AF-117 all shipped — every
+  AU-15…AU-19 gap dispositioned; register has zero open rows.)
 
 ## MA-7 — athena-local (per plane)
 

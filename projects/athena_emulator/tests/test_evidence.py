@@ -8,6 +8,7 @@ redirected to ``tmp_path`` by monkeypatching ``PROJECT_DIR``.
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 import threading
 from collections.abc import Iterator
@@ -184,3 +185,83 @@ def test_concurrent_persists_keep_all_sections(
     index_text = (project / "PARITY.md").read_text()
     assert "## 01_a" in index_text
     assert "## 02_b" in index_text
+
+
+def test_render_default_reads_recorded_evidence() -> None:
+    evidence.record("f", "PASS", "d")
+    assert "| f | PASS | d |  |" in evidence.render()
+
+
+def test_render_exact_table_shape() -> None:
+    row = evidence.Evidence(
+        feature="f", status="PASS", detail="d", latency_ms=1.0
+    )
+    assert evidence.render([row]) == (
+        "| feature | status | detail | latency_ms |\n"
+        "|---|---|---|---|\n"
+        "| f | PASS | d | 1 |\n"
+    )
+
+
+def test_render_keeps_rows_differing_in_status_or_detail() -> None:
+    rows = [
+        evidence.Evidence(feature="f", status="PASS", detail="d"),
+        evidence.Evidence(feature="f", status="FAIL", detail="d"),
+        evidence.Evidence(feature="f", status="PASS", detail="e"),
+    ]
+    body = [
+        line
+        for line in evidence.render(rows).splitlines()
+        if line.startswith("| f ")
+    ]
+    assert len(body) == 3
+
+
+def test_persist_replaces_tmp_files_atomically(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _notebook(project, "01_x")
+    replaced: list[tuple[str, str]] = []
+    real_replace = os.replace
+
+    def spy_replace(src: Path, dst: Path) -> None:
+        replaced.append((src.name, dst.name))
+        real_replace(src, dst)
+
+    monkeypatch.setattr(os, "replace", spy_replace)
+    evidence.persist(
+        "01_x", [evidence.Evidence(feature="f", status="PASS", detail="d")]
+    )
+    assert ("01_x.md.tmp", "01_x.md") in replaced
+    assert ("PARITY.md.tmp", "PARITY.md") in replaced
+
+
+def test_index_sorts_glob_order(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _notebook(project, "01_a")
+    _notebook(project, "02_b")
+    real_glob = Path.glob
+
+    def reversed_glob(self: Path, pattern: str) -> Iterator[Path]:
+        return iter(list(real_glob(self, pattern))[::-1])
+
+    monkeypatch.setattr(Path, "glob", reversed_glob)
+    evidence.persist(
+        "02_b", [evidence.Evidence(feature="fb", status="PASS", detail="db")]
+    )
+    evidence.persist(
+        "01_a", [evidence.Evidence(feature="fa", status="PASS", detail="da")]
+    )
+    index_text = (project / "PARITY.md").read_text()
+    assert index_text.index("## 01_a") < index_text.index("## 02_b")
+
+
+def test_index_carries_generated_header(project: Path) -> None:
+    _notebook(project, "01_x")
+    evidence.persist(
+        "01_x", [evidence.Evidence(feature="f", status="PASS", detail="d")]
+    )
+    index_text = (project / "PARITY.md").read_text()
+    assert index_text.startswith("# Athena emulator parity evidence\n\n")
+    assert "do not edit by hand" in index_text

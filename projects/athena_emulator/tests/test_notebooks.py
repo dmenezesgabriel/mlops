@@ -24,6 +24,7 @@ import http.client
 import importlib.util
 import io
 import os
+import re
 import sys
 import urllib.error
 import urllib.parse
@@ -89,6 +90,24 @@ def _fragment_mtime(stem: str) -> int:
     return fragment.stat().st_mtime_ns if fragment.is_file() else 0
 
 
+def _fail_rows(stem: str) -> list[str]:
+    """Features whose rows in ``parity/<stem>.md`` recorded ``FAIL`` status.
+
+    Splits table cells on unescaped ``|`` only (``_evidence._escape_cell``
+    renders literal pipes as ``\\|``) and checks the status cell alone, so
+    detail text like "FAILED execution" never counts as a FAIL row.
+    """
+    fragment = PARITY_DIR / f"{stem}.md"
+    if not fragment.is_file():
+        return []
+    fails = []
+    for line in fragment.read_text().splitlines():
+        cells = re.split(r"(?<!\\)\|", line.strip())
+        if len(cells) >= 3 and cells[2].strip() == "FAIL":
+            fails.append(cells[1].strip())
+    return fails
+
+
 def test_notebooks_parametrized_from_disk() -> None:
     """Every ``notebooks/*.ipynb`` must be a test parameter."""
     expected = [path.name for path in sorted(NOTEBOOKS_DIR.glob("*.ipynb"))]
@@ -117,6 +136,10 @@ def test_notebook_runs_end_to_end(
     _execute_notebook(notebook_name)
     assert _fragment_mtime(stem) > persisted_before, (
         f"{notebook_name} executed without writing parity/{stem}.md"
+    )
+    fail_rows = _fail_rows(stem)
+    assert not fail_rows, (
+        f"{notebook_name} recorded FAIL parity rows: {fail_rows}"
     )
 
 
@@ -208,3 +231,64 @@ def test_execute_notebook_skips_without_kernel_deps(
     monkeypatch.setattr(importlib.util, "find_spec", lambda name: None)
     with pytest.raises(pytest.skip.Exception):
         _execute_notebook("01_smoke_and_endpoints.ipynb")
+
+
+@pytest.fixture
+def parity(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    monkeypatch.setattr(sys.modules[__name__], "PARITY_DIR", tmp_path)
+    return tmp_path
+
+
+def _fragment(parity_dir: Path, stem: str, rows: list[str]) -> None:
+    table = "\n".join(
+        [
+            f"## {stem}",
+            "",
+            "| feature | status | detail | latency_ms |",
+            "|---|---|---|---|",
+            *rows,
+            "",
+        ]
+    )
+    (parity_dir / f"{stem}.md").write_text(table)
+
+
+def test_fail_rows_detects_fail_status(parity: Path) -> None:
+    _fragment(parity, "01_x", ["| f | FAIL | broken |  |"])
+    assert _fail_rows("01_x") == ["f"]
+
+
+def test_fail_rows_ignores_pass_gap_and_table_furniture(
+    parity: Path,
+) -> None:
+    _fragment(
+        parity,
+        "01_x",
+        ["| f | PASS | ok | 2 |", "| g | GAP | absent |  |"],
+    )
+    assert _fail_rows("01_x") == []
+
+
+def test_fail_rows_checks_status_cell_only(parity: Path) -> None:
+    _fragment(parity, "01_x", ["| f | PASS | FAILED execution detail |  |"])
+    assert _fail_rows("01_x") == []
+
+
+def test_fail_rows_respects_escaped_pipes(parity: Path) -> None:
+    _fragment(parity, "01_x", [r"| a \| b | FAIL | d \| e |  |"])
+    assert _fail_rows("01_x") == [r"a \| b"]
+
+
+def test_fail_rows_missing_fragment_is_empty(parity: Path) -> None:
+    assert _fail_rows("99_absent") == []
+
+
+def test_committed_fragments_carry_no_fail_rows() -> None:
+    """Committed parity evidence must be green — a FAIL row means a shipped
+    feature is broken, and the suite must say so without the live stack."""
+    offenders = {
+        path.stem: _fail_rows(path.stem) for path in PARITY_DIR.glob("*.md")
+    }
+    assert not any(offenders.values()), (
+        f"FAIL parity rows committed: {offenders}"
+    )
