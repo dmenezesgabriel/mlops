@@ -111,9 +111,12 @@
 
 ## MA-7 — athena-local (per plane)
 
-- [ ] **AU-20** protocol → **AU-21** state → **AU-22** SQL rewrite →
-  **AU-23** iceberg → **AU-24** execution → **AU-25** boundary/artifacts →
-  **AU-26** test-suite quality.
+- [ ] **AU-20** protocol ✅ (3 gaps — S3×2, S4×1; G-248 NextToken
+  accepts negative/padded tokens, G-249 raw-wire member constraints
+  unenforced, G-250 guard/branch test gaps) → **AU-27** protocol handlers →
+  **AU-21** state →
+  **AU-22** SQL rewrite → **AU-23** iceberg → **AU-24** execution →
+  **AU-25** boundary/artifacts → **AU-26** test-suite quality.
 - [ ] Remediate promoted S1+ gaps.
 
 ## MA-8 — Cross-cutting + close
