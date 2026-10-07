@@ -118,7 +118,13 @@
   constraints unenforced, G-253 ClientRequestToken idempotency ignored,
   G-254 tag-count quota unenforced breaks the no-pagination argument,
   G-255 malformed-ARN raises untested) →
-  **AU-21** state →
+  **AU-21** state ✅ (5 gaps — S3×4, S4×1; G-256 ListPreparedStatements
+  MaxResults unenforced, G-257 PS member constraints unenforced, G-258
+  unknown-workgroup create accepted where moto 400s, G-259 double kwarg
+  wall in ExecutionStore.create + SubmissionPlanner.create_record, G-260
+  empty-prefix branch uncovered everywhere + absent-Parameters keep-branch
+  unasserted; D6 retention verified — the "unbounded stores" seed is
+  resolved by the shipped TTL+cap; D7 holds — 4000-op stress) →
   **AU-22** SQL rewrite → **AU-23** iceberg → **AU-24** execution →
   **AU-25** boundary/artifacts → **AU-26** test-suite quality.
 - [ ] Remediate promoted S1+ gaps.
