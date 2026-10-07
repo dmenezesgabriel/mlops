@@ -113,7 +113,11 @@
 
 - [ ] **AU-20** protocol ✅ (3 gaps — S3×2, S4×1; G-248 NextToken
   accepts negative/padded tokens, G-249 raw-wire member constraints
-  unenforced, G-250 guard/branch test gaps) → **AU-27** protocol handlers →
+  unenforced, G-250 guard/branch test gaps) → **AU-27** protocol handlers ✅
+  (5 gaps — S3×4, S4×1; G-251 list-op caps unenforced, G-252 per-op member
+  constraints unenforced, G-253 ClientRequestToken idempotency ignored,
+  G-254 tag-count quota unenforced breaks the no-pagination argument,
+  G-255 malformed-ARN raises untested) →
   **AU-21** state →
   **AU-22** SQL rewrite → **AU-23** iceberg → **AU-24** execution →
   **AU-25** boundary/artifacts → **AU-26** test-suite quality.
