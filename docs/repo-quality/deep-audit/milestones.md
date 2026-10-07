@@ -130,7 +130,14 @@
   G-262 `_parse_type` RecursionError at 331 nested types → 500 where Athena
   400s, G-263 51 guard-arm stmts uncovered + M-7/M-8 mutants survive; D8
   clean, D2 linear, D7 16k-call stress; SORTED BY pass-through correct per
-  the AWS synopsis) → **AU-23** iceberg → **AU-24** execution →
+  the AWS synopsis) → **AU-23** iceberg ✅ (4 gaps — S2×1, S3×2, S4×1;
+  G-264 comment-blind clause parsing mis-rewrites PARTITIONED BY comments
+  into garbage partition columns + bails elsewhere, G-265
+  EXTRACT/TRIM/UNNEST FROM-arguments falsely catalog-qualified on an
+  iceberg name collision, G-266 quadratic comment scaling — 32.6 s @ 10k
+  comments, 187k chars < cap, G-267 guard-arm/mutation test depth; D6
+  clean — cache bounded 10k/3.7 MB, D7 holds — construction + 8000-op
+  stress, D8 clean — escaping probed) → **AU-24** execution →
   **AU-25** boundary/artifacts → **AU-26** test-suite quality.
 - [ ] Remediate promoted S1+ gaps.
 
