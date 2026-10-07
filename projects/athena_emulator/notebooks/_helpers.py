@@ -8,9 +8,8 @@ explicit parameters so no helper depends on notebook-kernel globals.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TypeVar
+from typing import Any, Protocol, TypeVar
 
-from botocore.client import BaseClient
 from botocore.exceptions import ClientError
 
 __all__ = [
@@ -30,6 +29,32 @@ __all__ = [
 T = TypeVar("T")
 
 
+# boto3 service operations are dynamic — BaseClient carries none of them
+# statically — so the consumed surface is declared as protocols. Response
+# shapes are Any: the wire returns service-dependent JSON.
+class AthenaOps(Protocol):
+    def get_query_execution(self, **kwargs: object) -> dict[str, Any]: ...
+    def list_work_groups(self, **kwargs: object) -> dict[str, Any]: ...
+    def list_named_queries(self, **kwargs: object) -> dict[str, Any]: ...
+    def delete_named_query(self, **kwargs: object) -> None: ...
+    def list_prepared_statements(self, **kwargs: object) -> dict[str, Any]: ...
+    def delete_prepared_statement(self, **kwargs: object) -> None: ...
+
+
+class S3Ops(Protocol):
+    def list_buckets(self, **kwargs: object) -> dict[str, Any]: ...
+    def list_objects_v2(self, **kwargs: object) -> dict[str, Any]: ...
+    def delete_objects(self, **kwargs: object) -> None: ...
+    def delete_bucket(self, **kwargs: object) -> None: ...
+
+
+class GlueOps(Protocol):
+    def get_databases(self, **kwargs: object) -> dict[str, Any]: ...
+    def get_tables(self, **kwargs: object) -> dict[str, Any]: ...
+    def delete_table(self, **kwargs: object) -> None: ...
+    def delete_database(self, **kwargs: object) -> None: ...
+
+
 def probe_outcome(call: Callable[[], T]) -> T | Exception:
     """``call()``'s value, or the exception it raised — both are evidence."""
     try:
@@ -41,9 +66,9 @@ def probe_outcome(call: Callable[[], T]) -> T | Exception:
 def error_detail(error: Exception) -> str:
     """One matrix line: wire Code+status for ClientError, else type+text."""
     if isinstance(error, ClientError):
-        code = error.response["Error"]["Code"]
-        status = error.response["ResponseMetadata"]["HTTPStatusCode"]
-        message = error.response["Error"].get("Message", "")
+        code, status = error_code_status(error)
+        error_info = error.response.get("Error") or {}
+        message = error_info.get("Message") or ""
         return f"{code} ({status}): {message.splitlines()[0][:80]}"
     first = str(error).splitlines()[0] if str(error) else ""
     return f"{type(error).__name__}: {first[:80]}"
@@ -59,10 +84,16 @@ def client_error_of(call: Callable[[], object]) -> ClientError | None:
 
 
 def error_code_status(error: ClientError) -> tuple[str, int]:
-    """(Error.Code, HTTPStatusCode) of a captured ClientError."""
+    """(Error.Code, HTTPStatusCode) of a captured ClientError.
+
+    The response keys are typed non-required — a malformed wire payload
+    degrades to placeholders instead of KeyError inside a probe.
+    """
+    error_info = error.response.get("Error") or {}
+    metadata = error.response.get("ResponseMetadata") or {}
     return (
-        error.response["Error"]["Code"],
-        error.response["ResponseMetadata"]["HTTPStatusCode"],
+        error_info.get("Code") or "UnknownError",
+        metadata.get("HTTPStatusCode") or 0,
     )
 
 
@@ -74,14 +105,14 @@ def client_error_status(call: Callable[[], object]) -> tuple[str, int] | None:
     return error_code_status(error)
 
 
-def query_execution(athena: BaseClient, query_id: str) -> dict[str, object]:
+def query_execution(athena: AthenaOps, query_id: str) -> dict[str, object]:
     """The GetQueryExecution ``QueryExecution`` member for ``query_id``."""
     return athena.get_query_execution(QueryExecutionId=query_id)[
         "QueryExecution"
     ]
 
 
-def object_keys_under(s3: BaseClient, bucket: str, prefix: str) -> list[str]:
+def object_keys_under(s3: S3Ops, bucket: str, prefix: str) -> list[str]:
     """Object keys under ``prefix`` in the throwaway bucket."""
     contents = s3.list_objects_v2(Bucket=bucket, Prefix=prefix).get(
         "Contents", []
@@ -89,7 +120,7 @@ def object_keys_under(s3: BaseClient, bucket: str, prefix: str) -> list[str]:
     return [obj["Key"] for obj in contents]
 
 
-def run_workgroup_names(athena: BaseClient, prefix: str) -> list[str]:
+def run_workgroup_names(athena: AthenaOps, prefix: str) -> list[str]:
     """Workgroup names carrying this run's (or a failed run's) prefix."""
     return [
         summary["Name"]
@@ -98,7 +129,7 @@ def run_workgroup_names(athena: BaseClient, prefix: str) -> list[str]:
     ]
 
 
-def delete_workgroup_contents(athena: BaseClient, workgroup_name: str) -> None:
+def delete_workgroup_contents(athena: AthenaOps, workgroup_name: str) -> None:
     """Delete the named queries and prepared statements in a workgroup."""
     queries = athena.list_named_queries(WorkGroup=workgroup_name)
     for query_id in queries.get("NamedQueryIds", []):
@@ -111,7 +142,7 @@ def delete_workgroup_contents(athena: BaseClient, workgroup_name: str) -> None:
 
 
 def delete_run_buckets(
-    s3: BaseClient,
+    s3: S3Ops,
     prefix: str,
     *,
     extra: Callable[[str], bool] | None = None,
@@ -121,11 +152,10 @@ def delete_run_buckets(
     ``extra`` names an additional deletion predicate — nb04 passes the
     wrangler ``aws-athena-query-results-*`` bucket when this run created it.
     """
+    also_delete: Callable[[str], bool] = extra or (lambda _name: False)
     for bucket_info in s3.list_buckets()["Buckets"]:
         name = bucket_info["Name"]
-        if not (
-            name.startswith(prefix) or (extra is not None and extra(name))
-        ):
+        if not (name.startswith(prefix) or also_delete(name)):
             continue
         objects = s3.list_objects_v2(Bucket=name).get("Contents", [])
         if objects:
@@ -136,7 +166,7 @@ def delete_run_buckets(
         s3.delete_bucket(Bucket=name)
 
 
-def delete_run_databases(glue: BaseClient, prefix: str) -> None:
+def delete_run_databases(glue: GlueOps, prefix: str) -> None:
     """Delete tables, then every Glue database carrying ``prefix``."""
     for database_info in glue.get_databases()["DatabaseList"]:
         database_name = database_info["Name"]

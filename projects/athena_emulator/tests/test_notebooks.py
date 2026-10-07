@@ -49,7 +49,7 @@ def _emulator_reachable() -> bool:
         # schemes must never count as "reachable" via urlopen.
         if urllib.parse.urlparse(ATHENA_URL).scheme not in ("http", "https"):
             return False
-        urllib.request.urlopen(f"{ATHENA_URL}/health", timeout=2)
+        urllib.request.urlopen(f"{ATHENA_URL}/health", timeout=2)  # nosec B310
     except (OSError, http.client.HTTPException, ValueError):
         return False
     return True
@@ -176,7 +176,7 @@ def test_probe_returns_true_when_health_responds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        urllib.request, "urlopen", lambda req, timeout: io.BytesIO(b"")
+        urllib.request, "urlopen", lambda _req, timeout: io.BytesIO(b"")
     )
     monkeypatch.setattr(
         sys.modules[__name__], "ATHENA_URL", "http://localhost:5001"

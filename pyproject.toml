@@ -57,6 +57,7 @@ members = [
   "libs/sagemaker-local",
   "libs/athena-local",
   "docker/moto",
+  "projects/athena_emulator",
 ]
 
 [tool.ruff]

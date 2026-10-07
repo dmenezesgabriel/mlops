@@ -1,0 +1,55 @@
+[project]
+name = "athena-emulator-parity"
+version = "0.1.0"
+description = "Parity validation notebooks and evidence glue for the Athena emulator stack — not a distributable package, the deliverable is committed evidence."
+requires-python = ">=3.11"
+dependencies = [
+  "awswrangler==3.17.1",
+  "boto3==1.42.82",
+  "botocore==1.42.97",
+  "pandas==2.3.3",
+]
+
+[dependency-groups]
+dev = [
+  # Stubs lag the botocore pin; the API used here (BaseClient, ClientError)
+  # is stable across the gap.
+  "botocore-stubs==1.42.9",
+  "nbclient==0.11.0",
+  "nbformat==5.10.4",
+  "pytest==9.0.3",
+  "pytest-cov==7.1.0",
+]
+
+[tool.deptry]
+known_first_party = ["_evidence", "_helpers"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -rfEs --tb=short --show-capture=no --import-mode=importlib"
+console_output_style = "classic"
+markers = [
+  "integration: executes the notebooks against the compose emulator stack (skips when unreachable)",
+]
+
+[tool.coverage.run]
+branch = true
+# The glue lives in notebooks/ as kernel-cwd modules and is measured through
+# its file-loading unit tests; nothing outside this tree belongs to it.
+source = ["notebooks", "tests"]
+
+[tool.vulture]
+min_confidence = 80
+# ``timeout`` is keyword-bound by the urlopen call sites under the monkeypatch
+# doubles; ``live_emulator`` is bound by pytest fixture injection.
+ignore_names = ["timeout", "live_emulator"]
+sort_by_size = true
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "strict"
+reportMissingParameterType = true
+reportMissingReturnType = true
+reportUnnecessaryCast = true
+reportUnusedIgnoreComment = true
+reportMissingImports = false

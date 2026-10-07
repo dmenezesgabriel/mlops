@@ -21,7 +21,7 @@ scaffold:
 	$(MAKE) -C projects/$(PROJECT) format
 	cd projects/$(PROJECT) && uv run ruff check --fix .
 
-PACKAGES = libs/mlops-shared libs/data-science-scaffold libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting libs/ssg-latex libs/videos libs/diagrams libs/videos-linter libs/sagemaker-local libs/athena-local docker/moto projects/$(PROJECT) projects/ml_specialization projects/sagemaker_catboost projects/sagemaker_lightgbm projects/sagemaker_scikit_learn projects/sagemaker_xgboost
+PACKAGES = libs/mlops-shared libs/data-science-scaffold libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting libs/ssg-latex libs/videos libs/diagrams libs/videos-linter libs/sagemaker-local libs/athena-local docker/moto projects/$(PROJECT) projects/ml_specialization projects/sagemaker_catboost projects/sagemaker_lightgbm projects/sagemaker_scikit_learn projects/sagemaker_xgboost projects/athena_emulator
 
 format:
 	for package in $(PACKAGES); do \
