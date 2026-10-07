@@ -125,7 +125,12 @@
   empty-prefix branch uncovered everywhere + absent-Parameters keep-branch
   unasserted; D6 retention verified — the "unbounded stores" seed is
   resolved by the shipped TTL+cap; D7 holds — 4000-op stress) →
-  **AU-22** SQL rewrite → **AU-23** iceberg → **AU-24** execution →
+  **AU-22** SQL rewrite ✅ (3 gaps — S3×2, S4×1; G-261 comment-blind lexers
+  on the un-stripped submit path break all three rewrites into pass-through,
+  G-262 `_parse_type` RecursionError at 331 nested types → 500 where Athena
+  400s, G-263 51 guard-arm stmts uncovered + M-7/M-8 mutants survive; D8
+  clean, D2 linear, D7 16k-call stress; SORTED BY pass-through correct per
+  the AWS synopsis) → **AU-23** iceberg → **AU-24** execution →
   **AU-25** boundary/artifacts → **AU-26** test-suite quality.
 - [ ] Remediate promoted S1+ gaps.
 
