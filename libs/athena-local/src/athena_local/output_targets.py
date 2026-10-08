@@ -20,6 +20,7 @@ write no manifest.
 
 from __future__ import annotations
 
+import asyncio
 import re
 from dataclasses import dataclass
 
@@ -68,10 +69,16 @@ class OutputSnapshotter:
         catalog: str | None,
         substatement_type: str | None,
     ) -> OutputSnapshot | None:
+        # Glue and S3 are synchronous boto3 clients: the listing RTT would
+        # otherwise run on the event loop (stalling every in-flight request
+        # and serializing concurrent executions), so the blocking capture
+        # runs on a worker thread.
         if substatement_type == "INSERT":
-            return self._capture_insert(query, database)
+            return await asyncio.to_thread(
+                self._capture_insert, query, database
+            )
         if substatement_type == "UNLOAD":
-            return self._capture_unload(query)
+            return await asyncio.to_thread(self._capture_unload, query)
         return None
 
     def _capture_insert(

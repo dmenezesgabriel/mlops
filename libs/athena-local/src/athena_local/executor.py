@@ -295,18 +295,18 @@ class QueryExecutor:
                 # An UNLOAD's parked CTAS may still have registered the
                 # temp table server-side — best-effort drop, like the other
                 # non-success exits below.
-                self._drop_unload_table(record)
+                await self._drop_unload_table(record)
                 return
             record.transition_to(RUNNING)
             page = await self._poll_to_end(record, first_page)
             if page is None:
-                self._drop_unload_table(record)
+                await self._drop_unload_table(record)
                 return
             if _cancelled(record):
-                self._drop_unload_table(record)
+                await self._drop_unload_table(record)
                 return
             if page.error is not None:
-                self._drop_unload_table(record)
+                await self._drop_unload_table(record)
                 if self._partition_exists_noop(record, page.error):
                     await self._complete(record, page)
                     return
@@ -348,7 +348,7 @@ class QueryExecutor:
             page.data,
         )
         record.cache_result_page(columns, rows)
-        cleanup_error = self._unload_cleanup_error(record)
+        cleanup_error = await self._unload_cleanup_error(record)
         if cleanup_error is not None:
             record.transition_to(FAILED, cleanup_error)
             return
@@ -401,7 +401,7 @@ class QueryExecutor:
             and error.error_name == "ALREADY_EXISTS"
         )
 
-    def _unload_cleanup_error(
+    async def _unload_cleanup_error(
         self, record: QueryExecutionRecord
     ) -> str | None:
         """Drop the UNLOAD temp table before success; failure names a reason.
@@ -409,7 +409,8 @@ class QueryExecutor:
         The emitted CTAS registers a Glue entry real UNLOAD never has, so
         the drop is part of the statement's success semantics: consumers
         must not see SUCCEEDED over a catalog showing emulator litter (the
-        same discipline as the artifact writer, ADR-0009 #4).
+        same discipline as the artifact writer, ADR-0009 #4). The Glue client
+        is synchronous, so the blocking delete runs on a worker thread.
         """
         cleanup = record.unload_cleanup_table
         if cleanup is None:
@@ -420,12 +421,12 @@ class QueryExecutor:
                 "no manifest snapshotter configured"
             )
         try:
-            self._snapshotter.drop_table(*cleanup)
+            await asyncio.to_thread(self._snapshotter.drop_table, *cleanup)
         except InternalServerException as error:
             return f"UNLOAD temp catalog table could not be dropped: {error}"
         return None
 
-    def _drop_unload_table(self, record: QueryExecutionRecord) -> None:
+    async def _drop_unload_table(self, record: QueryExecutionRecord) -> None:
         """Best-effort UNLOAD temp-table cleanup on a non-success exit.
 
         A cancelled or engine-failed CTAS may still have registered the
@@ -436,7 +437,7 @@ class QueryExecutor:
         if cleanup is None or self._snapshotter is None:
             return
         try:
-            self._snapshotter.drop_table(*cleanup)
+            await asyncio.to_thread(self._snapshotter.drop_table, *cleanup)
         except InternalServerException:
             return
 

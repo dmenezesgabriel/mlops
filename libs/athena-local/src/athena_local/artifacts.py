@@ -22,6 +22,7 @@ and emits only the keys that appeared since.
 
 from __future__ import annotations
 
+import asyncio
 import csv
 import io
 import json
@@ -98,12 +99,32 @@ class ArtifactWriter:
             execution.statement_type, execution.substatement_type
         )
         try:
-            if plan.kind == "manifest":
-                self._write_manifest(execution, plan, final_page.query_id)
-                return
-            self._write_rows(execution, plan)
+            manifest_path = await asyncio.to_thread(
+                self._persist, execution, plan, final_page.query_id
+            )
         except S3WriterError as error:
             raise ArtifactWriteError(str(error)) from error
+        if manifest_path is not None:
+            # The S3 boundary is synchronous; the puts run on a worker thread
+            # so a slow moto roundtrip cannot stall the event loop. The record
+            # field is written back here, on the loop's own thread.
+            execution.data_manifest_location = manifest_path
+
+    def _persist(
+        self,
+        execution: QueryExecutionRecord,
+        plan: ArtifactPlan,
+        engine_query_id: str,
+    ) -> str | None:
+        """Write the artifact bytes on the calling (worker) thread.
+
+        Returns the manifest path for the caller to record on the event-loop
+        thread; ``None`` for the non-manifest plans.
+        """
+        if plan.kind == "manifest":
+            return self._write_manifest(execution, plan, engine_query_id)
+        self._write_rows(execution, plan)
+        return None
 
     def _write_rows(
         self, execution: QueryExecutionRecord, plan: ArtifactPlan
@@ -123,18 +144,18 @@ class ArtifactWriter:
         execution: QueryExecutionRecord,
         plan: ArtifactPlan,
         engine_query_id: str,
-    ) -> None:
+    ) -> str:
         location = _output_prefix(execution)
         manifest_path = location + plan.data_name(execution.query_execution_id)
         self._s3.put_object(
             manifest_path,
             _manifest_bytes(self._manifest_paths(execution, engine_query_id)),
         )
-        execution.data_manifest_location = manifest_path
         self._s3.put_object(
             location + plan.metadata_name(execution.query_execution_id),
             _metadata_bytes(execution.result_columns, execution.result_rows),
         )
+        return manifest_path
 
     def _manifest_paths(
         self, execution: QueryExecutionRecord, engine_query_id: str
