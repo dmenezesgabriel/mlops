@@ -81,7 +81,10 @@ class QueryExecutionRecord:
     substatement_type: str | None = None
     # INSERT/UNLOAD manifest enumeration: the write target captured
     # before the statement was submitted, plus any reason it could not be
-    # resolved. Sticky and internal — never serialized to the wire.
+    # resolved. In-flight only — the artifact write (which runs before the
+    # terminal transition) is its sole consumer, and retaining the key set
+    # for the record's TTL measured ~1 GB at the store cap (methodology.md
+    # §6), so ``transition_to`` releases it on terminal. Never serialized.
     output_snapshot: OutputSnapshot | None = None
     manifest_target_error: str | None = None
     # The (schema, table) Glue entry an UNLOAD's CTAS rewrite registered;
@@ -155,6 +158,10 @@ class QueryExecutionRecord:
         self.state_change_reason = reason
         if new_state in TERMINAL_STATES:
             self.completion_time = time()
+            # The pre-submit snapshot is dead once the execution is terminal:
+            # the artifact write consumed it, so a retained record must not
+            # pin the captured key set for its whole TTL.
+            self.output_snapshot = None
 
     def apply_engine_statistics(self, stats: dict[str, object]) -> None:
         """Copy the Trino StatementStats counters Athena reports back."""

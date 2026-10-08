@@ -47,10 +47,11 @@ def test_insert_start_captures_snapshot_before_submit(
         snapshotter = RecordingSnapshotter(
             snapshot=snapshot, capture_client=client
         )
+        writer = RecordingWriter()
         executor = QueryExecutor(
             store=store,
             client=client,
-            writer=RecordingWriter(),
+            writer=writer,
             snapshotter=snapshotter,
         )
         classification = StatementClassification("DML", "INSERT")
@@ -62,14 +63,57 @@ def test_insert_start_captures_snapshot_before_submit(
         )
         await executor._tasks[record.query_execution_id]
 
-        # The recording fake itself asserts capture ran pre-submit; the record
-        # carries the snapshot so the artifact writer can diff at completion.
+        # Capture ran pre-submit and the writer received the snapshot for its
+        # diff; the record itself no longer holds the (possibly large) key set.
         assert snapshotter.calls == [
             ("INSERT INTO analytics.events SELECT 1", "INSERT")
         ]
-        assert record.output_snapshot == snapshot
+        assert writer.snapshots == [snapshot]
+        assert record.output_snapshot is None
         assert record.manifest_target_error is None
         assert record.state == SUCCEEDED
+
+    asyncio.run(scenario())
+
+
+def test_terminal_execution_releases_the_manifest_snapshot(
+    store: ExecutionStore,
+) -> None:
+    """The pre-submit snapshot is in-flight only; a terminal record drops it.
+
+    Retaining the captured key set for the record's TTL measured ~1 GB at the
+    store cap (methodology.md §6); the artifact write, which runs before the
+    terminal transition, is its only consumer.
+    """
+
+    snapshot = OutputSnapshot(
+        location="s3://data-bucket/events/",
+        before_paths=frozenset(
+            f"s3://data-bucket/events/old-{index}.parquet"
+            for index in range(3)
+        ),
+    )
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient([result_page(next_uri=None)])
+        snapshotter = RecordingSnapshotter(snapshot=snapshot)
+        writer = RecordingWriter()
+        executor = QueryExecutor(
+            store=store,
+            client=client,
+            writer=writer,
+            snapshotter=snapshotter,
+        )
+        record = await executor.start(
+            query="INSERT INTO analytics.events SELECT 1",
+            workgroup="primary",
+            statement_classification=StatementClassification("DML", "INSERT"),
+        )
+        await executor._tasks[record.query_execution_id]
+
+        assert record.state == SUCCEEDED
+        assert writer.snapshots == [snapshot]
+        assert record.output_snapshot is None
 
     asyncio.run(scenario())
 

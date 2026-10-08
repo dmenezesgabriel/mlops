@@ -162,15 +162,17 @@ class GatedStatementClient:
 
 
 class RecordingWriter:
-    """ResultArtifactWriter fake that records the execution state it saw."""
+    """ResultArtifactWriter fake that records what the write observed."""
 
     def __init__(self) -> None:
         self.calls: list[str] = []
+        self.snapshots: list[OutputSnapshot | None] = []
 
     async def write(
         self, execution: QueryExecutionRecord, final_page: TrinoPage
     ) -> None:
         self.calls.append(f"write:{execution.state}")
+        self.snapshots.append(execution.output_snapshot)
 
 
 class FailingWriter:
