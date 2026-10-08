@@ -3,7 +3,8 @@
 ``ScriptedStatementClient`` serves scripted Trino pages and records every
 call; ``GatedStatementClient`` parks poll fetches inside a shared gate to
 pin the semaphore/cancellation windows; ``RecordingWriter``/
-``FailingWriter`` cover the artifact-writer port; ``RecordingSnapshotter``
+``FailingWriter``/``GatedWriter``/``CancellingWriter`` cover the
+artifact-writer port; ``RecordingSnapshotter``
 records manifest captures and can assert capture-before-submit via a
 ``capture_client`` (F.I.R.S.T., no docker).
 """
@@ -12,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 
-from athena_local.executions import QueryExecutionRecord
+from athena_local.executions import CANCELLED, QueryExecutionRecord
 from athena_local.executor import ArtifactWriteError
 from athena_local.output_targets import OutputSnapshot
 from athena_local.trino_client import (
@@ -176,6 +177,51 @@ class FailingWriter:
         self, execution: QueryExecutionRecord, final_page: TrinoPage
     ) -> None:
         raise ArtifactWriteError("moto S3 refused put_object")
+
+
+class GatedWriter:
+    """ResultArtifactWriter fake parking inside ``write`` until a gate opens.
+
+    The artifact record lands only after the gate, so a cancel that aborts
+    the parked write leaves ``calls`` empty — the "no artifacts for a
+    CANCELLED record" assertion.
+    """
+
+    def __init__(
+        self, gate: asyncio.Event, error: Exception | None = None
+    ) -> None:
+        self._gate = gate
+        self._error = error
+        self.calls: list[str] = []
+
+    async def write(
+        self, execution: QueryExecutionRecord, final_page: TrinoPage
+    ) -> None:
+        await self._gate.wait()
+        if self._error is not None:
+            raise self._error
+        self.calls.append(f"write:{execution.state}")
+
+
+class CancellingWriter:
+    """ResultArtifactWriter fake whose write flips the record to CANCELLED.
+
+    Models StopQueryExecution landing while an uninterruptible write is in
+    flight — the write completes with the record already terminal, and the
+    executor must not resurrect it with a trailing SUCCEEDED transition.
+    """
+
+    def __init__(self, error: Exception | None = None) -> None:
+        self._error = error
+        self.calls: list[str] = []
+
+    async def write(
+        self, execution: QueryExecutionRecord, final_page: TrinoPage
+    ) -> None:
+        self.calls.append(f"write:{execution.state}")
+        execution.transition_to(CANCELLED)
+        if self._error is not None:
+            raise self._error
 
 
 class RecordingSnapshotter:

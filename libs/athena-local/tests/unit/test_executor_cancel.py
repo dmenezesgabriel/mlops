@@ -8,6 +8,7 @@ best-effort Trino DELETE of the active statement.
 from __future__ import annotations
 
 import asyncio
+import logging
 
 import pytest
 from athena_local.errors import (
@@ -21,14 +22,16 @@ from athena_local.executions import (
     SUCCEEDED,
     ExecutionStore,
 )
-from athena_local.executor import QueryExecutor
+from athena_local.executor import ArtifactWriteError, QueryExecutor
 from athena_local.trino_client import (
     TrinoTransportError,
 )
 from tests.unit._executor_fakes import (
     URI_1,
     URI_2,
+    CancellingWriter,
     GatedStatementClient,
+    GatedWriter,
     RecordingWriter,
     ScriptedStatementClient,
     result_page,
@@ -194,6 +197,151 @@ def test_cancel_survives_trino_down_on_delete(
         assert record.state == CANCELLED
 
     asyncio.run(scenario())
+
+
+def test_cancel_during_artifact_write_aborts_the_write(
+    store: ExecutionStore,
+) -> None:
+    """A StopQueryExecution landing inside ``await writer.write`` aborts the
+    write instead of dying on an unretrieved CANCELLED→SUCCEEDED ValueError —
+    no artifacts land for a CANCELLED record."""
+
+    async def scenario() -> None:
+        write_gate = asyncio.Event()
+        writer = GatedWriter(write_gate)
+        client = ScriptedStatementClient(
+            [result_page(next_uri=None, data=[[1]])]
+        )
+        executor = QueryExecutor(store=store, client=client, writer=writer)
+        record = await executor.start(query="SELECT 1", workgroup="primary")
+        task = executor._tasks[record.query_execution_id]
+        await asyncio.sleep(
+            0.02
+        )  # statement finished; the task is parked inside the write
+
+        cancelled = await executor.cancel(record.query_execution_id)
+        write_gate.set()
+        await task
+
+        assert cancelled.state == CANCELLED
+        # The aborted write never produced artifacts for the cancelled record.
+        assert writer.calls == []
+        assert executor._write_tasks == {}
+
+    asyncio.run(scenario())
+
+
+def test_completed_write_during_cancel_keeps_record_cancelled(
+    store: ExecutionStore,
+) -> None:
+    """An uninterruptible write that completes with the record already
+    CANCELLED must not be resurrected by the trailing SUCCEEDED transition —
+    the artifacts exist but the record stays honest."""
+
+    async def scenario() -> None:
+        writer = CancellingWriter()
+        client = ScriptedStatementClient(
+            [result_page(next_uri=None, data=[[1]])]
+        )
+        executor = QueryExecutor(store=store, client=client, writer=writer)
+        record = await executor.start(query="SELECT 1", workgroup="primary")
+        task = executor._tasks[record.query_execution_id]
+
+        await task
+
+        assert writer.calls == ["write:RUNNING"]
+        assert record.state == CANCELLED
+
+    asyncio.run(scenario())
+
+
+def test_artifact_failure_while_cancelled_stays_cancelled(
+    store: ExecutionStore,
+) -> None:
+    """An ArtifactWriteError surfacing after a mid-write cancel must not
+    raise CANCELLED→FAILED either — the user's CANCELLED verdict stands."""
+
+    async def scenario() -> None:
+        writer = CancellingWriter(
+            error=ArtifactWriteError("moto S3 refused put_object")
+        )
+        client = ScriptedStatementClient(
+            [result_page(next_uri=None, data=[[1]])]
+        )
+        executor = QueryExecutor(store=store, client=client, writer=writer)
+        record = await executor.start(query="SELECT 1", workgroup="primary")
+        task = executor._tasks[record.query_execution_id]
+
+        await task
+
+        assert writer.calls == ["write:RUNNING"]
+        assert record.state == CANCELLED
+
+    asyncio.run(scenario())
+
+
+def test_unexpected_task_failure_is_logged(
+    store: ExecutionStore, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A task dying on an unexpected error surfaces through the
+    ``athena_local`` log instead of expiring unretrieved in the done
+    callback."""
+    caplog.set_level(logging.ERROR, logger="athena_local")
+    execution_id = ""
+
+    async def scenario() -> None:
+        nonlocal execution_id
+        gate = asyncio.Event()
+        gate.set()
+        writer = GatedWriter(gate, error=RuntimeError("writer exploded"))
+        client = ScriptedStatementClient(
+            [result_page(next_uri=None, data=[[1]])]
+        )
+        executor = QueryExecutor(store=store, client=client, writer=writer)
+        record = await executor.start(query="SELECT 1", workgroup="primary")
+        execution_id = record.query_execution_id
+        task = executor._tasks[record.query_execution_id]
+
+        with pytest.raises(RuntimeError, match="writer exploded"):
+            await task
+        assert executor._tasks == {}
+
+    asyncio.run(scenario())
+
+    assert any(
+        execution_id in logged.getMessage() for logged in caplog.records
+    )
+
+
+def test_external_runner_cancel_reraises_and_reaps_quietly(
+    store: ExecutionStore, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A runner cancelled from outside (shutdown) propagates through the
+    write guard — the record is untouched because cancelling the task is
+    not a user stop — and the reap callback stays silent for it."""
+    caplog.set_level(logging.ERROR, logger="athena_local")
+
+    async def scenario() -> None:
+        executor = QueryExecutor(
+            store=store,
+            client=ScriptedStatementClient([result_page(next_uri=None)]),
+            writer=GatedWriter(asyncio.Event()),
+        )
+        record = await executor.start(query="SELECT 1", workgroup="primary")
+        task = executor._tasks[record.query_execution_id]
+        await asyncio.sleep(0.02)  # parked inside the artifact write
+
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        await asyncio.sleep(0)  # let the done callback reap
+
+        assert record.state == RUNNING
+        assert executor._tasks == {}
+
+    asyncio.run(scenario())
+
+    assert not caplog.records
 
 
 @pytest.mark.parametrize("terminal_state", [SUCCEEDED, FAILED, CANCELLED])

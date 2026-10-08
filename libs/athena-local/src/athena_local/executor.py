@@ -16,6 +16,7 @@ in ``submission``: handlers depend on the executor, never on
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import replace
@@ -54,6 +55,8 @@ from athena_local.trino_client import (
     TrinoQueryError,
     TrinoTransportError,
 )
+
+logger = logging.getLogger("athena_local")
 
 DEFAULT_MAX_CONCURRENT_QUERIES = 4
 
@@ -106,6 +109,10 @@ class QueryExecutor:
         # entries drop once the last user leaves, keeping the map bounded.
         self._token_submit_locks: dict[tuple[str, str], asyncio.Lock] = {}
         self._token_submit_users: dict[tuple[str, str], int] = {}
+        # In-flight artifact writes by execution id, so cancel() can abort a
+        # write parked at an await — otherwise a StopQueryExecution landing
+        # inside writer.write leaves artifacts on a CANCELLED record.
+        self._write_tasks: dict[str, asyncio.Task[None]] = {}
 
     async def start(
         self,
@@ -215,8 +222,27 @@ class QueryExecutor:
         task = asyncio.create_task(self._execute(record, page))
         self._tasks[record.query_execution_id] = task
         task.add_done_callback(
-            lambda _: self._tasks.pop(record.query_execution_id, None)
+            lambda done: self._reap_task(record.query_execution_id, done)
         )
+
+    def _reap_task(self, execution_id: str, task: asyncio.Task[None]) -> None:
+        """Drop the finished task and surface an unexpected death.
+
+        Popping without retrieving left a crashed runner's exception
+        unobserved until GC (the cancel-during-write window died silently
+        this way); the log line is the failure's only surface — runners
+        have no caller.
+        """
+        self._tasks.pop(execution_id, None)
+        if task.cancelled():
+            return
+        error = task.exception()
+        if error is not None:
+            logger.error(
+                "query execution %s runner failed",
+                execution_id,
+                exc_info=error,
+            )
 
     async def cancel(self, query_execution_id: str) -> QueryExecutionRecord:
         """Stop a QUEUED or RUNNING execution and mark it CANCELLED.
@@ -229,6 +255,11 @@ class QueryExecutor:
         if record.state in TERMINAL_STATES:
             return record
         record.transition_to(CANCELLED)
+        # Abort a parked artifact write before the DELETE await can let it
+        # finish — a CANCELLED record must not gain artifacts.
+        in_flight_write = self._write_tasks.get(query_execution_id)
+        if in_flight_write is not None:
+            in_flight_write.cancel()
         await self._stop_statement(record)
         return record
 
@@ -324,12 +355,29 @@ class QueryExecutor:
             # requires the cached page above to be present.
             record.transition_to(SUCCEEDED)
             return
+        write = asyncio.create_task(self._writer.write(record, page))
+        self._write_tasks[record.query_execution_id] = write
         try:
-            await self._writer.write(record, page)
+            await write
+        except asyncio.CancelledError:
+            if _cancelled(record):
+                # cancel() aborted the parked write — no artifacts landed.
+                return
+            raise
         except ArtifactWriteError as error:
+            if _cancelled(record):
+                # The stop raced the write's failure; CANCELLED stands.
+                return
             record.transition_to(
                 FAILED, f"Result artifact write failed: {error}"
             )
+            return
+        finally:
+            self._write_tasks.pop(record.query_execution_id, None)
+        if _cancelled(record):
+            # A writer without await points completes atomically — the
+            # artifacts exist, but the record must not resurrect to
+            # SUCCEEDED.
             return
         record.transition_to(SUCCEEDED)
 
