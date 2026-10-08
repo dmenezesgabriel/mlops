@@ -167,7 +167,9 @@
   G-288 vestigial `catalog`/`store` params, G-289 24-line verbatim
   helper duplication, G-290 CSV `"True"` vs wire `"true"` cell parity;
   D2 linear, D7 stress clean; AU-25's S1s preempt AU-26) →
-  **AU-26** test-suite quality.
+  **AU-26a** unit-suite quality → **AU-26b** bdd/integration +
+  consumer-surface depth (split-fix 2026-10-08: 24158 test LOC was one
+  L-sized item).
 - [ ] Remediate promoted S1+ gaps.
 
 ## MA-8 — Cross-cutting + close
