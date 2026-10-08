@@ -150,7 +150,24 @@
   M-2 survives; D2 linear 0.89-0.99, D6 documented live-count bound,
   D8 clean, D10 live CLI/consumer suites; AU-24's S1s preempted AU-25 —
   AF-118/AF-119/AF-120 shipped) →
-  **AU-25** boundary/artifacts → **AU-26** test-suite quality.
+  **AU-25** boundary/artifacts ✅ (14 gaps — S1×3, S2×2, S3×8, S4×1;
+  G-277 `_external_location` reads through double-quoted identifiers —
+  `"external_location = 's3://evil/'"` shadows the real WITH → foreign-prefix
+  manifest, G-278 INSERT/UNLOAD before/after diff cross-lists concurrent
+  writers — A's manifest claims B's file, G-279 `POST /v1/statement`
+  retried → 2 engine statements per submit; G-280 NextToken `int()`
+  leniency (G-248 class, second site), G-281 `_split_s3_path`
+  scheme-blind — `ftp://` fails late, G-282 `S3WriterError` escapes
+  `capture()` → submit 500 bypassing `manifest_target_error`, G-283
+  malformed-page leniency + ragged-DESCRIBE `IndexError` parks records
+  RUNNING, G-284 sync boto3 in async paths — 52 ms capture, 0 loop ticks,
+  G-285 `before_paths` unbounded — ~1 GB at 10k×1000-key, G-286
+  unicode-Database/`re.error` escape as unshaped 500s, G-287 19/673
+  stmts uncovered + M-6/M-10 survive + runtime-statistics live-hole,
+  G-288 vestigial `catalog`/`store` params, G-289 24-line verbatim
+  helper duplication, G-290 CSV `"True"` vs wire `"true"` cell parity;
+  D2 linear, D7 stress clean; AU-25's S1s preempt AU-26) →
+  **AU-26** test-suite quality.
 - [ ] Remediate promoted S1+ gaps.
 
 ## MA-8 — Cross-cutting + close
