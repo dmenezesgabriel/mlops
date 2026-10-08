@@ -3,9 +3,11 @@
 The client is the only module that touches the Trino statement protocol, so
 these tests pin the wire contract against ``httpx.MockTransport`` with a
 named fake handler (F.I.R.S.T., no docker): the initial POST body/headers,
-``nextUri`` polling, ``DELETE`` cancellation, retry on 429/502/503/504 and
-empty-200 bodies, a failed query's ``error`` carried in the page as data, and
-transport failures raising ``TrinoTransportError``.
+``nextUri`` polling, ``DELETE`` cancellation, retry of the idempotent
+poll/cancel ops on 429/502/503/504 and empty-200 bodies (the submit POST is
+never retried — statement submission is not idempotent), a failed query's
+``error`` carried in the page as data, and transport failures raising
+``TrinoTransportError``.
 """
 
 from __future__ import annotations
@@ -310,11 +312,7 @@ def test_retries_intermittent_502_then_succeeds() -> None:
     )
     client = _trino_client(handler)
 
-    page = asyncio.run(
-        client.submit_statement(
-            "SELECT 1", catalog="hive", schema="analytics", user="alice"
-        )
-    )
+    page = asyncio.run(client.fetch_next(FIRST_NEXT_URI))
 
     assert len(handler.requests) == 2
     assert page.finished is True
@@ -327,11 +325,7 @@ def test_retry_exhausted_on_503_raises_transport_error() -> None:
     client = _trino_client(handler)
 
     with pytest.raises(TrinoTransportError, match="503"):
-        asyncio.run(
-            client.submit_statement(
-                "SELECT 1", catalog="hive", schema="analytics", user="alice"
-            )
-        )
+        asyncio.run(client.fetch_next(FIRST_NEXT_URI))
 
     assert len(handler.requests) == TRINO_MAX_ATTEMPTS
 
@@ -345,11 +339,7 @@ def test_retries_429_honoring_retry_after() -> None:
     )
     client = _trino_client(handler)
 
-    page = asyncio.run(
-        client.submit_statement(
-            "SELECT 1", catalog="hive", schema="analytics", user="alice"
-        )
-    )
+    page = asyncio.run(client.fetch_next(FIRST_NEXT_URI))
 
     assert len(handler.requests) == 2
     assert page.finished is True
@@ -360,13 +350,66 @@ def test_empty_200_body_is_retried_then_transport_error() -> None:
     client = _trino_client(handler)
 
     with pytest.raises(TrinoTransportError, match="empty body"):
+        asyncio.run(client.fetch_next(FIRST_NEXT_URI))
+
+    assert len(handler.requests) == TRINO_MAX_ATTEMPTS
+
+
+def test_cancel_retries_intermittent_503() -> None:
+    """DELETE is idempotent — a blipped cancel may be retried safely."""
+    handler = ScriptedTrinoHandler(
+        [(503, "service unavailable", None), (204, "", None)]
+    )
+    client = _trino_client(handler)
+
+    asyncio.run(client.cancel(FIRST_NEXT_URI))
+
+    assert len(handler.requests) == 2
+
+
+def test_submit_statement_never_retries_post() -> None:
+    """A 502-after-accept must not re-POST and double-execute the statement.
+
+    The upstream trino client never retries statement submission: there is
+    no way to distinguish a response that failed before acceptance from one
+    that failed after, so a retry can double-execute INSERT/CTAS/UNLOAD.
+    """
+    handler = ScriptedTrinoHandler(
+        [
+            (502, "bad gateway", None),
+            (200, json.dumps(query_results_document(next_uri=None)), None),
+        ]
+    )
+    client = _trino_client(handler)
+
+    with pytest.raises(TrinoTransportError, match="502"):
         asyncio.run(
             client.submit_statement(
                 "SELECT 1", catalog="hive", schema="analytics", user="alice"
             )
         )
 
-    assert len(handler.requests) == TRINO_MAX_ATTEMPTS
+    assert len(handler.requests) == 1
+
+
+def test_submit_statement_empty_200_is_not_retried() -> None:
+    """An empty-200 on submit is a transport failure, not a retry cue."""
+    handler = ScriptedTrinoHandler(
+        [
+            (200, "", None),
+            (200, json.dumps(query_results_document(next_uri=None)), None),
+        ]
+    )
+    client = _trino_client(handler)
+
+    with pytest.raises(TrinoTransportError, match="empty body"):
+        asyncio.run(
+            client.submit_statement(
+                "SELECT 1", catalog="hive", schema="analytics", user="alice"
+            )
+        )
+
+    assert len(handler.requests) == 1
 
 
 def test_non_json_body_raises_transport_error() -> None:

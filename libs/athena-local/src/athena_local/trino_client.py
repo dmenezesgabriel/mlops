@@ -141,7 +141,9 @@ class TrinoClient:
         while True:
             attempt += 1
             response = await self._send(method, url, content, headers)
-            if attempt >= TRINO_MAX_ATTEMPTS or not _should_retry(response):
+            if attempt >= TRINO_MAX_ATTEMPTS or not _should_retry(
+                method, response
+            ):
                 return response
             await asyncio.sleep(_retry_delay(response))
 
@@ -162,7 +164,13 @@ class TrinoClient:
             ) from error
 
 
-def _should_retry(response: httpx.Response) -> bool:
+def _should_retry(method: str, response: httpx.Response) -> bool:
+    # POST /v1/statement is not idempotent — a retry after an
+    # accepted-then-blipped response would double-execute the statement
+    # (the upstream trino client never retries submission). GET nextUri
+    # and DELETE cancel are safe to retry.
+    if method == "POST":
+        return False
     if response.status_code in TRINO_RETRYABLE_STATUSES:
         return True
     return response.status_code == 200 and not response.text.strip()
