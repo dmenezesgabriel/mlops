@@ -219,6 +219,151 @@ def test_ctas_without_external_location_fails_with_write_error() -> None:
     assert "external_location" in str(exc_info.value)
 
 
+def test_ctas_manifest_ignores_quoted_identifier_shadow() -> None:
+    # A quoted identifier or literal may textually contain
+    # `external_location = '…'`; only the real WITH property may steer the
+    # manifest — otherwise it would enumerate a foreign prefix's files.
+    store = RecordingObjectStore()
+    store.objects = {
+        ("ctas-bucket", "t1/part-00000-a.parquet"): b"\0",
+        ("evil", "a.parquet"): b"\0",
+    }
+    record = make_record(
+        ExecutionStore(),
+        query=(
+            "CREATE TABLE t (\"external_location = 's3://evil/'\") "
+            "WITH (external_location='s3://ctas-bucket/t1/') AS SELECT 1"
+        ),
+        statement_type="DDL",
+        substatement_type="CREATE_TABLE_AS_SELECT",
+    )
+    writer = ArtifactWriter(S3Writer(store))
+
+    run(writer, record)
+
+    manifest_path = (
+        f"{RESULT_LOCATION}{record.query_execution_id}-manifest.csv"
+    )
+    assert store.bytes_of(manifest_path) == (
+        b"s3://ctas-bucket/t1/part-00000-a.parquet\n"
+    )
+
+
+def test_ctas_manifest_ignores_comment_literal_shadow() -> None:
+    store = RecordingObjectStore()
+    store.objects = {
+        ("ctas-bucket", "t1/part-00000-a.parquet"): b"\0",
+    }
+    record = make_record(
+        ExecutionStore(),
+        query=(
+            "CREATE TABLE t COMMENT 'external_location = ''s3://e/''' "
+            "WITH (external_location='s3://ctas-bucket/t1/') AS SELECT 1"
+        ),
+        statement_type="DDL",
+        substatement_type="CREATE_TABLE_AS_SELECT",
+    )
+    writer = ArtifactWriter(S3Writer(store))
+
+    run(writer, record)
+
+    manifest_path = (
+        f"{RESULT_LOCATION}{record.query_execution_id}-manifest.csv"
+    )
+    assert store.bytes_of(manifest_path) == (
+        b"s3://ctas-bucket/t1/part-00000-a.parquet\n"
+    )
+
+
+def test_ctas_manifest_ignores_with_property_literal_shadow() -> None:
+    store = RecordingObjectStore()
+    store.objects = {
+        ("ctas-bucket", "t1/part-00000-a.parquet"): b"\0",
+    }
+    record = make_record(
+        ExecutionStore(),
+        query=(
+            "CREATE TABLE t WITH (comment = 'external_location = ''x''', "
+            "external_location='s3://ctas-bucket/t1/') AS SELECT 1"
+        ),
+        statement_type="DDL",
+        substatement_type="CREATE_TABLE_AS_SELECT",
+    )
+    writer = ArtifactWriter(S3Writer(store))
+
+    run(writer, record)
+
+    manifest_path = (
+        f"{RESULT_LOCATION}{record.query_execution_id}-manifest.csv"
+    )
+    assert store.bytes_of(manifest_path) == (
+        b"s3://ctas-bucket/t1/part-00000-a.parquet\n"
+    )
+
+
+def test_ctas_unbalanced_with_fails_with_write_error() -> None:
+    store = RecordingObjectStore()
+    record = make_record(
+        ExecutionStore(),
+        query=(
+            "CREATE TABLE t WITH (external_location='s3://ctas-bucket/t1/' "
+            "AS SELECT 1"
+        ),
+        statement_type="DDL",
+        substatement_type="CREATE_TABLE_AS_SELECT",
+    )
+    writer = ArtifactWriter(S3Writer(store))
+
+    with pytest.raises(ArtifactWriteError) as exc_info:
+        run(writer, record)
+
+    assert "external_location" in str(exc_info.value)
+
+
+def test_ctas_with_properties_without_external_location_fails() -> None:
+    store = RecordingObjectStore()
+    record = make_record(
+        ExecutionStore(),
+        query="CREATE TABLE t WITH (format='PARQUET') AS SELECT 1",
+        statement_type="DDL",
+        substatement_type="CREATE_TABLE_AS_SELECT",
+    )
+    writer = ArtifactWriter(S3Writer(store))
+
+    with pytest.raises(ArtifactWriteError) as exc_info:
+        run(writer, record)
+
+    assert "external_location" in str(exc_info.value)
+
+
+def test_ctas_identifier_ending_in_with_still_resolves() -> None:
+    # `endswith` carries a "with" substring; the keyword boundary guard must
+    # reject it without stopping the scan for the real WITH clause.
+    store = RecordingObjectStore()
+    store.objects = {
+        ("ctas-bucket", "t1/part-00000-a.parquet"): b"\0",
+    }
+    record = make_record(
+        ExecutionStore(),
+        query=(
+            "CREATE TABLE endswith "
+            "WITH (external_location='s3://ctas-bucket/t1/') AS SELECT 1"
+        ),
+        statement_type="DDL",
+        substatement_type="CREATE_TABLE_AS_SELECT",
+    )
+    writer = ArtifactWriter(S3Writer(store))
+
+    run(writer, record)
+
+    manifest_path = (
+        f"{RESULT_LOCATION}{record.query_execution_id}-manifest.csv"
+    )
+    assert store.bytes_of(manifest_path) == (
+        b"s3://ctas-bucket/t1/part-00000-a.parquet\n"
+    )
+
+
 def test_insert_manifest_lists_only_the_appended_files() -> None:
     store = RecordingObjectStore()
     store.objects = {

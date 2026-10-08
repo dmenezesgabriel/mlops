@@ -25,23 +25,23 @@ from __future__ import annotations
 import csv
 import io
 import json
-import re
 from dataclasses import dataclass
 from typing import Literal
 
 from athena_local.executions import QueryExecutionRecord
 from athena_local.executor import ArtifactWriteError
 from athena_local.s3_writer import S3Writer, S3WriterError
-from athena_local.sql_lexing import strip_comments
+from athena_local.sql_lexing import (
+    balanced_span,
+    identifier_name,
+    literal_value,
+    quoted_end,
+    skip_ws,
+    split_top_level,
+    strip_comments,
+)
 from athena_local.statement_classification import artifact_output_kind
 from athena_local.trino_client import TrinoPage
-
-# ``''`` is SQL's escaped quote; the kept text still holds the literal the
-# same way strip_comments preserves string literals.
-_EXTERNAL_LOCATION_RE = re.compile(
-    r"external_location\s*=\s*'((?:[^']|'')*)'",
-    re.IGNORECASE | re.DOTALL,
-)
 
 
 @dataclass(frozen=True)
@@ -217,8 +217,63 @@ def _manifest_bytes(paths: list[str]) -> bytes:
 
 
 def _external_location(query: str) -> str | None:
-    with_properties = strip_comments(query)
-    match = _EXTERNAL_LOCATION_RE.search(with_properties)
-    if match is None:
+    """The CTAS ``WITH (…)`` clause's ``external_location`` literal value.
+
+    The property must be read from the WITH properties region only — a
+    double-quoted identifier or a string literal elsewhere (a column alias,
+    a COMMENT) may textually carry ``external_location = '…'`` and would
+    otherwise shadow the real target, steering the manifest to a prefix the
+    query never wrote.
+    """
+    text = strip_comments(query)
+    properties = _with_properties_span(text)
+    if properties is None:
         return None
-    return match.group(1).replace("''", "'")
+    for pair in split_top_level(properties):
+        key, separator, value = pair.partition("=")
+        if not separator or identifier_name(key) != "external_location":
+            continue
+        literal = literal_value(value.strip())
+        if literal is not None:
+            return literal
+    return None
+
+
+def _with_properties_span(text: str) -> str | None:
+    """Inner text of the first top-level ``WITH (…)`` clause; None if absent.
+
+    Quoted spans are skipped verbatim so their contents can never pose as
+    the clause; an unbalanced ``(`` reports absence rather than misparsing.
+    """
+    depth = 0
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char in "'\"`":
+            index = quoted_end(text, index, char)
+            continue
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth = max(0, depth - 1)
+        elif depth == 0 and _keyword_at(text, index, "with"):
+            paren = skip_ws(text, index + 4)
+            if paren < len(text) and text[paren] == "(":
+                end = balanced_span(text, paren)
+                if end is None:
+                    return None
+                return text[paren + 1 : end - 1]
+        index += 1
+    return None
+
+
+def _keyword_at(text: str, index: int, keyword: str) -> bool:
+    """True when ``keyword`` starts at ``index`` with word boundaries."""
+    if text[index : index + len(keyword)].casefold() != keyword:
+        return False
+    before = text[index - 1] if index > 0 else ""
+    if before and (before.isalnum() or before == "_"):
+        return False
+    after_index = index + len(keyword)
+    after = text[after_index] if after_index < len(text) else ""
+    return not (after.isalnum() or after == "_")
