@@ -70,6 +70,66 @@ def test_client_request_token_replays_the_original_execution(
     asyncio.run(scenario())
 
 
+def test_concurrent_client_request_token_starts_execute_once(
+    store: ExecutionStore,
+) -> None:
+    """A same-token retry racing the original's submit window replays the
+    original record instead of double-submitting (service-2.json: "the same
+    response is returned and another query is not created")."""
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient(
+            [result_page(next_uri=None), result_page(next_uri=None)],
+            submit_delay_seconds=0.01,
+        )
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        first, second = await asyncio.gather(
+            executor.start(
+                query="SELECT 1",
+                workgroup="primary",
+                client_request_token="t" * 32,
+            ),
+            executor.start(
+                query="SELECT 1",
+                workgroup="primary",
+                client_request_token="t" * 32,
+            ),
+        )
+        await asyncio.gather(*list(executor._tasks.values()))
+
+        assert second is first
+        # One submit/preflight and one record — the retry never reached Trino.
+        assert len(client.submissions) == 1
+        assert len(store.by_id) == 1
+
+    asyncio.run(scenario())
+
+
+def test_token_submit_lock_entries_drop_after_the_submit(
+    store: ExecutionStore,
+) -> None:
+    """The per-token lock map stays bounded: entries drop at zero users."""
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient([result_page(next_uri=None)])
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        await executor.start(
+            query="SELECT 1",
+            workgroup="primary",
+            client_request_token="t" * 32,
+        )
+        await asyncio.gather(*list(executor._tasks.values()))
+
+        assert executor._token_submit_locks == {}
+        assert executor._token_submit_users == {}
+
+    asyncio.run(scenario())
+
+
 def test_client_request_token_rejects_a_changed_request(
     store: ExecutionStore,
 ) -> None:

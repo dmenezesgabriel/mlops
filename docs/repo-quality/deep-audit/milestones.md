@@ -148,7 +148,8 @@
   UTILITY/None + `.txt` → wrangler empty DataFrame, G-275 backtick spans
   unlexed by the placeholder/USING scanners, G-276 8/571 stmts uncovered +
   M-2 survives; D2 linear 0.89-0.99, D6 documented live-count bound,
-  D8 clean, D10 live CLI/consumer suites) →
+  D8 clean, D10 live CLI/consumer suites; AU-24's S1s preempt AU-25 —
+  AF-118 shipped, AF-119/AF-120 pending) →
   **AU-25** boundary/artifacts → **AU-26** test-suite quality.
 - [ ] Remediate promoted S1+ gaps.
 

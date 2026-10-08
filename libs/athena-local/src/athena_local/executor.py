@@ -16,6 +16,8 @@ in ``submission``: handlers depend on the executor, never on
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import replace
 from typing import Protocol
 
@@ -99,6 +101,11 @@ class QueryExecutor:
             trino_user=trino_user,
         )
         self._tasks: dict[str, asyncio.Task[None]] = {}
+        # (workgroup, ClientRequestToken) → lock serializing the
+        # resolve→create window of a token submit; the user count lets the
+        # entries drop once the last user leaves, keeping the map bounded.
+        self._token_submit_locks: dict[tuple[str, str], asyncio.Lock] = {}
+        self._token_submit_users: dict[tuple[str, str], int] = {}
 
     async def start(
         self,
@@ -147,6 +154,49 @@ class QueryExecutor:
         )
 
     async def _submit(self, request: StartRequest) -> QueryExecutionRecord:
+        """The submit critical section, serialized per request token.
+
+        Tokenless requests run unguarded; a ClientRequestToken submit holds
+        the (workgroup, token) lock across resolve→create so a concurrent
+        retry observes the original's record and replays it instead of
+        double-submitting (service-2.json StartQueryExecution idempotency).
+        """
+        token = request.client_request_token
+        if token is None:
+            return await self._resolve_or_submit(request)
+        async with self._token_submit_lock(request.workgroup, token):
+            return await self._resolve_or_submit(request)
+
+    @asynccontextmanager
+    async def _token_submit_lock(
+        self, workgroup: str, token: str
+    ) -> AsyncIterator[None]:
+        """Serialize same-token submits while their token is in flight.
+
+        Two concurrent retries of one ClientRequestToken must not both pass
+        the token lookup before either creates its record; the second waits
+        here, then replays the first's record. Locks are refcounted so
+        unique tokens never accumulate entries.
+        """
+        key = (workgroup, token)
+        lock = self._token_submit_locks.setdefault(key, asyncio.Lock())
+        self._token_submit_users[key] = (
+            self._token_submit_users.get(key, 0) + 1
+        )
+        try:
+            async with lock:
+                yield
+        finally:
+            users = self._token_submit_users[key] - 1
+            if users:
+                self._token_submit_users[key] = users
+            else:
+                del self._token_submit_users[key]
+                del self._token_submit_locks[key]
+
+    async def _resolve_or_submit(
+        self, request: StartRequest
+    ) -> QueryExecutionRecord:
         record = self._planner.resolve_record(request)
         if record is not None:
             return record
