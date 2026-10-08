@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from dataclasses import replace
 
 import pytest
 from athena_local.artifacts import ArtifactWriter, artifact_plan
@@ -33,8 +34,13 @@ CTAS_QUERY = (
     "'s3://ctas-bucket/t1/', format = 'PARQUET') AS SELECT 1 AS a"
 )
 
+# A Trino-shaped engine query id: every data file a Trino 483 write lands
+# carries it (hive `{qid}_{uuid}` / bucketed `0{b}_0_{uuid}_{qid}`, iceberg
+# `{qid}-{uuid}`), which is what the manifest attribution keys on.
+TRINO_QUERY_ID = "20261008_120000_00001_a1b2c3"
+
 PLACEHOLDER_PAGE = TrinoPage(
-    query_id="id",  # the writer reads the record's cached columns/rows
+    query_id=TRINO_QUERY_ID,  # manifest attribution keys on the engine id
     next_uri=None,
     update_type=None,
     columns=[],
@@ -176,8 +182,8 @@ def test_ddl_non_ctas_classifies_as_txt() -> None:
 def test_manifest_writes_ctas_files_and_sets_manifest_location() -> None:
     store = RecordingObjectStore()
     store.objects = {
-        ("ctas-bucket", "t1/part-00001-b.parquet"): b"\0",
-        ("ctas-bucket", "t1/part-00000-a.parquet"): b"\0",
+        ("ctas-bucket", f"t1/{TRINO_QUERY_ID}_bbbb.parquet"): b"\0",
+        ("ctas-bucket", f"t1/{TRINO_QUERY_ID}_aaaa.parquet"): b"\0",
     }
     record = make_record(
         ExecutionStore(),
@@ -193,8 +199,8 @@ def test_manifest_writes_ctas_files_and_sets_manifest_location() -> None:
         f"{RESULT_LOCATION}{record.query_execution_id}-manifest.csv"
     )
     assert store.bytes_of(manifest_path) == (
-        b"s3://ctas-bucket/t1/part-00000-a.parquet\n"
-        b"s3://ctas-bucket/t1/part-00001-b.parquet\n"
+        f"s3://ctas-bucket/t1/{TRINO_QUERY_ID}_aaaa.parquet\n"
+        f"s3://ctas-bucket/t1/{TRINO_QUERY_ID}_bbbb.parquet\n".encode()
     )
     assert record.data_manifest_location == manifest_path
     assert (
@@ -225,7 +231,7 @@ def test_ctas_manifest_ignores_quoted_identifier_shadow() -> None:
     # manifest — otherwise it would enumerate a foreign prefix's files.
     store = RecordingObjectStore()
     store.objects = {
-        ("ctas-bucket", "t1/part-00000-a.parquet"): b"\0",
+        ("ctas-bucket", f"t1/{TRINO_QUERY_ID}_aaaa.parquet"): b"\0",
         ("evil", "a.parquet"): b"\0",
     }
     record = make_record(
@@ -245,14 +251,14 @@ def test_ctas_manifest_ignores_quoted_identifier_shadow() -> None:
         f"{RESULT_LOCATION}{record.query_execution_id}-manifest.csv"
     )
     assert store.bytes_of(manifest_path) == (
-        b"s3://ctas-bucket/t1/part-00000-a.parquet\n"
+        f"s3://ctas-bucket/t1/{TRINO_QUERY_ID}_aaaa.parquet\n".encode()
     )
 
 
 def test_ctas_manifest_ignores_comment_literal_shadow() -> None:
     store = RecordingObjectStore()
     store.objects = {
-        ("ctas-bucket", "t1/part-00000-a.parquet"): b"\0",
+        ("ctas-bucket", f"t1/{TRINO_QUERY_ID}_aaaa.parquet"): b"\0",
     }
     record = make_record(
         ExecutionStore(),
@@ -271,14 +277,14 @@ def test_ctas_manifest_ignores_comment_literal_shadow() -> None:
         f"{RESULT_LOCATION}{record.query_execution_id}-manifest.csv"
     )
     assert store.bytes_of(manifest_path) == (
-        b"s3://ctas-bucket/t1/part-00000-a.parquet\n"
+        f"s3://ctas-bucket/t1/{TRINO_QUERY_ID}_aaaa.parquet\n".encode()
     )
 
 
 def test_ctas_manifest_ignores_with_property_literal_shadow() -> None:
     store = RecordingObjectStore()
     store.objects = {
-        ("ctas-bucket", "t1/part-00000-a.parquet"): b"\0",
+        ("ctas-bucket", f"t1/{TRINO_QUERY_ID}_aaaa.parquet"): b"\0",
     }
     record = make_record(
         ExecutionStore(),
@@ -297,7 +303,7 @@ def test_ctas_manifest_ignores_with_property_literal_shadow() -> None:
         f"{RESULT_LOCATION}{record.query_execution_id}-manifest.csv"
     )
     assert store.bytes_of(manifest_path) == (
-        b"s3://ctas-bucket/t1/part-00000-a.parquet\n"
+        f"s3://ctas-bucket/t1/{TRINO_QUERY_ID}_aaaa.parquet\n".encode()
     )
 
 
@@ -341,7 +347,7 @@ def test_ctas_identifier_ending_in_with_still_resolves() -> None:
     # reject it without stopping the scan for the real WITH clause.
     store = RecordingObjectStore()
     store.objects = {
-        ("ctas-bucket", "t1/part-00000-a.parquet"): b"\0",
+        ("ctas-bucket", f"t1/{TRINO_QUERY_ID}_aaaa.parquet"): b"\0",
     }
     record = make_record(
         ExecutionStore(),
@@ -360,7 +366,7 @@ def test_ctas_identifier_ending_in_with_still_resolves() -> None:
         f"{RESULT_LOCATION}{record.query_execution_id}-manifest.csv"
     )
     assert store.bytes_of(manifest_path) == (
-        b"s3://ctas-bucket/t1/part-00000-a.parquet\n"
+        f"s3://ctas-bucket/t1/{TRINO_QUERY_ID}_aaaa.parquet\n".encode()
     )
 
 
@@ -368,8 +374,8 @@ def test_insert_manifest_lists_only_the_appended_files() -> None:
     store = RecordingObjectStore()
     store.objects = {
         ("data-bucket", "events/old-0.parquet"): b"old",
-        ("data-bucket", "events/part-00000-a.parquet"): b"new",
-        ("data-bucket", "events/part-00001-b.parquet"): b"new2",
+        ("data-bucket", f"events/{TRINO_QUERY_ID}_aaaa.parquet"): b"new",
+        ("data-bucket", f"events/{TRINO_QUERY_ID}_bbbb.parquet"): b"new2",
     }
     record = make_record(
         ExecutionStore(),
@@ -389,8 +395,8 @@ def test_insert_manifest_lists_only_the_appended_files() -> None:
         f"{RESULT_LOCATION}{record.query_execution_id}-manifest.csv"
     )
     assert store.bytes_of(manifest_path) == (
-        b"s3://data-bucket/events/part-00000-a.parquet\n"
-        b"s3://data-bucket/events/part-00001-b.parquet\n"
+        f"s3://data-bucket/events/{TRINO_QUERY_ID}_aaaa.parquet\n"
+        f"s3://data-bucket/events/{TRINO_QUERY_ID}_bbbb.parquet\n".encode()
     )
     assert record.data_manifest_location == manifest_path
 
@@ -398,8 +404,8 @@ def test_insert_manifest_lists_only_the_appended_files() -> None:
 def test_unload_manifest_lists_only_the_appended_files() -> None:
     store = RecordingObjectStore()
     store.objects = {
-        ("unload-bucket", "out/part-00000-a.parquet"): b"new",
-        ("unload-bucket", "out/part-00001-b.parquet"): b"new2",
+        ("unload-bucket", f"out/{TRINO_QUERY_ID}_aaaa.parquet"): b"new",
+        ("unload-bucket", f"out/{TRINO_QUERY_ID}_bbbb.parquet"): b"new2",
         ("unload-bucket", "out/old-0.parquet"): b"old",
     }
     record = make_record(
@@ -423,8 +429,144 @@ def test_unload_manifest_lists_only_the_appended_files() -> None:
         f"{RESULT_LOCATION}{record.query_execution_id}-manifest.csv"
     )
     assert store.bytes_of(manifest_path) == (
-        b"s3://unload-bucket/out/part-00000-a.parquet\n"
-        b"s3://unload-bucket/out/part-00001-b.parquet\n"
+        f"s3://unload-bucket/out/{TRINO_QUERY_ID}_aaaa.parquet\n"
+        f"s3://unload-bucket/out/{TRINO_QUERY_ID}_bbbb.parquet\n".encode()
+    )
+
+
+def test_insert_manifest_excludes_concurrent_writers_files() -> None:
+    # The G-278 probe: a second writer landing files under the same target
+    # prefix inside the submit→complete window must not be claimed by this
+    # query's manifest — the engine query id stamped into Trino's file names
+    # attributes each file to the run that wrote it.
+    store = RecordingObjectStore()
+    store.objects = {
+        ("data-bucket", "events/old-0.parquet"): b"old",
+        ("data-bucket", f"events/{TRINO_QUERY_ID}_aaaa.parquet"): b"a",
+        (
+            "data-bucket",
+            "events/20261008_120000_00002_b9c8d7_bbbb.parquet",
+        ): b"b",
+        ("data-bucket", "events/stray.parquet"): b"stray",
+    }
+    record = make_record(
+        ExecutionStore(),
+        query="INSERT INTO analytics.events SELECT 1",
+        statement_type="DML",
+        substatement_type="INSERT",
+        output_snapshot=OutputSnapshot(
+            location="s3://data-bucket/events/",
+            before_paths=frozenset({"s3://data-bucket/events/old-0.parquet"}),
+        ),
+    )
+    writer = ArtifactWriter(S3Writer(store))
+
+    run(writer, record)
+
+    manifest_path = (
+        f"{RESULT_LOCATION}{record.query_execution_id}-manifest.csv"
+    )
+    assert store.bytes_of(manifest_path) == (
+        f"s3://data-bucket/events/{TRINO_QUERY_ID}_aaaa.parquet\n".encode()
+    )
+
+
+def test_manifest_attribution_accepts_all_trino_name_shapes() -> None:
+    # Bucketed hive writes suffix the id (`0{b}_0_{uuid}_{qid}.ext`) and
+    # iceberg joins it with a dash (`{qid}-{uuid}.ext`) — both still carry
+    # this run's id, unlike the foreign file beside them.
+    store = RecordingObjectStore()
+    store.objects = {
+        ("data-bucket", f"events/{TRINO_QUERY_ID}_aaaa.parquet"): b"a",
+        (
+            "data-bucket",
+            f"events/000001_0_feed-{TRINO_QUERY_ID}.parquet",
+        ): b"c",
+        ("data-bucket", f"events/{TRINO_QUERY_ID}-beef.parquet"): b"d",
+        (
+            "data-bucket",
+            "events/20261008_120000_00002_b9c8d7_bbbb.parquet",
+        ): b"b",
+    }
+    record = make_record(
+        ExecutionStore(),
+        query="INSERT INTO analytics.events SELECT 1",
+        statement_type="DML",
+        substatement_type="INSERT",
+        output_snapshot=OutputSnapshot(
+            location="s3://data-bucket/events/", before_paths=frozenset()
+        ),
+    )
+    writer = ArtifactWriter(S3Writer(store))
+
+    run(writer, record)
+
+    manifest_path = (
+        f"{RESULT_LOCATION}{record.query_execution_id}-manifest.csv"
+    )
+    assert store.bytes_of(manifest_path) == (
+        f"s3://data-bucket/events/000001_0_feed-{TRINO_QUERY_ID}.parquet\n"
+        f"s3://data-bucket/events/{TRINO_QUERY_ID}-beef.parquet\n"
+        f"s3://data-bucket/events/{TRINO_QUERY_ID}_aaaa.parquet\n".encode()
+    )
+
+
+def test_manifest_write_fails_when_engine_query_id_is_absent() -> None:
+    # An unattributable manifest must fail the write instead of silently
+    # over-claiming — an empty id would substring-match every file.
+    store = RecordingObjectStore()
+    store.objects = {
+        ("data-bucket", "events/new-0.parquet"): b"new",
+    }
+    record = make_record(
+        ExecutionStore(),
+        query="INSERT INTO analytics.events SELECT 1",
+        statement_type="DML",
+        substatement_type="INSERT",
+        output_snapshot=OutputSnapshot(
+            location="s3://data-bucket/events/", before_paths=frozenset()
+        ),
+    )
+    writer = ArtifactWriter(S3Writer(store))
+
+    with pytest.raises(ArtifactWriteError) as exc_info:
+        asyncio.run(
+            writer.write(record, replace(PLACEHOLDER_PAGE, query_id=""))
+        )
+
+    assert "query id" in str(exc_info.value)
+
+
+def test_ctas_manifest_excludes_foreign_files_in_the_location() -> None:
+    # The CTAS listing path carries the same attribution contract: a file
+    # under the target that lacks this run's id was not written by it —
+    # including iceberg's id-less `metadata/` bookkeeping under the same
+    # table location (a manifest lists data files, awswrangler reads them
+    # as parquet).
+    store = RecordingObjectStore()
+    store.objects = {
+        ("ctas-bucket", f"t1/{TRINO_QUERY_ID}_aaaa.parquet"): b"a",
+        ("ctas-bucket", "t1/foreign.parquet"): b"foreign",
+        (
+            "ctas-bucket",
+            "t1/metadata/00000-aaaa-1111.metadata.json",
+        ): b"{}",
+    }
+    record = make_record(
+        ExecutionStore(),
+        query=CTAS_QUERY,
+        statement_type="DDL",
+        substatement_type="CREATE_TABLE_AS_SELECT",
+    )
+    writer = ArtifactWriter(S3Writer(store))
+
+    run(writer, record)
+
+    manifest_path = (
+        f"{RESULT_LOCATION}{record.query_execution_id}-manifest.csv"
+    )
+    assert store.bytes_of(manifest_path) == (
+        f"s3://ctas-bucket/t1/{TRINO_QUERY_ID}_aaaa.parquet\n".encode()
     )
 
 

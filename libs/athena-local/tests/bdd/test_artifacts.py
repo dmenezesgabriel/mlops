@@ -24,8 +24,13 @@ from tests.unit._s3_fakes import RecordingObjectStore
 
 scenarios("artifacts.feature")
 
+# A Trino-shaped engine query id: manifest attribution keys on it — Trino
+# stamps it into every data file name a write lands (`{qid}_{uuid}` hive,
+# `{qid}-{uuid}` iceberg), so fixture object names must carry it.
+TRINO_QUERY_ID = "20261008_120000_00001_a1b2c3"
+
 PLACEHOLDER_PAGE = TrinoPage(
-    query_id="id",  # the writer reads the record's cached columns/rows
+    query_id=TRINO_QUERY_ID,  # manifest attribution keys on the engine id
     next_uri=None,
     update_type=None,
     columns=[],
@@ -90,7 +95,7 @@ def _select_returned(
     parsers.parse('a CTAS wrote {count:d} parquet files under "{location}"')
 )
 def _ctas_wrote(outcome: ArtifactOutcome, count: int, location: str) -> None:
-    keys = (f"t1/part-0000{i:02d}-f{i}.parquet" for i in range(count))
+    keys = (f"t1/{TRINO_QUERY_ID}_f{i:02d}.parquet" for i in range(count))
     outcome.store.objects = {
         ("ctas-bucket", key): b"parquet-bytes" for key in keys
     }

@@ -91,15 +91,15 @@ class ArtifactWriter:
     async def write(
         self, execution: QueryExecutionRecord, final_page: TrinoPage
     ) -> None:
-        # The page is ignored on purpose: artifact bytes come from the record's
-        # cached columns/rows, which the executor stashed before calling us.
-        del final_page
+        # Artifact bytes come from the record's cached columns/rows, which
+        # the executor stashed before calling us; the page contributes only
+        # its engine query id — the manifest attributes written files by it.
         plan = artifact_plan(
             execution.statement_type, execution.substatement_type
         )
         try:
             if plan.kind == "manifest":
-                self._write_manifest(execution, plan)
+                self._write_manifest(execution, plan, final_page.query_id)
                 return
             self._write_rows(execution, plan)
         except S3WriterError as error:
@@ -119,12 +119,16 @@ class ArtifactWriter:
         )
 
     def _write_manifest(
-        self, execution: QueryExecutionRecord, plan: ArtifactPlan
+        self,
+        execution: QueryExecutionRecord,
+        plan: ArtifactPlan,
+        engine_query_id: str,
     ) -> None:
         location = _output_prefix(execution)
         manifest_path = location + plan.data_name(execution.query_execution_id)
         self._s3.put_object(
-            manifest_path, _manifest_bytes(self._manifest_paths(execution))
+            manifest_path,
+            _manifest_bytes(self._manifest_paths(execution, engine_query_id)),
         )
         execution.data_manifest_location = manifest_path
         self._s3.put_object(
@@ -132,21 +136,34 @@ class ArtifactWriter:
             _metadata_bytes(execution.result_columns, execution.result_rows),
         )
 
-    def _manifest_paths(self, execution: QueryExecutionRecord) -> list[str]:
+    def _manifest_paths(
+        self, execution: QueryExecutionRecord, engine_query_id: str
+    ) -> list[str]:
         """The exact files a query wrote, for the manifest.
 
         INSERT/UNLOAD carry a pre-submit snapshot: re-listing the target and
-        subtracting it yields precisely this query's files. CTAS keeps the
-        external_location listing path — read from the resolved statement
-        when the wire ``Query`` is an EXECUTE (the stored SQL carries the
-        property) — and a record with an unresolvable target fails the
-        write so the execution ends FAILED — consumers never see SUCCEEDED
-        with unusable data files (ADR-0009 #4).
+        subtracting it yields keys appearing in the window, and the engine
+        query id attributes each to this run — a concurrent same-prefix
+        writer's files never carry it. CTAS keeps the external_location
+        listing path — read from the resolved statement when the wire
+        ``Query`` is an EXECUTE (the stored SQL carries the property) — and
+        a record with an unresolvable target fails the write so the
+        execution ends FAILED — consumers never see SUCCEEDED with unusable
+        data files (ADR-0009 #4).
         """
+        if not engine_query_id:
+            raise ArtifactWriteError(
+                f"Execution {execution.query_execution_id} carries no "
+                "engine query id to attribute manifest files by"
+            )
         snapshot = execution.output_snapshot
         if snapshot is not None:
             current = set(self._s3.list_object_paths(snapshot.location))
-            return sorted(current - snapshot.before_paths)
+            return sorted(
+                path
+                for path in current - snapshot.before_paths
+                if _written_by_query(path, engine_query_id)
+            )
         if execution.manifest_target_error is not None:
             raise ArtifactWriteError(
                 f"Execution {execution.query_execution_id} cannot write a "
@@ -161,7 +178,11 @@ class ArtifactWriter:
                 "external_location property to enumerate; cannot write a "
                 "data manifest"
             )
-        return sorted(self._s3.list_object_paths(target))
+        return sorted(
+            path
+            for path in self._s3.list_object_paths(target)
+            if _written_by_query(path, engine_query_id)
+        )
 
 
 def _output_prefix(execution: QueryExecutionRecord) -> str:
@@ -214,6 +235,21 @@ def _metadata_bytes(
 
 def _manifest_bytes(paths: list[str]) -> bytes:
     return "".join(f"{path}\n" for path in paths).encode("utf-8")
+
+
+def _written_by_query(path: str, engine_query_id: str) -> bool:
+    """Whether the object at ``path`` was written by this engine run.
+
+    Trino stamps its query id into every data file name it lands — hive
+    non-bucketed ``{qid}_{uuid}``, hive bucketed ``0{b}_0_{uuid}_{qid}``,
+    iceberg ``{qid}-{uuid}`` (trinodb/trino 483: HiveWriterFactory.
+    computeFileName, IcebergPageSink) — the same invariant Trino's own
+    ``HiveWriteUtils.isFileCreatedByQuery`` relies on to attribute files.
+    The id is unique per engine run, so a file appearing in the window
+    whose basename lacks it belongs to another writer; matching on the
+    basename also keeps a parent directory's name from lending the id.
+    """
+    return engine_query_id in path.rsplit("/", 1)[-1]
 
 
 def _external_location(query: str) -> str | None:

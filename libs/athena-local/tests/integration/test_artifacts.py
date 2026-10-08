@@ -36,8 +36,13 @@ from botocore.client import BaseClient
 from moto.backends import get_backend
 from tests.integration.conftest import LiveMotoServer
 
+# A Trino-shaped engine query id: manifest attribution keys on it — Trino
+# stamps it into every data file name a write lands (`{qid}_{uuid}` hive,
+# `{qid}-{uuid}` iceberg), so staged object names must carry it.
+TRINO_QUERY_ID = "20261008_120000_00001_a1b2c3"
+
 PLACEHOLDER_PAGE = TrinoPage(
-    query_id="id",  # the writer reads the record's cached columns/rows
+    query_id=TRINO_QUERY_ID,  # manifest attribution keys on the engine id
     next_uri=None,
     update_type=None,
     columns=[],
@@ -205,7 +210,10 @@ def test_ctas_manifest_lists_the_created_files(
         substatement_type="CREATE_TABLE_AS_SELECT",
         output_location=output_location,
     )
-    for key in ("t1/part-00001-b.parquet", "t1/part-00000-a.parquet"):
+    for key in (
+        f"t1/{TRINO_QUERY_ID}_bbbb.parquet",
+        f"t1/{TRINO_QUERY_ID}_aaaa.parquet",
+    ):
         stack.s3.put_object(
             Bucket=stack.ctas_bucket, Key=key, Body=b"parquet-bytes"
         )
@@ -220,8 +228,8 @@ def test_ctas_manifest_lists_the_created_files(
     # Wrangler splits on "\n" and drops empties (_read.py:62-81).
     paths = [line for line in body.decode("utf-8").split("\n") if line]
     assert paths == [
-        f"{ctas_location}part-00000-a.parquet",
-        f"{ctas_location}part-00001-b.parquet",
+        f"{ctas_location}{TRINO_QUERY_ID}_aaaa.parquet",
+        f"{ctas_location}{TRINO_QUERY_ID}_bbbb.parquet",
     ]
     assert stack.object_bytes(
         stack.results_bucket, f"analytics/{query_id}.metadata"
@@ -277,9 +285,12 @@ def test_insert_manifest_lists_only_the_appended_files(
         f"{table_location}old-0001.parquet",
     ]
     # The INSERT's own write lands between capture and completion, exactly the
-    # window the snapshot exists to isolate.
+    # window the snapshot exists to isolate — Trino names it with the engine
+    # query id, which is what the manifest attributes it by.
     stack.s3.put_object(
-        Bucket=data_bucket, Key="events/part-00000-a.parquet", Body=b"new"
+        Bucket=data_bucket,
+        Key=f"events/{TRINO_QUERY_ID}_aaaa.parquet",
+        Body=b"new",
     )
     record = make_record(
         query=f"INSERT INTO {database_name}.events SELECT 1",
@@ -296,4 +307,4 @@ def test_insert_manifest_lists_only_the_appended_files(
         f"analytics/{record.query_execution_id}-manifest.csv",
     )
     paths = [line for line in body.decode("utf-8").split("\n") if line]
-    assert paths == [f"{table_location}part-00000-a.parquet"]
+    assert paths == [f"{table_location}{TRINO_QUERY_ID}_aaaa.parquet"]

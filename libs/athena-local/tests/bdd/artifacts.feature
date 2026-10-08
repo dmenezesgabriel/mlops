@@ -26,13 +26,13 @@ Feature: Query result artifacts
     And DataManifestLocation points at the manifest file
 
   Scenario: An INSERT manifests exactly the files it appended
-    Given an INSERT appended "s3://events-bucket/analytics/events/part-00000-a.parquet" to a table at "s3://events-bucket/analytics/events/" already holding "s3://events-bucket/analytics/events/old-0000.parquet"
+    Given an INSERT appended "s3://events-bucket/analytics/events/20261008_120000_00001_a1b2c3_aaaa.parquet" to a table at "s3://events-bucket/analytics/events/" already holding "s3://events-bucket/analytics/events/old-0000.parquet"
     When the artifact writer persists the execution
     Then the manifest lists the appended file only
     And DataManifestLocation points at the manifest file
 
   Scenario: An UNLOAD manifests exactly the files it wrote
-    Given an UNLOAD wrote "s3://unload-bucket/out/part-00000-a.parquet" into "s3://unload-bucket/out/" already holding "s3://unload-bucket/out/old-0000.parquet"
+    Given an UNLOAD wrote "s3://unload-bucket/out/20261008_120000_00001_a1b2c3_aaaa.parquet" into "s3://unload-bucket/out/" already holding "s3://unload-bucket/out/old-0000.parquet"
     When the artifact writer persists the execution
     Then the manifest lists the appended file only
     And DataManifestLocation points at the manifest file
