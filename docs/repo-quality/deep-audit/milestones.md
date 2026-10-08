@@ -111,7 +111,7 @@
 
 ## MA-7 — athena-local (per plane)
 
-- [ ] **AU-20** protocol ✅ (3 gaps — S3×2, S4×1; G-248 NextToken
+- [x] **AU-20** protocol ✅ (3 gaps — S3×2, S4×1; G-248 NextToken
   accepts negative/padded tokens, G-249 raw-wire member constraints
   unenforced, G-250 guard/branch test gaps) → **AU-27** protocol handlers ✅
   (5 gaps — S3×4, S4×1; G-251 list-op caps unenforced, G-252 per-op member
@@ -167,9 +167,21 @@
   G-288 vestigial `catalog`/`store` params, G-289 24-line verbatim
   helper duplication, G-290 CSV `"True"` vs wire `"true"` cell parity;
   D2 linear, D7 stress clean; AU-25's S1s preempt AU-26) →
-  **AU-26a** unit-suite quality → **AU-26b** bdd/integration +
-  consumer-surface depth (split-fix 2026-10-08: 24158 test LOC was one
-  L-sized item).
+  **AU-26a** unit-suite quality ✅ (3 gaps — S3×1, S4×2; G-291 offset_page
+  dead guard survives the 1138-test suite, G-292 zero-assert idempotence
+  test passes under a no-op `drop_table`, G-293 wiring tests pin private
+  attrs 3-4 levels deep) → **AU-26b** bdd/integration + consumer-surface
+  depth ✅ (7 gaps — S3×2, S4×5; G-294 zero-assert catalog-tagging scenario
+  survives a non-persisting `TagResource`, G-295 tautological dispatch
+  scenario — `resolve_operation` mutant survives the file, G-300
+  GetQueryExecution scenario never invokes the handler, G-296
+  `executor._tasks` private pin — faithful rename fails bdd + 74 unit
+  tests, G-297 cold stack → 66/193 integration tests skip with exit 0 and
+  CI has no compose step, G-298 teardown drops one S3 page — 1001-key
+  bucket leak swallowed, G-299 `pyright tests` 3695 vs AU-26a D3 "0 on
+  tests"; mutation battery over all 11 bdd files → 7 killed / 3 headline
+  scenarios survive; split-fix 2026-10-08: 24158 test LOC was one L-sized
+  item).
 - [ ] Remediate promoted S1+ gaps.
 
 ## MA-8 — Cross-cutting + close
