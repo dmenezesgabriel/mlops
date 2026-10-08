@@ -219,6 +219,11 @@ class QueryExecutor:
         return record
 
     def _dispatch(self, record: QueryExecutionRecord, page: TrinoPage) -> None:
+        # The preflight already POSTed the statement and followed one
+        # nextUri — publish the cursor before the task reaches the
+        # semaphore, or cancel() of a still-QUEUED record finds no live
+        # statement to DELETE and the engine query runs on.
+        record.active_next_uri = page.next_uri
         task = asyncio.create_task(self._execute(record, page))
         self._tasks[record.query_execution_id] = task
         task.add_done_callback(
@@ -293,7 +298,6 @@ class QueryExecutor:
                 self._drop_unload_table(record)
                 return
             record.transition_to(RUNNING)
-            record.active_next_uri = first_page.next_uri
             page = await self._poll_to_end(record, first_page)
             if page is None:
                 self._drop_unload_table(record)

@@ -69,14 +69,16 @@ def test_cancel_queued_execution_parks_at_the_semaphore(
         cancelled = await executor.cancel(queued.query_execution_id)
 
         assert cancelled.state == CANCELLED
+        # The preflight already POSTed the queued statement (both submits
+        # reach Trino before the runner task exists), so cancelling it while
+        # it waits at the semaphore must still DELETE the live statement —
+        # the record is QUEUED but the engine-side query is not.
+        assert client.cancellations == [URI_2]
         gate.set()
         await asyncio.gather(
             executor._tasks[first.query_execution_id],
             executor._tasks[queued.query_execution_id],
         )
-        # Both statements were preflighted (start-time validation touches
-        # Trino), but the queued one was never executed: it stays
-        # QUEUED at the semaphore and no DELETE is issued for it.
         assert client.submission_count == 2
         assert client.peak_active == 1
         assert first.state == SUCCEEDED

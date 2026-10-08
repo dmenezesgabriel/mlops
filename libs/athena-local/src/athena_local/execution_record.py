@@ -99,7 +99,9 @@ class QueryExecutionRecord:
     result_columns: list[tuple[str, str]] = field(default_factory=list)
     result_rows: list[list[object]] = field(default_factory=list)
     # The in-flight nextUri cursor the executor cancels against (ADR-0009);
-    # never serialized to the wire.
+    # never serialized to the wire. Published at dispatch — the preflight
+    # already submitted the statement, so it is live while the record is
+    # still QUEUED — and advanced on each poll page.
     active_next_uri: str | None = None
     # The SQL actually submitted to Trino when the wire ``Query`` is EXECUTE
     # text; never serialized. The artifact writer reads a CTAS

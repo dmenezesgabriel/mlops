@@ -291,6 +291,10 @@ def test_unload_cancel_queued_at_the_semaphore_drops_the_temp_table(
         assert queued.state == QUEUED
 
         await executor.cancel(queued.query_execution_id)
+
+        # The parked CTAS was already submitted at preflight — cancelling
+        # must DELETE the live statement, not just mark the record.
+        assert client.cancellations == [URI_2]
         gate.set()
         await asyncio.gather(
             executor._tasks[first.query_execution_id],

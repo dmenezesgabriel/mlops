@@ -126,6 +126,7 @@ class GatedStatementClient:
         self._active = 0
         self.peak_active = 0
         self.submission_count = 0
+        self.cancellations: list[str] = []
 
     async def submit_statement(
         self,
@@ -155,7 +156,9 @@ class GatedStatementClient:
             self._active -= 1
 
     async def cancel(self, next_uri: str) -> None:
-        raise AssertionError("gated client is never cancelled")
+        # A QUEUED execution's statement is live coordinator-side — the
+        # preflight submitted it — so cancelling one must land a DELETE here.
+        self.cancellations.append(next_uri)
 
 
 class RecordingWriter:
