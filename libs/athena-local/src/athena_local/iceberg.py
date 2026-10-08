@@ -41,6 +41,7 @@ continue through the normal dialect path unchanged.
 from __future__ import annotations
 
 import re
+from bisect import bisect_right
 from collections.abc import Iterator
 
 from athena_local.iceberg_probe import IcebergTableProbe
@@ -134,14 +135,17 @@ def _route_iceberg_references(
     query: str, database: str | None, probe: IcebergTableProbe
 ) -> str | None:
     """Qualify references whose (schema, table) the probe marks as Iceberg."""
-    protected = _protected_spans(query, quote_quoted=True)
+    protected_spans = _protected_spans(query, quote_quoted=True)
+    protected = _SpanIndex(protected_spans)
     # Only comments are skipped between list items — quoted identifiers and
     # literals stay visible since a quoted ident is a valid table ref.
-    comments = [s for s in protected if query[s[0]] in "-/"]
+    comments = _SpanIndex(
+        [span for span in protected_spans if query[span[0]] in "-/"]
+    )
     verified: dict[tuple[str, str], bool] = {}
     edits: list[tuple[int, int, str]] = []
     for anchor in _ANCHOR.finditer(query):
-        if _inside(protected, anchor.start()):
+        if protected.covering(anchor.start()) is not None:
             continue
         if anchor.group(0).lower() == "from" and _schema_arg_from(
             query, anchor.start(), comments
@@ -181,7 +185,7 @@ _AS = re.compile(r"(?i)as\b")
 
 
 def _table_item_refs(
-    query: str, start: int, comments: list[tuple[int, int]]
+    query: str, start: int, comments: _SpanIndex
 ) -> Iterator[tuple[int, int]]:
     """Ref spans in a comma-separated table-item list (``FROM a, b``).
 
@@ -209,7 +213,7 @@ def _table_item_refs(
 
 
 def _scan_item(
-    query: str, pos: int, chained: bool, comments: list[tuple[int, int]]
+    query: str, pos: int, chained: bool, comments: _SpanIndex
 ) -> tuple[tuple[int, int] | None, int | None]:
     """One item at ``pos`` → (ref span, item end); ``end`` None stops."""
     if pos >= len(query):
@@ -225,9 +229,7 @@ def _scan_item(
     return ref.span("ref"), ref.end()
 
 
-def _past_item_gap(
-    query: str, pos: int, comments: list[tuple[int, int]]
-) -> int:
+def _past_item_gap(query: str, pos: int, comments: _SpanIndex) -> int:
     """Index after ``[AS] alias [(cols)]`` — where a ``,`` may sit.
 
     The one-identifier bound is the safety stop: ``GROUP BY a, b`` and
@@ -248,38 +250,52 @@ def _past_item_gap(
     return _past_noise(query, pos, comments)
 
 
-def _past_noise(query: str, pos: int, comments: list[tuple[int, int]]) -> int:
+def _past_noise(query: str, pos: int, comments: _SpanIndex) -> int:
     """Index past whitespace and ``--``/``/* */`` comment spans."""
     while True:
         pos = skip_ws(query, pos)
-        span = _covering_span(comments, pos)
+        span = comments.covering(pos)
         if span is None:
             return pos
         pos = span[1]
 
 
-def _noise_back(query: str, pos: int, comments: list[tuple[int, int]]) -> int:
+def _noise_back(query: str, pos: int, comments: _SpanIndex) -> int:
     """Index before whitespace and comment spans, scanning backwards."""
     while True:
         while pos > 0 and query[pos - 1] in " \t\n\r":
             pos -= 1
-        span = _covering_span(comments, pos - 1)
+        span = comments.covering(pos - 1)
         if span is None:
             return pos
         pos = span[0]
 
 
-def _covering_span(
-    spans: list[tuple[int, int]], position: int
-) -> tuple[int, int] | None:
-    for start, end in spans:
-        if start <= position < end:
-            return start, end
-    return None
+class _SpanIndex:
+    """O(log n) covering-span lookup over one statement's ordered spans.
+
+    ``_protected_spans`` emits left-to-right and the comment filter keeps
+    that order, so a parallel start list answers ``covering`` by bisect.
+    The previous index-0 rescan per call made the item walk
+    O(refs × comments) — AU-23 D2 measured 32.6 s at 10k comments where
+    plain refs stayed at 248 ms (G-266).
+    """
+
+    def __init__(self, spans: list[tuple[int, int]]) -> None:
+        ordered = sorted(spans)
+        self._spans = ordered
+        self._starts = [start for start, _ in ordered]
+
+    def covering(self, position: int) -> tuple[int, int] | None:
+        index = bisect_right(self._starts, position) - 1
+        if index < 0:
+            return None
+        span = self._spans[index]
+        return span if position < span[1] else None
 
 
 def _word_back(
-    query: str, pos: int, comments: list[tuple[int, int]]
+    query: str, pos: int, comments: _SpanIndex
 ) -> tuple[str, int] | None:
     """(lowercased word, start) of the bare identifier ending before ``pos``.
 
@@ -304,9 +320,7 @@ _WORD_CHARS = frozenset(
 )
 
 
-def _schema_arg_from(
-    query: str, start: int, comments: list[tuple[int, int]]
-) -> bool:
+def _schema_arg_from(query: str, start: int, comments: _SpanIndex) -> bool:
     """Whether the bare ``from`` at ``start`` closes a ``SHOW <objects>``.
 
     ``SHOW TABLES|SCHEMAS|… FROM x`` takes a schema or catalog argument,
@@ -420,10 +434,6 @@ def _comment_step(
         end += 2
     spans.append((index, end))
     return end
-
-
-def _inside(spans: list[tuple[int, int]], position: int) -> bool:
-    return _covering_span(spans, position) is not None
 
 
 def _backtick_normalize(query: str) -> str:

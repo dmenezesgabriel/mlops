@@ -16,6 +16,8 @@ table references catalog-qualified — the exact shapes awswrangler emits
 
 from __future__ import annotations
 
+import time
+
 from athena_local.glue_proxy import GlueProxy
 from athena_local.iceberg import (
     iceberg_trino_submission,
@@ -461,3 +463,45 @@ class TestCacheInvalidation:
         ]
         sql = iceberg_trino_submission("SELECT * FROM t", DATABASE, probe)
         assert sql == 'SELECT * FROM iceberg."analytics"."t"'
+
+
+class TestIcebergRoutingScaling:
+    """The routing walk stays linear in comment count (G-266 / AU-23 D2).
+
+    The old ``_covering_span`` rescanned the comment-span list from index 0
+    on every ``_past_noise``/``_noise_back``/``_inside`` call, so a
+    comment-heavy ``FROM a, b, …`` measured O(refs × comments): 585 ms at
+    10³ comments and 32.6 s at 10⁴. Pre-sorting the spans once and
+    bisecting makes each lookup O(log comments).
+    """
+
+    ICE = {("analytics", "ice_t")}
+
+    def test_comment_heavy_from_list_stays_linear(self) -> None:
+        # The index-0 rescan made the comment-heavy walk ~55× the plain-ref
+        # walk at this size (1549 ms vs 28 ms); bisecting holds both to a
+        # small constant factor. The ratio keeps the bound independent of
+        # machine speed, unlike an absolute wall-clock ceiling.
+        reference_count = 2000
+        plain = "SELECT * FROM " + "ice_t, " * reference_count + "ice_t"
+        commented = (
+            "SELECT * FROM " + "ice_t -- pad\n, " * reference_count + "ice_t"
+        )
+        baseline_sql, baseline_ms = _route_with_elapsed_ms(plain, self.ICE)
+        commented_sql, commented_ms = _route_with_elapsed_ms(
+            commented, self.ICE
+        )
+        qualified = 'iceberg."analytics"."ice_t"'
+        assert baseline_sql is not None
+        assert baseline_sql.count(qualified) == reference_count + 1
+        assert commented_sql is not None
+        assert commented_sql.count(qualified) == reference_count + 1
+        assert commented_ms < baseline_ms * 6
+
+
+def _route_with_elapsed_ms(
+    query: str, iceberg_tables: set[tuple[str, str]]
+) -> tuple[str | None, float]:
+    start = time.perf_counter()
+    sql = route(query, iceberg_tables)
+    return sql, (time.perf_counter() - start) * 1000
