@@ -9,7 +9,10 @@ stay injectable and tests bind their own store.
 from __future__ import annotations
 
 from athena_local.dispatch import register_handler
+from athena_local.errors import InvalidRequestException
 from athena_local.request_fields import (
+    CLIENT_REQUEST_TOKEN_MAX_LENGTH,
+    CLIENT_REQUEST_TOKEN_MIN_LENGTH,
     DATABASE_STRING_MAX_LENGTH,
     DESCRIPTION_STRING_MAX_LENGTH,
     DESCRIPTION_STRING_MIN_LENGTH,
@@ -24,6 +27,7 @@ from athena_local.request_fields import (
     required_string_list,
 )
 from athena_local.state import (
+    NamedQueryRecord,
     NamedQueryStore,
     WorkGroupStore,
     ensure_workgroup_enabled,
@@ -60,8 +64,16 @@ def create_named_query(
         optional_string(payload, "WorkGroup", pattern=WORKGROUP_NAME_PATTERN)
         or "primary"
     )
+    client_request_token = optional_string(
+        payload,
+        "ClientRequestToken",
+        min_length=CLIENT_REQUEST_TOKEN_MIN_LENGTH,
+        max_length=CLIENT_REQUEST_TOKEN_MAX_LENGTH,
+    )
     ensure_workgroup_enabled(workgroup_store, workgroup)
-    record = store.create(
+    record = _find_or_create(
+        store,
+        client_request_token,
         name=name,
         description=description,
         database=database,
@@ -69,6 +81,47 @@ def create_named_query(
         workgroup=workgroup,
     )
     return {"NamedQueryId": record.id}
+
+
+def _find_or_create(
+    store: NamedQueryStore,
+    client_request_token: str | None,
+    *,
+    name: str,
+    description: str,
+    database: str,
+    query_string: str,
+    workgroup: str,
+) -> NamedQueryRecord:
+    """Replay the query a repeated ClientRequestToken names, else create one.
+
+    The canonical model marks CreateNamedQuery idempotent (service-2.json):
+    an identical retry answers the original NamedQueryId, while the same token
+    with changed parameters errors.
+    """
+    if client_request_token is not None:
+        existing = store.find_by_request_token(client_request_token)
+        if existing is not None:
+            if not existing.same_request(
+                name=name,
+                description=description,
+                database=database,
+                query_string=query_string,
+                workgroup=workgroup,
+            ):
+                raise InvalidRequestException(
+                    f"ClientRequestToken {client_request_token!r} was already "
+                    "used with different request parameters"
+                )
+            return existing
+    return store.create(
+        name=name,
+        description=description,
+        database=database,
+        query_string=query_string,
+        workgroup=workgroup,
+        client_request_token=client_request_token,
+    )
 
 
 def _named_query_id(payload: dict[str, object] | None) -> str:

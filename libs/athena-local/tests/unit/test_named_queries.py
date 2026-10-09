@@ -667,3 +667,133 @@ def test_batch_get_named_query_rejects_non_canonical_member_ids(
     # NamedQueryIdList members are NamedQueryId-shaped (\S+ 1..128).
     with pytest.raises(InvalidRequestException, match=r"NamedQueryIds\[0\]"):
         batch_get_named_query(store, {"NamedQueryIds": [member_id]})
+
+
+# A canonical 32-char IdempotencyToken value (the model's inclusive minimum).
+CLIENT_TOKEN = "0123456789abcdef0123456789abcdef"
+
+
+def test_create_named_query_replays_identical_request_token(
+    store: NamedQueryStore, workgroups: WorkGroupStore
+) -> None:
+    # Model member doc (service-2.json): the same ClientRequestToken returns
+    # the same response and creates no second query.
+    payload = {
+        "Name": "token_query",
+        "Database": "db",
+        "QueryString": "SELECT 1",
+        "ClientRequestToken": CLIENT_TOKEN,
+    }
+
+    first = create_named_query(store, workgroups, payload)
+    second = create_named_query(store, workgroups, payload)
+
+    assert first["NamedQueryId"] == second["NamedQueryId"]
+    assert len(store.by_id) == 1
+
+
+@pytest.mark.parametrize(
+    "changed",
+    [
+        {"Name": "renamed"},
+        {"Description": "now described"},
+        {"Database": "other"},
+        {"QueryString": "SELECT 2"},
+        {"WorkGroup": "analytics"},
+    ],
+)
+def test_create_named_query_rejects_changed_params_for_replayed_token(
+    store: NamedQueryStore, workgroups: WorkGroupStore, changed: dict[str, str]
+) -> None:
+    # Model member doc: "If a parameter has changed ... an error is returned."
+    # WorkGroup is one of the parameters, so replay is keyed by token alone.
+    payload = {
+        "Name": "token_query",
+        "Description": "original",
+        "Database": "db",
+        "QueryString": "SELECT 1",
+        "ClientRequestToken": CLIENT_TOKEN,
+    }
+    create_named_query(store, workgroups, payload)
+
+    with pytest.raises(InvalidRequestException, match="ClientRequestToken"):
+        create_named_query(store, workgroups, payload | changed)
+
+    assert len(store.by_id) == 1
+
+
+@pytest.mark.parametrize("token", ["", "x" * 31, "x" * 129])
+def test_create_named_query_rejects_out_of_bounds_request_token(
+    store: NamedQueryStore, workgroups: WorkGroupStore, token: str
+) -> None:
+    # Model IdempotencyToken 32..128 (service-2.json).
+    with pytest.raises(InvalidRequestException, match="ClientRequestToken"):
+        create_named_query(
+            store,
+            workgroups,
+            {
+                "Name": "q",
+                "Database": "db",
+                "QueryString": "SELECT 1",
+                "ClientRequestToken": token,
+            },
+        )
+
+
+@pytest.mark.parametrize("length", [32, 128])
+def test_create_named_query_accepts_request_token_at_model_bounds(
+    store: NamedQueryStore, workgroups: WorkGroupStore, length: int
+) -> None:
+    token = "x" * length
+    output = create_named_query(
+        store,
+        workgroups,
+        {
+            "Name": "q",
+            "Database": "db",
+            "QueryString": "SELECT 1",
+            "ClientRequestToken": token,
+        },
+    )
+    assert store.get(output["NamedQueryId"]).request_token == token
+
+
+def test_delete_named_query_frees_the_request_token(
+    store: NamedQueryStore, workgroups: WorkGroupStore
+) -> None:
+    # A deleted query no longer replays: a retry of its token creates fresh
+    # instead of answering an id that no longer exists.
+    payload = {
+        "Name": "token_query",
+        "Database": "db",
+        "QueryString": "SELECT 1",
+        "ClientRequestToken": CLIENT_TOKEN,
+    }
+    query_id = create_named_query(store, workgroups, payload)["NamedQueryId"]
+    delete_named_query(store, {"NamedQueryId": query_id})
+
+    output = create_named_query(
+        store, workgroups, payload | {"QueryString": "SELECT 2"}
+    )
+
+    assert output["NamedQueryId"] != query_id
+    assert len(store.by_id) == 1
+
+
+def test_reset_clears_request_token_map(
+    store: NamedQueryStore, workgroups: WorkGroupStore
+) -> None:
+    payload = {
+        "Name": "token_query",
+        "Database": "db",
+        "QueryString": "SELECT 1",
+        "ClientRequestToken": CLIENT_TOKEN,
+    }
+    first_id = create_named_query(store, workgroups, payload)["NamedQueryId"]
+
+    store.reset()
+
+    second_id = create_named_query(
+        store, workgroups, payload | {"QueryString": "SELECT 2"}
+    )["NamedQueryId"]
+    assert second_id != first_id

@@ -221,6 +221,26 @@ class NamedQueryRecord:
     query_string: str
     workgroup: str
     creation_time: float = field(default_factory=time)
+    # The ClientRequestToken this record registered under, so delete/reset can
+    # drop the token mapping it owns.
+    request_token: str | None = None
+
+    def same_request(
+        self,
+        name: str,
+        description: str,
+        database: str,
+        query_string: str,
+        workgroup: str,
+    ) -> bool:
+        """Whether a retried token names this exact create request."""
+        return (
+            self.name == name
+            and self.description == description
+            and self.database == database
+            and self.query_string == query_string
+            and self.workgroup == workgroup
+        )
 
     def to_payload(self) -> dict[str, object]:
         """Serialize to the GetNamedQuery ``NamedQuery`` wire shape."""
@@ -244,11 +264,16 @@ class NamedQueryStore:
     by_workgroup: dict[str, list[str]] = field(
         default_factory=dict, init=False
     )
+    # ClientRequestToken → query id backing the model's idempotent-create
+    # contract (service-2.json CreateNamedQuery): a retried token replays the
+    # original response instead of creating a second query.
+    by_request_token: dict[str, str] = field(default_factory=dict, init=False)
 
     def reset(self) -> None:
         """Drop every named query (test reset point)."""
         self.by_id = {}
         self.by_workgroup = {}
+        self.by_request_token = {}
 
     def create(
         self,
@@ -257,6 +282,7 @@ class NamedQueryStore:
         database: str,
         query_string: str,
         workgroup: str,
+        client_request_token: str | None = None,
     ) -> NamedQueryRecord:
         query_id = str(uuid.uuid4())
         record = NamedQueryRecord(
@@ -266,12 +292,24 @@ class NamedQueryStore:
             database=database,
             query_string=query_string,
             workgroup=workgroup,
+            request_token=client_request_token,
         )
         self.by_id[query_id] = record
         if workgroup not in self.by_workgroup:
             self.by_workgroup[workgroup] = []
         self.by_workgroup[workgroup].append(query_id)
+        if client_request_token is not None:
+            self.by_request_token[client_request_token] = query_id
         return record
+
+    def find_by_request_token(
+        self, client_request_token: str
+    ) -> NamedQueryRecord | None:
+        """The named query a ClientRequestToken retry replays."""
+        query_id = self.by_request_token.get(client_request_token)
+        if query_id is None:
+            return None
+        return self.by_id.get(query_id)
 
     def get(self, query_id: str) -> NamedQueryRecord:
         if query_id not in self.by_id:
@@ -302,6 +340,8 @@ class NamedQueryStore:
             self.by_workgroup[workgroup] = [
                 qid for qid in self.by_workgroup[workgroup] if qid != query_id
             ]
+        if record.request_token is not None:
+            self.by_request_token.pop(record.request_token, None)
 
     def batch_get(
         self, query_ids: list[str]
