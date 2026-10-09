@@ -67,6 +67,12 @@ DESCRIPTION_STRING_MAX_LENGTH = 1024
 # directly: [\u0020-\uD7FF\uE000-\uFFFD\U00010000-\U0010FFFF\t]*.
 CATALOG_NAME_PATTERN = r"[\u0020-\uD7FF\uE000-\uFFFD\U00010000-\U0010FFFF\t]*"
 CATALOG_NAME_MAX_LENGTH = 256
+# IdempotencyToken (service-2.json): a ClientRequestToken is bounded 32..128;
+# real Athena 400s a shorter token rather than deduping submissions on it.
+CLIENT_REQUEST_TOKEN_MIN_LENGTH = 32
+CLIENT_REQUEST_TOKEN_MAX_LENGTH = 128
+# ExecutionParameter (service-2.json): each list member is at most 1024.
+EXECUTION_PARAMETER_MAX_LENGTH = 1024
 
 
 def member(payload: dict[str, object] | None, name: str) -> object | None:
@@ -267,19 +273,42 @@ def catalog_name_string(payload: dict[str, object] | None, name: str) -> str:
 
 
 def optional_string_list(
-    payload: dict[str, object] | None, name: str
+    payload: dict[str, object] | None,
+    name: str,
+    *,
+    min_length: int | None = None,
+    member_min_length: int | None = None,
+    member_max_length: int | None = None,
+    member_pattern: str | None = None,
 ) -> list[str] | None:
+    """Parse an optional list-of-strings member with declared bounds.
+
+    ``None``/absent parses to ``None``; list-level ``min_length`` and the
+    ``member_*`` bounds mirror :func:`required_string_list`.
+    """
     raw = member(payload, name)
     if raw is None:
         return None
     if not isinstance(raw, list):
         raise InvalidRequestException(f"{name} must be a list, got {raw!r}")
     items: list[object] = raw
-    for item in items:
+    if min_length is not None and len(items) < min_length:
+        raise InvalidRequestException(
+            f"{name} must contain at least {min_length} entries, "
+            f"got {len(items)}"
+        )
+    for index, item in enumerate(items):
         if not isinstance(item, str):
             raise InvalidRequestException(
                 f"{name} must contain only strings, got {item!r}"
             )
+        check_string_constraints(
+            item,
+            f"{name}[{index}]",
+            min_length=member_min_length,
+            max_length=member_max_length,
+            pattern=member_pattern,
+        )
     return [item for item in items if isinstance(item, str)]
 
 

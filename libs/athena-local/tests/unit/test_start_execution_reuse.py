@@ -176,7 +176,9 @@ def test_start_execute_without_store_resolves_as_missing(
     asyncio.run(scenario())
 
 
-CLIENT_TOKEN = "9f4b6c1a-2d3e-4f5a-8b7c-0d1e2f3a4b5c"  # IdempotencyToken max
+# A 36-char value inside the model's IdempotencyToken 32..128 bound
+# (service-2.json).
+CLIENT_TOKEN = "9f4b6c1a-2d3e-4f5a-8b7c-0d1e2f3a4b5c"
 
 
 def test_start_client_request_token_replays_the_original_id(
@@ -262,15 +264,16 @@ def test_start_rejects_non_string_client_request_token(
         )
 
 
-@pytest.mark.parametrize("token", ["", "x" * 37])
+@pytest.mark.parametrize("token", ["", "x" * 31, "x" * 129])
 def test_start_rejects_client_request_token_out_of_model_bounds(
     store: ExecutionStore,
     executor: QueryExecutor,
     workgroups: WorkGroupStore,
     token: str,
 ) -> None:
-    # IdempotencyToken is bounded 1..36 (service-2.json); an empty token
-    # must never dedupe distinct submissions against each other.
+    # IdempotencyToken is bounded 32..128 (service-2.json); an empty or
+    # too-short token must never dedupe distinct submissions against each
+    # other, and an oversized one 400s like real Athena.
     with pytest.raises(InvalidRequestException, match="ClientRequestToken"):
         asyncio.run(
             start_query_execution(
@@ -285,6 +288,33 @@ def test_start_rejects_client_request_token_out_of_model_bounds(
                 },
             )
         )
+
+
+@pytest.mark.parametrize("length", [32, 128])
+def test_start_accepts_client_request_token_at_model_bounds(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+    length: int,
+) -> None:
+    # 32 and 128 are the inclusive model bounds; both are legal tokens.
+
+    async def scenario() -> None:
+        token = "x" * length
+        output = await start_query_execution(
+            executor,
+            workgroups,
+            {
+                "QueryString": "SELECT 1",
+                "ClientRequestToken": token,
+                "ResultConfiguration": {"OutputLocation": "s3://bucket/q.csv"},
+            },
+        )
+        record = store.get(output["QueryExecutionId"])
+        await executor._tasks[record.query_execution_id]
+        assert record.request_token == token
+
+    asyncio.run(scenario())
 
 
 REUSE_PAYLOAD = {

@@ -33,6 +33,10 @@ from athena_local.query_results import (
     get_query_runtime_statistics,
 )
 from athena_local.request_fields import (
+    CLIENT_REQUEST_TOKEN_MAX_LENGTH,
+    CLIENT_REQUEST_TOKEN_MIN_LENGTH,
+    DATABASE_STRING_MAX_LENGTH,
+    EXECUTION_PARAMETER_MAX_LENGTH,
     QUERY_EXECUTION_ID_MAX_LENGTH,
     QUERY_EXECUTION_ID_PATTERN,
     as_object,
@@ -56,27 +60,21 @@ from athena_local.statement_classification import classify_statement
 # longer statement at submit.
 MAX_QUERY_STRING_LENGTH = 262144
 
-# Model IdempotencyToken bound (service-2.json); an out-of-bounds token —
-# including the empty string — 400s so it can never dedupe submissions.
-MAX_CLIENT_REQUEST_TOKEN_LENGTH = 36
-
 
 def _optional_client_request_token(
     payload: dict[str, object] | None,
 ) -> str | None:
-    """ClientRequestToken under the model's IdempotencyToken 1..36 bound."""
-    if payload is None:
-        return None
-    token = optional_string(payload, "ClientRequestToken")
-    if token is None:
-        return None
-    if not 1 <= len(token) <= MAX_CLIENT_REQUEST_TOKEN_LENGTH:
-        raise InvalidRequestException(
-            f"ClientRequestToken must be between 1 and "
-            f"{MAX_CLIENT_REQUEST_TOKEN_LENGTH} characters, "
-            f"got {len(token)}"
-        )
-    return token
+    """ClientRequestToken under the model's IdempotencyToken 32..128 bound.
+
+    Real Athena 400s a token outside the model bounds rather than deduping
+    submissions on it; the shared string check carries the bound.
+    """
+    return optional_string(
+        payload,
+        "ClientRequestToken",
+        min_length=CLIENT_REQUEST_TOKEN_MIN_LENGTH,
+        max_length=CLIENT_REQUEST_TOKEN_MAX_LENGTH,
+    )
 
 
 def _query_execution_context(
@@ -87,7 +85,14 @@ def _query_execution_context(
         return None, None
     body = as_object(raw, "QueryExecutionContext")
     return (
-        _unquoted_identifier(optional_string(body, "Database")),
+        _unquoted_identifier(
+            optional_string(
+                body,
+                "Database",
+                min_length=1,
+                max_length=DATABASE_STRING_MAX_LENGTH,
+            )
+        ),
         optional_string(body, "Catalog"),
     )
 
@@ -209,7 +214,12 @@ async def start_query_execution(
             f"QueryString length {len(query)} exceeds the maximum "
             f"{MAX_QUERY_STRING_LENGTH} characters"
         )
-    execution_parameters = optional_string_list(payload, "ExecutionParameters")
+    execution_parameters = optional_string_list(
+        payload,
+        "ExecutionParameters",
+        min_length=1,
+        member_max_length=EXECUTION_PARAMETER_MAX_LENGTH,
+    )
     client_request_token = _optional_client_request_token(payload)
     resolution = resolve_execute_statement(
         prepared_statement_store or PreparedStatementStore(),

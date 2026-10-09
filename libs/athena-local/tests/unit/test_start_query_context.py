@@ -88,6 +88,52 @@ def test_start_rejects_non_string_database_member(
         )
 
 
+@pytest.mark.parametrize("database", ["", "x" * 256])
+def test_start_rejects_database_out_of_model_bounds(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+    database: str,
+) -> None:
+    # Database is a DatabaseString bounded 1..255 (service-2.json); an empty
+    # or oversized context name is rejected at the parse layer.
+    with pytest.raises(InvalidRequestException, match="Database"):
+        asyncio.run(
+            start_query_execution(
+                executor,
+                workgroups,
+                {
+                    "QueryString": "SELECT 1",
+                    "QueryExecutionContext": {"Database": database},
+                },
+            )
+        )
+
+
+def test_start_accepts_database_at_model_max(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    # 255 is the inclusive DatabaseString maximum.
+
+    async def scenario() -> None:
+        output = await start_query_execution(
+            executor,
+            workgroups,
+            {
+                "QueryString": "SELECT 1",
+                "QueryExecutionContext": {"Database": "x" * 255},
+                "ResultConfiguration": {"OutputLocation": "s3://bucket/q.csv"},
+            },
+        )
+        record = store.get(output["QueryExecutionId"])
+        await executor._tasks[record.query_execution_id]
+        assert record.database == "x" * 255
+
+    asyncio.run(scenario())
+
+
 @pytest.fixture()
 def catalogs() -> DataCatalogStore:
     return DataCatalogStore()
@@ -242,6 +288,75 @@ def test_start_rejects_non_string_parameter_member(
                 },
             )
         )
+
+
+def test_start_rejects_empty_execution_parameters(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    # ExecutionParameters has list min 1 (service-2.json); an empty list must
+    # not be silently read as "absent".
+    with pytest.raises(InvalidRequestException, match="ExecutionParameters"):
+        asyncio.run(
+            start_query_execution(
+                executor,
+                workgroups,
+                {
+                    "QueryString": "SELECT ?",
+                    "ExecutionParameters": [],
+                    "ResultConfiguration": {
+                        "OutputLocation": "s3://bucket/q.csv"
+                    },
+                },
+            )
+        )
+
+
+def test_start_rejects_oversized_execution_parameter_member(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    # Each ExecutionParameter member is bounded at 1024 (service-2.json).
+    with pytest.raises(InvalidRequestException, match="ExecutionParameters"):
+        asyncio.run(
+            start_query_execution(
+                executor,
+                workgroups,
+                {
+                    "QueryString": "SELECT ?",
+                    "ExecutionParameters": ["x" * 1025],
+                    "ResultConfiguration": {
+                        "OutputLocation": "s3://bucket/q.csv"
+                    },
+                },
+            )
+        )
+
+
+def test_start_accepts_execution_parameter_at_model_max(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    # 1024 is the inclusive ExecutionParameter maximum.
+
+    async def scenario() -> None:
+        output = await start_query_execution(
+            executor,
+            workgroups,
+            {
+                "QueryString": "SELECT ?",
+                "ExecutionParameters": ["x" * 1024],
+                "ResultConfiguration": {"OutputLocation": "s3://bucket/q.csv"},
+            },
+        )
+        record = store.get(output["QueryExecutionId"])
+        await executor._tasks[record.query_execution_id]
+        assert record.execution_parameters == ["x" * 1024]
+
+    asyncio.run(scenario())
 
 
 def test_start_passes_execution_parameters(
