@@ -3,34 +3,34 @@ repos:
     rev: v0.15.15
     hooks:
       - id: ruff-format
-        exclude: ^libs/data-science-scaffold/template/
+        exclude: ^libs/data-science-scaffold/template/|\.sh$
       - id: ruff
         args: [--fix]
-        exclude: ^libs/data-science-scaffold/template/
+        exclude: ^libs/data-science-scaffold/template/|\.sh$
   - repo: local
     hooks:
       - id: security
-        name: package security scans (bandit, vulture, semgrep)
-        entry: make security
+        name: package security scans (bandit, vulture, semgrep) — changed packages
+        entry: scripts/gate-changed.sh security
         language: system
-        pass_filenames: false
+        pass_filenames: true
       - id: maintainability
-        name: xenon maintainability
-        entry: make maintainability
+        name: xenon maintainability — changed packages
+        entry: scripts/gate-changed.sh maintainability
         language: system
-        pass_filenames: false
+        pass_filenames: true
       - id: deptry
-        name: deptry
-        entry: make dependencies
+        name: deptry — changed packages
+        entry: scripts/gate-changed.sh dependencies
         language: system
-        pass_filenames: false
+        pass_filenames: true
       - id: import-linter
         name: import-linter
         entry: uv run lint-imports
         language: system
         pass_filenames: false
       - id: radon
-        name: radon complexity
-        entry: make complexity
+        name: radon complexity — changed packages
+        entry: scripts/gate-changed.sh complexity
         language: system
-        pass_filenames: false
+        pass_filenames: true
