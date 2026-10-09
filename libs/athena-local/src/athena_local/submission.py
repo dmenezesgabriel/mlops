@@ -40,6 +40,7 @@ from athena_local.output_targets import (
     OutputSnapshot,
 )
 from athena_local.partition_alter import add_partition_trino_call
+from athena_local.sql_lexing import strip_comments
 from athena_local.statement_classification import StatementClassification
 from athena_local.trino_client import (
     TrinoPage,
@@ -277,6 +278,11 @@ class SubmissionPlanner:
         either — it maps to a ``register_partition`` CALL whose
         ``IF NOT EXISTS`` flag rides the record (partition_alter.py).
         """
+        # A comment can carry a ``(``/``)`` or sit before UNLOAD's ``TO``, and
+        # the rewrites' clause scanners only skip string spans — strip once so
+        # every probe scans comment-free text (G-261/G-264; the classification
+        # and manifest planes already strip the same text).
+        submit_query = strip_comments(submit_query)
         unload = unload_trino_submission(submit_query, database)
         if unload is not None:
             return _MappedSubmission(
