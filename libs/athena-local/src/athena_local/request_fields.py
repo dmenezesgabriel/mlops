@@ -199,7 +199,10 @@ def optional_int(
 
 
 def required_string_list(
-    payload: dict[str, object] | None, name: str
+    payload: dict[str, object] | None,
+    name: str,
+    *,
+    max_length: int | None = None,
 ) -> list[str]:
     raw = member(payload, name)
     if not isinstance(raw, list):
@@ -207,6 +210,11 @@ def required_string_list(
     if not raw:
         raise InvalidRequestException(f"{name} must not be empty")
     items: list[object] = raw
+    if max_length is not None and len(items) > max_length:
+        raise InvalidRequestException(
+            f"{name} must contain at most {max_length} entries, "
+            f"got {len(items)}"
+        )
     for item in items:
         if not isinstance(item, str):
             raise InvalidRequestException(
@@ -255,7 +263,11 @@ def optional_string_map(
 
 
 def optional_max_results(
-    payload: dict[str, object] | None, name: str, maximum: int
+    payload: dict[str, object] | None,
+    name: str,
+    maximum: int,
+    *,
+    minimum: int = 1,
 ) -> int | None:
     raw = member(payload, name)
     if raw is None:
@@ -264,8 +276,8 @@ def optional_max_results(
         raise InvalidRequestException(
             f"{name} must be an integer, got {raw!r}"
         )
-    if raw < 1 or raw > maximum:
+    if raw < minimum or raw > maximum:
         raise InvalidRequestException(
-            f"{name} must be between 1 and {maximum}, got {raw}"
+            f"{name} must be between {minimum} and {maximum}, got {raw}"
         )
     return raw

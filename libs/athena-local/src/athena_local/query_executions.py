@@ -268,7 +268,9 @@ def get_query_execution(
 def batch_get_query_execution(
     store: ExecutionStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    query_ids = required_string_list(payload, "QueryExecutionIds")
+    query_ids = required_string_list(
+        payload, "QueryExecutionIds", max_length=MAX_BATCH_QUERY_EXECUTIONS
+    )
     found, unprocessed = store.batch_get(query_ids)
     output: dict[str, object] = {
         "QueryExecutions": [record.to_payload() for record in found]
@@ -299,7 +301,9 @@ def list_query_executions(
     """
     body = payload or {}
     workgroup = optional_string(body, "WorkGroup") or "primary"
-    max_results = optional_max_results(body, "MaxResults", MAX_LIST_EXECUTIONS)
+    max_results = optional_max_results(
+        body, "MaxResults", MAX_LIST_EXECUTIONS, minimum=0
+    )
     next_token = optional_string(body, "NextToken")
     execution_ids, next_token_out = store.list_execution_ids(
         workgroup=workgroup,
@@ -325,6 +329,7 @@ async def stop_query_execution(
 
 
 MAX_LIST_EXECUTIONS = 50  # model MaxQueryExecutionsCount (service-2.json)
+MAX_BATCH_QUERY_EXECUTIONS = 50  # model QueryExecutionIdList max
 
 
 def register_query_execution_handlers(

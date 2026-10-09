@@ -95,6 +95,18 @@ def test_required_string_list_needs_a_nonempty_all_string_list() -> None:
     assert required_string_list({"ids": ["a", "b"]}, "ids") == ["a", "b"]
 
 
+def test_required_string_list_honors_max_length() -> None:
+    # Model list shapes cap member count (NamedQueryIdList/QueryExecutionIdList
+    # are 1..50); absent the kwarg the member contract stays unbounded.
+    with pytest.raises(InvalidRequestException, match="ids"):
+        required_string_list({"ids": ["a"] * 51}, "ids", max_length=50)
+    assert (
+        required_string_list({"ids": ["a"] * 50}, "ids", max_length=50)
+        == ["a"] * 50
+    )
+    assert required_string_list({"ids": ["a"] * 51}, "ids") == ["a"] * 51
+
+
 def test_optional_string_list_returns_none_unless_present() -> None:
     assert optional_string_list(None, "params") is None
     assert optional_string_list({}, "params") is None
@@ -127,6 +139,23 @@ def test_optional_max_results_bounds_to_the_member_maximum() -> None:
     with pytest.raises(InvalidRequestException, match="MaxResults"):
         optional_max_results({"MaxResults": 51}, "MaxResults", 50)
     assert optional_max_results({"MaxResults": 50}, "MaxResults", 50) == 50
+
+
+def test_optional_max_results_honors_a_declared_minimum() -> None:
+    # Model floors differ: MaxNamedQueriesCount/MaxQueryExecutionsCount allow
+    # 0 (service-2.json) while MaxDataCatalogsCount requires 2.
+    assert (
+        optional_max_results({"MaxResults": 0}, "MaxResults", 50, minimum=0)
+        == 0
+    )
+    with pytest.raises(InvalidRequestException, match="MaxResults"):
+        optional_max_results({"MaxResults": -1}, "MaxResults", 50, minimum=0)
+    with pytest.raises(InvalidRequestException, match="MaxResults"):
+        optional_max_results({"MaxResults": 1}, "MaxResults", 50, minimum=2)
+    assert (
+        optional_max_results({"MaxResults": 2}, "MaxResults", 50, minimum=2)
+        == 2
+    )
 
 
 def test_as_object_returns_none_or_typed_dict() -> None:

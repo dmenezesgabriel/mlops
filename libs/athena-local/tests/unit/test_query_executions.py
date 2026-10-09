@@ -222,6 +222,24 @@ def test_batch_get_rejects_non_string_ids(
         batch_get_query_execution(store, {"QueryExecutionIds": [123]})
 
 
+def test_batch_get_rejects_over_fifty_ids(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    # Model QueryExecutionIdList caps at 50 members (service-2.json).
+    with pytest.raises(InvalidRequestException, match="QueryExecutionIds"):
+        batch_get_query_execution(
+            store,
+            {"QueryExecutionIds": [f"id-{i}" for i in range(51)]},
+        )
+
+    output = batch_get_query_execution(
+        store, {"QueryExecutionIds": [f"id-{i}" for i in range(50)]}
+    )
+    assert len(output["UnprocessedQueryExecutionIds"]) == 50
+
+
 def test_list_returns_ids_newest_first(
     store: ExecutionStore,
     executor: QueryExecutor,
@@ -316,13 +334,39 @@ def test_list_rejects_non_int_max_results(
         list_query_executions(store, {"MaxResults": "10"})
 
 
-def test_list_rejects_max_results_above_fifty(
+@pytest.mark.parametrize("max_results", [-1, 51])
+def test_list_rejects_out_of_bounds_max_results(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+    max_results: int,
+) -> None:
+    # Model MaxQueryExecutionsCount: 0..50 (service-2.json).
+    with pytest.raises(InvalidRequestException, match="between 0 and 50"):
+        list_query_executions(store, {"MaxResults": max_results})
+
+
+def test_list_accepts_zero_max_results(
     store: ExecutionStore,
     executor: QueryExecutor,
     workgroups: WorkGroupStore,
 ) -> None:
-    with pytest.raises(InvalidRequestException, match="between 1 and 50"):
-        list_query_executions(store, {"MaxResults": 51})
+    # 0 is legal (model min 0): offset_page's <=0 no-limit branch answers the
+    # full page with no NextToken — a 0-item page plus token would loop a
+    # paginator forever.
+    records = [
+        store.create(query=f"SELECT {index}", workgroup="primary")
+        for index in range(3)
+    ]
+
+    output = list_query_executions(store, {"MaxResults": 0})
+
+    assert output["QueryExecutionIds"] == [
+        records[2].query_execution_id,
+        records[1].query_execution_id,
+        records[0].query_execution_id,
+    ]
+    assert "NextToken" not in output
 
 
 def test_list_rejects_invalid_next_token(

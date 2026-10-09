@@ -347,6 +347,41 @@ def test_list_named_queries_invalid_next_token_raises(
         )
 
 
+@pytest.mark.parametrize("max_results", [-1, 51])
+def test_list_named_queries_rejects_out_of_bounds_max_results(
+    store: NamedQueryStore, max_results: int
+) -> None:
+    # Model MaxNamedQueriesCount: 0..50 (service-2.json).
+    with pytest.raises(InvalidRequestException, match="MaxResults"):
+        list_named_queries(store, {"MaxResults": max_results})
+
+
+def test_list_named_queries_accepts_zero_max_results(
+    store: NamedQueryStore,
+    workgroups: WorkGroupStore,
+) -> None:
+    # 0 is legal (model min 0): offset_page's <=0 no-limit branch answers the
+    # full page with no NextToken — a 0-item page plus token would loop a
+    # paginator forever.
+    create_named_query(
+        store,
+        workgroups,
+        {
+            "Name": "query1",
+            "Database": "db",
+            "QueryString": "SELECT 1",
+            "WorkGroup": "analytics",
+        },
+    )
+
+    output = list_named_queries(
+        store, {"WorkGroup": "analytics", "MaxResults": 0}
+    )
+
+    assert len(output["NamedQueryIds"]) == 1
+    assert "NextToken" not in output
+
+
 def test_delete_named_query_removes_from_store(
     store: NamedQueryStore,
     workgroups: WorkGroupStore,
@@ -452,3 +487,18 @@ def test_batch_get_named_query_requires_list_of_strings(
         InvalidRequestException, match="must contain only strings"
     ):
         batch_get_named_query(store, {"NamedQueryIds": [123]})
+
+
+def test_batch_get_named_query_rejects_over_fifty_ids(
+    store: NamedQueryStore,
+) -> None:
+    # Model NamedQueryIdList caps at 50 members (service-2.json).
+    with pytest.raises(InvalidRequestException, match="NamedQueryIds"):
+        batch_get_named_query(
+            store, {"NamedQueryIds": [f"id-{i}" for i in range(51)]}
+        )
+
+    output = batch_get_named_query(
+        store, {"NamedQueryIds": [f"id-{i}" for i in range(50)]}
+    )
+    assert len(output["UnprocessedNamedQueryIds"]) == 50

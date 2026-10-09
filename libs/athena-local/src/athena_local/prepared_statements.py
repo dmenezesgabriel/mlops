@@ -14,9 +14,8 @@ from __future__ import annotations
 
 from athena_local.dispatch import register_handler
 from athena_local.request_fields import (
-    member,
+    optional_max_results,
     optional_string,
-    required_int,
     required_string,
     required_string_list,
 )
@@ -25,6 +24,9 @@ from athena_local.state import (
     WorkGroupStore,
     ensure_workgroup_enabled,
 )
+
+# Canonical-model bound (service-2.json): MaxPreparedStatementsCount 1..50.
+MAX_LIST_PREPARED_STATEMENTS = 50
 
 
 def create_prepared_statement(
@@ -59,9 +61,9 @@ def list_prepared_statements(
     store: PreparedStatementStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
     workgroup = required_string(payload, "WorkGroup")
-    max_results = None
-    if member(payload, "MaxResults") is not None:
-        max_results = required_int(payload, "MaxResults")
+    max_results = optional_max_results(
+        payload, "MaxResults", MAX_LIST_PREPARED_STATEMENTS
+    )
     next_token = optional_string(payload, "NextToken")
     statement_names, next_token_out = store.list(
         workgroup=workgroup,

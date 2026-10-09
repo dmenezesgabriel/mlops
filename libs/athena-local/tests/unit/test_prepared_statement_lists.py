@@ -155,3 +155,40 @@ def test_list_prepared_statements_invalid_next_token_raises(
         list_prepared_statements(
             store, {"WorkGroup": "primary", "NextToken": "invalid"}
         )
+
+
+@pytest.mark.parametrize("max_results", [0, 51])
+def test_list_prepared_statements_rejects_out_of_bounds_max_results(
+    store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
+    max_results: int,
+) -> None:
+    # Model MaxPreparedStatementsCount: 1..50 (service-2.json) — 0 must not
+    # fall into offset_page's <=0 no-limit branch and return everything.
+    with pytest.raises(InvalidRequestException, match="MaxResults"):
+        list_prepared_statements(
+            store, {"WorkGroup": "analytics", "MaxResults": max_results}
+        )
+
+
+def test_list_prepared_statements_accepts_boundary_max_results_one(
+    store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
+) -> None:
+    for i in range(2):
+        create_prepared_statement(
+            store,
+            workgroups,
+            {
+                "StatementName": f"stmt{i}",
+                "WorkGroup": "analytics",
+                "QueryStatement": f"SELECT {i}",
+            },
+        )
+
+    output = list_prepared_statements(
+        store, {"WorkGroup": "analytics", "MaxResults": 1}
+    )
+
+    assert len(output["PreparedStatements"]) == 1
+    assert "NextToken" in output

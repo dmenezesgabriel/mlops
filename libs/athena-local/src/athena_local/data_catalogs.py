@@ -19,15 +19,18 @@ from athena_local.dispatch import register_handler
 from athena_local.errors import InvalidRequestException
 from athena_local.request_fields import (
     member,
+    optional_max_results,
     optional_string,
     optional_string_map,
-    required_int,
     required_string,
 )
 from athena_local.schemas import parse_tags
 
 SUPPORTED_CATALOG_TYPES = ("GLUE", "HIVE", "LAMBDA")
 UNSUPPORTED_CATALOG_TYPE = "FEDERATED"
+
+# Canonical-model bound (service-2.json): MaxDataCatalogsCount 2..50.
+MAX_LIST_DATA_CATALOGS = 50
 
 # AWS normalizes LAMBDA catalog parameters: metadata-function and record-function
 # fall back to the passed function value (get-data-catalog.rst example output).
@@ -89,9 +92,9 @@ def get_data_catalog(
 def list_data_catalogs(
     store: DataCatalogStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    max_results = None
-    if member(payload, "MaxResults") is not None:
-        max_results = required_int(payload, "MaxResults")
+    max_results = optional_max_results(
+        payload, "MaxResults", MAX_LIST_DATA_CATALOGS, minimum=2
+    )
     next_token = optional_string(payload, "NextToken")
     records, next_token_out = store.list(
         max_results=max_results, next_token=next_token

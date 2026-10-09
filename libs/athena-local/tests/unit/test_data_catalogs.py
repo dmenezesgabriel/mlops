@@ -287,6 +287,15 @@ def test_list_data_catalogs_invalid_next_token_raises(
         list_data_catalogs(store, {"NextToken": "garbage"})
 
 
+@pytest.mark.parametrize("max_results", [0, 1, 51])
+def test_list_data_catalogs_rejects_out_of_bounds_max_results(
+    store: DataCatalogStore, max_results: int
+) -> None:
+    # Model MaxDataCatalogsCount: 2..50 (service-2.json).
+    with pytest.raises(InvalidRequestException, match="MaxResults"):
+        list_data_catalogs(store, {"MaxResults": max_results})
+
+
 def test_update_data_catalog_replaces_fields(
     store: DataCatalogStore,
 ) -> None:

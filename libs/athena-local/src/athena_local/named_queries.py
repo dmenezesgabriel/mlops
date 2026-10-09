@@ -10,9 +10,8 @@ from __future__ import annotations
 
 from athena_local.dispatch import register_handler
 from athena_local.request_fields import (
-    member,
+    optional_max_results,
     optional_string,
-    required_int,
     required_string,
     required_string_list,
 )
@@ -21,6 +20,11 @@ from athena_local.state import (
     WorkGroupStore,
     ensure_workgroup_enabled,
 )
+
+# Canonical-model bounds (service-2.json): MaxNamedQueriesCount 0..50,
+# NamedQueryIdList 1..50.
+MAX_LIST_NAMED_QUERIES = 50
+MAX_BATCH_NAMED_QUERIES = 50
 
 
 def create_named_query(
@@ -56,9 +60,9 @@ def list_named_queries(
     store: NamedQueryStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
     workgroup = optional_string(payload, "WorkGroup") or "primary"
-    max_results = None
-    if member(payload, "MaxResults") is not None:
-        max_results = required_int(payload, "MaxResults")
+    max_results = optional_max_results(
+        payload, "MaxResults", MAX_LIST_NAMED_QUERIES, minimum=0
+    )
     next_token = optional_string(payload, "NextToken")
     query_ids, next_token_out = store.list(
         workgroup=workgroup,
@@ -82,7 +86,9 @@ def delete_named_query(
 def batch_get_named_query(
     store: NamedQueryStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    query_ids = required_string_list(payload, "NamedQueryIds")
+    query_ids = required_string_list(
+        payload, "NamedQueryIds", max_length=MAX_BATCH_NAMED_QUERIES
+    )
     found, unprocessed = store.batch_get(query_ids)
     output: dict[str, object] = {
         "NamedQueries": [record.to_payload() for record in found]
