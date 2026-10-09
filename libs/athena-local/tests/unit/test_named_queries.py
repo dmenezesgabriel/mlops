@@ -8,6 +8,8 @@ output keys match the canonical service-2.json output members.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pytest
 from athena_local.dispatch import implemented_operations
 from athena_local.errors import InvalidRequestException
@@ -502,3 +504,166 @@ def test_batch_get_named_query_rejects_over_fifty_ids(
         store, {"NamedQueryIds": [f"id-{i}" for i in range(50)]}
     )
     assert len(output["UnprocessedNamedQueryIds"]) == 50
+
+
+def test_create_named_query_rejects_oversized_name(
+    store: NamedQueryStore, workgroups: WorkGroupStore
+) -> None:
+    # Model NameString: 1..128 (service-2.json).
+    with pytest.raises(InvalidRequestException, match="at most 128"):
+        create_named_query(
+            store,
+            workgroups,
+            {
+                "Name": "n" * 129,
+                "Database": "db",
+                "QueryString": "SELECT 1",
+            },
+        )
+
+
+def test_create_named_query_accepts_boundary_name(
+    store: NamedQueryStore, workgroups: WorkGroupStore
+) -> None:
+    output = create_named_query(
+        store,
+        workgroups,
+        {
+            "Name": "n" * 128,
+            "Database": "db",
+            "QueryString": "SELECT 1",
+        },
+    )
+    assert store.get(output["NamedQueryId"]).name == "n" * 128
+
+
+def test_create_named_query_rejects_empty_description(
+    store: NamedQueryStore, workgroups: WorkGroupStore
+) -> None:
+    # Model DescriptionString min 1: an explicit "" 400s while an absent
+    # Description keeps the "" store default.
+    with pytest.raises(InvalidRequestException, match="at least 1"):
+        create_named_query(
+            store,
+            workgroups,
+            {
+                "Name": "q",
+                "Description": "",
+                "Database": "db",
+                "QueryString": "SELECT 1",
+            },
+        )
+
+    output = create_named_query(
+        store,
+        workgroups,
+        {"Name": "q2", "Database": "db", "QueryString": "SELECT 1"},
+    )
+    assert store.get(output["NamedQueryId"]).description == ""
+
+
+def test_create_named_query_rejects_oversized_description(
+    store: NamedQueryStore, workgroups: WorkGroupStore
+) -> None:
+    # Model DescriptionString max 1024.
+    with pytest.raises(InvalidRequestException, match="at most 1024"):
+        create_named_query(
+            store,
+            workgroups,
+            {
+                "Name": "q",
+                "Description": "d" * 1025,
+                "Database": "db",
+                "QueryString": "SELECT 1",
+            },
+        )
+
+
+def test_create_named_query_rejects_oversized_database(
+    store: NamedQueryStore, workgroups: WorkGroupStore
+) -> None:
+    # Model DatabaseString: 1..255.
+    with pytest.raises(InvalidRequestException, match="at most 255"):
+        create_named_query(
+            store,
+            workgroups,
+            {
+                "Name": "q",
+                "Database": "d" * 256,
+                "QueryString": "SELECT 1",
+            },
+        )
+
+
+def test_create_named_query_rejects_oversized_query_string(
+    store: NamedQueryStore, workgroups: WorkGroupStore
+) -> None:
+    # Model QueryString max 262144 — the same bound StartQueryExecution
+    # enforces on the submit path.
+    with pytest.raises(InvalidRequestException, match="at most 262144"):
+        create_named_query(
+            store,
+            workgroups,
+            {
+                "Name": "q",
+                "Database": "db",
+                "QueryString": "x" * 262145,
+            },
+        )
+
+
+@pytest.mark.parametrize(
+    "workgroup", ["bad name!", "../escape", "with/slash", "a" * 129]
+)
+def test_create_named_query_rejects_non_canonical_workgroup(
+    store: NamedQueryStore, workgroups: WorkGroupStore, workgroup: str
+) -> None:
+    # WorkGroupName pattern [a-zA-Z0-9._-]{1,128} (service-2.json). Match the
+    # constraint message: the unknown-workgroup pass-through would otherwise
+    # CREATE the record, so a bare "WorkGroup" match can false-green.
+    with pytest.raises(InvalidRequestException, match="must match pattern"):
+        create_named_query(
+            store,
+            workgroups,
+            {
+                "Name": "q",
+                "Database": "db",
+                "QueryString": "SELECT 1",
+                "WorkGroup": workgroup,
+            },
+        )
+
+
+@pytest.mark.parametrize("workgroup", ["bad name!", "with/slash"])
+def test_list_named_queries_rejects_non_canonical_workgroup(
+    store: NamedQueryStore, workgroup: str
+) -> None:
+    with pytest.raises(InvalidRequestException, match="must match pattern"):
+        list_named_queries(store, {"WorkGroup": workgroup})
+
+
+@pytest.mark.parametrize("operation", [get_named_query, delete_named_query])
+@pytest.mark.parametrize("query_id", ["has space", "x" * 129])
+def test_named_query_id_member_rejects_non_canonical_ids(
+    store: NamedQueryStore,
+    operation: Callable[
+        [NamedQueryStore, dict[str, object]], dict[str, object]
+    ],
+    query_id: str,
+) -> None:
+    # Model NamedQueryId: \S+ 1..128. Match the constraint message — the
+    # store's "does not exist" would satisfy a bare "NamedQueryId" match
+    # without any parse-layer check.
+    with pytest.raises(
+        InvalidRequestException, match="must match pattern|at most 128"
+    ):
+        operation(store, {"NamedQueryId": query_id})
+
+
+@pytest.mark.parametrize("member_id", ["has space", "", "x" * 129])
+def test_batch_get_named_query_rejects_non_canonical_member_ids(
+    store: NamedQueryStore, member_id: str
+) -> None:
+    # NamedQueryIdList members are NamedQueryId-shaped (\S+ 1..128).
+    with pytest.raises(InvalidRequestException, match=r"NamedQueryIds\[0\]"):
+        batch_get_named_query(store, {"NamedQueryIds": [member_id]})

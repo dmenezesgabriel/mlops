@@ -9,6 +9,8 @@ the documented AWS behavior in the CLI ``get-data-catalog`` example.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pytest
 from athena_local.data_catalog_state import DataCatalogStore
 from athena_local.data_catalogs import (
@@ -365,3 +367,80 @@ def test_delete_data_catalog_missing_raises(store: DataCatalogStore) -> None:
 def test_delete_data_catalog_requires_name(store: DataCatalogStore) -> None:
     with pytest.raises(InvalidRequestException, match="Name"):
         delete_data_catalog(store, {})
+
+
+@pytest.mark.parametrize(
+    ("name", "match"),
+    [("x" * 257, "at most 256"), ("\x00catalog", "must match pattern")],
+)
+def test_catalog_name_member_rejects_non_canonical_names(
+    store: DataCatalogStore, name: str, match: str
+) -> None:
+    # Model CatalogNameString: pattern [\u0020-\uD7FF…]*, 1..256
+    # (service-2.json). Match the constraint message — the store's
+    # "does not exist" raises InvalidRequestException too, so a bare "Name"
+    # match would pass without any parse-layer check.
+    with pytest.raises(InvalidRequestException, match=match):
+        get_data_catalog(store, {"Name": name})
+    with pytest.raises(InvalidRequestException, match=match):
+        update_data_catalog(store, {"Name": name, "Type": "GLUE"})
+    with pytest.raises(InvalidRequestException, match=match):
+        delete_data_catalog(store, {"Name": name})
+
+
+@pytest.mark.parametrize(
+    ("name", "match"),
+    [("x" * 257, "at most 256"), ("\x00catalog", "must match pattern")],
+)
+def test_create_data_catalog_rejects_non_canonical_name(
+    store: DataCatalogStore, name: str, match: str
+) -> None:
+    with pytest.raises(InvalidRequestException, match=match):
+        create_data_catalog(store, {"Name": name, "Type": "GLUE"})
+
+
+def test_create_data_catalog_accepts_name_with_space(
+    store: DataCatalogStore,
+) -> None:
+    # The CatalogNameString pattern admits [\u0020-\uD7FF…] — spaces are
+    # model-legal even though the doc text describes alnum/_/@/- names.
+    output = create_data_catalog(store, {"Name": "my catalog", "Type": "GLUE"})
+    assert output["DataCatalog"]["Name"] == "my catalog"
+
+
+@pytest.mark.parametrize(
+    ("operation", "payload"),
+    [
+        (
+            create_data_catalog,
+            {"Name": "fresh", "Type": "GLUE", "Description": ""},
+        ),
+        (
+            update_data_catalog,
+            {"Name": "existing", "Type": "GLUE", "Description": ""},
+        ),
+    ],
+)
+def test_data_catalog_rejects_empty_description(
+    store: DataCatalogStore,
+    operation: Callable[
+        [DataCatalogStore, dict[str, object]], dict[str, object]
+    ],
+    payload: dict[str, object],
+) -> None:
+    # Model DescriptionString min 1: an explicit "" 400s (an absent
+    # Description keeps None on create / the stored value on update).
+    create_data_catalog(store, {"Name": "existing", "Type": "GLUE"})
+    with pytest.raises(InvalidRequestException, match="at least 1"):
+        operation(store, payload)
+
+
+def test_data_catalog_rejects_oversized_description(
+    store: DataCatalogStore,
+) -> None:
+    # Model DescriptionString max 1024.
+    with pytest.raises(InvalidRequestException, match="at most 1024"):
+        create_data_catalog(
+            store,
+            {"Name": "c", "Type": "GLUE", "Description": "d" * 1025},
+        )

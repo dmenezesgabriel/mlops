@@ -33,6 +33,8 @@ from athena_local.query_results import (
     get_query_runtime_statistics,
 )
 from athena_local.request_fields import (
+    QUERY_EXECUTION_ID_MAX_LENGTH,
+    QUERY_EXECUTION_ID_PATTERN,
     as_object,
     member,
     optional_max_results,
@@ -255,13 +257,21 @@ async def start_query_execution(
     return {"QueryExecutionId": record.query_execution_id}
 
 
+def _query_execution_id(payload: dict[str, object] | None) -> str:
+    r"""Parse the model's QueryExecutionId member (``\S+``, 1..128)."""
+    return required_string(
+        payload,
+        "QueryExecutionId",
+        max_length=QUERY_EXECUTION_ID_MAX_LENGTH,
+        pattern=QUERY_EXECUTION_ID_PATTERN,
+    )
+
+
 def get_query_execution(
     store: ExecutionStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
     return {
-        "QueryExecution": store.get(
-            required_string(payload, "QueryExecutionId")
-        ).to_payload()
+        "QueryExecution": store.get(_query_execution_id(payload)).to_payload()
     }
 
 
@@ -269,7 +279,12 @@ def batch_get_query_execution(
     store: ExecutionStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
     query_ids = required_string_list(
-        payload, "QueryExecutionIds", max_length=MAX_BATCH_QUERY_EXECUTIONS
+        payload,
+        "QueryExecutionIds",
+        max_length=MAX_BATCH_QUERY_EXECUTIONS,
+        member_min_length=1,
+        member_max_length=QUERY_EXECUTION_ID_MAX_LENGTH,
+        member_pattern=QUERY_EXECUTION_ID_PATTERN,
     )
     found, unprocessed = store.batch_get(query_ids)
     output: dict[str, object] = {
@@ -324,7 +339,7 @@ async def stop_query_execution(
     The model marks the op idempotent: stopping a terminal execution is a
     200 no-op — the executor returns it unchanged rather than transitioning.
     """
-    await executor.cancel(required_string(payload, "QueryExecutionId"))
+    await executor.cancel(_query_execution_id(payload))
     return {}
 
 

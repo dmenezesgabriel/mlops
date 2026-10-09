@@ -22,6 +22,8 @@ from athena_local.errors import InvalidRequestException
 from athena_local.glue_proxy import GlueProxy
 from athena_local.pagination import offset_page
 from athena_local.request_fields import (
+    NAME_STRING_MAX_LENGTH,
+    catalog_name_string,
     optional_max_results,
     optional_string,
     required_string,
@@ -65,12 +67,19 @@ def register_catalog_metadata_handlers(
     )
 
 
+def _database_name(payload: dict[str, object] | None) -> str:
+    """Parse the model's DatabaseName member (NameString, 1..128)."""
+    return required_string(
+        payload, "DatabaseName", max_length=NAME_STRING_MAX_LENGTH
+    )
+
+
 def list_databases(
     store: DataCatalogStore,
     proxy: GlueProxy,
     payload: dict[str, object] | None,
 ) -> dict[str, object]:
-    catalog_name = required_string(payload, "CatalogName")
+    catalog_name = catalog_name_string(payload, "CatalogName")
     _require_glue_catalog(store, catalog_name)
     max_results = optional_max_results(
         payload, "MaxResults", MAX_LIST_DATABASES
@@ -89,9 +98,9 @@ def get_database(
     proxy: GlueProxy,
     payload: dict[str, object] | None,
 ) -> dict[str, object]:
-    catalog_name = required_string(payload, "CatalogName")
+    catalog_name = catalog_name_string(payload, "CatalogName")
     _require_glue_catalog(store, catalog_name)
-    database_name = required_string(payload, "DatabaseName")
+    database_name = _database_name(payload)
     return {"Database": proxy.get_database(database_name).to_payload()}
 
 
@@ -100,9 +109,9 @@ def list_table_metadata(
     proxy: GlueProxy,
     payload: dict[str, object] | None,
 ) -> dict[str, object]:
-    catalog_name = required_string(payload, "CatalogName")
+    catalog_name = catalog_name_string(payload, "CatalogName")
     _require_glue_catalog(store, catalog_name)
-    database_name = required_string(payload, "DatabaseName")
+    database_name = _database_name(payload)
     expression = optional_string(payload, "Expression")
     max_results = optional_max_results(
         payload, "MaxResults", MAX_LIST_TABLE_METADATA
@@ -124,10 +133,12 @@ def get_table_metadata(
     proxy: GlueProxy,
     payload: dict[str, object] | None,
 ) -> dict[str, object]:
-    catalog_name = required_string(payload, "CatalogName")
+    catalog_name = catalog_name_string(payload, "CatalogName")
     _require_glue_catalog(store, catalog_name)
-    database_name = required_string(payload, "DatabaseName")
-    table_name = required_string(payload, "TableName")
+    database_name = _database_name(payload)
+    table_name = required_string(
+        payload, "TableName", max_length=NAME_STRING_MAX_LENGTH
+    )
     return {
         "TableMetadata": proxy.get_table(
             database_name, table_name

@@ -10,6 +10,14 @@ from __future__ import annotations
 
 from athena_local.dispatch import register_handler
 from athena_local.request_fields import (
+    DATABASE_STRING_MAX_LENGTH,
+    DESCRIPTION_STRING_MAX_LENGTH,
+    DESCRIPTION_STRING_MIN_LENGTH,
+    NAME_STRING_MAX_LENGTH,
+    NAMED_QUERY_ID_MAX_LENGTH,
+    NAMED_QUERY_ID_PATTERN,
+    QUERY_STRING_MAX_LENGTH,
+    WORKGROUP_NAME_PATTERN,
     optional_max_results,
     optional_string,
     required_string,
@@ -32,11 +40,26 @@ def create_named_query(
     workgroup_store: WorkGroupStore,
     payload: dict[str, object] | None,
 ) -> dict[str, object]:
-    name = required_string(payload, "Name")
-    description = optional_string(payload, "Description") or ""
-    database = required_string(payload, "Database")
-    query_string = required_string(payload, "QueryString")
-    workgroup = optional_string(payload, "WorkGroup") or "primary"
+    name = required_string(payload, "Name", max_length=NAME_STRING_MAX_LENGTH)
+    description = (
+        optional_string(
+            payload,
+            "Description",
+            min_length=DESCRIPTION_STRING_MIN_LENGTH,
+            max_length=DESCRIPTION_STRING_MAX_LENGTH,
+        )
+        or ""
+    )
+    database = required_string(
+        payload, "Database", max_length=DATABASE_STRING_MAX_LENGTH
+    )
+    query_string = required_string(
+        payload, "QueryString", max_length=QUERY_STRING_MAX_LENGTH
+    )
+    workgroup = (
+        optional_string(payload, "WorkGroup", pattern=WORKGROUP_NAME_PATTERN)
+        or "primary"
+    )
     ensure_workgroup_enabled(workgroup_store, workgroup)
     record = store.create(
         name=name,
@@ -48,18 +71,30 @@ def create_named_query(
     return {"NamedQueryId": record.id}
 
 
+def _named_query_id(payload: dict[str, object] | None) -> str:
+    r"""Parse the model's NamedQueryId member (``\S+``, 1..128)."""
+    return required_string(
+        payload,
+        "NamedQueryId",
+        max_length=NAMED_QUERY_ID_MAX_LENGTH,
+        pattern=NAMED_QUERY_ID_PATTERN,
+    )
+
+
 def get_named_query(
     store: NamedQueryStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    query_id = required_string(payload, "NamedQueryId")
-    record = store.get(query_id)
+    record = store.get(_named_query_id(payload))
     return {"NamedQuery": record.to_payload()}
 
 
 def list_named_queries(
     store: NamedQueryStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    workgroup = optional_string(payload, "WorkGroup") or "primary"
+    workgroup = (
+        optional_string(payload, "WorkGroup", pattern=WORKGROUP_NAME_PATTERN)
+        or "primary"
+    )
     max_results = optional_max_results(
         payload, "MaxResults", MAX_LIST_NAMED_QUERIES, minimum=0
     )
@@ -78,8 +113,7 @@ def list_named_queries(
 def delete_named_query(
     store: NamedQueryStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    query_id = required_string(payload, "NamedQueryId")
-    store.delete(query_id)
+    store.delete(_named_query_id(payload))
     return {}
 
 
@@ -87,7 +121,12 @@ def batch_get_named_query(
     store: NamedQueryStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
     query_ids = required_string_list(
-        payload, "NamedQueryIds", max_length=MAX_BATCH_NAMED_QUERIES
+        payload,
+        "NamedQueryIds",
+        max_length=MAX_BATCH_NAMED_QUERIES,
+        member_min_length=1,
+        member_max_length=NAMED_QUERY_ID_MAX_LENGTH,
+        member_pattern=NAMED_QUERY_ID_PATTERN,
     )
     found, unprocessed = store.batch_get(query_ids)
     output: dict[str, object] = {

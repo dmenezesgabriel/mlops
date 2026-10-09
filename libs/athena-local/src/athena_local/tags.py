@@ -21,6 +21,8 @@ from athena_local.errors import (
     ResourceNotFoundException,
 )
 from athena_local.request_fields import (
+    TAG_KEY_MAX_LENGTH,
+    TAG_KEY_MIN_LENGTH,
     member,
     required_string,
     required_string_list,
@@ -114,7 +116,12 @@ def untag_resource(
 ) -> dict[str, object]:
     resource_type, name = _parse_arn(required_string(payload, "ResourceARN"))
     tags = _resolve_tags(workgroups, catalogs, resource_type, name)
-    tag_keys = required_string_list(payload, "TagKeys")
+    tag_keys = required_string_list(
+        payload,
+        "TagKeys",
+        member_min_length=TAG_KEY_MIN_LENGTH,
+        member_max_length=TAG_KEY_MAX_LENGTH,
+    )
     tags[:] = [tag for tag in tags if tag.key not in tag_keys]
     return {}
 

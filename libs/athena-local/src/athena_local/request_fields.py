@@ -48,6 +48,20 @@ TAG_KEY_MAX_LENGTH = 128
 TAG_VALUE_MAX_LENGTH = 256
 ENCRYPTION_OPTIONS = ("SSE_S3", "SSE_KMS", "CSE_KMS")
 S3_ACL_OPTIONS = ("BUCKET_OWNER_FULL_CONTROL",)
+NAMED_QUERY_ID_PATTERN = r"\S+"
+NAMED_QUERY_ID_MAX_LENGTH = 128
+QUERY_EXECUTION_ID_PATTERN = r"\S+"
+QUERY_EXECUTION_ID_MAX_LENGTH = 128
+DATABASE_STRING_MAX_LENGTH = 255
+QUERY_STRING_MAX_LENGTH = 262144
+DESCRIPTION_STRING_MIN_LENGTH = 1
+DESCRIPTION_STRING_MAX_LENGTH = 1024
+# CatalogNameString (service-2.json). The model's surrogate-pair tail
+# (D800 DC00-DBFF DFFF) is the JSON spelling of U+10000–U+10FFFF — Python's
+# re cannot express surrogate pairs, so the astral range is written
+# directly: [\u0020-\uD7FF\uE000-\uFFFD\U00010000-\U0010FFFF\t]*.
+CATALOG_NAME_PATTERN = r"[\u0020-\uD7FF\uE000-\uFFFD\U00010000-\U0010FFFF\t]*"
+CATALOG_NAME_MAX_LENGTH = 256
 
 
 def member(payload: dict[str, object] | None, name: str) -> object | None:
@@ -203,6 +217,9 @@ def required_string_list(
     name: str,
     *,
     max_length: int | None = None,
+    member_min_length: int | None = None,
+    member_max_length: int | None = None,
+    member_pattern: str | None = None,
 ) -> list[str]:
     raw = member(payload, name)
     if not isinstance(raw, list):
@@ -215,12 +232,33 @@ def required_string_list(
             f"{name} must contain at most {max_length} entries, "
             f"got {len(items)}"
         )
-    for item in items:
+    for index, item in enumerate(items):
         if not isinstance(item, str):
             raise InvalidRequestException(
                 f"{name} must contain only strings, got {item!r}"
             )
+        check_string_constraints(
+            item,
+            f"{name}[{index}]",
+            min_length=member_min_length,
+            max_length=member_max_length,
+            pattern=member_pattern,
+        )
     return [item for item in items if isinstance(item, str)]
+
+
+def catalog_name_string(payload: dict[str, object] | None, name: str) -> str:
+    """Parse a required member of the model's ``CatalogNameString`` shape.
+
+    Shared by the data-catalog registry ops (``Name``) and the catalog
+    introspection ops (``CatalogName``).
+    """
+    return required_string(
+        payload,
+        name,
+        max_length=CATALOG_NAME_MAX_LENGTH,
+        pattern=CATALOG_NAME_PATTERN,
+    )
 
 
 def optional_string_list(

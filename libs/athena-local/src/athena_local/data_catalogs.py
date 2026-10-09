@@ -18,6 +18,9 @@ from athena_local.data_catalog_state import DataCatalogStore
 from athena_local.dispatch import register_handler
 from athena_local.errors import InvalidRequestException
 from athena_local.request_fields import (
+    DESCRIPTION_STRING_MAX_LENGTH,
+    DESCRIPTION_STRING_MIN_LENGTH,
+    catalog_name_string,
     member,
     optional_max_results,
     optional_string,
@@ -66,16 +69,26 @@ def _apply_lambda_defaults(
     return normalized
 
 
+def _description(payload: dict[str, object] | None) -> str | None:
+    """Parse the model's DescriptionString member (1..1024 when present)."""
+    return optional_string(
+        payload,
+        "Description",
+        min_length=DESCRIPTION_STRING_MIN_LENGTH,
+        max_length=DESCRIPTION_STRING_MAX_LENGTH,
+    )
+
+
 def create_data_catalog(
     store: DataCatalogStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    name = required_string(payload, "Name")
+    name = catalog_name_string(payload, "Name")
     catalog_type = _validated_type(payload)
     parameters = optional_string_map(payload, "Parameters") or {}
     record = store.create(
         name=name,
         catalog_type=catalog_type,
-        description=optional_string(payload, "Description"),
+        description=_description(payload),
         parameters=_apply_lambda_defaults(name, catalog_type, parameters),
         tags=parse_tags(member(payload, "Tags")),
     )
@@ -85,7 +98,7 @@ def create_data_catalog(
 def get_data_catalog(
     store: DataCatalogStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    name = required_string(payload, "Name")
+    name = catalog_name_string(payload, "Name")
     return {"DataCatalog": store.get(name).to_payload()}
 
 
@@ -112,7 +125,7 @@ def list_data_catalogs(
 def update_data_catalog(
     store: DataCatalogStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    name = required_string(payload, "Name")
+    name = catalog_name_string(payload, "Name")
     catalog_type = _validated_type(payload)
     parameters = optional_string_map(payload, "Parameters")
     if parameters is not None:
@@ -120,7 +133,7 @@ def update_data_catalog(
     store.update(
         name=name,
         catalog_type=catalog_type,
-        description=optional_string(payload, "Description"),
+        description=_description(payload),
         parameters=parameters,
     )
     return {}
@@ -129,7 +142,7 @@ def update_data_catalog(
 def delete_data_catalog(
     store: DataCatalogStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    name = required_string(payload, "Name")
+    name = catalog_name_string(payload, "Name")
     return {"DataCatalog": store.delete(name).to_payload()}
 
 

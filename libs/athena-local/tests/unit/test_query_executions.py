@@ -424,3 +424,41 @@ def test_stop_on_terminal_execution_is_a_no_op(
     # unchanged — the fake client's AssertionError proves no Trino DELETE ran.
     assert output == {}
     assert record.state == SUCCEEDED
+
+
+@pytest.mark.parametrize(
+    ("query_id", "match"),
+    [("has space", "must match pattern"), ("x" * 129, "at most 128")],
+)
+def test_get_rejects_non_canonical_query_execution_id(
+    store: ExecutionStore, query_id: str, match: str
+) -> None:
+    # Model QueryExecutionId: \S+ 1..128 (service-2.json). Match the
+    # constraint message — the store's "does not exist" would satisfy a
+    # bare "QueryExecutionId" match without any parse-layer check.
+    with pytest.raises(InvalidRequestException, match=match):
+        get_query_execution(store, {"QueryExecutionId": query_id})
+
+
+@pytest.mark.parametrize(
+    ("query_id", "match"),
+    [("has space", "must match pattern"), ("x" * 129, "at most 128")],
+)
+def test_stop_rejects_non_canonical_query_execution_id(
+    executor: QueryExecutor, query_id: str, match: str
+) -> None:
+    with pytest.raises(InvalidRequestException, match=match):
+        asyncio.run(
+            stop_query_execution(executor, {"QueryExecutionId": query_id})
+        )
+
+
+@pytest.mark.parametrize("member_id", ["has space", "", "x" * 129])
+def test_batch_get_rejects_non_canonical_member_ids(
+    store: ExecutionStore, member_id: str
+) -> None:
+    # QueryExecutionIdList members are QueryExecutionId-shaped (\S+ 1..128).
+    with pytest.raises(
+        InvalidRequestException, match=r"QueryExecutionIds\[0\]"
+    ):
+        batch_get_query_execution(store, {"QueryExecutionIds": [member_id]})

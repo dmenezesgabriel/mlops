@@ -107,6 +107,34 @@ def test_required_string_list_honors_max_length() -> None:
     assert required_string_list({"ids": ["a"] * 51}, "ids") == ["a"] * 51
 
 
+def test_required_string_list_checks_member_constraints() -> None:
+    # List member shapes carry their own bounds (TagKey 1..128, NamedQueryId
+    # \S+ 1..128, service-2.json); the member_* kwargs enforce them per item,
+    # naming the offending index like the glue overlay's stat-entry checks.
+    with pytest.raises(InvalidRequestException, match=r"ids\[0\]"):
+        required_string_list({"ids": ["", "ok"]}, "ids", member_min_length=1)
+    with pytest.raises(InvalidRequestException, match=r"ids\[1\]"):
+        required_string_list(
+            {"ids": ["ok", "x" * 5]}, "ids", member_max_length=4
+        )
+    with pytest.raises(InvalidRequestException, match=r"ids\[0\]"):
+        required_string_list(
+            {"ids": ["has space"]}, "ids", member_pattern=r"\S+"
+        )
+    assert required_string_list(
+        {"ids": ["a", "b"]},
+        "ids",
+        member_min_length=1,
+        member_max_length=4,
+        member_pattern=r"\S+",
+    ) == ["a", "b"]
+    # Members stay unbounded when no member_* kwarg is passed.
+    assert required_string_list({"ids": ["", "has space"]}, "ids") == [
+        "",
+        "has space",
+    ]
+
+
 def test_optional_string_list_returns_none_unless_present() -> None:
     assert optional_string_list(None, "params") is None
     assert optional_string_list({}, "params") is None

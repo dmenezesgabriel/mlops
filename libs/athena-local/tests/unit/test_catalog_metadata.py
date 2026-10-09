@@ -327,3 +327,84 @@ def test_register_catalog_metadata_handlers_binds_four_operations(
         "ListTableMetadata",
         "GetTableMetadata",
     }.issubset(implemented_operations())
+
+
+@pytest.mark.parametrize(
+    ("catalog_name", "match"),
+    [("x" * 257, "at most 256"), ("\x00catalog", "must match pattern")],
+)
+def test_catalog_name_member_rejects_non_canonical_names(
+    catalog_store, proxy, catalog_name: str, match: str
+) -> None:
+    # Model CatalogNameString: pattern [\u0020-\uD7FF…]*, 1..256
+    # (service-2.json). Match the constraint message — the store's
+    # "does not exist" would satisfy a bare "CatalogName" match.
+    with pytest.raises(InvalidRequestException, match=match):
+        list_databases(catalog_store, proxy, {"CatalogName": catalog_name})
+    with pytest.raises(InvalidRequestException, match=match):
+        get_database(
+            catalog_store,
+            proxy,
+            {"CatalogName": catalog_name, "DatabaseName": "geo"},
+        )
+    with pytest.raises(InvalidRequestException, match=match):
+        list_table_metadata(
+            catalog_store,
+            proxy,
+            {"CatalogName": catalog_name, "DatabaseName": "geo"},
+        )
+    with pytest.raises(InvalidRequestException, match=match):
+        get_table_metadata(
+            catalog_store,
+            proxy,
+            {
+                "CatalogName": catalog_name,
+                "DatabaseName": "geo",
+                "TableName": "t",
+            },
+        )
+
+
+@pytest.mark.parametrize(
+    ("operation", "payload"),
+    [
+        (
+            get_database,
+            {"CatalogName": "AwsDataCatalog", "DatabaseName": "d" * 129},
+        ),
+        (
+            list_table_metadata,
+            {"CatalogName": "AwsDataCatalog", "DatabaseName": "d" * 129},
+        ),
+        (
+            get_table_metadata,
+            {
+                "CatalogName": "AwsDataCatalog",
+                "DatabaseName": "d" * 129,
+                "TableName": "t",
+            },
+        ),
+    ],
+)
+def test_database_name_member_rejects_oversized(
+    catalog_store, proxy, operation, payload: dict[str, object]
+) -> None:
+    # Model NameString 1..128. Match the constraint message — a missing
+    # database raises MetadataException from the proxy layer, which a bare
+    # "DatabaseName" match cannot distinguish from a parse-layer check.
+    with pytest.raises(InvalidRequestException, match="at most 128"):
+        operation(catalog_store, proxy, payload)
+
+
+def test_table_name_member_rejects_oversized(catalog_store, proxy) -> None:
+    # Model NameString 1..128.
+    with pytest.raises(InvalidRequestException, match="at most 128"):
+        get_table_metadata(
+            catalog_store,
+            proxy,
+            {
+                "CatalogName": "AwsDataCatalog",
+                "DatabaseName": "geo",
+                "TableName": "t" * 129,
+            },
+        )

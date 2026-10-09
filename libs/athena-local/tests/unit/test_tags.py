@@ -190,6 +190,26 @@ def test_untag_resource_requires_tag_keys(
         )
 
 
+@pytest.mark.parametrize("member_key", ["", "k" * 129])
+def test_untag_resource_rejects_non_canonical_tag_key_members(
+    workgroups: WorkGroupStore,
+    catalogs: DataCatalogStore,
+    member_key: str,
+) -> None:
+    # TagKeyList members are TagKey-shaped: 1..128 (service-2.json). An
+    # empty key used to untag nothing and return success (AU-27 probe P-E).
+    _create_analytics(workgroups)
+    with pytest.raises(InvalidRequestException, match=r"TagKeys\[0\]"):
+        untag_resource(
+            workgroups,
+            catalogs,
+            {
+                "ResourceARN": WORKGROUP_ARN,
+                "TagKeys": [member_key],
+            },
+        )
+
+
 def test_list_tags_for_resource_returns_tags(
     workgroups: WorkGroupStore, catalogs: DataCatalogStore
 ) -> None:
