@@ -47,6 +47,13 @@ _TYPE_SCALARS = {
 }
 _TYPE_RENAMES = {"string": "varchar", "float": "real", "binary": "varbinary"}
 
+# Trino's parser reports a stack overflow while parsing a type as a parse
+# error ("<type> is too large (stack overflow while parsing)"), never an
+# internal failure. This bound is the CPython recursive-descent analogue:
+# 200 levels ≈ 600 frames, comfortably under the interpreter's 1000-frame
+# default, so the guard fires before RecursionError can escape the rewrite.
+_MAX_TYPE_NESTING = 200
+
 _COLUMN_DEF = re.compile(
     rf"(?is)^\s*(?P<name>{IDENTIFIER_PART})\s+(?P<rest>.+?)\s*$"
 )
@@ -64,7 +71,7 @@ class HiveColumn:
 
 def hive_type_to_trino(text: str) -> str | None:
     """The Trino spelling of a Hive type; None when unparseable."""
-    parsed = _parse_type(text, 0)
+    parsed = _parse_type(text, 0, 0)
     if parsed is None:
         return None
     trino_type, index = parsed
@@ -117,7 +124,12 @@ def hive_column_defs(text: str) -> list[HiveColumn] | None:
     return columns
 
 
-def _parse_type(text: str, index: int) -> tuple[str, int] | None:
+def _parse_type(text: str, index: int, depth: int) -> tuple[str, int] | None:
+    if depth > _MAX_TYPE_NESTING:
+        raise InvalidRequestException(
+            f"column type nesting depth {depth} exceeds the supported "
+            f"maximum {_MAX_TYPE_NESTING}; expected a shallower Hive type"
+        )
     index = skip_ws(text, index)
     match = _TYPE_NAME.match(text, index)
     if match is None:
@@ -129,7 +141,7 @@ def _parse_type(text: str, index: int) -> tuple[str, int] | None:
             "column type 'uniontype' is not supported; Trino has no union type"
         )
     if name in ("array", "map", "struct"):
-        return _complex_type(text, index, name)
+        return _complex_type(text, index, name, depth)
     if name not in _TYPE_SCALARS:
         return None
     params = skip_ws(text, index)
@@ -141,13 +153,17 @@ def _parse_type(text: str, index: int) -> tuple[str, int] | None:
     return _TYPE_RENAMES.get(name, name), index
 
 
-def _complex_type(text: str, index: int, name: str) -> tuple[str, int] | None:
+def _complex_type(
+    text: str, index: int, name: str, depth: int
+) -> tuple[str, int] | None:
     open_angle = _expect(text, index, "<")
     if open_angle is None:
         return None
     if name == "struct":
-        return _struct_type(text, open_angle)
-    inner = _type_list(text, open_angle, 1 if name == "array" else 2)
+        return _struct_type(text, open_angle, depth + 1)
+    inner = _type_list(
+        text, open_angle, 1 if name == "array" else 2, depth + 1
+    )
     if inner is None:
         return None
     types, index = inner
@@ -155,11 +171,11 @@ def _complex_type(text: str, index: int, name: str) -> tuple[str, int] | None:
 
 
 def _type_list(
-    text: str, index: int, count: int
+    text: str, index: int, count: int, depth: int
 ) -> tuple[list[str], int] | None:
     types: list[str] = []
     while True:
-        parsed = _parse_type(text, index)
+        parsed = _parse_type(text, index, depth)
         if parsed is None:
             return None
         types.append(parsed[0])
@@ -173,13 +189,13 @@ def _type_list(
             return types, index
 
 
-def _struct_type(text: str, index: int) -> tuple[str, int] | None:
+def _struct_type(text: str, index: int, depth: int) -> tuple[str, int] | None:
     fields: list[str] = []
     while True:
         field = _struct_field(text, index)
         if field is None:
             return None
-        field_type = _parse_type(text, field[1])
+        field_type = _parse_type(text, field[1], depth)
         if field_type is None:
             return None
         fields.append(f'"{quoted_identifier(field[0])}" {field_type[0]}')
