@@ -353,7 +353,10 @@ def test_get_results_max_results_out_of_range_is_shaped_400(
     assert str(max_results) in str(error.value)
 
 
-@pytest.mark.parametrize("next_token", ["", "abc", "12abc", "-1", "1.5"])
+@pytest.mark.parametrize(
+    "next_token",
+    ["", "abc", "12abc", "-1", "1.5", "+3", " 3 ", "3 ", "03", "00", "0x3"],
+)
 def test_get_results_invalid_next_token_is_shaped_400(
     store: ExecutionStore,
     executor: QueryExecutor,
@@ -393,6 +396,25 @@ def test_get_results_next_token_past_end_returns_no_rows(
     # and no token because nothing remains.
     assert output["ResultSet"]["Rows"] == []
     assert "NextToken" not in output
+
+
+def test_get_results_canonical_zero_token_matches_page_zero(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    record = succeeded_result(store, [["1"]])
+    request = {"QueryExecutionId": record.query_execution_id}
+
+    without_token = get_query_results(store, executor, request)
+    with_zero_token = get_query_results(
+        store, executor, {**request, "NextToken": "0"}
+    )
+
+    assert (
+        with_zero_token["ResultSet"]["Rows"]
+        == without_token["ResultSet"]["Rows"]
+    )
 
 
 def test_runtime_statistics_return_recorded_counters(

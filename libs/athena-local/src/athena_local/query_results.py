@@ -3,11 +3,11 @@
 Inline ``GetQueryResults`` answers from the page the executor stashed before
 the terminal transition (ADR-0007, ADR-0009 #4) and paginates it with
 ``MaxResults``/``NextToken`` per the model's GetQueryResultsInput — a
-different contract than ``pagination.offset_page`` (the header row travels
-on page zero, the token is a parsed offset, negatives are rejected), which
-is why this module keeps its own slicing. Per-type cell serialization
-stays a separate concern (``result_shapes`` shapes the cached page; the
-VarCharValue rendering below only owns the wire Datum member).
+different contract than ``pagination.offset_page``: the header row travels
+on page zero, so this module keeps its own slicing even though both share
+``pagination.decode_offset_token`` for token validation. Per-type cell
+serialization stays a separate concern (``result_shapes`` shapes the cached
+page; the VarCharValue rendering below only owns the wire Datum member).
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from athena_local.executions import (
     QueryExecutionRecord,
 )
 from athena_local.executor import QueryExecutor
+from athena_local.pagination import decode_offset_token
 from athena_local.request_fields import (
     member,
     optional_max_results,
@@ -115,13 +116,7 @@ def _next_token_offset(payload: dict[str, object] | None) -> int:
         raise InvalidRequestException(
             f"NextToken must be a string, got {raw!r}"
         )
-    try:
-        offset = int(raw)
-    except ValueError:
-        raise InvalidRequestException(f"Invalid NextToken: {raw}") from None
-    if offset < 0:
-        raise InvalidRequestException(f"Invalid NextToken: {raw}")
-    return offset
+    return decode_offset_token(raw)
 
 
 def _result_set_payload(

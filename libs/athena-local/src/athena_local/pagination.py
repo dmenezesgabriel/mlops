@@ -10,11 +10,32 @@ wrangler's cache probe — see identical semantics on every operation.
 
 from __future__ import annotations
 
+import re
 from typing import TypeVar
 
 from athena_local.errors import InvalidRequestException
 
 T = TypeVar("T")
+
+# The emulator issues ``str(index)``; only this canonical non-negative decimal
+# form is a valid token. ``int()`` also accepts "+2", " 1 ", "01" and negative
+# values, which real Athena rejects with a 400 (G-248, G-280).
+_TOKEN_PATTERN = re.compile(r"^(0|[1-9][0-9]*)$")
+
+
+def decode_offset_token(next_token: str) -> int:
+    """Decode a canonical opaque-offset token into its zero-based start index.
+
+    The emulator emits ``str(index)``; signed, whitespace-padded, zero-padded
+    and negative forms are rejected with ``InvalidRequestException`` naming the
+    value, matching the 400 Athena sends.
+
+    >>> decode_offset_token("2")
+    2
+    """
+    if not _TOKEN_PATTERN.fullmatch(next_token):
+        raise InvalidRequestException(f"Invalid NextToken: {next_token}")
+    return int(next_token)
 
 
 def offset_page(
@@ -36,8 +57,9 @@ def offset_page(
     (['c'], None)
     """
     start_index = _token_offset(next_token)
-    if start_index >= len(items):
-        return [], None
+    # No early return for start_index >= len(items): the slice below clamps to
+    # [] and the token stays None, so the deleted guard was behaviorally dead
+    # (G-291).
     end_index = len(items)
     if max_results is not None and max_results > 0:
         end_index = min(start_index + max_results, len(items))
@@ -48,9 +70,4 @@ def offset_page(
 def _token_offset(next_token: str | None) -> int:
     if next_token is None:
         return 0
-    try:
-        return int(next_token)
-    except ValueError:
-        raise InvalidRequestException(
-            f"Invalid NextToken: {next_token}"
-        ) from None
+    return decode_offset_token(next_token)

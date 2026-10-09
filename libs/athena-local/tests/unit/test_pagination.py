@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 from athena_local.errors import InvalidRequestException
-from athena_local.pagination import offset_page
+from athena_local.pagination import decode_offset_token, offset_page
 
 
 def test_no_token_or_max_returns_whole_list() -> None:
@@ -45,6 +45,25 @@ def test_max_results_landing_on_the_end_returns_no_token() -> None:
 def test_undecodable_token_raises_invalid_request() -> None:
     with pytest.raises(InvalidRequestException, match="Invalid NextToken"):
         offset_page(["a"], None, "bogus")
+
+
+@pytest.mark.parametrize(
+    "token",
+    ["-1", "-5", "+2", " 1 ", "1 ", " 1", "01", "00", "0x2", "1.5", ""],
+)
+def test_non_canonical_token_raises_invalid_request(token: str) -> None:
+    with pytest.raises(InvalidRequestException, match="Invalid NextToken"):
+        offset_page(["a", "b", "c"], None, token)
+
+
+def test_canonical_zero_token_resumes_at_the_first_page() -> None:
+    assert offset_page(["a", "b"], None, "0") == (["a", "b"], None)
+
+
+def test_decode_offset_token_accepts_canonical_and_rejects_rest() -> None:
+    assert decode_offset_token("101") == 101
+    with pytest.raises(InvalidRequestException, match="Invalid NextToken: 01"):
+        decode_offset_token("01")
 
 
 def test_token_at_or_past_the_end_returns_empty_page() -> None:
