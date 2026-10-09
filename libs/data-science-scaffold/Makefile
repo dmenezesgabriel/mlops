@@ -36,4 +36,4 @@ security:
 maintainability:
 	uv run xenon --max-absolute B --max-modules A --max-average A src
 
-quality: lint type-check test coverage complexity dependencies security maintainability
+quality: lint type-check coverage complexity dependencies security maintainability

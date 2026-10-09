@@ -89,7 +89,7 @@ maintainability:
 		$(MAKE) -C $$package maintainability || exit 1; \
 	done
 
-quality: lint type-check test coverage complexity dependencies architecture security maintainability
+quality: lint type-check coverage complexity dependencies architecture security maintainability
 
 mlflow:
 	uv run mlflow server --backend-store-uri sqlite:///projects/$(PROJECT)/mlflow.db --default-artifact-root ./projects/$(PROJECT)/mlruns --host 127.0.0.1 --port 5000
