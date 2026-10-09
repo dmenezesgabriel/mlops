@@ -11,7 +11,18 @@ from typing import TypeVar, cast
 
 from athena_local.errors import InvalidRequestException
 from athena_local.request_fields import (
+    AWS_ACCOUNT_ID_LENGTH,
+    AWS_ACCOUNT_ID_PATTERN,
+    ENCRYPTION_OPTIONS,
+    KMS_KEY_MAX_LENGTH,
+    KMS_KEY_MIN_LENGTH,
+    KMS_KEY_PATTERN,
+    S3_ACL_OPTIONS,
+    TAG_KEY_MAX_LENGTH,
+    TAG_KEY_MIN_LENGTH,
+    TAG_VALUE_MAX_LENGTH,
     as_object,
+    check_string_constraints,
     optional_bool,
     optional_int,
     optional_string,
@@ -66,9 +77,19 @@ def parse_tags(raw: object) -> list[Tag]:
             raise InvalidRequestException(
                 f"Tag entries must be objects with a Key string, got {item!r}"
             )
+        check_string_constraints(
+            key,
+            "Tag Key",
+            min_length=TAG_KEY_MIN_LENGTH,
+            max_length=TAG_KEY_MAX_LENGTH,
+        )
         if value is not None and not isinstance(value, str):
             raise InvalidRequestException(
                 f"Tag Value must be a string, got {value!r}"
+            )
+        if isinstance(value, str):
+            check_string_constraints(
+                value, "Tag Value", max_length=TAG_VALUE_MAX_LENGTH
             )
         tags.append(Tag(key=key, value=value))
     return tags
@@ -118,8 +139,16 @@ def parse_encryption_configuration(
     if body is None:
         return None
     return EncryptionConfiguration(
-        encryption_option=required_string(body, "EncryptionOption"),
-        kms_key=optional_string(body, "KmsKey"),
+        encryption_option=required_string(
+            body, "EncryptionOption", allowed_values=ENCRYPTION_OPTIONS
+        ),
+        kms_key=optional_string(
+            body,
+            "KmsKey",
+            min_length=KMS_KEY_MIN_LENGTH,
+            max_length=KMS_KEY_MAX_LENGTH,
+            pattern=KMS_KEY_PATTERN,
+        ),
     )
 
 
@@ -142,7 +171,11 @@ def parse_acl_configuration(raw: object) -> AclConfiguration | None:
     body = as_object(raw, "AclConfiguration")
     if body is None:
         return None
-    return AclConfiguration(s3_acl_option=required_string(body, "S3AclOption"))
+    return AclConfiguration(
+        s3_acl_option=required_string(
+            body, "S3AclOption", allowed_values=S3_ACL_OPTIONS
+        )
+    )
 
 
 def acl_configuration_payload(acl: AclConfiguration) -> dict[str, object]:
@@ -166,7 +199,13 @@ def parse_result_configuration(raw: object) -> ResultConfiguration | None:
         encryption_configuration=parse_encryption_configuration(
             body.get("EncryptionConfiguration")
         ),
-        expected_bucket_owner=optional_string(body, "ExpectedBucketOwner"),
+        expected_bucket_owner=optional_string(
+            body,
+            "ExpectedBucketOwner",
+            min_length=AWS_ACCOUNT_ID_LENGTH,
+            max_length=AWS_ACCOUNT_ID_LENGTH,
+            pattern=AWS_ACCOUNT_ID_PATTERN,
+        ),
         acl_configuration=parse_acl_configuration(
             body.get("AclConfiguration")
         ),
@@ -279,7 +318,13 @@ def parse_result_configuration_updates(
         remove_encryption_configuration=optional_bool(
             body, "RemoveEncryptionConfiguration"
         ),
-        expected_bucket_owner=optional_string(body, "ExpectedBucketOwner"),
+        expected_bucket_owner=optional_string(
+            body,
+            "ExpectedBucketOwner",
+            min_length=AWS_ACCOUNT_ID_LENGTH,
+            max_length=AWS_ACCOUNT_ID_LENGTH,
+            pattern=AWS_ACCOUNT_ID_PATTERN,
+        ),
         remove_expected_bucket_owner=optional_bool(
             body, "RemoveExpectedBucketOwner"
         ),
@@ -324,7 +369,13 @@ def parse_managed_query_results_configuration(
     encryption_configuration = None
     if encryption is not None:
         encryption_configuration = ManagedQueryResultsEncryptionConfiguration(
-            kms_key=required_string(encryption, "KmsKey")
+            kms_key=required_string(
+                encryption,
+                "KmsKey",
+                min_length=KMS_KEY_MIN_LENGTH,
+                max_length=KMS_KEY_MAX_LENGTH,
+                pattern=KMS_KEY_PATTERN,
+            )
         )
     return ManagedQueryResultsConfiguration(
         enabled=required_bool(body, "Enabled"),
@@ -344,7 +395,13 @@ def parse_managed_query_results_configuration_updates(
     encryption_configuration = None
     if encryption is not None:
         encryption_configuration = ManagedQueryResultsEncryptionConfiguration(
-            kms_key=required_string(encryption, "KmsKey")
+            kms_key=required_string(
+                encryption,
+                "KmsKey",
+                min_length=KMS_KEY_MIN_LENGTH,
+                max_length=KMS_KEY_MAX_LENGTH,
+                pattern=KMS_KEY_PATTERN,
+            )
         )
     return ManagedQueryResultsConfigurationUpdates(
         enabled=optional_bool(body, "Enabled"),

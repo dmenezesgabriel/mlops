@@ -19,6 +19,11 @@ from athena_local.common_schemas import (
     parse_result_configuration_updates,
 )
 from athena_local.request_fields import (
+    BYTES_SCANNED_CUTOFF_MINIMUM,
+    NAME_STRING_MAX_LENGTH,
+    NAME_STRING_MIN_LENGTH,
+    ROLE_ARN_MAX_LENGTH,
+    ROLE_ARN_PATTERN,
     as_object,
     optional_bool,
     optional_int,
@@ -100,7 +105,9 @@ class WorkGroupConfigurationUpdates:
                 body, "PublishCloudWatchMetricsEnabled"
             ),
             bytes_scanned_cutoff_per_query=optional_int(
-                body, "BytesScannedCutoffPerQuery"
+                body,
+                "BytesScannedCutoffPerQuery",
+                minimum=BYTES_SCANNED_CUTOFF_MINIMUM,
             ),
             remove_bytes_scanned_cutoff_per_query=optional_bool(
                 body, "RemoveBytesScannedCutoffPerQuery"
@@ -111,9 +118,17 @@ class WorkGroupConfigurationUpdates:
                 body, "RemoveCustomerContentEncryptionConfiguration"
             ),
             additional_configuration=optional_string(
-                body, "AdditionalConfiguration"
+                body,
+                "AdditionalConfiguration",
+                min_length=NAME_STRING_MIN_LENGTH,
+                max_length=NAME_STRING_MAX_LENGTH,
             ),
-            execution_role=optional_string(body, "ExecutionRole"),
+            execution_role=optional_string(
+                body,
+                "ExecutionRole",
+                max_length=ROLE_ARN_MAX_LENGTH,
+                pattern=ROLE_ARN_PATTERN,
+            ),
             customer_content_encryption_configuration=as_object(
                 body.get("CustomerContentEncryptionConfiguration"),
                 "configuration member",

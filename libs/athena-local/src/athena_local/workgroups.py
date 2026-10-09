@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from athena_local.dispatch import register_handler
 from athena_local.request_fields import (
+    WORKGROUP_DESCRIPTION_MAX_LENGTH,
+    WORKGROUP_NAME_PATTERN,
     member,
     optional_max_results,
     optional_string,
@@ -25,17 +27,26 @@ from athena_local.state import WorkGroupStore
 MAX_LIST_WORKGROUPS = 50  # model MaxWorkGroupsCount (service-2.json)
 
 
+def _workgroup_name(payload: dict[str, object] | None, name: str) -> str:
+    """Parse a member of the model's WorkGroupName shape (Name/WorkGroup)."""
+    return required_string(payload, name, pattern=WORKGROUP_NAME_PATTERN)
+
+
 def create_work_group(
     store: WorkGroupStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    name = required_string(payload, "Name")
+    name = _workgroup_name(payload, "Name")
     configuration = WorkGroupConfiguration.from_dict(
         member(payload, "Configuration")
     )
     store.create(
         name=name,
         configuration=configuration,
-        description=optional_string(payload, "Description"),
+        description=optional_string(
+            payload,
+            "Description",
+            max_length=WORKGROUP_DESCRIPTION_MAX_LENGTH,
+        ),
         tags=parse_tags(member(payload, "Tags")),
     )
     return {}
@@ -44,7 +55,7 @@ def create_work_group(
 def get_work_group(
     store: WorkGroupStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    name = required_string(payload, "WorkGroup")
+    name = _workgroup_name(payload, "WorkGroup")
     return {"WorkGroup": store.get(name).to_payload()}
 
 
@@ -68,13 +79,17 @@ def list_work_groups(
 def update_work_group(
     store: WorkGroupStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    name = required_string(payload, "WorkGroup")
+    name = _workgroup_name(payload, "WorkGroup")
     updates = WorkGroupConfigurationUpdates.from_dict(
         member(payload, "ConfigurationUpdates")
     )
     store.update(
         name=name,
-        description=optional_string(payload, "Description"),
+        description=optional_string(
+            payload,
+            "Description",
+            max_length=WORKGROUP_DESCRIPTION_MAX_LENGTH,
+        ),
         state=optional_string(payload, "State"),
         updates=updates,
     )
@@ -84,7 +99,7 @@ def update_work_group(
 def delete_work_group(
     store: WorkGroupStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    store.delete(required_string(payload, "WorkGroup"))
+    store.delete(_workgroup_name(payload, "WorkGroup"))
     return {}
 
 

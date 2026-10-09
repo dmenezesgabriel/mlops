@@ -42,7 +42,7 @@ def test_parse_configuration_reads_typed_members() -> None:
                 "OutputLocation": "s3://results-bucket/analytics/",
                 "EncryptionConfiguration": {
                     "EncryptionOption": "SSE_KMS",
-                    "KmsKey": "arn:aws:kms:us-east-1:123:key/abc",
+                    "KmsKey": "arn:aws:kms:us-east-1:123456789012:key/abc",
                 },
             },
             "EnforceWorkGroupConfiguration": True,
@@ -59,7 +59,7 @@ def test_parse_configuration_reads_typed_members() -> None:
         output_location="s3://results-bucket/analytics/",
         encryption_configuration=EncryptionConfiguration(
             encryption_option="SSE_KMS",
-            kms_key="arn:aws:kms:us-east-1:123:key/abc",
+            kms_key="arn:aws:kms:us-east-1:123456789012:key/abc",
         ),
     )
     assert configuration.enforce_work_group_configuration is True
@@ -70,10 +70,13 @@ def test_parse_configuration_reads_typed_members() -> None:
 
 def test_parse_configuration_preserves_unmodeled_deep_members() -> None:
     configuration = WorkGroupConfiguration.from_dict(
-        {"ExecutionRole": "arn:aws:iam::123:role/execution"}
+        {"ExecutionRole": "arn:aws:iam::123456789012:role/execution"}
     )
 
-    assert configuration.execution_role == "arn:aws:iam::123:role/execution"
+    assert (
+        configuration.execution_role
+        == "arn:aws:iam::123456789012:role/execution"
+    )
 
 
 def test_parse_configuration_accepts_null_configuration() -> None:
@@ -312,13 +315,15 @@ def test_managed_query_results_round_trip() -> None:
 
     raw = {
         "Enabled": True,
-        "EncryptionConfiguration": {"KmsKey": "arn:aws:kms:123"},
+        "EncryptionConfiguration": {
+            "KmsKey": "arn:aws:kms:us-east-1:123456789012:key/managed"
+        },
     }
     parsed = parse_managed_query_results_configuration(raw)
     assert parsed == ManagedQueryResultsConfiguration(
         enabled=True,
         encryption_configuration=ManagedQueryResultsEncryptionConfiguration(
-            kms_key="arn:aws:kms:123"
+            kms_key="arn:aws:kms:us-east-1:123456789012:key/managed"
         ),
     )
     assert managed_query_results_payload(parsed) == raw
@@ -326,14 +331,14 @@ def test_managed_query_results_round_trip() -> None:
     updates = parse_managed_query_results_configuration_updates(
         {
             "Enabled": False,
-            "EncryptionConfiguration": {"KmsKey": "arn:aws:kms:456"},
+            "EncryptionConfiguration": {"KmsKey": "alias/managed-results"},
             "RemoveEncryptionConfiguration": True,
         }
     )
     assert updates == ManagedQueryResultsConfigurationUpdates(
         enabled=False,
         encryption_configuration=ManagedQueryResultsEncryptionConfiguration(
-            kms_key="arn:aws:kms:456"
+            kms_key="alias/managed-results"
         ),
         remove_encryption_configuration=True,
     )
@@ -361,9 +366,11 @@ def test_apply_configuration_updates_managed_results_and_fields() -> None:
             "ResultConfigurationUpdates": {
                 "EncryptionConfiguration": {
                     "EncryptionOption": "SSE_S3",
-                    "KmsKey": "k2",
+                    "KmsKey": "arn:aws:kms:us-east-1:123456789012:key/k2",
                 },
-                "AclConfiguration": {"S3AclOption": "BUCKET_OWNER"},
+                "AclConfiguration": {
+                    "S3AclOption": "BUCKET_OWNER_FULL_CONTROL"
+                },
                 "ExpectedBucketOwner": "123456789012",
             },
             "RemoveCustomerContentEncryptionConfiguration": True,
@@ -375,8 +382,11 @@ def test_apply_configuration_updates_managed_results_and_fields() -> None:
     assert merged.customer_content_encryption_configuration is None
     assert merged.result_configuration == ResultConfiguration(
         encryption_configuration=EncryptionConfiguration(
-            encryption_option="SSE_S3", kms_key="k2"
+            encryption_option="SSE_S3",
+            kms_key="arn:aws:kms:us-east-1:123456789012:key/k2",
         ),
         expected_bucket_owner="123456789012",
-        acl_configuration=AclConfiguration(s3_acl_option="BUCKET_OWNER"),
+        acl_configuration=AclConfiguration(
+            s3_acl_option="BUCKET_OWNER_FULL_CONTROL"
+        ),
     )
