@@ -52,6 +52,11 @@ NAMED_QUERY_ID_PATTERN = r"\S+"
 NAMED_QUERY_ID_MAX_LENGTH = 128
 QUERY_EXECUTION_ID_PATTERN = r"\S+"
 QUERY_EXECUTION_ID_MAX_LENGTH = 128
+# StatementName (service-2.json): the pattern's {1,256} tail makes the minimum
+# pattern length 2 even though the shape also declares min:1 (a model quirk);
+# the emulator enforces the pattern verbatim, so a single-character name fails.
+PREPARED_STATEMENT_NAME_PATTERN = r"[a-zA-Z_][a-zA-Z0-9_@:]{1,256}"
+PREPARED_STATEMENT_NAME_MAX_LENGTH = 256
 DATABASE_STRING_MAX_LENGTH = 255
 QUERY_STRING_MAX_LENGTH = 262144
 DESCRIPTION_STRING_MIN_LENGTH = 1

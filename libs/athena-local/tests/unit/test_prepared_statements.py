@@ -25,6 +25,10 @@ from athena_local.prepared_statements import (
     get_prepared_statement,
     update_prepared_statement,
 )
+from athena_local.request_fields import (
+    DESCRIPTION_STRING_MAX_LENGTH,
+    QUERY_STRING_MAX_LENGTH,
+)
 from athena_local.state import PreparedStatementStore, WorkGroupStore
 from athena_local.workgroup_schemas import WorkGroupConfiguration
 
@@ -45,7 +49,35 @@ def store() -> PreparedStatementStore:
 
 @pytest.fixture()
 def workgroups() -> WorkGroupStore:
-    return WorkGroupStore()
+    store = WorkGroupStore()
+    # CreatePreparedStatement resolves the workgroup like moto (AF-131), so
+    # the non-primary workgroups these tests use must exist up front.
+    store.create(
+        "analytics", WorkGroupConfiguration(), description=None, tags=[]
+    )
+    store.create(
+        "data_science", WorkGroupConfiguration(), description=None, tags=[]
+    )
+    return store
+
+
+def _create_statement(
+    store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
+    *,
+    statement_name: str = "stmt1",
+    workgroup: str = "primary",
+    query_statement: str = "SELECT 1",
+    description: str | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "StatementName": statement_name,
+        "WorkGroup": workgroup,
+        "QueryStatement": query_statement,
+    }
+    if description is not None:
+        payload["Description"] = description
+    return create_prepared_statement(store, workgroups, payload)
 
 
 def test_prepared_statement_operations_are_registered() -> None:
@@ -231,7 +263,7 @@ def test_get_prepared_statement_missing_raises_resource_not_found(
         ResourceNotFoundException, match="does not exist in workgroup"
     ):
         get_prepared_statement(
-            store, {"StatementName": "missing-stmt", "WorkGroup": "primary"}
+            store, {"StatementName": "missing_stmt", "WorkGroup": "primary"}
         )
 
 
@@ -280,7 +312,7 @@ def test_update_prepared_statement_missing_raises_resource_not_found(
         update_prepared_statement(
             store,
             {
-                "StatementName": "missing-stmt",
+                "StatementName": "missing_stmt",
                 "WorkGroup": "primary",
                 "QueryStatement": "SELECT 1",
             },
@@ -320,7 +352,7 @@ def test_delete_prepared_statement_missing_raises_resource_not_found(
         ResourceNotFoundException, match="does not exist in workgroup"
     ):
         delete_prepared_statement(
-            store, {"StatementName": "missing-stmt", "WorkGroup": "primary"}
+            store, {"StatementName": "missing_stmt", "WorkGroup": "primary"}
         )
 
 
@@ -411,4 +443,208 @@ def test_batch_get_prepared_statement_requires_list_of_strings(
     ):
         batch_get_prepared_statement(
             store, {"PreparedStatementNames": [123], "WorkGroup": "primary"}
+        )
+
+
+@pytest.mark.parametrize(
+    "statement_name", ["a", "1stmt", "has-hyphen", "x" * 257]
+)
+def test_create_prepared_statement_rejects_invalid_statement_name(
+    store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
+    statement_name: str,
+) -> None:
+    # Model StatementName: [a-zA-Z_][a-zA-Z0-9_@:]{1,256}, max 256 — so a
+    # leading digit, a hyphen, the 1-char tail, and 257 chars are all illegal.
+    with pytest.raises(InvalidRequestException, match="StatementName"):
+        _create_statement(store, workgroups, statement_name=statement_name)
+
+
+@pytest.mark.parametrize(
+    "statement_name",
+    ["a_", "stmt_1", "with@colon:and_under", "x" * 256],
+)
+def test_create_prepared_statement_accepts_valid_statement_name(
+    store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
+    statement_name: str,
+) -> None:
+    _create_statement(store, workgroups, statement_name=statement_name)
+
+    assert (
+        store.get(statement_name, "primary").statement_name == statement_name
+    )
+
+
+def test_create_prepared_statement_rejects_too_long_query_statement(
+    store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
+) -> None:
+    with pytest.raises(InvalidRequestException, match="QueryStatement"):
+        _create_statement(
+            store,
+            workgroups,
+            query_statement="x" * (QUERY_STRING_MAX_LENGTH + 1),
+        )
+
+
+def test_create_prepared_statement_accepts_max_query_statement(
+    store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
+) -> None:
+    query_statement = "x" * QUERY_STRING_MAX_LENGTH
+
+    _create_statement(store, workgroups, query_statement=query_statement)
+
+    assert store.get("stmt1", "primary").query_statement == query_statement
+
+
+def test_create_prepared_statement_rejects_empty_description(
+    store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
+) -> None:
+    with pytest.raises(InvalidRequestException, match="Description"):
+        _create_statement(store, workgroups, description="")
+
+
+def test_create_prepared_statement_rejects_too_long_description(
+    store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
+) -> None:
+    with pytest.raises(InvalidRequestException, match="Description"):
+        _create_statement(
+            store,
+            workgroups,
+            description="x" * (DESCRIPTION_STRING_MAX_LENGTH + 1),
+        )
+
+
+def test_create_prepared_statement_accepts_max_description(
+    store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
+) -> None:
+    description = "x" * DESCRIPTION_STRING_MAX_LENGTH
+
+    _create_statement(store, workgroups, description=description)
+
+    assert store.get("stmt1", "primary").description == description
+
+
+@pytest.mark.parametrize("workgroup", ["bad name!", "slash/name", "x" * 129])
+def test_create_prepared_statement_rejects_invalid_workgroup_name(
+    store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
+    workgroup: str,
+) -> None:
+    # Model WorkGroupName: [a-zA-Z0-9._-]{1,128}.
+    with pytest.raises(InvalidRequestException, match="WorkGroup"):
+        _create_statement(store, workgroups, workgroup=workgroup)
+
+
+def test_create_prepared_statement_rejects_unknown_workgroup(
+    store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
+) -> None:
+    # moto resolves the workgroup on create (Athena responses.py:283-284), so
+    # a pattern-valid but unregistered name is a 400, not a silent store.
+    with pytest.raises(
+        InvalidRequestException, match="WorkGroup ghost_wg does not exist"
+    ):
+        _create_statement(store, workgroups, workgroup="ghost_wg")
+
+
+def test_get_prepared_statement_rejects_invalid_workgroup_name(
+    store: PreparedStatementStore,
+) -> None:
+    with pytest.raises(InvalidRequestException, match="WorkGroup"):
+        get_prepared_statement(
+            store, {"StatementName": "stmt1", "WorkGroup": "bad name!"}
+        )
+
+
+@pytest.mark.parametrize("statement_name", ["1stmt", "has-hyphen"])
+def test_get_prepared_statement_rejects_invalid_statement_name(
+    store: PreparedStatementStore, statement_name: str
+) -> None:
+    with pytest.raises(InvalidRequestException, match="StatementName"):
+        get_prepared_statement(
+            store, {"StatementName": statement_name, "WorkGroup": "primary"}
+        )
+
+
+def test_update_prepared_statement_rejects_invalid_workgroup_name(
+    store: PreparedStatementStore,
+) -> None:
+    with pytest.raises(InvalidRequestException, match="WorkGroup"):
+        update_prepared_statement(
+            store,
+            {
+                "StatementName": "stmt1",
+                "WorkGroup": "bad name!",
+                "QueryStatement": "SELECT 1",
+            },
+        )
+
+
+def test_update_prepared_statement_rejects_too_long_query_statement(
+    store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
+) -> None:
+    _create_statement(store, workgroups, statement_name="upd_stmt")
+
+    with pytest.raises(InvalidRequestException, match="QueryStatement"):
+        update_prepared_statement(
+            store,
+            {
+                "StatementName": "upd_stmt",
+                "WorkGroup": "primary",
+                "QueryStatement": "x" * (QUERY_STRING_MAX_LENGTH + 1),
+            },
+        )
+
+
+def test_update_prepared_statement_rejects_empty_description(
+    store: PreparedStatementStore,
+    workgroups: WorkGroupStore,
+) -> None:
+    _create_statement(store, workgroups, statement_name="upd_stmt")
+
+    with pytest.raises(InvalidRequestException, match="Description"):
+        update_prepared_statement(
+            store,
+            {
+                "StatementName": "upd_stmt",
+                "WorkGroup": "primary",
+                "QueryStatement": "SELECT 2",
+                "Description": "",
+            },
+        )
+
+
+def test_delete_prepared_statement_rejects_invalid_workgroup_name(
+    store: PreparedStatementStore,
+) -> None:
+    with pytest.raises(InvalidRequestException, match="WorkGroup"):
+        delete_prepared_statement(
+            store, {"StatementName": "stmt1", "WorkGroup": "bad name!"}
+        )
+
+
+@pytest.mark.parametrize("statement_name", ["1stmt", "has-hyphen"])
+def test_delete_prepared_statement_rejects_invalid_statement_name(
+    store: PreparedStatementStore, statement_name: str
+) -> None:
+    with pytest.raises(InvalidRequestException, match="StatementName"):
+        delete_prepared_statement(
+            store, {"StatementName": statement_name, "WorkGroup": "primary"}
+        )
+
+
+def test_batch_get_prepared_statement_rejects_invalid_workgroup_name(
+    store: PreparedStatementStore,
+) -> None:
+    with pytest.raises(InvalidRequestException, match="WorkGroup"):
+        batch_get_prepared_statement(
+            store,
+            {"PreparedStatementNames": ["stmt1"], "WorkGroup": "bad name!"},
         )

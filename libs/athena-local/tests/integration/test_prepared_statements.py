@@ -28,10 +28,17 @@ def _client(endpoint_url: str) -> BaseClient:
     )
 
 
+def _create_workgroup(client: BaseClient, name: str) -> None:
+    # CreatePreparedStatement resolves the workgroup like moto (AF-131), and
+    # the fixture resets the registry per test, so seed it before each use.
+    client.create_work_group(Name=name)
+
+
 def test_prepared_statement_crud_round_trip_with_botocore(
     live_athena_server: LiveAthenaServer,
 ) -> None:
     client = _client(live_athena_server.endpoint_url)
+    _create_workgroup(client, "analytics")
 
     client.create_prepared_statement(
         StatementName="flights_stmt",
@@ -88,18 +95,19 @@ def test_get_missing_prepared_statement_is_shaped_404(
 
     with pytest.raises(ClientError) as exc_info:
         client.get_prepared_statement(
-            StatementName="missing-stmt", WorkGroup="primary"
+            StatementName="missing_stmt", WorkGroup="primary"
         )
 
     error = exc_info.value.response["Error"]
     assert error["Code"] == "ResourceNotFoundException"
-    assert "missing-stmt" in error["Message"]
+    assert "missing_stmt" in error["Message"]
 
 
 def test_list_prepared_statements_with_pagination(
     live_athena_server: LiveAthenaServer,
 ) -> None:
     client = _client(live_athena_server.endpoint_url)
+    _create_workgroup(client, "analytics")
 
     for i in range(5):
         client.create_prepared_statement(
@@ -131,6 +139,7 @@ def test_list_prepared_statements_workgroup_scoping(
     live_athena_server: LiveAthenaServer,
 ) -> None:
     client = _client(live_athena_server.endpoint_url)
+    _create_workgroup(client, "analytics")
 
     client.create_prepared_statement(
         StatementName="analytics_stmt",
@@ -200,6 +209,7 @@ def test_awswrangler_prepared_statements_against_live_server(
         aws_access_key_id="test",
         aws_secret_access_key="test",
     )
+    _create_workgroup(_client(live_athena_server.endpoint_url), "analytics")
 
     wr.athena.create_prepared_statement(
         sql="SELECT * FROM flights WHERE origin = ?",

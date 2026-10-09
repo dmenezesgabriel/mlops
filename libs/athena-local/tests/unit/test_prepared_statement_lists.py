@@ -16,6 +16,7 @@ from athena_local.prepared_statements import (
     list_prepared_statements,
 )
 from athena_local.state import PreparedStatementStore, WorkGroupStore
+from athena_local.workgroup_schemas import WorkGroupConfiguration
 
 
 @pytest.fixture()
@@ -25,7 +26,13 @@ def store() -> PreparedStatementStore:
 
 @pytest.fixture()
 def workgroups() -> WorkGroupStore:
-    return WorkGroupStore()
+    store = WorkGroupStore()
+    # CreatePreparedStatement resolves the workgroup like moto (AF-131), so
+    # the "analytics" workgroup these tests use must exist up front.
+    store.create(
+        "analytics", WorkGroupConfiguration(), description=None, tags=[]
+    )
+    return store
 
 
 def test_list_prepared_statements_returns_records_by_workgroup(
@@ -169,6 +176,14 @@ def test_list_prepared_statements_rejects_out_of_bounds_max_results(
         list_prepared_statements(
             store, {"WorkGroup": "analytics", "MaxResults": max_results}
         )
+
+
+def test_list_prepared_statements_rejects_invalid_workgroup_name(
+    store: PreparedStatementStore,
+) -> None:
+    # Model WorkGroupName: [a-zA-Z0-9._-]{1,128}.
+    with pytest.raises(InvalidRequestException, match="WorkGroup"):
+        list_prepared_statements(store, {"WorkGroup": "bad name!"})
 
 
 def test_list_prepared_statements_accepts_boundary_max_results_one(

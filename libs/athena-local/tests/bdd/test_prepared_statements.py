@@ -29,6 +29,7 @@ from athena_local.prepared_statements import (
     update_prepared_statement,
 )
 from athena_local.state import PreparedStatementStore, WorkGroupStore
+from athena_local.workgroup_schemas import WorkGroupConfiguration
 from pytest_bdd import given, parsers, scenarios, then, when
 
 scenarios("prepared_statements.feature")
@@ -52,7 +53,13 @@ def prepared_statement_store() -> PreparedStatementStore:
 
 @pytest.fixture
 def workgroup_store() -> WorkGroupStore:
-    return WorkGroupStore()
+    store = WorkGroupStore()
+    # CreatePreparedStatement resolves the workgroup like moto (AF-131), so
+    # the "analytics" scenarios need that workgroup to exist up front.
+    store.create(
+        "analytics", WorkGroupConfiguration(), description=None, tags=[]
+    )
+    return store
 
 
 @pytest.fixture
@@ -126,7 +133,7 @@ def _get_missing_statement(
     try:
         get_prepared_statement(
             prepared_statement_store,
-            {"StatementName": "missing-stmt", "WorkGroup": workgroup},
+            {"StatementName": "missing_stmt", "WorkGroup": workgroup},
         )
     except AthenaError as error:
         outcome.error = error

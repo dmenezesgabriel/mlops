@@ -200,9 +200,10 @@ def ensure_workgroup_enabled(store: WorkGroupStore, name: str) -> None:
     A disabled workgroup rejects query submissions and new saved-statement
     creates (AWS UG ``workgroups-create-update-delete``; wire
     ``InvalidRequestException`` "WorkGroup <name> is disabled"). Unknown
-    names pass through untouched: the saved-statement stores scope by name
-    without resolving the workgroup, while ``StartQueryExecution`` keeps its
-    missing-workgroup 400 through ``get`` upstream of this gate.
+    names pass through untouched: ``CreateNamedQuery`` scopes by name without
+    resolving the workgroup, while ``CreatePreparedStatement`` and
+    ``StartQueryExecution`` resolve existence through ``get`` upstream of this
+    gate.
     """
     record = store.by_name.get(name)
     if record is not None and record.state == "DISABLED":

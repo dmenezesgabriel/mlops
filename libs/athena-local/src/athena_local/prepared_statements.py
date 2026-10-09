@@ -14,6 +14,12 @@ from __future__ import annotations
 
 from athena_local.dispatch import register_handler
 from athena_local.request_fields import (
+    DESCRIPTION_STRING_MAX_LENGTH,
+    DESCRIPTION_STRING_MIN_LENGTH,
+    PREPARED_STATEMENT_NAME_MAX_LENGTH,
+    PREPARED_STATEMENT_NAME_PATTERN,
+    QUERY_STRING_MAX_LENGTH,
+    WORKGROUP_NAME_PATTERN,
     optional_max_results,
     optional_string,
     required_string,
@@ -29,16 +35,54 @@ from athena_local.state import (
 MAX_LIST_PREPARED_STATEMENTS = 50
 
 
+def _statement_name(payload: dict[str, object] | None) -> str:
+    r"""Parse the model's StatementName member (``[a-zA-Z_][a-zA-Z0-9_@:]{1,256}``)."""
+    return required_string(
+        payload,
+        "StatementName",
+        max_length=PREPARED_STATEMENT_NAME_MAX_LENGTH,
+        pattern=PREPARED_STATEMENT_NAME_PATTERN,
+    )
+
+
+def _workgroup_name(payload: dict[str, object] | None) -> str:
+    """Parse the model's WorkGroupName member (``[a-zA-Z0-9._-]{1,128}``)."""
+    return required_string(
+        payload, "WorkGroup", pattern=WORKGROUP_NAME_PATTERN
+    )
+
+
+def _query_statement(payload: dict[str, object] | None) -> str:
+    """Parse the model's QueryString member (1..262144)."""
+    return required_string(
+        payload, "QueryStatement", max_length=QUERY_STRING_MAX_LENGTH
+    )
+
+
+def _description(payload: dict[str, object] | None) -> str | None:
+    """Parse the model's DescriptionString member (1..1024; ``None`` if absent)."""
+    return optional_string(
+        payload,
+        "Description",
+        min_length=DESCRIPTION_STRING_MIN_LENGTH,
+        max_length=DESCRIPTION_STRING_MAX_LENGTH,
+    )
+
+
 def create_prepared_statement(
     store: PreparedStatementStore,
     workgroup_store: WorkGroupStore,
     payload: dict[str, object] | None,
 ) -> dict[str, object]:
-    statement_name = required_string(payload, "StatementName")
-    workgroup = required_string(payload, "WorkGroup")
+    statement_name = _statement_name(payload)
+    workgroup = _workgroup_name(payload)
+    # moto resolves the workgroup before storing (Athena responses.py:283-284),
+    # so a pattern-valid unknown name is a 400 rather than a silent store; the
+    # DISABLED gate then rejects an existing-but-disabled workgroup.
+    workgroup_store.get(workgroup)
     ensure_workgroup_enabled(workgroup_store, workgroup)
-    query_statement = required_string(payload, "QueryStatement")
-    description = optional_string(payload, "Description")
+    query_statement = _query_statement(payload)
+    description = _description(payload)
     store.create(
         statement_name=statement_name,
         query_statement=query_statement,
@@ -51,8 +95,8 @@ def create_prepared_statement(
 def get_prepared_statement(
     store: PreparedStatementStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    statement_name = required_string(payload, "StatementName")
-    workgroup = required_string(payload, "WorkGroup")
+    statement_name = _statement_name(payload)
+    workgroup = _workgroup_name(payload)
     record = store.get(statement_name, workgroup)
     return {"PreparedStatement": record.to_payload()}
 
@@ -60,7 +104,7 @@ def get_prepared_statement(
 def list_prepared_statements(
     store: PreparedStatementStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    workgroup = required_string(payload, "WorkGroup")
+    workgroup = _workgroup_name(payload)
     max_results = optional_max_results(
         payload, "MaxResults", MAX_LIST_PREPARED_STATEMENTS
     )
@@ -84,10 +128,10 @@ def list_prepared_statements(
 def update_prepared_statement(
     store: PreparedStatementStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    statement_name = required_string(payload, "StatementName")
-    workgroup = required_string(payload, "WorkGroup")
-    query_statement = required_string(payload, "QueryStatement")
-    description = optional_string(payload, "Description")
+    statement_name = _statement_name(payload)
+    workgroup = _workgroup_name(payload)
+    query_statement = _query_statement(payload)
+    description = _description(payload)
     store.update(
         statement_name=statement_name,
         workgroup=workgroup,
@@ -100,8 +144,8 @@ def update_prepared_statement(
 def delete_prepared_statement(
     store: PreparedStatementStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
-    statement_name = required_string(payload, "StatementName")
-    workgroup = required_string(payload, "WorkGroup")
+    statement_name = _statement_name(payload)
+    workgroup = _workgroup_name(payload)
     store.delete(statement_name, workgroup)
     return {}
 
@@ -110,7 +154,7 @@ def batch_get_prepared_statement(
     store: PreparedStatementStore, payload: dict[str, object] | None
 ) -> dict[str, object]:
     statement_names = required_string_list(payload, "PreparedStatementNames")
-    workgroup = required_string(payload, "WorkGroup")
+    workgroup = _workgroup_name(payload)
     found, unprocessed = store.batch_get(statement_names, workgroup)
     output: dict[str, object] = {
         "PreparedStatements": [record.to_payload() for record in found]
