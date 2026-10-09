@@ -20,10 +20,12 @@ from athena_local.errors import (
     InvalidRequestException,
     ResourceNotFoundException,
 )
+from athena_local.pagination import offset_page
 from athena_local.request_fields import (
     TAG_KEY_MAX_LENGTH,
     TAG_KEY_MIN_LENGTH,
     member,
+    optional_string,
     required_string,
     required_string_list,
 )
@@ -32,6 +34,9 @@ from athena_local.state import WorkGroupStore
 
 ATHENA_ARN_PREFIX = "arn:aws:athena:"
 TAGGABLE_RESOURCE_TYPES = ("workgroup", "datacatalog")
+# Service-side cap: the model's TagList has no max, but Athena rejects a
+# resource that would hold more than 50 tags (docs "TagResource").
+MAX_TAGS_PER_RESOURCE = 50
 
 
 def _parse_arn(resource_arn: str) -> tuple[str, str]:
@@ -105,6 +110,11 @@ def tag_resource(
         )
     by_key = {tag.key: tag for tag in tags}
     by_key.update({tag.key: tag for tag in new_tags})
+    if len(by_key) > MAX_TAGS_PER_RESOURCE:
+        raise InvalidRequestException(
+            f"Athena resource {name!r} holds at most "
+            f"{MAX_TAGS_PER_RESOURCE} tags, got {len(by_key)}"
+        )
     tags[:] = list(by_key.values())
     return {}
 
@@ -133,10 +143,12 @@ def list_tags_for_resource(
 ) -> dict[str, object]:
     resource_type, name = _parse_arn(required_string(payload, "ResourceARN"))
     tags = _resolve_tags(workgroups, catalogs, resource_type, name)
-    # MaxResults/NextToken are accepted for model compat but never produce a
-    # second page: the model caps MaxResults at 75 while Athena resources hold
-    # at most 50 tags, so a single response always fits every tag.
-    return {"Tags": _tags_payload(tags)}
+    # No NextToken is ever issued: MaxTagsCount floors MaxResults at 75 while
+    # resources hold at most MAX_TAGS_PER_RESOURCE tags, so one page always
+    # fits. A caller-supplied token is still decoded through the shared offset
+    # contract so a non-canonical one answers 400 (G-248 class).
+    page, _ = offset_page(tags, None, optional_string(payload, "NextToken"))
+    return {"Tags": _tags_payload(page)}
 
 
 def register_tag_handlers(

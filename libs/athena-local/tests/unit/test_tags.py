@@ -357,3 +357,128 @@ def test_tag_malformed_arn_is_invalid_request(
                 "Tags": [{"Key": "k", "Value": "v"}],
             },
         )
+
+
+def test_tag_resource_rejects_tags_beyond_quota(
+    workgroups: WorkGroupStore, catalogs: DataCatalogStore
+) -> None:
+    # Athena resources hold at most 50 tags (service-side; TagList carries no
+    # model max). Two 40-key requests used to reach 80 tags untouched (AU-27
+    # probe P-A), and the failed request must not leave a partial merge behind.
+    _create_analytics(workgroups)
+    tag_resource(
+        workgroups,
+        catalogs,
+        {
+            "ResourceARN": WORKGROUP_ARN,
+            "Tags": [{"Key": f"key{i}", "Value": "v"} for i in range(40)],
+        },
+    )
+
+    with pytest.raises(InvalidRequestException, match="at most 50 tags"):
+        tag_resource(
+            workgroups,
+            catalogs,
+            {
+                "ResourceARN": WORKGROUP_ARN,
+                "Tags": [
+                    {"Key": f"other{i}", "Value": "v"} for i in range(40)
+                ],
+            },
+        )
+
+    assert len(workgroups.by_name["analytics"].tags) == 40
+
+
+def test_tag_resource_accepts_fifty_tags_and_rejects_fifty_one(
+    workgroups: WorkGroupStore, catalogs: DataCatalogStore
+) -> None:
+    _create_analytics(workgroups)
+    tag_resource(
+        workgroups,
+        catalogs,
+        {
+            "ResourceARN": WORKGROUP_ARN,
+            "Tags": [{"Key": f"key{i}", "Value": "v"} for i in range(50)],
+        },
+    )
+
+    with pytest.raises(InvalidRequestException, match="got 51"):
+        tag_resource(
+            workgroups,
+            catalogs,
+            {
+                "ResourceARN": WORKGROUP_ARN,
+                "Tags": [{"Key": "overflow", "Value": "v"}],
+            },
+        )
+
+    assert len(workgroups.by_name["analytics"].tags) == 50
+
+
+def test_tag_resource_replaces_key_at_quota(
+    workgroups: WorkGroupStore, catalogs: DataCatalogStore
+) -> None:
+    # Replacing an existing key reuses its slot, so the distinct-key count
+    # stays at 50 and the request is legal.
+    _create_analytics(workgroups)
+    tag_resource(
+        workgroups,
+        catalogs,
+        {
+            "ResourceARN": WORKGROUP_ARN,
+            "Tags": [{"Key": f"key{i}", "Value": "v"} for i in range(50)],
+        },
+    )
+    tag_resource(
+        workgroups,
+        catalogs,
+        {
+            "ResourceARN": WORKGROUP_ARN,
+            "Tags": [{"Key": "key0", "Value": "x"}],
+        },
+    )
+
+    stored = workgroups.by_name["analytics"].tags
+    assert len(stored) == 50
+    assert {tag.key: tag.value for tag in stored}["key0"] == "x"
+
+
+def test_list_tags_for_resource_rejects_non_canonical_next_token(
+    workgroups: WorkGroupStore, catalogs: DataCatalogStore
+) -> None:
+    # A token can never be issued (MaxTagsCount floors MaxResults at 75 while
+    # resources hold at most 50 tags), but a supplied non-canonical token must
+    # still answer 400 like every other list op (G-248 class).
+    _create_analytics(workgroups)
+    with pytest.raises(InvalidRequestException, match="Invalid NextToken"):
+        list_tags_for_resource(
+            workgroups,
+            catalogs,
+            {"ResourceARN": WORKGROUP_ARN, "NextToken": "not-a-token"},
+        )
+
+
+def test_list_tags_for_resource_honours_offset_token(
+    workgroups: WorkGroupStore, catalogs: DataCatalogStore
+) -> None:
+    _create_analytics(workgroups)
+    tag_resource(
+        workgroups,
+        catalogs,
+        {
+            "ResourceARN": WORKGROUP_ARN,
+            "Tags": [{"Key": f"key{i}", "Value": "v"} for i in range(3)],
+        },
+    )
+
+    output = list_tags_for_resource(
+        workgroups, catalogs, {"ResourceARN": WORKGROUP_ARN, "NextToken": "1"}
+    )
+
+    assert output == {
+        "Tags": [
+            {"Key": "key1", "Value": "v"},
+            {"Key": "key2", "Value": "v"},
+        ]
+    }
