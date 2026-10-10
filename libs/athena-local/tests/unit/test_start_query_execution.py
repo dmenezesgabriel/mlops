@@ -491,3 +491,26 @@ def test_start_without_any_output_location_is_shaped_error(
                 executor, workgroups, {"QueryString": "SELECT 1"}
             )
         )
+
+
+def test_start_rejects_non_s3_output_location(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    """A non-``s3://`` OutputLocation 400s at submit like real Athena rather
+    than failing late at the artifact write."""
+    with pytest.raises(InvalidRequestException, match="OutputLocation"):
+        asyncio.run(
+            start_query_execution(
+                executor,
+                workgroups,
+                {
+                    "QueryString": "SELECT 1",
+                    "ResultConfiguration": {
+                        "OutputLocation": "ftp://host/dir"
+                    },
+                },
+            )
+        )
+    assert store.by_id == {}  # rejected before any execution was queued

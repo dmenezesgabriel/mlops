@@ -64,6 +64,38 @@ def test_create_work_group_rejects_empty_body(store: WorkGroupStore) -> None:
         create_work_group(store, None)
 
 
+def test_create_work_group_rejects_non_s3_output_location(
+    store: WorkGroupStore,
+) -> None:
+    with pytest.raises(InvalidRequestException, match="OutputLocation"):
+        create_work_group(
+            store,
+            {
+                "Name": "analytics",
+                "Configuration": {
+                    "ResultConfiguration": {"OutputLocation": "ftp://host/dir"}
+                },
+            },
+        )
+
+
+def test_update_work_group_rejects_non_s3_output_location(
+    store: WorkGroupStore,
+) -> None:
+    with pytest.raises(InvalidRequestException, match="OutputLocation"):
+        update_work_group(
+            store,
+            {
+                "WorkGroup": "primary",
+                "ConfigurationUpdates": {
+                    "ResultConfigurationUpdates": {
+                        "OutputLocation": "ftp://host/dir"
+                    }
+                },
+            },
+        )
+
+
 def test_get_work_group_returns_workgroup_members(
     store: WorkGroupStore,
 ) -> None:

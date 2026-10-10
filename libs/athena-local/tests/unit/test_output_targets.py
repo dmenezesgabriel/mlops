@@ -26,7 +26,7 @@ from athena_local.output_targets import (
 from athena_local.s3_writer import S3Writer
 from botocore.exceptions import EndpointConnectionError
 from tests.unit._glue_fakes import FakeGlueClient
-from tests.unit._s3_fakes import RecordingObjectStore
+from tests.unit._s3_fakes import RecordingObjectStore, s3_client_error
 
 INSERT_TABLE: dict[str, object] = {
     "Name": "events",
@@ -314,6 +314,75 @@ def test_capture_unload_without_to_is_a_target_error() -> None:
         )
 
     assert "TO" in str(exc_info.value)
+
+
+def test_capture_unload_list_failure_is_a_target_error() -> None:
+    """A failed before-list degrades to the manifest-target reason, matching
+    the write-time wrap to ArtifactWriteError — the submit path catches only
+    ManifestTargetError, so an escaping S3WriterError is an unshaped 500."""
+    snapshotter, store = snapshotter_with()
+    store.list_error = s3_client_error("NoSuchBucket", "bucket missing")
+
+    with pytest.raises(ManifestTargetError, match="NoSuchBucket"):
+        capture(
+            snapshotter,
+            query=(
+                "UNLOAD (SELECT * FROM events) TO 's3://nope/x/' "
+                "WITH (format = 'PARQUET')"
+            ),
+            substatement_type="UNLOAD",
+        )
+
+
+def test_capture_unload_transport_failure_is_a_target_error() -> None:
+    snapshotter, store = snapshotter_with()
+    store.list_error = EndpointConnectionError(endpoint_url="http://moto:5000")
+
+    with pytest.raises(ManifestTargetError, match="transport"):
+        capture(
+            snapshotter,
+            query=(
+                "UNLOAD (SELECT * FROM events) TO 's3://b/x/' "
+                "WITH (format = 'PARQUET')"
+            ),
+            substatement_type="UNLOAD",
+        )
+
+
+def test_capture_unload_non_s3_to_location_is_a_target_error() -> None:
+    snapshotter, store = snapshotter_with()
+
+    with pytest.raises(ManifestTargetError, match="s3://"):
+        capture(
+            snapshotter,
+            query=(
+                "UNLOAD (SELECT * FROM events) TO 'ftp://host/x' "
+                "WITH (format = 'PARQUET')"
+            ),
+            substatement_type="UNLOAD",
+        )
+    assert store.list_calls == []
+
+
+def test_capture_insert_non_s3_table_location_is_a_target_error() -> None:
+    table_with_foreign_location = {
+        "Name": "events",
+        "StorageDescriptor": {
+            "Columns": [{"Name": "id", "Type": "int"}],
+            "Location": "ftp://host/events/",
+        },
+    }
+    snapshotter, _store = snapshotter_with(
+        tables={"analytics": [table_with_foreign_location]}
+    )
+
+    with pytest.raises(ManifestTargetError, match="s3://"):
+        capture(
+            snapshotter,
+            query="INSERT INTO analytics.events SELECT 1",
+            database="analytics",
+            substatement_type="INSERT",
+        )
 
 
 def test_capture_skips_statements_without_a_manifest() -> None:

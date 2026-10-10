@@ -98,3 +98,36 @@ def test_list_object_paths_absorbs_transport_error_as_s3_writer_error() -> (
         writer.list_object_paths(f"{PREFIX}")
 
     assert "transport" in str(exc_info.value).lower()
+
+
+@pytest.mark.parametrize(
+    "path", ["ftp://host/x", "relative", "bucket/key", "S3://host/x"]
+)
+def test_put_object_rejects_non_s3_scheme(path: str) -> None:
+    """Only ``s3://`` URIs reach the client: a foreign scheme or a bare path
+    must fail here, not inside the boto3 call as a mangled bucket name."""
+    store = RecordingObjectStore()
+    writer = S3Writer(store)
+
+    with pytest.raises(S3WriterError, match="s3://"):
+        writer.put_object(path, b"")
+
+    assert store.put_calls == []
+
+
+@pytest.mark.parametrize("path", ["ftp://host/x", "relative", "bucket/key"])
+def test_list_object_paths_rejects_non_s3_scheme(path: str) -> None:
+    store = RecordingObjectStore()
+    writer = S3Writer(store)
+
+    with pytest.raises(S3WriterError, match="s3://"):
+        writer.list_object_paths(path)
+
+    assert store.list_calls == []
+
+
+def test_list_object_paths_rejects_s3_uri_without_bucket() -> None:
+    writer = S3Writer(RecordingObjectStore())
+
+    with pytest.raises(S3WriterError, match="no bucket"):
+        writer.list_object_paths("s3://")

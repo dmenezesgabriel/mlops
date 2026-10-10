@@ -17,6 +17,7 @@ from athena_local.request_fields import (
     KMS_KEY_MAX_LENGTH,
     KMS_KEY_MIN_LENGTH,
     KMS_KEY_PATTERN,
+    OUTPUT_LOCATION_PATTERN,
     S3_ACL_OPTIONS,
     TAG_KEY_MAX_LENGTH,
     TAG_KEY_MIN_LENGTH,
@@ -195,7 +196,9 @@ def parse_result_configuration(raw: object) -> ResultConfiguration | None:
     if body is None:
         return None
     return ResultConfiguration(
-        output_location=optional_string(body, "OutputLocation"),
+        output_location=optional_string(
+            body, "OutputLocation", pattern=OUTPUT_LOCATION_PATTERN
+        ),
         encryption_configuration=parse_encryption_configuration(
             body.get("EncryptionConfiguration")
         ),
@@ -310,7 +313,9 @@ def parse_result_configuration_updates(
     if body is None:
         return None
     return ResultConfigurationUpdates(
-        output_location=optional_string(body, "OutputLocation"),
+        output_location=optional_string(
+            body, "OutputLocation", pattern=OUTPUT_LOCATION_PATTERN
+        ),
         remove_output_location=optional_bool(body, "RemoveOutputLocation"),
         encryption_configuration=parse_encryption_configuration(
             body.get("EncryptionConfiguration")

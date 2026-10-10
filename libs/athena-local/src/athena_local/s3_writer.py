@@ -153,6 +153,11 @@ class S3Writer:
 
 
 def _split_s3_path(path: str) -> tuple[str, str]:
+    # Only ``s3://`` URIs reach the client: a foreign scheme or bare path
+    # would otherwise degrade to a mangled bucket name (``ftp:``) inside the
+    # boto3 call — real Athena 400s a non-S3 location up front.
+    if not path.startswith("s3://"):
+        raise S3WriterError(f"S3 URI {path!r} must use the s3:// scheme")
     rest = path.removeprefix("s3://")
     bucket, _, key = rest.partition("/")
     if not bucket:

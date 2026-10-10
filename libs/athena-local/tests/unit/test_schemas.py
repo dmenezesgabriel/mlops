@@ -102,6 +102,41 @@ def test_parse_result_configuration_requires_object() -> None:
         parse_result_configuration("s3://nope")
 
 
+@pytest.mark.parametrize(
+    "location", ["ftp://host/dir", "relative/path", "s3://", "s3:///x"]
+)
+def test_parse_result_configuration_rejects_non_s3_location(
+    location: str,
+) -> None:
+    """Real Athena 400s a non-``s3://`` OutputLocation at submit; the wire
+    parse is where that rejection happens here (a bad location must not
+    reach the artifact write)."""
+    with pytest.raises(InvalidRequestException, match="OutputLocation"):
+        parse_result_configuration({"OutputLocation": location})
+
+
+@pytest.mark.parametrize("location", ["s3://b", "s3://b/x/"])
+def test_parse_result_configuration_accepts_s3_locations(
+    location: str,
+) -> None:
+    configuration = parse_result_configuration({"OutputLocation": location})
+
+    assert configuration == ResultConfiguration(output_location=location)
+
+
+def test_parse_result_configuration_updates_rejects_non_s3_location() -> None:
+    """The updates parser shares the ResultOutputLocation shape — a bad
+    workgroup fallback must be rejected at the same door."""
+    with pytest.raises(InvalidRequestException, match="OutputLocation"):
+        WorkGroupConfigurationUpdates.from_dict(
+            {
+                "ResultConfigurationUpdates": {
+                    "OutputLocation": "ftp://host/dir"
+                }
+            }
+        )
+
+
 def test_parse_result_reuse_configuration_round_trip() -> None:
     raw = {
         "ResultReuseByAgeConfiguration": {

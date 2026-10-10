@@ -26,7 +26,7 @@ from dataclasses import dataclass
 
 from athena_local.errors import MetadataException
 from athena_local.glue_proxy import GlueProxy
-from athena_local.s3_writer import S3Writer
+from athena_local.s3_writer import S3Writer, S3WriterError
 from athena_local.sql_lexing import string_end, strip_comments
 
 UNLOAD_HEAD_RE = re.compile(r"^\s*unload\b", re.IGNORECASE)
@@ -144,9 +144,20 @@ class OutputSnapshotter:
             return
 
     def _snapshot(self, location: str) -> OutputSnapshot:
+        try:
+            before_paths = frozenset(self._s3.list_object_paths(location))
+        except S3WriterError as error:
+            # The pre-submit listing probes the write target: its failure is
+            # a target problem, not an emulator fault, so it degrades to the
+            # record's manifest_target_error the way the same failure wraps
+            # to ArtifactWriteError at write time.
+            raise ManifestTargetError(
+                f"write target {location!r} cannot be listed for capture: "
+                f"{error}"
+            ) from error
         return OutputSnapshot(
             location=_prefix(location),
-            before_paths=frozenset(self._s3.list_object_paths(location)),
+            before_paths=before_paths,
         )
 
 

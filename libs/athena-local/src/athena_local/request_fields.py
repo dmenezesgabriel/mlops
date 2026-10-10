@@ -73,6 +73,11 @@ CLIENT_REQUEST_TOKEN_MIN_LENGTH = 32
 CLIENT_REQUEST_TOKEN_MAX_LENGTH = 128
 # ExecutionParameter (service-2.json): each list member is at most 1024.
 EXECUTION_PARAMETER_MAX_LENGTH = 1024
+# ResultOutputLocation (service-2.json) is a bare string shape, but real
+# Athena 400s a non-``s3://`` location at submit (service-side check, not a
+# declared pattern) — scheme plus a non-empty first segment (the bucket), so
+# a bad location fails the parse instead of the artifact write.
+OUTPUT_LOCATION_PATTERN = r"s3://[^/].*"
 
 
 def member(payload: dict[str, object] | None, name: str) -> object | None:
