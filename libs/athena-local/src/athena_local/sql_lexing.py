@@ -10,6 +10,7 @@ Nothing here is Athena- or Trino-specific.
 from __future__ import annotations
 
 import re
+from bisect import bisect_right
 
 # One identifier chain segment: backticked, double-quoted, or bare.
 # A double-quoted part may carry a ``""``-escaped quote
@@ -194,3 +195,224 @@ def _drop_comment(match: re.Match[str]) -> str:
     """Empty string for comment matches; literals re-insert verbatim."""
     token = match.group(0)
     return "" if token.startswith(("--", "/*")) else token
+
+
+class SpanIndex:
+    """O(log n) covering-span lookup over one statement's ordered spans.
+
+    ``protected_spans`` emits left-to-right and the comment filter keeps
+    that order, so a parallel start list answers ``covering`` by bisect.
+    The previous index-0 rescan per call made the item walk
+    O(refs × comments) — 32.6 s measured at 10k comments where plain refs
+    stayed at 248 ms (iceberg routing, 2026-10-07).
+    """
+
+    def __init__(self, spans: list[tuple[int, int]]) -> None:
+        ordered = sorted(spans)
+        self._spans = ordered
+        self._starts = [start for start, _ in ordered]
+
+    def covering(self, position: int) -> tuple[int, int] | None:
+        index = bisect_right(self._starts, position) - 1
+        if index < 0:
+            return None
+        span = self._spans[index]
+        return span if position < span[1] else None
+
+
+def protected_spans(
+    query: str, quote_quoted: bool = False
+) -> list[tuple[int, int]]:
+    """Literal/comment/identifier spans a scan must never rewrite inside of.
+
+    ``'…'`` literals, ``--``/``/* */`` comments, and ``"…"``-quoted
+    identifiers always protect their contents — a ``'`` or a keyword
+    inside ``"don`t"``/``"from"`` is identifier text, not syntax.
+    `` `` ``-quoted names protect only when ``quote_quoted``: the route
+    scan must not treat `` `from` `` as a FROM anchor, but the backtick
+    normalizer needs those spans visible to convert them.
+    """
+    spans: list[tuple[int, int]] = []
+    index = 0
+    while index < len(query):
+        index = _span_step(query, index, spans, quote_quoted)
+    return spans
+
+
+def _span_step(
+    query: str,
+    index: int,
+    spans: list[tuple[int, int]],
+    quote_quoted: bool,
+) -> int:
+    char = query[index]
+    if char == "'":
+        return _literal_step(query, index, spans)
+    if char in '"`':
+        return _identifier_step(query, index, char, spans, quote_quoted)
+    if query[index : index + 2] == "--":
+        return _comment_step(query, index, "\n", spans)
+    if query[index : index + 2] == "/*":
+        return _comment_step(query, index, "*/", spans)
+    return index + 1
+
+
+def _literal_step(query: str, index: int, spans: list[tuple[int, int]]) -> int:
+    end = string_end(query, index)
+    if end is None:
+        return len(query)
+    spans.append((index, end))
+    return end
+
+
+def _identifier_step(
+    query: str,
+    index: int,
+    char: str,
+    spans: list[tuple[int, int]],
+    quote_quoted: bool,
+) -> int:
+    end = quoted_end(query, index, char)
+    if char == '"' or quote_quoted:
+        spans.append((index, end))
+    return end
+
+
+def _comment_step(
+    query: str,
+    index: int,
+    terminator: str,
+    spans: list[tuple[int, int]],
+) -> int:
+    end = query.find(terminator, index + 2)
+    if end == -1:
+        end = len(query)
+    elif terminator == "*/":
+        end += 2
+    spans.append((index, end))
+    return end
+
+
+def word_back(
+    query: str, pos: int, comments: SpanIndex
+) -> tuple[str, int] | None:
+    """(lowercased word, start) of the bare identifier ending before ``pos``.
+
+    Quote/dot/punctuation characters are not word characters, so
+    ``'x'``, ``"show"``, and ``show.tables`` all stop the scan — only a
+    whitespace/comment-separated bare word is returned.
+    """
+    end = _noise_back(query, pos, comments)
+    start = end
+    while start > 0 and query[start - 1] in _WORD_CHARS:
+        start -= 1
+    if start == end:
+        return None
+    return query[start:end].lower(), start
+
+
+def _noise_back(query: str, pos: int, comments: SpanIndex) -> int:
+    """Index before whitespace and comment spans, scanning backwards."""
+    while True:
+        while pos > 0 and query[pos - 1] in " \t\n\r":
+            pos -= 1
+        span = comments.covering(pos - 1)
+        if span is None:
+            return pos
+        pos = span[0]
+
+
+# Identifiers continue on ``[A-Za-z0-9_$]`` (IDENTIFIER_PART's tail); the
+# backward scan needs the whole word so ``xtables`` never suffix-matches
+# a SHOW noun.
+_WORD_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$"
+)
+
+
+# Words after which ``(`` may wrap a query or a scalar-subquery-bearing
+# expression — never a function call — so a ``from`` inside still anchors
+# a table position (``IN (``, ``EXISTS (``, CTE ``AS (``, ``UNLOAD (``,
+# set-operation arms, boolean/scalar-subquery contexts). Anything else
+# preceding ``(`` is a call open.
+_QUERY_PAREN_WORDS = frozenset(
+    {
+        "all",
+        "and",
+        "any",
+        "as",
+        "between",
+        "by",
+        "case",
+        "distinct",
+        "else",
+        "escape",
+        "except",
+        "exists",
+        "explain",
+        "from",
+        "having",
+        "ilike",
+        "in",
+        "intersect",
+        "join",
+        "lateral",
+        "like",
+        "not",
+        "on",
+        "or",
+        "rlike",
+        "select",
+        "some",
+        "then",
+        "to",
+        "union",
+        "unload",
+        "using",
+        "values",
+        "when",
+        "where",
+    }
+)
+
+
+def call_arg_positions(
+    query: str,
+    keyword: str,
+    protected: SpanIndex,
+    comments: SpanIndex,
+) -> frozenset[int]:
+    """Positions where a bare ``keyword`` sits inside ``ident(…)`` call args.
+
+    ``EXTRACT(year FROM ts)``/``TRIM('x' FROM s)`` place a keyword inside
+    call parens where it never opens the clause it names elsewhere. The
+    innermost enclosing ``(`` is a function call exactly when a bare word
+    precedes it that is not a query-context keyword
+    (``_QUERY_PAREN_WORDS``); an expression ``(`` or a derived table
+    keeps the keyword live — ``f((SELECT … FROM t))`` still anchors.
+    """
+    bare = re.compile(rf"(?i)\b{re.escape(keyword)}\b")
+    positions: set[int] = set()
+    calls: list[bool] = []  # One flag per open ``(``: True for a call.
+    pos = 0
+    while pos < len(query):
+        span = protected.covering(pos)
+        if span is not None:
+            pos = span[1]
+            continue
+        char = query[pos]
+        if char == "(":
+            calls.append(_opens_call(query, pos, comments))
+        elif char == ")":
+            if calls:
+                calls.pop()
+        elif calls and calls[-1] and bare.match(query, pos) is not None:
+            positions.add(pos)
+        pos += 1
+    return frozenset(positions)
+
+
+def _opens_call(query: str, pos: int, comments: SpanIndex) -> bool:
+    """Whether the ``(`` at ``pos`` opens ``ident(…)`` call args."""
+    word = word_back(query, pos, comments)
+    return word is not None and word[0] not in _QUERY_PAREN_WORDS

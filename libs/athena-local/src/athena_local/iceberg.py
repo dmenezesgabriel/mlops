@@ -16,13 +16,17 @@ reaches it:
    ``delete from``/``alter table``/``drop``/``describe``/``from``/
    ``join``/``using``-anchored table reference qualified
    ``iceberg."schema"."table"`` when a Glue ``table_type`` lookup (``probe``)
-   marks it Iceberg — and every later item in a comma-separated list
+   marks it Iceberg — and every item in a comma-separated list
    (``FROM a, b``) shares the anchor's walk, skipping ``(…)`` derived
-   tables and ``ident(…)`` calls. A bare ``from`` closing a ``SHOW
-   <objects> FROM`` spelling is skipped instead: that argument names a
-   schema/catalog, never a table. Hive-bound references stay unqualified
-   and resolve in the session's hive catalog — exactly the staged
-   ``INSERT INTO iceberg SELECT`` and ``MERGE INTO iceberg USING
+   tables and ``ident(…)`` calls (``insert into`` is the exception: its
+   ``(a,b)`` after the target is a column list, not a call). A bare
+   ``from`` inside an ``ident(…)`` call's parens (``EXTRACT``/``TRIM``/
+   ``SUBSTRING``/``OVERLAY`` arguments — call positions are measured by
+   ``call_arg_positions``), closing ``IS [NOT] DISTINCT``, or ending a
+   ``SHOW <objects> FROM`` spelling is skipped instead: those positions
+   name values or schemas, never tables. Hive-bound references stay
+   unqualified and resolve in the session's hive catalog — exactly the
+   staged ``INSERT INTO iceberg SELECT`` and ``MERGE INTO iceberg USING
    hive_temp`` cross-catalog shapes awswrangler emits
    (``awswrangler/athena/_write_iceberg.py:411-426,871-877``).
 3. The whole statement is backtick-normalized first
@@ -41,7 +45,6 @@ continue through the normal dialect path unchanged.
 from __future__ import annotations
 
 import re
-from bisect import bisect_right
 from collections.abc import Iterator
 
 from athena_local.iceberg_probe import IcebergTableProbe
@@ -52,14 +55,17 @@ from athena_local.iceberg_table import (
 )
 from athena_local.sql_lexing import (
     IDENTIFIER_PART,
+    SpanIndex,
     balanced_span,
+    call_arg_positions,
     identifier_name,
+    protected_spans,
     quoted_end,
     quoted_identifier,
     skip_ws,
     split_target,
-    string_end,
     strip_comments,
+    word_back,
 )
 
 
@@ -135,23 +141,26 @@ def _route_iceberg_references(
     query: str, database: str | None, probe: IcebergTableProbe
 ) -> str | None:
     """Qualify references whose (schema, table) the probe marks as Iceberg."""
-    protected_spans = _protected_spans(query, quote_quoted=True)
-    protected = _SpanIndex(protected_spans)
+    spans = protected_spans(query, quote_quoted=True)
+    protected = SpanIndex(spans)
     # Only comments are skipped between list items — quoted identifiers and
     # literals stay visible since a quoted ident is a valid table ref.
-    comments = _SpanIndex(
-        [span for span in protected_spans if query[span[0]] in "-/"]
-    )
+    comments = SpanIndex([span for span in spans if query[span[0]] in "-/"])
+    anchors, call_arg_froms = _anchor_scan(query, protected, comments)
     verified: dict[tuple[str, str], bool] = {}
     edits: list[tuple[int, int, str]] = []
-    for anchor in _ANCHOR.finditer(query):
-        if protected.covering(anchor.start()) is not None:
-            continue
-        if anchor.group(0).lower() == "from" and _schema_arg_from(
-            query, anchor.start(), comments
+    for anchor in anchors:
+        word = anchor.group(0).lower()
+        if word == "from" and _skipped_from(
+            query, anchor.start(), comments, call_arg_froms
         ):
             continue
-        for start, end in _table_item_refs(query, anchor.end(), comments):
+        # ``insert into`` alone keeps the plain first-item path — its
+        # ``(a,b)`` after the target is a column list, not a call.
+        first_item_call = word.split() != ["insert", "into"]
+        for start, end in _table_item_refs(
+            query, anchor.end(), comments, first_item_call
+        ):
             _route_ref(query, start, end, database, probe, verified, edits)
     if not edits:
         return None
@@ -185,19 +194,23 @@ _AS = re.compile(r"(?i)as\b")
 
 
 def _table_item_refs(
-    query: str, start: int, comments: _SpanIndex
+    query: str,
+    start: int,
+    comments: SpanIndex,
+    first_item_call: bool,
 ) -> Iterator[tuple[int, int]]:
     """Ref spans in a comma-separated table-item list (``FROM a, b``).
 
     Every item is a table position: ``(SELECT …)`` derived tables are
-    skipped whole (nested FROM lists anchor on their own ``from``), a
-    chained ``ident(…)`` is a call (``UNNEST``/``LATERAL`` — never a Glue
-    probe), and ``[AS] alias [(cols)]`` gaps separate items. The first
-    item keeps the plain ``_REF`` path so ``INSERT INTO t (a,b)`` still
-    probes ``t`` — its ``(a,b)`` is a column list, not a call.
+    skipped whole (nested FROM lists anchor on their own ``from``), an
+    ``ident(…)`` is a call (``UNNEST``/``LATERAL`` — never a Glue probe),
+    and ``[AS] alias [(cols)]`` gaps separate items. The call skip covers
+    the first item too unless ``first_item_call`` is off — ``insert
+    into`` keeps the plain ``_REF`` path so ``INSERT INTO t (a,b)`` still
+    probes ``t``.
     """
     pos = start
-    chained = False
+    chained = first_item_call
     while True:
         pos = _past_noise(query, pos, comments)
         ref, pos = _scan_item(query, pos, chained, comments)
@@ -213,7 +226,7 @@ def _table_item_refs(
 
 
 def _scan_item(
-    query: str, pos: int, chained: bool, comments: _SpanIndex
+    query: str, pos: int, chained: bool, comments: SpanIndex
 ) -> tuple[tuple[int, int] | None, int | None]:
     """One item at ``pos`` → (ref span, item end); ``end`` None stops."""
     if pos >= len(query):
@@ -229,7 +242,7 @@ def _scan_item(
     return ref.span("ref"), ref.end()
 
 
-def _past_item_gap(query: str, pos: int, comments: _SpanIndex) -> int:
+def _past_item_gap(query: str, pos: int, comments: SpanIndex) -> int:
     """Index after ``[AS] alias [(cols)]`` — where a ``,`` may sit.
 
     The one-identifier bound is the safety stop: ``GROUP BY a, b`` and
@@ -250,7 +263,7 @@ def _past_item_gap(query: str, pos: int, comments: _SpanIndex) -> int:
     return _past_noise(query, pos, comments)
 
 
-def _past_noise(query: str, pos: int, comments: _SpanIndex) -> int:
+def _past_noise(query: str, pos: int, comments: SpanIndex) -> int:
     """Index past whitespace and ``--``/``/* */`` comment spans."""
     while True:
         pos = skip_ws(query, pos)
@@ -260,67 +273,7 @@ def _past_noise(query: str, pos: int, comments: _SpanIndex) -> int:
         pos = span[1]
 
 
-def _noise_back(query: str, pos: int, comments: _SpanIndex) -> int:
-    """Index before whitespace and comment spans, scanning backwards."""
-    while True:
-        while pos > 0 and query[pos - 1] in " \t\n\r":
-            pos -= 1
-        span = comments.covering(pos - 1)
-        if span is None:
-            return pos
-        pos = span[0]
-
-
-class _SpanIndex:
-    """O(log n) covering-span lookup over one statement's ordered spans.
-
-    ``_protected_spans`` emits left-to-right and the comment filter keeps
-    that order, so a parallel start list answers ``covering`` by bisect.
-    The previous index-0 rescan per call made the item walk
-    O(refs × comments) — AU-23 D2 measured 32.6 s at 10k comments where
-    plain refs stayed at 248 ms (G-266).
-    """
-
-    def __init__(self, spans: list[tuple[int, int]]) -> None:
-        ordered = sorted(spans)
-        self._spans = ordered
-        self._starts = [start for start, _ in ordered]
-
-    def covering(self, position: int) -> tuple[int, int] | None:
-        index = bisect_right(self._starts, position) - 1
-        if index < 0:
-            return None
-        span = self._spans[index]
-        return span if position < span[1] else None
-
-
-def _word_back(
-    query: str, pos: int, comments: _SpanIndex
-) -> tuple[str, int] | None:
-    """(lowercased word, start) of the bare identifier ending before ``pos``.
-
-    Quote/dot/punctuation characters are not word characters, so
-    ``'x'``, ``"show"``, and ``show.tables`` all stop the scan — only a
-    whitespace/comment-separated bare word is returned.
-    """
-    end = _noise_back(query, pos, comments)
-    start = end
-    while start > 0 and query[start - 1] in _WORD_CHARS:
-        start -= 1
-    if start == end:
-        return None
-    return query[start:end].lower(), start
-
-
-# Identifiers continue on ``[A-Za-z0-9_$]`` (sql_lexing's IDENTIFIER_PART
-# tail); the backward scan needs the whole word so ``xtables`` never
-# suffix-matches a SHOW noun.
-_WORD_CHARS = frozenset(
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$"
-)
-
-
-def _schema_arg_from(query: str, start: int, comments: _SpanIndex) -> bool:
+def _schema_arg_from(query: str, start: int, comments: SpanIndex) -> bool:
     """Whether the bare ``from`` at ``start`` closes a ``SHOW <objects>``.
 
     ``SHOW TABLES|SCHEMAS|… FROM x`` takes a schema or catalog argument,
@@ -333,18 +286,79 @@ def _schema_arg_from(query: str, start: int, comments: _SpanIndex) -> bool:
     statement boundary or an ``explain``/``from`` (``PREPARE … FROM
     SHOW``) word may precede the SHOW keyword.
     """
-    word = _word_back(query, start, comments)
+    word = word_back(query, start, comments)
     if word is None or word[0] not in _SHOW_FROM_NOUNS:
         return False
     pos = word[1]
-    word = _word_back(query, pos, comments)
+    word = word_back(query, pos, comments)
     while word is not None and word[0] in _SHOW_FROM_NOUNS:
         pos = word[1]
-        word = _word_back(query, pos, comments)
+        word = word_back(query, pos, comments)
     if word is None or word[0] != "show":
         return False
-    prefix = _word_back(query, word[1], comments)
+    prefix = word_back(query, word[1], comments)
     return prefix is None or prefix[0] in ("explain", "from")
+
+
+def _anchor_scan(
+    query: str, protected: SpanIndex, comments: SpanIndex
+) -> tuple[list[re.Match[str]], frozenset[int]]:
+    """Unprotected anchors + the bare ``from`` positions inside call parens.
+
+    The call-paren scan is one O(n) pass, run only when a bare ``from``
+    anchors at all — ``EXTRACT``/``TRIM``/``SUBSTRING``/``OVERLAY``
+    arguments place a FROM keyword where no table list opens.
+    """
+    anchors = [
+        anchor
+        for anchor in _ANCHOR.finditer(query)
+        if protected.covering(anchor.start()) is None
+    ]
+    call_arg_froms = (
+        call_arg_positions(query, "from", protected, comments)
+        if any(anchor.group(0).lower() == "from" for anchor in anchors)
+        else frozenset[int]()
+    )
+    return anchors, call_arg_froms
+
+
+def _skipped_from(
+    query: str,
+    start: int,
+    comments: SpanIndex,
+    call_arg_froms: frozenset[int],
+) -> bool:
+    """Whether the bare ``from`` at ``start`` never opens a table list.
+
+    ``SHOW <objects> FROM x`` takes a schema argument, ``ident(… FROM …)``
+    places it inside call args, and ``IS [NOT] DISTINCT FROM`` compares a
+    value — none is a table position.
+    """
+    return (
+        _schema_arg_from(query, start, comments)
+        or start in call_arg_froms
+        or _comparison_from(query, start, comments)
+    )
+
+
+def _comparison_from(query: str, start: int, comments: SpanIndex) -> bool:
+    """Whether the bare ``from`` at ``start`` closes ``IS [NOT] DISTINCT``.
+
+    ``a IS DISTINCT FROM b`` compares two value expressions — the ``b``
+    is never a table, so a colliding Iceberg name must stay unprobed.
+    """
+    word = word_back(query, start, comments)
+    if word is None or word[0] != "distinct":
+        return False
+    word = word_back(query, word[1], comments)
+    if word is None:
+        return False
+    if word[0] == "is":
+        return True
+    if word[0] != "not":
+        return False
+    word = word_back(query, word[1], comments)
+    return word is not None and word[0] == "is"
 
 
 def _resolve(reference: str, database: str | None) -> tuple[str, str] | None:
@@ -363,82 +377,9 @@ def _iceberg_qualified(schema: str, table: str) -> str:
     )
 
 
-def _protected_spans(
-    query: str, quote_quoted: bool = False
-) -> list[tuple[int, int]]:
-    """Literal/comment/identifier spans a scan must never rewrite inside of.
-
-    ``'…'`` literals, ``--``/``/* */`` comments, and ``"…"``-quoted
-    identifiers always protect their contents — a ``'`` or a keyword
-    inside ``"don`t"``/``"from"`` is identifier text, not syntax.
-    `` `` ``-quoted names protect only when ``quote_quoted``: the route
-    scan must not treat `` `from` `` as a FROM anchor, but the backtick
-    normalizer needs those spans visible to convert them.
-    """
-    spans: list[tuple[int, int]] = []
-    index = 0
-    while index < len(query):
-        index = _span_step(query, index, spans, quote_quoted)
-    return spans
-
-
-def _span_step(
-    query: str,
-    index: int,
-    spans: list[tuple[int, int]],
-    quote_quoted: bool,
-) -> int:
-    char = query[index]
-    if char == "'":
-        return _literal_step(query, index, spans)
-    if char in '"`':
-        return _identifier_step(query, index, char, spans, quote_quoted)
-    if query[index : index + 2] == "--":
-        return _comment_step(query, index, "\n", spans)
-    if query[index : index + 2] == "/*":
-        return _comment_step(query, index, "*/", spans)
-    return index + 1
-
-
-def _literal_step(query: str, index: int, spans: list[tuple[int, int]]) -> int:
-    end = string_end(query, index)
-    if end is None:
-        return len(query)
-    spans.append((index, end))
-    return end
-
-
-def _identifier_step(
-    query: str,
-    index: int,
-    char: str,
-    spans: list[tuple[int, int]],
-    quote_quoted: bool,
-) -> int:
-    end = quoted_end(query, index, char)
-    if char == '"' or quote_quoted:
-        spans.append((index, end))
-    return end
-
-
-def _comment_step(
-    query: str,
-    index: int,
-    terminator: str,
-    spans: list[tuple[int, int]],
-) -> int:
-    end = query.find(terminator, index + 2)
-    if end == -1:
-        end = len(query)
-    elif terminator == "*/":
-        end += 2
-    spans.append((index, end))
-    return end
-
-
 def _backtick_normalize(query: str) -> str:
     """`` `ident` `` → ``"ident"`` outside ``'…'`` literals and comments."""
-    protected = _protected_spans(query)
+    protected = protected_spans(query)
     out: list[str] = []
     index = 0
     for start, end in protected:
