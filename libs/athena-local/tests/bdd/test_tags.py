@@ -154,15 +154,21 @@ def _tag_data_catalog(
     )
 
 
-@then("ListTagsForResource returns the catalog tag")
-def _list_data_catalog(
+@then(
+    parsers.parse(
+        'ListTagsForResource returns the catalog tag "{key}: {value}"'
+    )
+)
+def _catalog_tag_listed(
     workgroups: WorkGroupStore,
     catalogs: DataCatalogStore,
-    outcome: TagOutcome,
+    key: str,
+    value: str,
 ) -> None:
-    outcome.tags = list_tags_for_resource(
+    tags = list_tags_for_resource(
         workgroups, catalogs, {"ResourceARN": DATA_CATALOG_ARN}
     )["Tags"]
+    assert tags == [{"Key": key, "Value": value}]
 
 
 @when("TagResource targets a non-existent workgroup ARN")

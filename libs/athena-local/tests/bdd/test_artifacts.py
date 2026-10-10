@@ -17,6 +17,7 @@ from athena_local.artifacts import ArtifactWriter
 from athena_local.common_schemas import ResultConfiguration
 from athena_local.executions import ExecutionStore, QueryExecutionRecord
 from athena_local.output_targets import OutputSnapshot
+from athena_local.query_executions import get_query_execution
 from athena_local.s3_writer import S3Writer
 from athena_local.trino_client import TrinoPage
 from pytest_bdd import given, parsers, scenarios, then, when
@@ -46,6 +47,7 @@ class ArtifactOutcome:
     """State shared between the when and then steps of a scenario."""
 
     store: RecordingObjectStore = field(default_factory=RecordingObjectStore)
+    executions: ExecutionStore = field(default_factory=ExecutionStore)
     result_location: str = ""
     columns: list[tuple[str, str]] = field(default_factory=list)
     rows: list[list[object]] = field(default_factory=list)
@@ -233,7 +235,10 @@ def _manifest_appended_only(outcome: ArtifactOutcome) -> None:
 def _full_output_location(outcome: ArtifactOutcome) -> None:
     """GetQueryExecution names the artifact file, not the folder (ADR-0007 #2)."""
     assert outcome.record is not None
-    payload = outcome.record.to_payload()
+    payload = get_query_execution(
+        outcome.executions,
+        {"QueryExecutionId": outcome.record.query_execution_id},
+    )["QueryExecution"]
     assert payload["ResultConfiguration"]["OutputLocation"] == (
         f"{outcome.result_location}{outcome.record.query_execution_id}.csv"
     )
@@ -254,7 +259,7 @@ def _build_record(
     output_snapshot: OutputSnapshot | None = None,
 ) -> QueryExecutionRecord:
     record = started_execution(
-        ExecutionStore(),
+        outcome.executions,
         query=query,
         workgroup="primary",
         result_configuration=ResultConfiguration(

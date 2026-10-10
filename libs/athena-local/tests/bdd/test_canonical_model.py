@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+from athena_local.dispatch import resolve_operation
 from pytest_bdd import given, scenarios, then, when
 
 scenarios("canonical_model.feature")
@@ -134,5 +135,7 @@ def assert_target_suffix_matches_operation(
     operations = cast(dict[str, object], canonical_model["operations"])
     for operation in operations:
         target = f"{target_prefix}.{operation}"
-        # moto resolves the action as the segment after the final dot.
-        assert target.split(".")[-1] == operation
+        # moto resolves the action as the segment after the final dot;
+        # dispatch.resolve_operation implements that rule, so assert
+        # through the shipped resolver rather than re-deriving it here.
+        assert resolve_operation(target) == operation

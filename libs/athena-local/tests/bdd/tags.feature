@@ -22,7 +22,7 @@ Feature: Resource tagging
   Scenario: Data catalogs accept tags
     Given a LAMBDA data catalog named "dynamo_db_catalog"
     When TagResource adds "Division: Mountain" to the data catalog
-    Then ListTagsForResource returns the catalog tag
+    Then ListTagsForResource returns the catalog tag "Division: Mountain"
 
   Scenario: Tagging an unknown resource is rejected with not found
     When TagResource targets a non-existent workgroup ARN
