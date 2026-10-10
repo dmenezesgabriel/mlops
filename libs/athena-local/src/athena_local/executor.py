@@ -285,6 +285,31 @@ class QueryExecutor:
             )
         return record
 
+    def runner_task(
+        self, query_execution_id: str
+    ) -> asyncio.Task[None] | None:
+        """The in-flight runner, or ``None`` once reaped — the public
+        read on the registry, so coordinators never pin ``_tasks``."""
+        return self._tasks.get(query_execution_id)
+
+    def write_task(self, query_execution_id: str) -> asyncio.Task[None] | None:
+        """The in-flight artifact write, or ``None`` — same registry seam."""
+        return self._write_tasks.get(query_execution_id)
+
+    async def wait_for(self, query_execution_id: str) -> QueryExecutionRecord:
+        """Wait out an execution's in-flight runner; return the record.
+
+        A runner-less record — terminal at submit, or a faked QUEUED
+        entry — returns as it stands, since waiting on "terminal" would
+        hang. Runner exceptions propagate; unknown ids raise the store's
+        "does not exist", matching ``cancel``/``ensure_query_finished``.
+        """
+        record = self._store.get(query_execution_id)
+        task = self.runner_task(query_execution_id)
+        if task is not None:
+            await task
+        return record
+
     async def _execute(
         self, record: QueryExecutionRecord, first_page: TrinoPage
     ) -> None:

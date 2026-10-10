@@ -62,7 +62,7 @@ def test_completion_stashes_final_page_on_record(
             store=store, client=client, writer=RecordingWriter()
         )
         record = await executor.start(query="SELECT 1", workgroup="primary")
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert record.state == SUCCEEDED
         assert record.result_columns == [
@@ -114,7 +114,7 @@ def test_describe_result_is_cached_in_athena_shape(
                 "UTILITY", "DESCRIBE"
             ),
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert record.state == SUCCEEDED
         assert record.result_columns == [
@@ -169,7 +169,7 @@ def test_ragged_describe_page_fails_execution(
                 "UTILITY", "DESCRIBE"
             ),
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert record.state == FAILED
         assert record.state_change_reason is not None
@@ -206,7 +206,7 @@ def test_rows_landing_on_intermediate_poll_pages_are_carried(
             store=store, client=client, writer=RecordingWriter()
         )
         record = await executor.start(query="SELECT 1", workgroup="primary")
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert record.state == SUCCEEDED
         assert record.result_rows == [[1], [2], [3]]
@@ -245,7 +245,7 @@ def test_submit_page_rows_survive_the_preflight_fetch(
             store=store, client=client, writer=RecordingWriter()
         )
         record = await executor.start(query="SELECT 1", workgroup="primary")
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert record.state == SUCCEEDED
         assert record.result_rows == [[1], [2], [3]]
@@ -277,7 +277,7 @@ def test_semaphore_bounds_concurrency(store: ExecutionStore) -> None:
 
         gate.set()
         await asyncio.gather(
-            *[executor._tasks[r.query_execution_id] for r in records]
+            *(executor.wait_for(r.query_execution_id) for r in records)
         )
 
         assert client.peak_active <= 2
@@ -306,7 +306,7 @@ def test_ensure_query_finished_prefinish_400_parity(
             == "Query has not yet finished. Current state: RUNNING"
         )
         gate.set()
-        await executor._tasks[running.query_execution_id]
+        await executor.wait_for(running.query_execution_id)
         assert (
             executor.ensure_query_finished(running.query_execution_id)
             is running

@@ -128,7 +128,7 @@ def test_start_accepts_database_at_model_max(
             },
         )
         record = store.get(output["QueryExecutionId"])
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
         assert record.database == "x" * 255
 
     asyncio.run(scenario())
@@ -213,7 +213,7 @@ def test_start_accepts_seeded_aws_data_catalog(
         )
 
         record = store.get(output["QueryExecutionId"])
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
         assert record.state == SUCCEEDED
         assert record.catalog == "AwsDataCatalog"
 
@@ -241,7 +241,7 @@ def test_start_accepts_registered_glue_catalog(
         )
 
         record = store.get(output["QueryExecutionId"])
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
         assert record.state == SUCCEEDED
         assert record.catalog == "extra_glue"
 
@@ -353,7 +353,7 @@ def test_start_accepts_execution_parameter_at_model_max(
             },
         )
         record = store.get(output["QueryExecutionId"])
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
         assert record.execution_parameters == ["x" * 1024]
 
     asyncio.run(scenario())
@@ -376,7 +376,7 @@ def test_start_passes_execution_parameters(
         )
 
         record = store.get(output["QueryExecutionId"])
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
         assert record.execution_parameters == ["1"]
 
     asyncio.run(scenario())

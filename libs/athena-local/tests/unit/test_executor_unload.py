@@ -90,7 +90,7 @@ def test_unload_submits_a_ctas_and_drops_the_temp_table(
             database="analytics",
             statement_classification=UNLOAD_CLASSIFICATION,
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         submitted = client.submissions[0][0]
         assert submitted.startswith('CREATE TABLE "analytics"."athena_unload_')
@@ -134,7 +134,7 @@ def test_unload_compression_reaches_trino_as_a_session_property(
             database="db",
             statement_classification=UNLOAD_CLASSIFICATION,
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert client.session_properties_calls == [
             {"hive.compression_codec": "SNAPPY"}
@@ -169,7 +169,7 @@ def test_unload_drop_failure_fails_the_execution(
             database="analytics",
             statement_classification=UNLOAD_CLASSIFICATION,
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         # Consumers must not see SUCCEEDED over a deviating catalog state —
         # the leftover temp table would be visible to SHOW TABLES.
@@ -209,7 +209,7 @@ def test_unload_statement_error_still_drops_the_temp_table(
             database="analytics",
             statement_classification=UNLOAD_CLASSIFICATION,
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert record.state == FAILED
         # A failed CTAS may still have registered the temp table — best-effort
@@ -259,7 +259,7 @@ def test_unload_drop_failure_on_error_exit_keeps_the_engine_reason(
             database="analytics",
             statement_classification=UNLOAD_CLASSIFICATION,
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert record.state == FAILED
         assert "Target directory is not empty" in (
@@ -298,7 +298,7 @@ def test_unload_cancel_still_drops_the_temp_table(
         )
         await asyncio.sleep(0.02)  # polling URI_2 so cancel issues a DELETE
         await executor.cancel(record.query_execution_id)
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert record.state == CANCELLED
         assert snapshotter.drop_calls == [record.unload_cleanup_table]
@@ -349,8 +349,8 @@ def test_unload_cancel_queued_at_the_semaphore_drops_the_temp_table(
         assert client.cancellations == [URI_2]
         gate.set()
         await asyncio.gather(
-            executor._tasks[first.query_execution_id],
-            executor._tasks[queued.query_execution_id],
+            executor.wait_for(first.query_execution_id),
+            executor.wait_for(queued.query_execution_id),
         )
 
         assert queued.state == CANCELLED
@@ -380,7 +380,7 @@ def test_unload_without_snapshotter_fails_before_artifacts(
             database="analytics",
             statement_classification=UNLOAD_CLASSIFICATION,
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert record.state == FAILED
         assert "unload" in record.state_change_reason.lower()
@@ -414,7 +414,7 @@ def test_add_partition_submits_the_register_partition_call(
             workgroup="primary",
             database="analytics",
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert client.submissions == [
             (
@@ -460,7 +460,7 @@ def test_add_partition_if_not_exists_tolerates_already_exists(
             workgroup="primary",
             database="analytics",
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert record.state == SUCCEEDED
         assert record.partition_noop_on_exists is True
@@ -498,7 +498,7 @@ def test_add_partition_without_guard_keeps_already_exists_a_failure(
             workgroup="primary",
             database="analytics",
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert record.state == FAILED
         assert "already registered" in record.state_change_reason

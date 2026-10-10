@@ -211,7 +211,7 @@ def test_unload_cleanup_drops_the_temp_table_off_the_loop() -> None:
             database="analytics",
             statement_classification=UNLOAD_CLASSIFICATION,
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
         return record
 
     record = asyncio.run(scenario())

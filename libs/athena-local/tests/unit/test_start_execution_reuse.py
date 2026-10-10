@@ -76,7 +76,7 @@ def test_start_execute_resolves_and_submits_bound_statement(
         )
 
         record = store.get(output["QueryExecutionId"])
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
         # The bound copy is submitted (record.resolved_statement) while the
         # wire Query keeps the submitted EXECUTE text.
         assert record.query == "EXECUTE \"st\" USING 'Washington'"
@@ -118,7 +118,7 @@ def test_start_execute_missing_statement_is_failed_execution(
         assert record.query == "EXECUTE nope"
         assert record.statement_type == "UTILITY"
         assert record.resolved_statement is None
-        assert record.query_execution_id not in executor._tasks
+        assert executor.runner_task(record.query_execution_id) is None
 
     asyncio.run(scenario())
 
@@ -198,7 +198,7 @@ def test_start_client_request_token_replays_the_original_id(
 
         first = await start_query_execution(executor, workgroups, payload)
         second = await start_query_execution(executor, workgroups, payload)
-        await executor._tasks[first["QueryExecutionId"]]
+        await executor.wait_for(first["QueryExecutionId"])
 
         assert second["QueryExecutionId"] == first["QueryExecutionId"]
         assert len(store.by_id) == 1
@@ -311,7 +311,7 @@ def test_start_accepts_client_request_token_at_model_bounds(
             },
         )
         record = store.get(output["QueryExecutionId"])
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
         assert record.request_token == token
 
     asyncio.run(scenario())
@@ -341,7 +341,7 @@ def test_start_parses_and_echoes_result_reuse_configuration(
             },
         )
         record = store.get(output["QueryExecutionId"])
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         execution = get_query_execution(
             store, {"QueryExecutionId": output["QueryExecutionId"]}
@@ -396,7 +396,7 @@ def test_start_result_reuse_reanswers_the_previous_execution(
         first_id = (
             await start_query_execution(executor, workgroups, request)
         )["QueryExecutionId"]
-        await executor._tasks[first_id]
+        await executor.wait_for(first_id)
 
         second_id = (
             await start_query_execution(executor, workgroups, request)

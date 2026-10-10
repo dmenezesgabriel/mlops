@@ -55,7 +55,7 @@ def test_client_request_token_replays_the_original_execution(
             workgroup="primary",
             client_request_token="token-1",
         )
-        await executor._tasks[first.query_execution_id]
+        await executor.wait_for(first.query_execution_id)
 
         replayed = await executor.start(
             query="SELECT 1",
@@ -97,7 +97,10 @@ def test_concurrent_client_request_token_starts_execute_once(
                 client_request_token="t" * 32,
             ),
         )
-        await asyncio.gather(*list(executor._tasks.values()))
+        await asyncio.gather(
+            executor.wait_for(first.query_execution_id),
+            executor.wait_for(second.query_execution_id),
+        )
 
         assert second is first
         # One submit/preflight and one record — the retry never reached Trino.
@@ -117,12 +120,12 @@ def test_token_submit_lock_entries_drop_after_the_submit(
         executor = QueryExecutor(
             store=store, client=client, writer=RecordingWriter()
         )
-        await executor.start(
+        record = await executor.start(
             query="SELECT 1",
             workgroup="primary",
             client_request_token="t" * 32,
         )
-        await asyncio.gather(*list(executor._tasks.values()))
+        await executor.wait_for(record.query_execution_id)
 
         assert executor._token_submit_locks == {}
         assert executor._token_submit_users == {}
@@ -177,8 +180,8 @@ def test_client_request_token_scopes_to_the_workgroup(
             workgroup="analytics",
             client_request_token="token-1",
         )
-        await executor._tasks[first.query_execution_id]
-        await executor._tasks[second.query_execution_id]
+        await executor.wait_for(first.query_execution_id)
+        await executor.wait_for(second.query_execution_id)
 
         assert second is not first
         assert len(client.submissions) == 2
@@ -232,8 +235,8 @@ def test_requests_without_token_get_distinct_executions(
         )
         first = await executor.start(query="SELECT 1", workgroup="primary")
         second = await executor.start(query="SELECT 1", workgroup="primary")
-        await executor._tasks[first.query_execution_id]
-        await executor._tasks[second.query_execution_id]
+        await executor.wait_for(first.query_execution_id)
+        await executor.wait_for(second.query_execution_id)
 
         assert second.query_execution_id != first.query_execution_id
 
@@ -275,7 +278,7 @@ def test_result_reuse_reanswers_a_recent_identical_execution(
             result_reuse_configuration=ENABLED_REUSE,
             statement_classification=SELECT_CLASSIFICATION,
         )
-        await executor._tasks[first.query_execution_id]
+        await executor.wait_for(first.query_execution_id)
 
         second = await executor.start(
             query="SELECT 7",
@@ -295,7 +298,7 @@ def test_result_reuse_reanswers_a_recent_identical_execution(
             second._result_output_location() == first._result_output_location()
         )
         assert len(client.submissions) == 1
-        assert second.query_execution_id not in executor._tasks
+        assert executor.runner_task(second.query_execution_id) is None
 
     asyncio.run(scenario())
 
@@ -317,7 +320,7 @@ def test_result_reuse_runs_fresh_when_disabled(
             result_reuse_configuration=disabled,
             statement_classification=SELECT_CLASSIFICATION,
         )
-        await executor._tasks[first.query_execution_id]
+        await executor.wait_for(first.query_execution_id)
 
         second = await executor.start(
             query="SELECT 1",
@@ -325,7 +328,7 @@ def test_result_reuse_runs_fresh_when_disabled(
             result_reuse_configuration=disabled,
             statement_classification=SELECT_CLASSIFICATION,
         )
-        await executor._tasks[second.query_execution_id]
+        await executor.wait_for(second.query_execution_id)
 
         assert second.reused_previous_result is False
         assert len(client.submissions) == 2
@@ -349,7 +352,7 @@ def test_result_reuse_ignores_results_older_than_max_age(
             result_reuse_configuration=ENABLED_REUSE,
             statement_classification=SELECT_CLASSIFICATION,
         )
-        await executor._tasks[first.query_execution_id]
+        await executor.wait_for(first.query_execution_id)
         assert first.completion_time is not None
         first.completion_time -= 120
 
@@ -361,7 +364,7 @@ def test_result_reuse_ignores_results_older_than_max_age(
             ),
             statement_classification=SELECT_CLASSIFICATION,
         )
-        await executor._tasks[second.query_execution_id]
+        await executor.wait_for(second.query_execution_id)
 
         assert second.reused_previous_result is False
         assert len(client.submissions) == 2
@@ -392,7 +395,7 @@ def test_result_reuse_skips_non_select_and_managed_submissions(
             result_reuse_configuration=ENABLED_REUSE,
             statement_classification=SELECT_CLASSIFICATION,
         )
-        await executor._tasks[source.query_execution_id]
+        await executor.wait_for(source.query_execution_id)
 
         insert = await executor.start(
             query="SELECT 1",
@@ -402,7 +405,7 @@ def test_result_reuse_skips_non_select_and_managed_submissions(
                 statement_type="DML", substatement_type="INSERT"
             ),
         )
-        await executor._tasks[insert.query_execution_id]
+        await executor.wait_for(insert.query_execution_id)
         managed = await executor.start(
             query="SELECT 1",
             workgroup="managed",
@@ -410,7 +413,7 @@ def test_result_reuse_skips_non_select_and_managed_submissions(
             result_reuse_configuration=ENABLED_REUSE,
             statement_classification=SELECT_CLASSIFICATION,
         )
-        await executor._tasks[managed.query_execution_id]
+        await executor.wait_for(managed.query_execution_id)
 
         assert insert.reused_previous_result is False
         assert managed.reused_previous_result is False
@@ -433,7 +436,7 @@ def test_result_reuse_reports_no_reuse_without_a_prior_match(
             result_reuse_configuration=ENABLED_REUSE,
             statement_classification=SELECT_CLASSIFICATION,
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert record.state == SUCCEEDED
         assert record.reused_previous_result is False

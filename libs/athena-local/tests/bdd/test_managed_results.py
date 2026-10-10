@@ -138,8 +138,7 @@ def _start_without_location(outcome: ManagedResultsOutcome) -> None:
             outcome.workgroups,
             {"QueryString": "SELECT 1", "WorkGroup": "managed"},
         )
-        record = outcome.store.get(output["QueryExecutionId"])
-        await outcome.executor._tasks[record.query_execution_id]
+        await outcome.executor.wait_for(output["QueryExecutionId"])
         outcome.query_execution_id = output["QueryExecutionId"]
 
     asyncio.run(scenario())

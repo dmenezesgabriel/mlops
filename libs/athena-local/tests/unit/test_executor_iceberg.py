@@ -59,7 +59,7 @@ def test_iceberg_create_submits_against_the_dedicated_catalog(
             workgroup="primary",
             database="analytics",
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert client.submissions == [
             (
@@ -103,7 +103,7 @@ def test_iceberg_merge_routes_only_the_iceberg_reference(
             workgroup="primary",
             database="analytics",
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert client.submissions == [
             (
@@ -148,7 +148,7 @@ def test_hive_statement_is_untouched_when_probe_finds_no_iceberg(
             workgroup="primary",
             database="analytics",
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert client.submissions == [
             (

@@ -61,7 +61,7 @@ def test_insert_start_captures_snapshot_before_submit(
             database="analytics",
             statement_classification=classification,
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         # Capture ran pre-submit and the writer received the snapshot for its
         # diff; the record itself no longer holds the (possibly large) key set.
@@ -109,7 +109,7 @@ def test_terminal_execution_releases_the_manifest_snapshot(
             workgroup="primary",
             statement_classification=StatementClassification("DML", "INSERT"),
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert record.state == SUCCEEDED
         assert writer.snapshots == [snapshot]
@@ -140,7 +140,7 @@ def test_insert_unresolvable_target_marks_the_record(
             workgroup="primary",
             statement_classification=classification,
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         # Capture leaves a reason instead of failing submit, so Trino's own
         # analysis error surfaces first when the target truly is missing.
@@ -174,7 +174,7 @@ def test_non_insert_statements_skip_the_snapshotter(
             workgroup="primary",
             statement_classification=StatementClassification("DML", "SELECT"),
         )
-        await executor._tasks[select_record.query_execution_id]
+        await executor.wait_for(select_record.query_execution_id)
         ctas_record = await executor.start(
             query="CREATE TABLE t AS SELECT 1 AS a",
             workgroup="primary",
@@ -182,7 +182,7 @@ def test_non_insert_statements_skip_the_snapshotter(
                 "DDL", "CREATE_TABLE_AS_SELECT"
             ),
         )
-        await executor._tasks[ctas_record.query_execution_id]
+        await executor.wait_for(ctas_record.query_execution_id)
 
         assert snapshotter.calls == []
         assert select_record.output_snapshot is None
@@ -206,7 +206,7 @@ def test_insert_without_snapshotter_flags_the_record(
             workgroup="primary",
             statement_classification=classification,
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert record.output_snapshot is None
         assert record.manifest_target_error == (
@@ -242,7 +242,7 @@ def test_start_skips_trino_and_fails_on_resolution_failure(
         assert record.statement_type == "UTILITY"
         assert record.resolved_statement is None
         assert client.submissions == []
-        assert record.query_execution_id not in executor._tasks
+        assert executor.runner_task(record.query_execution_id) is None
 
     asyncio.run(scenario())
 
@@ -265,7 +265,7 @@ def test_start_submits_dialect_mapped_create_database(
                 "DDL", "CREATE_DATABASE"
             ),
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert client.submissions == [
             (
@@ -300,7 +300,7 @@ def test_start_submits_msck_as_sync_partition_metadata(
             workgroup="primary",
             database="analytics",
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert client.submissions == [
             (
@@ -334,7 +334,7 @@ def test_start_submits_show_partitions_as_partitions_read(
             workgroup="primary",
             database="analytics",
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert client.submissions == [
             (
@@ -368,7 +368,7 @@ def test_start_submits_external_table_as_create_table_with(
             workgroup="primary",
             database="analytics",
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert client.submissions == [
             (
@@ -404,7 +404,7 @@ def test_start_submits_resolved_statement_instead_of_query(
             statement_classification=StatementClassification("DML", "SELECT"),
             resolved_statement=resolved,
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         # The bound copy of the stored statement — never the EXECUTE text —
         # goes on the wire, because Trino has no prepared-statement
@@ -444,7 +444,7 @@ def test_insert_execute_captures_manifest_from_resolved_statement(
             statement_classification=StatementClassification("DML", "INSERT"),
             resolved_statement=resolved,
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         # Manifest capture inspects the resolved statement: the submitted
         # EXECUTE text carries no target table to snapshot.

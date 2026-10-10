@@ -17,6 +17,7 @@ from athena_local.errors import (
 )
 from athena_local.executions import (
     FAILED,
+    QUEUED,
     SUCCEEDED,
     ExecutionStore,
 )
@@ -28,10 +29,12 @@ from athena_local.trino_client import (
     TrinoQueryError,
     TrinoTransportError,
 )
+from tests.unit._execution_fakes import started_execution
 from tests.unit._executor_fakes import (
     URI_1,
     URI_2,
     FailingWriter,
+    GatedStatementClient,
     RecordingWriter,
     ScriptedStatementClient,
     result_page,
@@ -65,7 +68,7 @@ def test_happy_path_polls_and_succeeds(store: ExecutionStore) -> None:
         )
         executor = QueryExecutor(store=store, client=client, writer=writer)
         record = await executor.start(query="SELECT 1", workgroup="primary")
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert client.submissions == [
             ("SELECT 1", TRINO_CATALOG, "", TRINO_USER)
@@ -103,7 +106,7 @@ def test_managed_execution_completes_without_writing_artifacts(
         record = await executor.start(
             query="SELECT 1", workgroup="managed", managed_results=True
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert record.state == SUCCEEDED
         assert record.result_configuration is None
@@ -132,7 +135,7 @@ def test_start_records_statement_classification(
             workgroup="primary",
             statement_classification=classification,
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert record.statement_type == "DDL"
         assert record.substatement_type == "CREATE_TABLE_AS_SELECT"
@@ -151,7 +154,7 @@ def test_happy_path_submits_with_database_schema(
         record = await executor.start(
             query="SELECT 1", workgroup="primary", database="analytics"
         )
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert client.submissions == [
             ("SELECT 1", TRINO_CATALOG, "analytics", TRINO_USER)
@@ -174,7 +177,7 @@ def test_submit_transport_error_marks_failed(store: ExecutionStore) -> None:
         assert record.state == FAILED
         assert "connection refused" in record.state_change_reason or ""
         # No background task exists: the preflight failure is already terminal.
-        assert record.query_execution_id not in executor._tasks
+        assert executor.runner_task(record.query_execution_id) is None
 
     asyncio.run(scenario())
 
@@ -193,7 +196,7 @@ def test_fetch_transport_error_marks_failed(store: ExecutionStore) -> None:
 
         assert record.state == FAILED
         assert "read timeout" in record.state_change_reason or ""
-        assert record.query_execution_id not in executor._tasks
+        assert executor.runner_task(record.query_execution_id) is None
 
     asyncio.run(scenario())
 
@@ -219,13 +222,13 @@ def test_poll_fetch_transport_error_marks_failed(
             store=store, client=client, writer=RecordingWriter()
         )
         record = await executor.start(query="SELECT 1", workgroup="primary")
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert record.state == FAILED
         assert "Trino unreachable" in (record.state_change_reason or "")
         # URI_1 was the healthy preflight fetch; only the poll fetch broke.
         assert client.fetches == [URI_1, URI_2]
-        assert record.query_execution_id not in executor._tasks
+        assert executor.runner_task(record.query_execution_id) is None
 
     asyncio.run(scenario())
 
@@ -287,7 +290,7 @@ def test_preflight_forwards_analysis_error_to_failed_reason(
             store=store, client=client, writer=RecordingWriter()
         )
         record = await executor.start(query="SELECT nope", workgroup="primary")
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         # Analysis errors are real-Athena execution failures: the start
         # succeeds and the FAILED StateChangeReason carries the Trino text
@@ -314,11 +317,100 @@ def test_writer_failure_marks_failed_not_succeeded(
             store=store, client=client, writer=FailingWriter()
         )
         record = await executor.start(query="SELECT 1", workgroup="primary")
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert record.state == FAILED
         assert "moto S3 refused put_object" in (
             record.state_change_reason or ""
         )
+
+    asyncio.run(scenario())
+
+
+def test_wait_for_returns_the_finished_record(
+    store: ExecutionStore,
+) -> None:
+    async def scenario() -> None:
+        client = ScriptedStatementClient([result_page(next_uri=None)])
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        record = await executor.start(query="SELECT 1", workgroup="primary")
+
+        waited = await executor.wait_for(record.query_execution_id)
+
+        assert waited is record
+        assert record.state == SUCCEEDED
+
+    asyncio.run(scenario())
+
+
+def test_wait_for_returns_a_never_dispatched_record(
+    store: ExecutionStore,
+) -> None:
+    """A record with no runner comes back at once.
+
+    A faked QUEUED record has no task and none is coming — a seam that
+    waited for "terminal" would hang where awaiting the (absent) runner
+    returns the record as it stands.
+    """
+
+    async def scenario() -> None:
+        executor = QueryExecutor(
+            store=store,
+            client=ScriptedStatementClient([]),
+            writer=RecordingWriter(),
+        )
+        record = started_execution(
+            store, query="SELECT 1", workgroup="primary"
+        )
+
+        waited = await executor.wait_for(record.query_execution_id)
+
+        assert waited is record
+        assert record.state == QUEUED
+
+    asyncio.run(scenario())
+
+
+def test_wait_for_unknown_execution_raises(
+    store: ExecutionStore,
+) -> None:
+    async def scenario() -> None:
+        executor = QueryExecutor(
+            store=store,
+            client=ScriptedStatementClient([]),
+            writer=RecordingWriter(),
+        )
+
+        with pytest.raises(InvalidRequestException, match="does not exist"):
+            await executor.wait_for("no-such-execution")
+
+    asyncio.run(scenario())
+
+
+def test_runner_task_tracks_the_in_flight_runner(
+    store: ExecutionStore,
+) -> None:
+    async def scenario() -> None:
+        gate = asyncio.Event()
+        executor = QueryExecutor(
+            store=store,
+            client=GatedStatementClient(gate),
+            writer=RecordingWriter(),
+        )
+        record = await executor.start(query="SELECT 1", workgroup="primary")
+        await asyncio.sleep(0.02)  # runner parked inside the gated poll
+
+        runner = executor.runner_task(record.query_execution_id)
+
+        assert runner is not None
+        assert not runner.done()
+
+        gate.set()
+        await executor.wait_for(record.query_execution_id)
+        await asyncio.sleep(0)  # let the done callback reap the entry
+
+        assert executor.runner_task(record.query_execution_id) is None
 
     asyncio.run(scenario())

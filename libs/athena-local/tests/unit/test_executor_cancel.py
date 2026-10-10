@@ -78,8 +78,8 @@ def test_cancel_queued_execution_parks_at_the_semaphore(
         assert client.cancellations == [URI_2]
         gate.set()
         await asyncio.gather(
-            executor._tasks[first.query_execution_id],
-            executor._tasks[queued.query_execution_id],
+            executor.wait_for(first.query_execution_id),
+            executor.wait_for(queued.query_execution_id),
         )
         assert client.submission_count == 2
         assert client.peak_active == 1
@@ -108,7 +108,7 @@ def test_cancel_running_execution_deletes_statement(
         await asyncio.sleep(0.02)  # preflight done, now polling URI_2
 
         cancelled = await executor.cancel(record.query_execution_id)
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert cancelled.state == CANCELLED
         # The DELETE targets the active nextUri, which after the preflight
@@ -136,7 +136,7 @@ def test_canceled_then_fetch_error_stays_cancelled(
         await asyncio.sleep(0.02)  # actively waiting on fetch_next(URI_2)
 
         await executor.cancel(record.query_execution_id)
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert record.state == CANCELLED  # transport error must not win
 
@@ -170,7 +170,7 @@ def test_cancel_mid_poll_stops_fetching(
         await asyncio.sleep(0.02)  # actively inside fetch_next(URI_2)
 
         await executor.cancel(record.query_execution_id)
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert record.state == CANCELLED
         # fetch(URI_2) returned the URI_3 page after the cancel landed; the
@@ -233,7 +233,7 @@ def test_cancel_survives_trino_down_on_delete(
         await asyncio.sleep(0.02)  # polling URI_2 so cancel issues a DELETE
 
         cancelled = await executor.cancel(record.query_execution_id)
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
 
         assert cancelled.state == CANCELLED  # DELETE failure is best-effort
         assert record.state == CANCELLED
@@ -256,19 +256,18 @@ def test_cancel_during_artifact_write_aborts_the_write(
         )
         executor = QueryExecutor(store=store, client=client, writer=writer)
         record = await executor.start(query="SELECT 1", workgroup="primary")
-        task = executor._tasks[record.query_execution_id]
         await asyncio.sleep(
             0.02
         )  # statement finished; the task is parked inside the write
 
         cancelled = await executor.cancel(record.query_execution_id)
         write_gate.set()
-        await task
+        await executor.wait_for(record.query_execution_id)
 
         assert cancelled.state == CANCELLED
         # The aborted write never produced artifacts for the cancelled record.
         assert writer.calls == []
-        assert executor._write_tasks == {}
+        assert executor.write_task(record.query_execution_id) is None
 
     asyncio.run(scenario())
 
@@ -287,9 +286,8 @@ def test_completed_write_during_cancel_keeps_record_cancelled(
         )
         executor = QueryExecutor(store=store, client=client, writer=writer)
         record = await executor.start(query="SELECT 1", workgroup="primary")
-        task = executor._tasks[record.query_execution_id]
 
-        await task
+        await executor.wait_for(record.query_execution_id)
 
         assert writer.calls == ["write:RUNNING"]
         assert record.state == CANCELLED
@@ -312,9 +310,8 @@ def test_artifact_failure_while_cancelled_stays_cancelled(
         )
         executor = QueryExecutor(store=store, client=client, writer=writer)
         record = await executor.start(query="SELECT 1", workgroup="primary")
-        task = executor._tasks[record.query_execution_id]
 
-        await task
+        await executor.wait_for(record.query_execution_id)
 
         assert writer.calls == ["write:RUNNING"]
         assert record.state == CANCELLED
@@ -342,11 +339,11 @@ def test_unexpected_task_failure_is_logged(
         executor = QueryExecutor(store=store, client=client, writer=writer)
         record = await executor.start(query="SELECT 1", workgroup="primary")
         execution_id = record.query_execution_id
-        task = executor._tasks[record.query_execution_id]
 
         with pytest.raises(RuntimeError, match="writer exploded"):
-            await task
-        assert executor._tasks == {}
+            await executor.wait_for(record.query_execution_id)
+        await asyncio.sleep(0)  # let the done callback reap the entry
+        assert executor.runner_task(record.query_execution_id) is None
 
     asyncio.run(scenario())
 
@@ -370,16 +367,17 @@ def test_external_runner_cancel_reraises_and_reaps_quietly(
             writer=GatedWriter(asyncio.Event()),
         )
         record = await executor.start(query="SELECT 1", workgroup="primary")
-        task = executor._tasks[record.query_execution_id]
         await asyncio.sleep(0.02)  # parked inside the artifact write
 
-        task.cancel()
+        runner = executor.runner_task(record.query_execution_id)
+        assert runner is not None
+        runner.cancel()
         with pytest.raises(asyncio.CancelledError):
-            await task
+            await executor.wait_for(record.query_execution_id)
         await asyncio.sleep(0)  # let the done callback reap
 
         assert record.state == RUNNING
-        assert executor._tasks == {}
+        assert executor.runner_task(record.query_execution_id) is None
 
     asyncio.run(scenario())
 

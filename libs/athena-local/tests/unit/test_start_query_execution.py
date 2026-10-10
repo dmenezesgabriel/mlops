@@ -79,7 +79,7 @@ def test_start_returns_id_and_stores_request(
         )
 
         record = store.get(output["QueryExecutionId"])
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
         assert output["QueryExecutionId"] == record.query_execution_id
         assert record.query == "SELECT 1"
         assert record.workgroup == "primary"
@@ -110,7 +110,7 @@ def test_start_unquotes_quoted_database_context(
         )
 
         record = store.get(output["QueryExecutionId"])
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
         assert record.database == "analytics"
 
     asyncio.run(scenario())
@@ -132,7 +132,7 @@ def test_start_defaults_to_primary_workgroup(
         )
 
         record = store.get(output["QueryExecutionId"])
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
         assert record.workgroup == "primary"
 
     asyncio.run(scenario())
@@ -175,7 +175,7 @@ def test_start_accepts_query_string_at_model_maximum(
             },
         )
 
-        await executor._tasks[output["QueryExecutionId"]]
+        await executor.wait_for(output["QueryExecutionId"])
         assert store.get(output["QueryExecutionId"]).state == SUCCEEDED
 
     asyncio.run(scenario())
@@ -214,8 +214,8 @@ def test_get_query_execution_reports_classified_statement_types(
                 },
             )
         )["QueryExecutionId"]
-        await executor._tasks[select_id]
-        await executor._tasks[ctas_id]
+        await executor.wait_for(select_id)
+        await executor.wait_for(ctas_id)
 
         select_payload = get_query_execution(
             store, {"QueryExecutionId": select_id}
@@ -254,7 +254,7 @@ def test_parenthesized_query_reports_dml_and_csv_output(
                 },
             )
         )["QueryExecutionId"]
-        await executor._tasks[query_id]
+        await executor.wait_for(query_id)
 
         payload = get_query_execution(store, {"QueryExecutionId": query_id})[
             "QueryExecution"
@@ -292,7 +292,7 @@ def test_start_falls_back_to_workgroup_output_location(
         )
 
         record = store.get(output["QueryExecutionId"])
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
         assert record.result_configuration == ResultConfiguration(
             output_location="s3://wg-bucket/out/"
         )
@@ -331,7 +331,7 @@ def test_start_enforced_workgroup_wins_over_request_location(
         )
 
         record = store.get(output["QueryExecutionId"])
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
         assert record.result_configuration == ResultConfiguration(
             output_location="s3://wg/forced/"
         )
@@ -430,7 +430,7 @@ def test_start_managed_workgroup_accepts_no_output_location(
         )
 
         record = store.get(output["QueryExecutionId"])
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
         assert record.state == SUCCEEDED
         # Managed executions store an empty ResultConfiguration so the wire
         # still reports the member while carrying no OutputLocation (the
@@ -472,7 +472,7 @@ def test_start_managed_workgroup_ignores_request_output_location(
         )
 
         record = store.get(output["QueryExecutionId"])
-        await executor._tasks[record.query_execution_id]
+        await executor.wait_for(record.query_execution_id)
         # A request-carried ResultConfiguration never overrides Athena-owned
         # storage: the stored configuration stays empty.
         assert record.result_configuration == ResultConfiguration()
