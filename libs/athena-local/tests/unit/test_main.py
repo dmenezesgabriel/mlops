@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 
+import athena_local.main as main_module
 import pytest
 from athena_local.dispatch import implemented_operations, operation_names
 from athena_local.executions import ExecutionStore
@@ -27,6 +28,8 @@ from athena_local.main import (
     reset_query_plane,
     workgroup_store,
 )
+from athena_local.s3_writer import S3Writer
+from athena_local.trino_client import TrinoClient
 from fastapi.testclient import TestClient
 from tests.unit._execution_fakes import started_execution
 
@@ -51,6 +54,33 @@ def _reset_workgroups() -> Iterator[None]:
     workgroup_store.reset()
     yield
     workgroup_store.reset()
+
+
+@pytest.fixture()
+def recorded_factories(
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, list[str]]:
+    """Record the URLs ``build_query_executor`` hands its boundary factories.
+
+    The wiring contract is "the resolved endpoint reached the factory" — a
+    public seam — so wiring tests spy there instead of pinning private
+    attribute shape several levels inside the composed executor.
+    """
+    recorded: dict[str, list[str]] = {"trino": [], "s3": []}
+    real_trino = main_module.create_trino_client
+    real_s3 = S3Writer.for_endpoint
+
+    def recording_trino(base_url: str) -> TrinoClient:
+        recorded["trino"].append(base_url)
+        return real_trino(base_url)
+
+    def recording_s3(endpoint_url: str) -> S3Writer:
+        recorded["s3"].append(endpoint_url)
+        return real_s3(endpoint_url)
+
+    monkeypatch.setattr(main_module, "create_trino_client", recording_trino)
+    monkeypatch.setattr(S3Writer, "for_endpoint", staticmethod(recording_s3))
+    return recorded
 
 
 def test_health_endpoint_reports_ok(client: TestClient) -> None:
@@ -394,31 +424,34 @@ def test_composition_root_registers_all_query_plane_operations() -> None:
 
 def test_build_query_executor_reads_endpoints_from_the_environment(
     monkeypatch: pytest.MonkeyPatch,
+    recorded_factories: dict[str, list[str]],
 ) -> None:
     monkeypatch.setenv(TRINO_URL_ENV, "http://trino:9999")
     monkeypatch.setenv("ATHENA_MOTO_ENDPOINT_URL", "http://moto:9998")
 
-    executor = build_query_executor(ExecutionStore())
+    build_query_executor(ExecutionStore())
 
-    assert executor._client._statement_url == "http://trino:9999/v1/statement"
-    assert executor._writer._s3._client.meta.endpoint_url == "http://moto:9998"
+    assert recorded_factories["trino"] == ["http://trino:9999"]
+    assert recorded_factories["s3"] == [
+        "http://moto:9998",
+        "http://moto:9998",
+    ]
 
 
 def test_build_query_executor_uses_compose_default_endpoints(
     monkeypatch: pytest.MonkeyPatch,
+    recorded_factories: dict[str, list[str]],
 ) -> None:
     monkeypatch.delenv(TRINO_URL_ENV, raising=False)
     monkeypatch.delenv("ATHENA_MOTO_ENDPOINT_URL", raising=False)
 
-    executor = build_query_executor(ExecutionStore())
+    build_query_executor(ExecutionStore())
 
-    assert (
-        executor._client._statement_url == "http://localhost:8485/v1/statement"
-    )
-    assert (
-        executor._writer._s3._client.meta.endpoint_url
-        == "http://127.0.0.1:5000"
-    )
+    assert recorded_factories["trino"] == ["http://localhost:8485"]
+    assert recorded_factories["s3"] == [
+        "http://127.0.0.1:5000",
+        "http://127.0.0.1:5000",
+    ]
 
 
 def test_reset_query_plane_clears_executions_and_rebinds_handlers() -> None:

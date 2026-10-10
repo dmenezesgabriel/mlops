@@ -477,13 +477,22 @@ def test_drop_table_deletes_the_catalog_entry() -> None:
     assert client.tables["analytics"] == []
 
 
-def test_drop_table_missing_entry_is_already_clean() -> None:
+def test_drop_table_missing_entry_attempts_delete_and_swallows() -> None:
+    """A missing Glue entry still issues DeleteTable; not-found is ignored.
+
+    The cleanup always calls the Glue boundary — ``MetadataException``
+    (EntityNotFoundException over the wire) means the entry was already
+    gone, so the swallowed attempt is the designed idempotence, not a
+    skip-lookup.
+    """
+    client = FakeGlueClient(tables={"analytics": []})
     snapshotter = OutputSnapshotter(
-        GlueProxy(FakeGlueClient(tables={"analytics": []})),
-        S3Writer(RecordingObjectStore()),
+        GlueProxy(client), S3Writer(RecordingObjectStore())
     )
 
-    snapshotter.drop_table("analytics", "gone")  # idempotent — no raise
+    snapshotter.drop_table("analytics", "gone")
+
+    assert client.delete_table_calls == [("analytics", "gone")]
 
 
 class _BrokenDeleteGlueClient(FakeGlueClient):
