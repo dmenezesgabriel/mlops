@@ -87,7 +87,6 @@ class ManifestSnapshotSource(Protocol):
         self,
         query: str,
         database: str | None,
-        catalog: str | None,
         substatement_type: str | None,
     ) -> OutputSnapshot | None: ...
 
@@ -250,7 +249,6 @@ class SubmissionPlanner:
         snapshot, capture_error = await self._capture_manifest(
             submit_query,
             request.database,
-            request.catalog,
             request.statement_classification,
         )
         verdict = await self._preflight(
@@ -388,7 +386,6 @@ class SubmissionPlanner:
         self,
         query: str,
         database: str | None,
-        catalog: str | None,
         classification: StatementClassification | None,
     ) -> tuple[OutputSnapshot | None, str | None]:
         """Snapshot INSERT/UNLOAD write targets before the statement is submitted.
@@ -415,7 +412,7 @@ class SubmissionPlanner:
             )
         try:
             snapshot = await self._snapshotter.capture(
-                query, database, catalog, substatement_type
+                query, database, substatement_type
             )
         except ManifestTargetError as error:
             return None, str(error)

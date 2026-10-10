@@ -150,9 +150,7 @@ def _call(outcome: QueryResultsOutcome, members: dict[str, object]) -> None:
     }
     payload.update(members)
     try:
-        outcome.response = get_query_results(
-            outcome.store, outcome.executor, payload
-        )
+        outcome.response = get_query_results(outcome.executor, payload)
     except InvalidRequestException as error:
         outcome.error = error
 

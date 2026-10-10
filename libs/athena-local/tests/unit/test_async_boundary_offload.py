@@ -137,7 +137,7 @@ def test_capture_runs_blocking_boundary_reads_off_the_loop() -> None:
 
     async def scenario() -> None:
         snapshot = await snapshotter.capture(
-            INSERT_QUERY, "analytics", None, "INSERT"
+            INSERT_QUERY, "analytics", "INSERT"
         )
         assert snapshot is not None
 
@@ -165,7 +165,7 @@ def test_capture_leaves_the_event_loop_free_to_tick() -> None:
                 ticks += 1
 
         ticker_task = asyncio.create_task(ticker())
-        await snapshotter.capture(INSERT_QUERY, "analytics", None, "INSERT")
+        await snapshotter.capture(INSERT_QUERY, "analytics", "INSERT")
         running = False
         await ticker_task
         return ticks

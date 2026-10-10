@@ -165,7 +165,6 @@ def _no_output_location(outcome: ManagedResultsOutcome) -> None:
 @then("GetQueryResults serves the inline rows")
 def _inline_rows(outcome: ManagedResultsOutcome) -> None:
     result_set = get_query_results(
-        outcome.store,
         outcome.executor,
         {"QueryExecutionId": _execution_id(outcome)},
     )["ResultSet"]

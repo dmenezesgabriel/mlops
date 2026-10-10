@@ -32,7 +32,6 @@ DEFAULT_MAX_RESULTS = 1000
 
 
 def get_query_results(
-    store: ExecutionStore,
     executor: QueryExecutor,
     payload: dict[str, object] | None,
 ) -> dict[str, object]:

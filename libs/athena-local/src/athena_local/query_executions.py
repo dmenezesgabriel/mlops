@@ -400,7 +400,7 @@ def register_query_execution_handlers(
     )
     register_handler(
         "GetQueryResults",
-        lambda payload: get_query_results(store, executor, payload),
+        lambda payload: get_query_results(executor, payload),
     )
     register_handler(
         "GetQueryRuntimeStatistics",

@@ -255,7 +255,6 @@ class RecordingSnapshotter:
         self,
         query: str,
         database: str | None,
-        catalog: str | None,
         substatement_type: str | None,
     ) -> OutputSnapshot | None:
         self.calls.append((query, substatement_type))

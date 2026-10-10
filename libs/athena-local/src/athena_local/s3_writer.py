@@ -21,6 +21,12 @@ from typing import Protocol, cast
 from botocore.exceptions import BotoCoreError, ClientError
 from botocore.session import Session
 
+from athena_local.boundary_helpers import (
+    error_code,
+    object_entries,
+    string_member,
+)
+
 S3_REGION = "us-east-1"
 S3_ACCESS_KEY_ID = "test"
 S3_SECRET_ACCESS_KEY = "test"
@@ -95,13 +101,15 @@ class S3Writer:
         continuation_token: str | None = None
         while True:
             response = self._list_page(bucket, key, continuation_token)
-            for item in _objects(response, "Contents"):
-                object_key = _string(item, "Key")
+            for item in object_entries(response, "Contents"):
+                object_key = string_member(item, "Key")
                 if object_key is not None and not object_key.endswith("/"):
                     paths.append(f"s3://{bucket}/{object_key}")
             if response.get("IsTruncated") is not True:
                 return paths
-            continuation_token = _string(response, "NextContinuationToken")
+            continuation_token = string_member(
+                response, "NextContinuationToken"
+            )
             if continuation_token is None:
                 # Truncation without a token would loop forever; the listing
                 # contract is broken, so fail rather than spin.
@@ -144,7 +152,7 @@ class S3Writer:
         except ClientError as error:
             raise S3WriterError(
                 f"S3 {operation} failed with error code "
-                f"{_error_code(error)}: {error}"
+                f"{error_code(error)}: {error}"
             ) from error
         except BotoCoreError as error:
             raise S3WriterError(
@@ -163,33 +171,3 @@ def _split_s3_path(path: str) -> tuple[str, str]:
     if not bucket:
         raise S3WriterError(f"S3 URI {path!r} has no bucket")
     return bucket, key
-
-
-def _error_code(error: ClientError) -> str:
-    # ClientError.response is untyped upstream; re-anchor it to the JSON
-    # object shape the wire parser actually produces.
-    response: object = getattr(error, "response", None)
-    if not isinstance(response, dict):
-        return ""
-    raw = cast(dict[str, object], response).get("Error")
-    if not isinstance(raw, dict):
-        return ""
-    code = cast(dict[str, object], raw).get("Code")
-    return code if isinstance(code, str) else ""
-
-
-def _objects(response: dict[str, object], key: str) -> list[dict[str, object]]:
-    raw = response.get(key)
-    if not isinstance(raw, list):
-        return []
-    entries: list[object] = raw
-    return [
-        cast(dict[str, object], item)
-        for item in entries
-        if isinstance(item, dict)
-    ]
-
-
-def _string(record: dict[str, object], key: str) -> str | None:
-    raw = record.get(key)
-    return raw if isinstance(raw, str) else None

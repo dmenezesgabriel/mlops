@@ -67,7 +67,7 @@ def test_get_results_pre_finish_is_shaped_400(
 
     with pytest.raises(InvalidRequestException) as error:
         get_query_results(
-            store, executor, {"QueryExecutionId": record.query_execution_id}
+            executor, {"QueryExecutionId": record.query_execution_id}
         )
 
     assert "Current state: RUNNING" in str(error.value)
@@ -86,7 +86,7 @@ def test_get_results_succeeded_returns_header_and_rows(
     record.transition_to(SUCCEEDED)
 
     output = get_query_results(
-        store, executor, {"QueryExecutionId": record.query_execution_id}
+        executor, {"QueryExecutionId": record.query_execution_id}
     )
 
     result_set = output["ResultSet"]
@@ -142,7 +142,7 @@ def test_get_results_serializes_cell_types_to_varchar_value(
     )
 
     output = get_query_results(
-        store, executor, {"QueryExecutionId": record.query_execution_id}
+        executor, {"QueryExecutionId": record.query_execution_id}
     )
 
     # Numbers, decimals, dates and timestamps travel as plain strings while
@@ -173,7 +173,7 @@ def test_get_results_json_encodes_complex_cells(
     )
 
     output = get_query_results(
-        store, executor, {"QueryExecutionId": record.query_execution_id}
+        executor, {"QueryExecutionId": record.query_execution_id}
     )
 
     # Array/map cells render the JSON real Athena emits in VarCharValue
@@ -196,7 +196,7 @@ def test_get_results_null_cells_omit_varchar_value_key(
     )
 
     output = get_query_results(
-        store, executor, {"QueryExecutionId": record.query_execution_id}
+        executor, {"QueryExecutionId": record.query_execution_id}
     )
 
     # The service model makes Datum.VarCharValue optional, so a null cell
@@ -215,7 +215,7 @@ def test_get_results_failed_execution_returns_empty_result_set(
     record.transition_to(FAILED, reason="syntax error")
 
     output = get_query_results(
-        store, executor, {"QueryExecutionId": record.query_execution_id}
+        executor, {"QueryExecutionId": record.query_execution_id}
     )
 
     assert output["ResultSet"]["Rows"] == []
@@ -236,7 +236,7 @@ def test_get_results_zero_column_result_set_has_no_header_row(
     record.transition_to(SUCCEEDED)
 
     output = get_query_results(
-        store, executor, {"QueryExecutionId": record.query_execution_id}
+        executor, {"QueryExecutionId": record.query_execution_id}
     )
 
     assert output["ResultSet"]["Rows"] == []
@@ -249,7 +249,7 @@ def test_get_results_unknown_execution_is_shaped_error(
     workgroups: WorkGroupStore,
 ) -> None:
     with pytest.raises(InvalidRequestException, match="does not exist"):
-        get_query_results(store, executor, {"QueryExecutionId": "missing"})
+        get_query_results(executor, {"QueryExecutionId": "missing"})
 
 
 def test_get_results_paginates_with_header_only_on_first_page(
@@ -260,7 +260,6 @@ def test_get_results_paginates_with_header_only_on_first_page(
     record = succeeded_result(store, [[str(n)] for n in range(1, 6)])
 
     first = get_query_results(
-        store,
         executor,
         {
             "QueryExecutionId": record.query_execution_id,
@@ -278,7 +277,6 @@ def test_get_results_paginates_with_header_only_on_first_page(
     assert first["NextToken"] == "2"
 
     second = get_query_results(
-        store,
         executor,
         {
             "QueryExecutionId": record.query_execution_id,
@@ -293,7 +291,6 @@ def test_get_results_paginates_with_header_only_on_first_page(
     assert second["NextToken"] == "4"
 
     third = get_query_results(
-        store,
         executor,
         {
             "QueryExecutionId": record.query_execution_id,
@@ -313,7 +310,7 @@ def test_get_results_single_page_when_all_rows_fit(
     record = succeeded_result(store, [["1"], ["2"]])
 
     output = get_query_results(
-        store, executor, {"QueryExecutionId": record.query_execution_id}
+        executor, {"QueryExecutionId": record.query_execution_id}
     )
 
     assert output["ResultSet"]["ResultSetMetadata"] == {
@@ -335,7 +332,7 @@ def test_get_results_default_max_results_is_1000(
     record = succeeded_result(store, [[str(n)] for n in range(1, 1002)])
 
     first = get_query_results(
-        store, executor, {"QueryExecutionId": record.query_execution_id}
+        executor, {"QueryExecutionId": record.query_execution_id}
     )
 
     # 1000 data rows beside the header; the 1001st needs a follow-up page.
@@ -343,7 +340,6 @@ def test_get_results_default_max_results_is_1000(
     assert first["NextToken"] == "1000"
 
     last = get_query_results(
-        store,
         executor,
         {
             "QueryExecutionId": record.query_execution_id,
@@ -367,7 +363,6 @@ def test_get_results_max_results_out_of_range_is_shaped_400(
 
     with pytest.raises(InvalidRequestException) as error:
         get_query_results(
-            store,
             executor,
             {
                 "QueryExecutionId": record.query_execution_id,
@@ -393,7 +388,6 @@ def test_get_results_invalid_next_token_is_shaped_400(
 
     with pytest.raises(InvalidRequestException, match="Invalid NextToken"):
         get_query_results(
-            store,
             executor,
             {
                 "QueryExecutionId": record.query_execution_id,
@@ -410,7 +404,6 @@ def test_get_results_next_token_past_end_returns_no_rows(
     record = succeeded_result(store, [["1"]])
 
     output = get_query_results(
-        store,
         executor,
         {
             "QueryExecutionId": record.query_execution_id,
@@ -432,9 +425,9 @@ def test_get_results_canonical_zero_token_matches_page_zero(
     record = succeeded_result(store, [["1"]])
     request = {"QueryExecutionId": record.query_execution_id}
 
-    without_token = get_query_results(store, executor, request)
+    without_token = get_query_results(executor, request)
     with_zero_token = get_query_results(
-        store, executor, {**request, "NextToken": "0"}
+        executor, {**request, "NextToken": "0"}
     )
 
     assert (

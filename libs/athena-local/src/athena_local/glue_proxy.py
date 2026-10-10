@@ -31,6 +31,11 @@ from typing import Protocol, cast
 from botocore.exceptions import BotoCoreError, ClientError
 from botocore.session import Session
 
+from athena_local.boundary_helpers import (
+    error_code,
+    object_entries,
+    string_member,
+)
 from athena_local.errors import (
     InternalServerException,
     InvalidRequestException,
@@ -179,7 +184,7 @@ class GlueProxy:
         )
         return [
             _database_from_glue(item)
-            for item in _objects(response, "DatabaseList")
+            for item in object_entries(response, "DatabaseList")
         ]
 
     def get_database(self, name: str) -> GlueDatabase:
@@ -215,7 +220,7 @@ class GlueProxy:
         )
         return [
             _table_metadata_from_glue(item)
-            for item in _objects(response, "TableList")
+            for item in object_entries(response, "TableList")
         ]
 
     def get_table(
@@ -254,7 +259,7 @@ class GlueProxy:
         try:
             return invoke()
         except ClientError as error:
-            code = _error_code(error)
+            code = error_code(error)
             if code == GLUE_ENTITY_NOT_FOUND_CODE:
                 raise MetadataException(
                     f"{resource} does not exist"
@@ -276,31 +281,6 @@ class GlueProxy:
             ) from error
 
 
-def _error_code(error: ClientError) -> str:
-    # ClientError.response is untyped upstream; re-anchor it to the JSON
-    # object shape the wire parser actually produces.
-    response: object = getattr(error, "response", None)
-    if not isinstance(response, dict):
-        return ""
-    raw = cast(dict[str, object], response).get("Error")
-    if not isinstance(raw, dict):
-        return ""
-    code = cast(dict[str, object], raw).get("Code")
-    return code if isinstance(code, str) else ""
-
-
-def _objects(response: dict[str, object], key: str) -> list[dict[str, object]]:
-    raw = response.get(key)
-    if not isinstance(raw, list):
-        return []
-    entries: list[object] = raw
-    return [
-        cast(dict[str, object], item)
-        for item in entries
-        if isinstance(item, dict)
-    ]
-
-
 def _object(response: dict[str, object], key: str) -> dict[str, object]:
     raw = response.get(key)
     if not isinstance(raw, dict):
@@ -319,8 +299,8 @@ def _database_from_glue(record: dict[str, object]) -> GlueDatabase:
         if key != _TRINO_DATABASE_STAMP
     }
     return GlueDatabase(
-        name=_string(record, "Name") or "",
-        description=_string(record, "Description"),
+        name=string_member(record, "Name") or "",
+        description=string_member(record, "Description"),
         parameters=parameters or None,
     )
 
@@ -333,10 +313,10 @@ def _table_metadata_from_glue(record: dict[str, object]) -> GlueTableMetadata:
         else None
     )
     return GlueTableMetadata(
-        name=_string(record, "Name") or "",
+        name=string_member(record, "Name") or "",
         create_time=_epoch(record, "CreateTime"),
         last_access_time=_epoch(record, "LastAccessTime"),
-        table_type=_string(record, "TableType"),
+        table_type=string_member(record, "TableType"),
         columns=columns,
         partition_keys=_columns(record, "PartitionKeys"),
         parameters=_string_map(record, "Parameters"),
@@ -348,12 +328,7 @@ def _storage_location(record: dict[str, object]) -> str | None:
     storage = record.get("StorageDescriptor")
     if not isinstance(storage, dict):
         return None
-    return _string(cast(dict[str, object], storage), "Location")
-
-
-def _string(record: dict[str, object], key: str) -> str | None:
-    raw = record.get(key)
-    return raw if isinstance(raw, str) else None
+    return string_member(cast(dict[str, object], storage), "Location")
 
 
 def _string_map(record: dict[str, object], key: str) -> dict[str, str] | None:
@@ -388,9 +363,9 @@ def _columns(record: dict[str, object], key: str) -> list[GlueColumn] | None:
         column = cast(dict[str, object], item)
         columns.append(
             GlueColumn(
-                name=_string(column, "Name") or "",
-                column_type=_string(column, "Type") or "",
-                comment=_string(column, "Comment"),
+                name=string_member(column, "Name") or "",
+                column_type=string_member(column, "Type") or "",
+                comment=string_member(column, "Comment"),
             )
         )
     return columns

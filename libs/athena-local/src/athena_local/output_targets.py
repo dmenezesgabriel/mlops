@@ -66,7 +66,6 @@ class OutputSnapshotter:
         self,
         query: str,
         database: str | None,
-        catalog: str | None,
         substatement_type: str | None,
     ) -> OutputSnapshot | None:
         # Glue and S3 are synchronous boto3 clients: the listing RTT would
@@ -236,13 +235,20 @@ def _identifier_tokens(sql: str) -> list[str]:
 
 
 def _qualified_name(reference: str) -> tuple[str | None, str] | None:
-    """Split a (catalog.)database.table reference into (database, table)."""
+    """Split a (catalog.)database.table reference into (database, table).
+
+    The emulator runs a single Glue-backed catalog, so a leading catalog
+    segment is dropped deliberately; a reference with more than three
+    segments is malformed (real Athena accepts at most
+    ``catalog.database.table``) and resolves to None rather than silently
+    keeping its last two segments as an unrelated (database, table) pair.
+    """
     names = [
         _fold_identifier(segment)
         for segment in _split_segments(reference)
         if segment
     ]
-    if not names:
+    if not names or len(names) > 3:
         return None
     if len(names) == 1:
         return None, names[0]

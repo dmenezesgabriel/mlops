@@ -444,7 +444,7 @@ def test_start_managed_workgroup_accepts_no_output_location(
         assert "OutputLocation" not in payload["ResultConfiguration"]
         # Inline GetQueryResults still serves the cached terminal rows.
         result_set = get_query_results(
-            store, executor, {"QueryExecutionId": output["QueryExecutionId"]}
+            executor, {"QueryExecutionId": output["QueryExecutionId"]}
         )["ResultSet"]
         assert page_value_names(result_set) == [["col"], ["ok"]]
 

@@ -274,7 +274,6 @@ def test_insert_manifest_lists_only_the_appended_files(
         snapshotter.capture(
             query=f"INSERT INTO {database_name}.events SELECT 1",
             database=database_name,
-            catalog=None,
             substatement_type="INSERT",
         )
     )

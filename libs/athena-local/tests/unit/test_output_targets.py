@@ -100,6 +100,13 @@ def test_insert_reference_missing_into_is_none() -> None:
     assert insert_table_reference("INSERT events SELECT 1") is None
 
 
+def test_insert_reference_more_than_three_segments_is_none() -> None:
+    # A 4-part reference is malformed (real Athena accepts at most
+    # catalog.database.table); dropping only the catalog segment would
+    # silently resolve it to an unrelated (database, table) pair.
+    assert insert_table_reference("INSERT INTO a.b.c.d SELECT 1") is None
+
+
 def test_unload_location_basic() -> None:
     location = unload_location(
         "UNLOAD (SELECT * FROM events) TO 's3://unload-bucket/out/' "
@@ -157,15 +164,12 @@ def capture(
     *,
     query: str,
     database: str | None = None,
-    catalog: str | None = None,
     substatement_type: str | None = None,
 ) -> OutputSnapshot | None:
     """Drive the async ``capture`` from a synchronous test."""
 
     async def run() -> OutputSnapshot | None:
-        return await snapshotter.capture(
-            query, database, catalog, substatement_type
-        )
+        return await snapshotter.capture(query, database, substatement_type)
 
     return asyncio.run(run())
 
