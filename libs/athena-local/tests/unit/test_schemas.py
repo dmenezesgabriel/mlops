@@ -30,6 +30,7 @@ from athena_local.schemas import (
     WorkGroupConfigurationUpdates,
     parse_engine_version,
     parse_result_configuration,
+    parse_result_configuration_updates,
     parse_tags,
     to_payload,
 )
@@ -425,3 +426,54 @@ def test_apply_configuration_updates_managed_results_and_fields() -> None:
             s3_acl_option="BUCKET_OWNER_FULL_CONTROL"
         ),
     )
+
+
+def test_parse_result_configuration_updates_absent_member_is_none() -> None:
+    # G-250: an update without ResultConfigurationUpdates must parse to None
+    # so the merge treats it as "no result-config change" rather than
+    # constructing an empty-object update.
+    updates = WorkGroupConfigurationUpdates.from_dict(
+        {"EnforceWorkGroupConfiguration": False}
+    )
+
+    assert updates.result_configuration_updates is None
+    assert parse_result_configuration_updates(None) is None
+
+
+def test_apply_managed_results_updates_with_no_members_stays_none() -> None:
+    # G-250 managed-results edge (workgroup_schemas.py:121): all-None
+    # updates on a configuration without managed results stay absent — the
+    # early return was uncovered by the docker-free planes.
+    updates = WorkGroupConfigurationUpdates.from_dict(
+        {"ManagedQueryResultsConfigurationUpdates": {}}
+    )
+
+    merged = WorkGroupConfiguration.apply_updates(
+        WorkGroupConfiguration(), updates
+    )
+
+    assert merged.managed_query_results_configuration is None
+
+
+def test_result_configuration_acl_round_trips_through_payload() -> None:
+    from athena_local.schemas import (
+        AclConfiguration,
+        parse_acl_configuration,
+        result_configuration_payload,
+    )
+
+    acl = AclConfiguration(s3_acl_option="BUCKET_OWNER_FULL_CONTROL")
+    raw = {
+        "OutputLocation": "s3://results-bucket/analytics/",
+        "AclConfiguration": {"S3AclOption": "BUCKET_OWNER_FULL_CONTROL"},
+    }
+
+    parsed = parse_result_configuration(raw)
+    payload = result_configuration_payload(result_configuration=parsed)
+
+    assert parsed == ResultConfiguration(
+        output_location="s3://results-bucket/analytics/",
+        acl_configuration=acl,
+    )
+    assert payload == raw
+    assert parse_acl_configuration(payload["AclConfiguration"]) == acl

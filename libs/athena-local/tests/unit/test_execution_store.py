@@ -512,3 +512,35 @@ def test_payload_omits_reuse_members_when_not_requested(
 
     assert "ResultReuseConfiguration" not in payload
     assert "ResultReuseInformation" not in payload["Statistics"]
+
+
+def test_result_output_location_none_for_empty_prefix(
+    store: ExecutionStore,
+) -> None:
+    # G-260: the empty-prefix guard was uncovered at every layer. A zero-length
+    # OutputLocation prefix must answer no artifact path — a bare
+    # ``/{QueryID}.csv`` stem would be written nowhere. The echoed
+    # ResultConfiguration member is preserved verbatim; only the computed
+    # artifact location is suppressed.
+    record = started_execution(
+        store,
+        query="SELECT 1",
+        workgroup="primary",
+        result_configuration=ResultConfiguration(output_location=""),
+    )
+
+    assert record._result_output_location() is None
+    payload = record.to_payload()
+    assert payload["ResultConfiguration"]["OutputLocation"] == ""
+
+
+def test_result_output_location_without_result_configuration(
+    store: ExecutionStore,
+) -> None:
+    # G-260: ``reuse_results_from`` reads the source record's artifact path,
+    # so the result_configuration-is-None guard (execution_record.py:311) is
+    # reachable on a record that submitted without one.
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
+
+    assert record._result_output_location() is None
+    assert "ResultConfiguration" not in record.to_payload()

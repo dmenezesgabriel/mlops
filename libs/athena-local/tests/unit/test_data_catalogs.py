@@ -334,6 +334,29 @@ def test_update_data_catalog_replaces_fields(
     )
 
 
+def test_update_data_catalog_without_parameters_keeps_stored_map(
+    store: DataCatalogStore,
+) -> None:
+    # G-260 mutation M-6: flipping the keep-branch (data_catalog_state.py) to
+    # always-assign wipes a catalog's stored parameters and the full
+    # docker-free suite stayed green. This pin kills that mutant: an update
+    # that omits Parameters must leave the stored map untouched.
+    create_data_catalog(
+        store,
+        {
+            "Name": "hive_catalog",
+            "Type": "HIVE",
+            "Parameters": {"external_location": "s3://warehouse/"},
+        },
+    )
+
+    update_data_catalog(store, {"Name": "hive_catalog", "Type": "HIVE"})
+
+    assert store.get("hive_catalog").parameters == {
+        "external_location": "s3://warehouse/"
+    }
+
+
 def test_update_data_catalog_requires_type(store: DataCatalogStore) -> None:
     create_data_catalog(store, {"Name": "cw_logs_catalog", "Type": "LAMBDA"})
     with pytest.raises(InvalidRequestException, match="Type"):

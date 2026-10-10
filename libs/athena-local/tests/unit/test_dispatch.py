@@ -20,6 +20,7 @@ from athena_local.dispatch import (
     implemented_operations,
     operation_names,
     parse_body,
+    register_handler,
     resolve_operation,
 )
 from athena_local.errors import (
@@ -200,3 +201,12 @@ def test_parse_body_raises_on_non_object_json() -> None:
 def test_implemented_operations_is_derived_from_the_registry() -> None:
     assert isinstance(implemented_operations(), frozenset)
     assert implemented_operations() <= operation_names()
+
+
+def test_register_handler_rejects_unknown_operation() -> None:
+    # register_handler is the only write path into the dispatch table; its
+    # whitelist check keeps the table a subset of the 70 modeled operations.
+    # The guard was uncovered everywhere (G-250): a typo'd name must fail
+    # loudly instead of binding a handler no X-Amz-Target can reach.
+    with pytest.raises(ValueError, match="NotAnAthenaOperation"):
+        register_handler("NotAnAthenaOperation", lambda _payload: {})

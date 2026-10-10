@@ -260,7 +260,9 @@ def required_string_list(
             max_length=member_max_length,
             pattern=member_pattern,
         )
-    return [item for item in items if isinstance(item, str)]
+    # The loop above raised on any non-string entry, so the list is all str;
+    # the old post-validation filter here was dead code (G-250).
+    return cast(list[str], items)
 
 
 def catalog_name_string(payload: dict[str, object] | None, name: str) -> str:
@@ -314,7 +316,8 @@ def optional_string_list(
             max_length=member_max_length,
             pattern=member_pattern,
         )
-    return [item for item in items if isinstance(item, str)]
+    # Same dead-filter removal as required_string_list (G-250).
+    return cast(list[str], items)
 
 
 def optional_string_map(

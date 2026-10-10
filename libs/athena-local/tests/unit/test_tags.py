@@ -359,6 +359,37 @@ def test_tag_malformed_arn_is_invalid_request(
         )
 
 
+@pytest.mark.parametrize(
+    "arn",
+    [
+        # Five colon-separated parts: the type/name fragment is missing.
+        "arn:aws:athena:us-east-1:123456789012",
+        # Six parts but no "/" separating the resource type from its name.
+        "arn:aws:athena:us-east-1:123456789012:workgroup",
+        # Empty resource type.
+        "arn:aws:athena:us-east-1:123456789012:/analytics",
+        # Empty resource name.
+        "arn:aws:athena:us-east-1:123456789012:workgroup/",
+    ],
+)
+def test_tag_resource_rejects_structurally_malformed_arn(
+    workgroups: WorkGroupStore, catalogs: DataCatalogStore, arn: str
+) -> None:
+    # G-255: only the missing-prefix raise was pinned; the wrong-part-count,
+    # missing-"/", and empty-type/name raises were uncovered at every layer.
+    with pytest.raises(
+        InvalidRequestException, match="Invalid Athena resource ARN"
+    ):
+        tag_resource(
+            workgroups,
+            catalogs,
+            {
+                "ResourceARN": arn,
+                "Tags": [{"Key": "k", "Value": "v"}],
+            },
+        )
+
+
 def test_tag_resource_rejects_tags_beyond_quota(
     workgroups: WorkGroupStore, catalogs: DataCatalogStore
 ) -> None:
