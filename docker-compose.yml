@@ -11,6 +11,14 @@ services:
     command: -H 0.0.0.0
     ports:
       - "5000:5000"
+    # TCP-connect check, not urlopen: moto answers several paths with non-2xx
+    # even when healthy, and `compose up --wait` only gates on declared checks.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 5000), 3).close()"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
     networks:
       - mlops_net
 

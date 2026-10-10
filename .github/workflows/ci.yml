@@ -40,8 +40,29 @@ jobs:
       - name: Type check
         run: make type-check
 
+      # athena-local's integration suite skips when the compose stack is down;
+      # a bring-up failure fails this job before the skips can hide it.
+      - name: Start compose stack
+        run: |
+          docker network inspect mlops_net >/dev/null 2>&1 || docker network create mlops_net
+          docker compose up -d --wait --build moto trino athena
+
       - name: Test
         run: make test
+        env:
+          ATHENA_LOCAL_TRINO_URL: http://localhost:8485
+          ATHENA_LOCAL_MOTO_ENDPOINT_URL: http://127.0.0.1:5000
+          ATHENA_LOCAL_TEST_ENDPOINT: http://localhost:5001
+          ATHENA_GO_REQUIRED: "1"
+          ATHENA_TERRAFORM_REQUIRED: "1"
+
+      - name: Dump compose logs on failure
+        if: failure()
+        run: docker compose logs --tail 200 moto trino athena
+
+      - name: Stop compose stack
+        if: always()
+        run: docker compose down
 
       - name: Complexity
         run: make complexity
