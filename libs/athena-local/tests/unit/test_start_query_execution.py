@@ -232,6 +232,42 @@ def test_get_query_execution_reports_classified_statement_types(
     asyncio.run(scenario())
 
 
+def test_parenthesized_query_reports_dml_and_csv_output(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    """A parenthesized query is still DML — wrangler reads only ``.csv``
+    locations, so a UTILITY/``.txt`` report returns an empty frame
+    (awswrangler/athena/_read.py:217-221)."""
+
+    async def scenario() -> None:
+        query_id = (
+            await start_query_execution(
+                executor,
+                workgroups,
+                {
+                    "QueryString": "(SELECT 1) UNION (SELECT 2)",
+                    "ResultConfiguration": {
+                        "OutputLocation": "s3://bucket/q.csv"
+                    },
+                },
+            )
+        )["QueryExecutionId"]
+        await executor._tasks[query_id]
+
+        payload = get_query_execution(store, {"QueryExecutionId": query_id})[
+            "QueryExecution"
+        ]
+        assert payload["StatementType"] == "DML"
+        assert payload["SubstatementType"] == "SELECT"
+        assert payload["ResultConfiguration"]["OutputLocation"] == (
+            f"s3://bucket/q.csv/{query_id}.csv"
+        )
+
+    asyncio.run(scenario())
+
+
 def test_start_falls_back_to_workgroup_output_location(
     store: ExecutionStore,
     executor: QueryExecutor,

@@ -88,6 +88,20 @@ CLASSIFICATION_CASES = [
     ("FOOBAR some statement", "UTILITY", None),
     ("", "UTILITY", None),
     ("   ", "UTILITY", None),
+    # A leading paren run classifies on the inner keyword — real Athena
+    # parses the statement, so a parenthesized query is still DML and
+    # takes the .csv artifact consumers read; classifying on the raw
+    # ``(`` token reports UTILITY/.txt (wrangler reads zero rows,
+    # awswrangler/athena/_read.py:217-221).
+    ("(SELECT 1) UNION (SELECT 2)", "DML", "SELECT"),
+    ("(VALUES 1) UNION (VALUES 2)", "DML", "VALUES"),
+    ("(SELECT 1)", "DML", "SELECT"),
+    ("((SELECT 1))", "DML", "SELECT"),
+    ("( SELECT 1 )", "DML", "SELECT"),
+    ("-- a comment ahead of the run\n(SELECT 1)", "DML", "SELECT"),
+    ("(SELECT*FROM t)", "DML", "SELECT"),
+    ("('x')", "UTILITY", None),
+    ("(", "UTILITY", None),
 ]
 
 

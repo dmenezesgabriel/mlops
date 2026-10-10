@@ -107,7 +107,7 @@ class StatementClassification:
 
 def classify_statement(query: str) -> StatementClassification:
     """Classify a SQL statement from its leading keywords, case-insensitively."""
-    tokens = _leading_tokens(query)
+    tokens = _statement_tokens(query)
     first_token = tokens[0] if tokens else None
     if first_token in DML_STATEMENTS:
         return StatementClassification(
@@ -138,6 +138,23 @@ def normalize_statement_text(query: str) -> str:
 
 def _leading_tokens(query: str) -> list[str]:
     return strip_comments(query).upper().split()
+
+
+def _statement_tokens(query: str) -> list[str]:
+    """Token list whose head is the statement keyword.
+
+    A leading run of ``(`` — ``(SELECT 1) UNION (SELECT 2)``, ``(VALUES
+    1)`` — classifies on the inner keyword: real Athena parses the
+    statement, so a parenthesized query is still DML and takes the
+    ``.csv`` artifact its consumers gate on, not UTILITY/``.txt``.
+    """
+    tokens = _leading_tokens(query)
+    index = 0
+    while index < len(tokens) and not tokens[index].lstrip("("):
+        index += 1
+    if index == len(tokens):
+        return []
+    return [_word_prefix(tokens[index].lstrip("(")), *tokens[index + 1 :]]
 
 
 def _dml_substatement(first_token: str, tokens: list[str]) -> str:
