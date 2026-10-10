@@ -162,6 +162,14 @@ class TrinoClient:
             raise TrinoTransportError(
                 f"Trino unreachable via {method} {url}: {error}"
             ) from error
+        except UnicodeError as error:
+            # Header values are ASCII-encoded when the request is built —
+            # a non-ASCII value (e.g. a wire Database riding X-Trino-Schema)
+            # fails normalization before any I/O, outside TransportError's
+            # taxonomy, so it must be shaped here like a transport failure.
+            raise TrinoTransportError(
+                f"Trino {method} {url} request could not be encoded: {error}"
+            ) from error
 
 
 def _should_retry(method: str, response: httpx.Response) -> bool:
@@ -227,48 +235,81 @@ def _parse_page(response: httpx.Response) -> TrinoPage:
     )
 
 
+def _malformed_member(
+    member: str, value: object, expected: str
+) -> TrinoTransportError:
+    """The transport failure a wrong-typed ``QueryResults`` member is.
+
+    Every member the client consumes must be protocol-typed when present:
+    coercing or dropping a wrong-typed member truncates a page chain
+    (``nextUri: 42`` read as finished) or swallows a statement's failure
+    (``error: "str"`` read as a clean page). Absent optional members stay
+    legal — Trino omits ``data``/``columns``/``error`` on documents that
+    do not carry them.
+    """
+    return TrinoTransportError(
+        f"Trino answered a QueryResults with {member} {value!r}, "
+        f"expected {expected}"
+    )
+
+
 def _optional_string(payload: dict[str, object], key: str) -> str | None:
     value = payload.get(key)
-    return value if isinstance(value, str) else None
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise _malformed_member(key, value, "a string")
+    return value
 
 
 def _parse_columns(raw_columns: object) -> list[TrinoColumn]:
-    if not isinstance(raw_columns, list):
+    if raw_columns is None:
         return []
+    if not isinstance(raw_columns, list):
+        raise _malformed_member("columns", raw_columns, "a list")
     columns: list[TrinoColumn] = []
     entries: list[object] = raw_columns
     for column in entries:
-        if isinstance(column, dict):
-            entry = cast(dict[str, object], column)
-            columns.append(
-                TrinoColumn(
-                    name=str(entry.get("name", "")),
-                    column_type=str(entry.get("type", "")),
-                )
+        if not isinstance(column, dict):
+            raise _malformed_member("columns entry", column, "an object")
+        entry = cast(dict[str, object], column)
+        name = entry.get("name")
+        column_type = entry.get("type")
+        if not isinstance(name, str) or not isinstance(column_type, str):
+            raise _malformed_member(
+                "columns entry", entry, "a name/type string pair"
             )
+        columns.append(TrinoColumn(name=name, column_type=column_type))
     return columns
 
 
 def _parse_rows(raw_rows: object) -> list[list[object]]:
-    if not isinstance(raw_rows, list):
+    if raw_rows is None:
         return []
+    if not isinstance(raw_rows, list):
+        raise _malformed_member("data", raw_rows, "a list")
     rows: list[list[object]] = []
     entries: list[object] = raw_rows
     for row in entries:
-        if isinstance(row, list):
-            rows.append(cast(list[object], row))
+        if not isinstance(row, list):
+            raise _malformed_member("data entry", row, "a list")
+        rows.append(cast(list[object], row))
     return rows
 
 
 def _parse_stats(raw_stats: object) -> dict[str, object]:
-    if not isinstance(raw_stats, dict):
+    if raw_stats is None:
         return {}
+    if not isinstance(raw_stats, dict):
+        raise _malformed_member("stats", raw_stats, "an object")
     return dict(cast(dict[str, object], raw_stats))
 
 
 def _parse_error(raw_error: object) -> TrinoQueryError | None:
-    if not isinstance(raw_error, dict):
+    if raw_error is None:
         return None
+    if not isinstance(raw_error, dict):
+        raise _malformed_member("error", raw_error, "an object")
     error = cast(dict[str, object], raw_error)
     return TrinoQueryError(
         message=_error_field(error, "message"),
@@ -279,4 +320,6 @@ def _parse_error(raw_error: object) -> TrinoQueryError | None:
 
 def _error_field(error: dict[str, object], key: str) -> str:
     value = error.get(key)
-    return value if isinstance(value, str) else ""
+    if not isinstance(value, str):
+        raise _malformed_member(f"error.{key}", value, "a string")
+    return value

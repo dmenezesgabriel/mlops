@@ -15,6 +15,7 @@ from athena_local.errors import (
     InvalidRequestException,
 )
 from athena_local.executions import (
+    FAILED,
     QUEUED,
     RUNNING,
     SUCCEEDED,
@@ -128,6 +129,51 @@ def test_describe_result_is_cached_in_athena_shape(
             ["# col_name", "data_type", "comment"],
             ["region", "varchar", ""],
         ]
+
+    asyncio.run(scenario())
+
+
+def test_ragged_describe_page_fails_execution(
+    store: ExecutionStore,
+) -> None:
+    """An off-protocol DESCRIBE page ends FAILED, not parked RUNNING.
+
+    A ragged row under the Trino four-column signature once crashed the
+    poll task (``_describe_shape`` indexed ``row[3]``) and ``_reap_task``
+    only logged — the record never left RUNNING.
+    """
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient(
+            [
+                result_page(
+                    next_uri=None,
+                    columns=[
+                        TrinoColumn(name="Column", column_type="varchar"),
+                        TrinoColumn(name="Type", column_type="varchar"),
+                        TrinoColumn(name="Extra", column_type="varchar"),
+                        TrinoColumn(name="Comment", column_type="varchar"),
+                    ],
+                    data=[["quantity", "bigint", ""]],
+                    stats={"state": "FINISHED"},
+                )
+            ]
+        )
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        record = await executor.start(
+            query='DESCRIBE "sales"',
+            workgroup="primary",
+            statement_classification=StatementClassification(
+                "UTILITY", "DESCRIBE"
+            ),
+        )
+        await executor._tasks[record.query_execution_id]
+
+        assert record.state == FAILED
+        assert record.state_change_reason is not None
+        assert "malformed" in record.state_change_reason
 
     asyncio.run(scenario())
 

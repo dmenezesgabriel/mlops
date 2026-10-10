@@ -17,6 +17,7 @@ AWS API reference for the custom-metastore error).
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -32,6 +33,7 @@ from botocore.session import Session
 
 from athena_local.errors import (
     InternalServerException,
+    InvalidRequestException,
     MetadataException,
 )
 
@@ -191,6 +193,18 @@ class GlueProxy:
     def list_tables(
         self, database_name: str, expression: str | None
     ) -> list[GlueTableMetadata]:
+        if expression is not None:
+            try:
+                re.compile(expression)
+            except re.error as error:
+                # Glue filters table names with Expression as a pattern and
+                # rejects a malformed one server-side (400); checking here
+                # names the offending value and answers the same for both
+                # the HTTP endpoint and an in-process store.
+                raise InvalidRequestException(
+                    f"Expression {expression!r} is not a valid regular "
+                    f"expression: {error}"
+                ) from error
         request: dict[str, str] = {"DatabaseName": database_name}
         if expression is not None:
             request["Expression"] = expression
@@ -251,6 +265,14 @@ class GlueProxy:
         except BotoCoreError as error:
             raise InternalServerException(
                 f"Glue transport failure during {operation}: {error}"
+            ) from error
+        except Exception as error:
+            # The client call stays inside this boundary's taxonomy: a
+            # non-boto escape (an in-process store's re.error, a botocore
+            # internals bug) surfaces as a shaped 500 naming the operation
+            # rather than dispatch's generic catch-all.
+            raise InternalServerException(
+                f"Glue {operation} failed unexpectedly: {error}"
             ) from error
 
 

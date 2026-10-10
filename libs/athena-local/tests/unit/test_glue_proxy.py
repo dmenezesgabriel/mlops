@@ -10,6 +10,7 @@ path — all against a named fake client, no moto, no docker (F.I.R.S.T.).
 
 from __future__ import annotations
 
+import re
 from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime
 
@@ -17,6 +18,7 @@ import pytest
 from athena_local import glue_proxy as glue_proxy_module
 from athena_local.errors import (
     InternalServerException,
+    InvalidRequestException,
     MetadataException,
 )
 from athena_local.glue_proxy import GlueColumn, GlueProxy
@@ -64,6 +66,13 @@ class AccessDeniedClient(FakeGlueClient):
 
     def get_database(self, Name: str) -> dict[str, object]:  # noqa: N803
         raise client_error("AccessDeniedException", f"Denied for {Name}")
+
+
+class BadPatternClient(FakeGlueClient):
+    """Fake dying with a non-boto error, like moto's in-process ``re.error``."""
+
+    def get_databases(self) -> dict[str, object]:
+        raise re.error("bad pattern")
 
 
 def test_list_databases_translates_glue_database() -> None:
@@ -201,6 +210,39 @@ def test_list_tables_missing_database_propagates_metadata_exception() -> None:
 
     with pytest.raises(MetadataException):
         proxy.list_tables("missing", None)
+
+
+@pytest.mark.parametrize("expression", ["(", "t["])
+def test_list_tables_malformed_expression_is_invalid_request(
+    expression: str,
+) -> None:
+    """A malformed Expression rejects like real Glue's 400, naming it.
+
+    The Glue store filters table names with the Expression pattern; a
+    malformed pattern once raised ``re.error`` past ``_run``'s boto-only
+    catches and surfaced a 500 where real Glue answers 400.
+    """
+    fake = FakeGlueClient(tables={"geo": [SAMPLE_TABLE]})
+    proxy = GlueProxy(fake)
+
+    with pytest.raises(InvalidRequestException) as exc_info:
+        proxy.list_tables("geo", expression)
+
+    assert repr(expression) in exc_info.value.message
+    assert fake.list_tables_calls == []
+
+
+def test_unexpected_client_error_is_shaped_internal_server() -> None:
+    """A non-boto escape from the client call is absorbed as a 500.
+
+    Only ``ClientError``/``BotoCoreError`` were shaped; anything else —
+    an in-process store's ``re.error``, a botocore internals bug — leaked
+    past ``_run`` unshaped.
+    """
+    proxy = GlueProxy(BadPatternClient())
+
+    with pytest.raises(InternalServerException, match="GetDatabases"):
+        proxy.list_databases()
 
 
 def test_get_table_returns_record() -> None:

@@ -342,11 +342,20 @@ class QueryExecutor:
         self, record: QueryExecutionRecord, page: TrinoPage
     ) -> None:
         record.apply_engine_statistics(page.stats)
-        columns, rows = to_athena_result_shape(
-            record.substatement_type,
-            [(column.name, column.column_type) for column in page.columns],
-            page.data,
-        )
+        try:
+            columns, rows = to_athena_result_shape(
+                record.substatement_type,
+                [(column.name, column.column_type) for column in page.columns],
+                page.data,
+            )
+        except TrinoTransportError as error:
+            # The final page claimed a known shape but lied about it; an
+            # unhandled raise here would kill the runner and leave the
+            # record parked RUNNING — the poll loop's transport catch.
+            record.transition_to(
+                FAILED, f"Trino answered a malformed result page: {error}"
+            )
+            return
         record.cache_result_page(columns, rows)
         cleanup_error = await self._unload_cleanup_error(record)
         if cleanup_error is not None:

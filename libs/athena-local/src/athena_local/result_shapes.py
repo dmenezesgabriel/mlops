@@ -17,6 +17,8 @@ the parsed contracts only depend on column names and row layout.
 
 from __future__ import annotations
 
+from athena_local.trino_client import TrinoTransportError
+
 _TRINO_DESCRIBE_COLUMNS = ["Column", "Type", "Extra", "Comment"]
 _ATHENA_DESCRIBE_COLUMNS = [
     ("col_name", "varchar"),
@@ -53,6 +55,15 @@ def _describe_shape(
     plain: list[list[object]] = []
     partitioned: list[list[object]] = []
     for row in rows:
+        if len(row) < len(_TRINO_DESCRIBE_COLUMNS):
+            # The page claimed the four-column signature, so a short row is
+            # off-protocol drift — not an unknown layout to pass through.
+            # Indexing it once escaped as IndexError and parked the record
+            # RUNNING; it fails like any other malformed Trino answer.
+            raise TrinoTransportError(
+                f"Trino answered a DESCRIBE row {row!r} with {len(row)} "
+                f"cells, expected {len(_TRINO_DESCRIBE_COLUMNS)}"
+            )
         entry = [row[0], row[1], row[3]]
         plain.append(entry)
         if str(row[2]).lower() == "partition key":

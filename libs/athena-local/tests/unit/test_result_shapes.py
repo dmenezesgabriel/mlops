@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import pytest
 from athena_local.result_shapes import to_athena_result_shape
+from athena_local.trino_client import TrinoTransportError
 
 TRINO_DESCRIBE_COLUMNS = [
     ("Column", "varchar"),
@@ -105,3 +106,27 @@ def test_other_substatements_pass_through(
         columns,
         rows,
     )
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        [["a", "b", "c"]],
+        [["a", "b"]],
+        [[]],
+        [["x", "y", "z", "w"], ["a", "b", "c"]],
+    ],
+    ids=["three cells", "two cells", "empty row", "ragged second row"],
+)
+def test_describe_ragged_row_raises_transport_error(
+    rows: list[list[object]],
+) -> None:
+    """A short row under the Trino DESCRIBE signature is off-protocol.
+
+    ``_describe_shape`` indexes ``row[3]`` unconditionally; a ragged row
+    once escaped as ``IndexError``, killed the poll task, and parked the
+    record RUNNING. The page claims the four-column signature, so a short
+    row is a protocol violation, not an unknown layout to pass through.
+    """
+    with pytest.raises(TrinoTransportError, match="expected 4"):
+        to_athena_result_shape("DESCRIBE", TRINO_DESCRIBE_COLUMNS, rows)

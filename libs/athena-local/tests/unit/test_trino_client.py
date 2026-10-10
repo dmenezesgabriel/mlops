@@ -457,3 +457,122 @@ def test_retry_after_seconds_capped() -> None:
     assert _retry_after_seconds("2") == 2.0
     assert _retry_after_seconds(None) == 0.1
     assert _retry_after_seconds("soon") == 0.1
+
+
+@pytest.mark.parametrize(
+    "member",
+    [
+        {"nextUri": 42},
+        {"updateType": 7},
+        {"data": "a-string"},
+        {"data": [["a"], 42, {"r": 1}]},
+        {"data": {"r": 1}},
+        {"columns": 42},
+        {"columns": [{"name": "a", "type": "varchar"}, 42]},
+        {"columns": [{"name": 5, "type": "varchar"}]},
+        {"columns": [{"name": "a", "type": ["varchar"]}]},
+        {"stats": [1, 2, 3]},
+        {"error": "something failed"},
+        {"error": {"message": 42, "errorName": "N", "errorType": "T"}},
+    ],
+    ids=[
+        "non-str nextUri",
+        "non-str updateType",
+        "non-list data",
+        "non-list data row",
+        "non-list data object",
+        "non-list columns",
+        "non-dict column entry",
+        "non-str column name",
+        "non-str column type",
+        "non-dict stats",
+        "non-dict error",
+        "non-str error field",
+    ],
+)
+def test_malformed_page_member_raises_transport_error(
+    member: dict[str, object],
+) -> None:
+    """A wrong-typed consumed member is a protocol failure, not data.
+
+    Lenient parsing once answered ``finished=True`` for ``nextUri: 42``
+    (rows silently lost on the wire) and ``error=None`` for ``error:
+    "str"`` (a failed statement reading clean); the page is off-protocol
+    and fails like any other malformed Trino answer.
+    """
+    document = {"id": QUERY_ID, "stats": {"state": "RUNNING"}, **member}
+    handler = ScriptedTrinoHandler([(200, json.dumps(document), None)])
+    client = _trino_client(handler)
+
+    with pytest.raises(TrinoTransportError, match="expected"):
+        asyncio.run(
+            client.submit_statement(
+                "SELECT 1", catalog="hive", schema="analytics", user="alice"
+            )
+        )
+
+
+def test_page_without_optional_members_uses_defaults() -> None:
+    """Absent optional members are legal — Trino omits them when empty.
+
+    The strictness above governs present-but-wrong-typed members; a
+    document carrying only ``id`` is a finished page with no columns,
+    rows, stats, or error.
+    """
+    handler = ScriptedTrinoHandler([(200, json.dumps({"id": QUERY_ID}), None)])
+    client = _trino_client(handler)
+
+    page = asyncio.run(
+        client.submit_statement(
+            "SELECT 1", catalog="hive", schema="analytics", user="alice"
+        )
+    )
+
+    assert page.finished is True
+    assert page.columns == []
+    assert page.data == []
+    assert page.stats == {}
+    assert page.error is None
+    assert page.update_type is None
+
+
+def test_fetch_next_malformed_member_raises_transport_error() -> None:
+    """The poll path applies the same member strictness as the submit."""
+    handler = ScriptedTrinoHandler(
+        [
+            (200, json.dumps(query_results_document()), None),
+            (200, json.dumps({"id": QUERY_ID, "nextUri": 42}), None),
+        ]
+    )
+    client = _trino_client(handler)
+
+    asyncio.run(
+        client.submit_statement(
+            "SELECT 1", catalog="hive", schema="analytics", user="alice"
+        )
+    )
+    with pytest.raises(TrinoTransportError, match="expected a string"):
+        asyncio.run(client.fetch_next(FIRST_NEXT_URI))
+
+
+def test_non_ascii_schema_header_raises_transport_error() -> None:
+    """A non-ASCII wire ``Database`` fails shaped, before any request.
+
+    ``QueryExecutionContext.Database`` flows verbatim into
+    ``X-Trino-Schema``; httpx ASCII-encodes header values at request build
+    and the ``UnicodeEncodeError`` is not a ``TransportError`` — without a
+    catch it escaped ``_send`` and surfaced as a generic submit 500.
+    """
+    handler = ScriptedTrinoHandler([])
+    client = _trino_client(handler)
+
+    with pytest.raises(TrinoTransportError, match="could not be encoded"):
+        asyncio.run(
+            client.submit_statement(
+                "SELECT 1",
+                catalog="hive",
+                schema="unicode_ß",
+                user="alice",
+            )
+        )
+    assert handler.requests == []
