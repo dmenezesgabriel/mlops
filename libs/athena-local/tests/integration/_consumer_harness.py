@@ -144,13 +144,7 @@ def consumer_harness_scope(
         )
     finally:
         reset_query_plane()
-        try:
-            _delete_objects_and_bucket(s3, bucket)
-        except (
-            botocore.exceptions.BotoCoreError,
-            botocore.exceptions.ClientError,
-        ):
-            pass
+        _discard_bucket(s3, bucket)
         try:
             glue.delete_database(Name=database)
         except (
@@ -193,15 +187,49 @@ def _delete_objects_and_bucket(s3: BaseClient, bucket: str) -> None:
     """Drop every object then the throwaway bucket (teardown, best effort).
 
     An empty ``Delete.Objects`` list is rejected by moto's XML schema
-    (MalformedXML), so the object pass only runs when keys exist.
+    (MalformedXML), so the object pass only runs when keys exist. The object
+    pass pages the listing so a >1000-key bucket cannot leak its tail.
     """
-    contents = s3.list_objects_v2(Bucket=bucket).get("Contents", [])
-    if contents:
+    keys = _all_object_keys(s3, bucket)
+    if keys:
         s3.delete_objects(
             Bucket=bucket,
-            Delete={"Objects": [{"Key": item["Key"]} for item in contents]},
+            Delete={"Objects": [{"Key": key} for key in keys]},
         )
     s3.delete_bucket(Bucket=bucket)
+
+
+def _all_object_keys(s3: BaseClient, bucket: str) -> list[str]:
+    """Every key under ``bucket``, paging past the 1000-key listing cap."""
+    keys: list[str] = []
+    continuation_token: str | None = None
+    while True:
+        if continuation_token is None:
+            response = s3.list_objects_v2(Bucket=bucket)
+        else:
+            response = s3.list_objects_v2(
+                Bucket=bucket, ContinuationToken=continuation_token
+            )
+        keys.extend(item["Key"] for item in response.get("Contents", []))
+        if response.get("IsTruncated") is not True:
+            return keys
+        continuation_token = response["NextContinuationToken"]
+
+
+def _discard_bucket(s3: BaseClient, bucket: str) -> None:
+    """Best-effort bucket drop that still surfaces a real leak.
+
+    Teardown must not mask the test outcome, so a missing bucket or transport
+    blip is swallowed. ``BucketNotEmpty`` is re-raised instead: it means the
+    object pass under-fetched its pages, and the leak must be visible.
+    """
+    try:
+        _delete_objects_and_bucket(s3, bucket)
+    except botocore.exceptions.BotoCoreError:
+        return
+    except botocore.exceptions.ClientError as error:
+        if error.response.get("Error", {}).get("Code") == "BucketNotEmpty":
+            raise
 
 
 def mixed_frame() -> pd.DataFrame:

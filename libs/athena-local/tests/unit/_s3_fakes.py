@@ -38,8 +38,12 @@ class RecordingObjectStore:
         self.objects: dict[tuple[str, str], bytes] = {}
         self.put_calls: list[tuple[str, str, bytes]] = []
         self.list_calls: list[tuple[str, str]] = []
+        self.delete_objects_calls: list[tuple[str, list[str]]] = []
+        self.delete_bucket_calls: list[str] = []
         self.put_error: ClientError | BotoCoreError | None = None
         self.list_error: ClientError | BotoCoreError | None = None
+        self.delete_objects_error: ClientError | BotoCoreError | None = None
+        self.delete_bucket_error: ClientError | BotoCoreError | None = None
         self.page_size: int | None = None
 
     def put_object(  # noqa: N803 (mirrors the botocore keyword vocabulary)
@@ -90,6 +94,29 @@ class RecordingObjectStore:
             "IsTruncated": False,
             "NextContinuationToken": None,
         }
+
+    def delete_objects(  # noqa: N803 (mirrors the botocore keyword vocabulary)
+        self,
+        Bucket: str,  # noqa: N803
+        Delete: dict[str, list[dict[str, str]]],  # noqa: N803
+    ) -> dict[str, object]:
+        keys = [entry["Key"] for entry in Delete["Objects"]]
+        self.delete_objects_calls.append((Bucket, keys))
+        if self.delete_objects_error is not None:
+            error = self.delete_objects_error
+            self.delete_objects_error = None
+            raise error
+        for key in keys:
+            self.objects.pop((Bucket, key), None)
+        return {"Deleted": [], "Errors": []}
+
+    def delete_bucket(self, Bucket: str) -> dict[str, object]:  # noqa: N803
+        self.delete_bucket_calls.append(Bucket)
+        if self.delete_bucket_error is not None:
+            error = self.delete_bucket_error
+            self.delete_bucket_error = None
+            raise error
+        return {}
 
     def bytes_of(self, path: str) -> bytes | None:
         """The stored body under an ``s3://bucket/key`` path, for asserts."""
