@@ -100,6 +100,21 @@ class TestIcebergCreate:
             "'truncate(cat, 3)']"
         ) in sql
 
+    def test_partitioned_by_quoted_identifier_comma_stays_one_entry(
+        self,
+    ) -> None:
+        # A comma inside a quoted partition column must not fracture the
+        # entry list into ARRAY['"a','b"'] naming nonexistent columns (G-302).
+        sql = route(
+            "CREATE TABLE `t` (`a` bigint) "
+            'PARTITIONED BY ("a,b") '
+            "LOCATION 's3://b/t/' "
+            "TBLPROPERTIES ('table_type'='ICEBERG')",
+            set(),
+        )
+        assert sql is not None
+        assert "partitioning=ARRAY['\"a,b\"']" in sql
+
     def test_table_comment_is_carried(self) -> None:
         sql = route(
             "CREATE TABLE `t` (`id` bigint) "

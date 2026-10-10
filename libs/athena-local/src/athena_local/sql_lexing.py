@@ -67,7 +67,12 @@ def literal_value(raw: str | None) -> str | None:
 
 
 def split_top_level(text: str) -> list[str]:
-    """Split on commas outside strings and brackets (``ARRAY['a','b']``)."""
+    """Split on commas outside strings, quoted identifiers, and brackets.
+
+    ``'…'`` literals, ``"…"``/`` `…` `` identifiers, and ``ARRAY['a','b']``
+    brackets all hide commas that do not separate entries (``"a,b"`` is one
+    column name, not two).
+    """
     parts: list[str] = []
     current: list[str] = []
     depth = 0
@@ -80,6 +85,14 @@ def split_top_level(text: str) -> list[str]:
                 break
             current.append(text[index:string])
             index = string
+            continue
+        if char in '"`':
+            # A quoted identifier may carry a literal comma; ``quoted_end``
+            # skips ``""``/`` `` `` escapes and swallows an unterminated span
+            # to end of input, matching ``protected_spans``' identifiers.
+            end = quoted_end(text, index, char)
+            current.append(text[index:end])
+            index = end
             continue
         if char in "([":
             depth += 1

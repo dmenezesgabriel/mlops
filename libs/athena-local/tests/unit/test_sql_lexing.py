@@ -13,7 +13,12 @@ from __future__ import annotations
 import time
 
 from athena_local import sql_lexing
-from athena_local.sql_lexing import quoted_end, string_end, strip_comments
+from athena_local.sql_lexing import (
+    quoted_end,
+    split_top_level,
+    string_end,
+    strip_comments,
+)
 
 
 def test_quoted_end_returns_index_past_the_closing_quote() -> None:
@@ -38,6 +43,21 @@ def test_quoted_end_unterminated_swallows_to_len() -> None:
 def test_string_end_unterminated_returns_none() -> None:
     assert string_end("'unterminated", 0) is None
     assert string_end("'a'", 0) == 3
+
+
+def test_split_top_level_skips_quoted_identifier_commas() -> None:
+    # A ``"…"``/`` `…` `` identifier may carry a literal comma; splitting it
+    # hands consumers fragments (``'"a'``, ``'b"'``) that name no column.
+    # Iceberg PARTITIONED BY then emitted ARRAY['"a','b"'] (G-302).
+    assert split_top_level('"a,b", c') == ['"a,b"', " c"]
+    assert split_top_level("`a,b`, c") == ["`a,b`", " c"]
+
+
+def test_split_top_level_keeps_doubled_identifier_escapes_whole() -> None:
+    # ``""`` (double-quote) and `` `` `` (backtick) are the standard
+    # in-identifier escapes; the closing quote must be the second one.
+    assert split_top_level('"we""ird,x", y') == ['"we""ird,x"', " y"]
+    assert split_top_level("`we``ird,y`, z") == ["`we``ird,y`", " z"]
 
 
 def test_strip_comments_drops_line_and_block_comments() -> None:

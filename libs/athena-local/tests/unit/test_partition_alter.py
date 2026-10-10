@@ -81,6 +81,17 @@ def test_omitted_location_drops_the_fifth_argument() -> None:
     )
 
 
+def test_quoted_identifier_comma_key_stays_whole() -> None:
+    # A quoted partition column name may carry a comma; it must stay one
+    # spec pair instead of bailing the rewrite to pass-through (G-302).
+    call = add_partition_trino_call(
+        "ALTER TABLE sales ADD PARTITION (\"a,b\"='AP') LOCATION 's3://b/x/'",
+        "analytics",
+    )
+    assert call is not None
+    assert "ARRAY['a,b'],ARRAY['AP']" in call.sql
+
+
 def test_multi_key_spec_pairs_columns_with_values_in_order() -> None:
     call = add_partition_trino_call(
         "ALTER TABLE sales ADD PARTITION (region='AP', amount=9.5) "

@@ -30,6 +30,19 @@ def test_minimal_external_table_maps_to_trino_with_clause() -> None:
     )
 
 
+def test_clustered_by_quoted_identifier_comma_maps_whole() -> None:
+    # A quoted column name may carry a comma; it must map to one bucketed_by
+    # entry instead of bailing the rewrite to pass-through (G-302).
+    query = (
+        "CREATE EXTERNAL TABLE s (a int) "
+        'CLUSTERED BY (a, "b,c") INTO 8 BUCKETS '
+        "STORED AS PARQUET LOCATION 's3://b/x/'"
+    )
+    sql = to_trino_dialect(query, "analytics")
+    assert sql is not None
+    assert "bucketed_by=ARRAY['a','b,c'], bucket_count=8" in sql
+
+
 def test_wrangler_generated_ddl_full_clause_set() -> None:
     """``generate_create_query``'s exact emission (_utils.py:1076-1092)."""
     query = (
