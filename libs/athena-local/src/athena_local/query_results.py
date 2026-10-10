@@ -5,9 +5,9 @@ the terminal transition (ADR-0007, ADR-0009 #4) and paginates it with
 ``MaxResults``/``NextToken`` per the model's GetQueryResultsInput — a
 different contract than ``pagination.offset_page``: the header row travels
 on page zero, so this module keeps its own slicing even though both share
-``pagination.decode_offset_token`` for token validation. Per-type cell
-serialization stays a separate concern (``result_shapes`` shapes the cached
-page; the VarCharValue rendering below only owns the wire Datum member).
+``pagination.decode_offset_token`` for token validation. Cells render
+through the shared ``result_shapes.serialize_cell`` both this wire member
+and the row artifacts read from.
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from athena_local.request_fields import (
     optional_max_results,
     required_string,
 )
+from athena_local.result_shapes import serialize_cell
 
 # Athena's default inline page size; GetQueryResults.MaxResults is bounded by
 # the model's MaxQueryResults shape (1..1000).
@@ -143,7 +144,7 @@ def _result_set_payload(
                 "Data": [
                     {}
                     if value is None
-                    else {"VarCharValue": _cell_value(value)}
+                    else {"VarCharValue": serialize_cell(value)}
                     for value in row
                 ]
             }
@@ -157,21 +158,6 @@ def _result_set_payload(
             ]
         },
     }
-
-
-def _cell_value(value: object) -> str:
-    """The VarCharValue string a cell becomes on the Athena wire.
-
-    Numbers, decimals, dates and timestamps arrive from Trino already shaped
-    like Athena's output, so ``str()`` passes them through. Trino sends
-    booleans as JSON booleans, which Python renders ``True``/``False`` but
-    Athena emits lowercase; normalize the case. Nulls never reach this
-    function — ``_result_set_payload`` drops the member instead (the service
-    model marks ``Datum.VarCharValue`` optional).
-    """
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    return str(value)
 
 
 def _runtime_statistics_payload(

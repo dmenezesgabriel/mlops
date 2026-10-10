@@ -17,6 +17,8 @@ the parsed contracts only depend on column names and row layout.
 
 from __future__ import annotations
 
+import json
+
 from athena_local.trino_client import TrinoTransportError
 
 _TRINO_DESCRIBE_COLUMNS = ["Column", "Type", "Extra", "Comment"]
@@ -84,3 +86,20 @@ def _show_create_shape(
     if len(columns) != 1:
         return columns, rows
     return [_ATHENA_SHOW_CREATE_COLUMN], rows
+
+
+def serialize_cell(value: object) -> str:
+    """The string a cell becomes on the wire and in result artifacts.
+
+    Booleans render lowercase — Athena's wire form, not Python's ``str()``
+    — and array/map cells render Jackson-compact JSON like real Athena
+    output, never Python repr. Everything else passes through ``str()``:
+    numbers, decimals, dates and timestamps arrive from Trino already
+    shaped like Athena's output. Nulls never reach this function: both
+    consumers replace/drop them before the call.
+    """
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    return str(value)

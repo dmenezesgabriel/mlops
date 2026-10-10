@@ -110,6 +110,35 @@ def test_select_writes_header_csv_and_sidecar() -> None:
     )
 
 
+def test_csv_matches_wire_cell_casing_and_json_complex_cells() -> None:
+    store = RecordingObjectStore()
+    record = make_record(
+        ExecutionStore(),
+        query="SELECT flag, tags, nums FROM analytics.t",
+        statement_type="DML",
+        substatement_type="SELECT",
+        columns=[
+            ("flag", "boolean"),
+            ("tags", "map(varchar, integer)"),
+            ("nums", "array(integer)"),
+        ],
+        rows=[[True, {"k": 1}, [1, 2]], [False, None, None]],
+    )
+    writer = ArtifactWriter(S3Writer(store))
+
+    run(writer, record)
+
+    # The artifact renders cells exactly like the GetQueryResults wire
+    # (G-290): booleans lowercase, complex cells JSON — never Python's
+    # "True"/repr, which real Athena output does not carry.
+    assert (
+        store.bytes_of(f"{RESULT_LOCATION}{record.query_execution_id}.csv")
+        == b'"flag","tags","nums"\n'
+        b'"true","{""k"":1}","[1,2]"\n'
+        b'"false","",""\n'
+    )
+
+
 def test_csv_null_escapes_and_embedded_delimiters() -> None:
     store = RecordingObjectStore()
     record = make_record(

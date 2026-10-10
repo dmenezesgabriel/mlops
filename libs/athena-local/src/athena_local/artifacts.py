@@ -31,6 +31,7 @@ from typing import Literal
 
 from athena_local.executions import QueryExecutionRecord
 from athena_local.executor import ArtifactWriteError
+from athena_local.result_shapes import serialize_cell
 from athena_local.s3_writer import S3Writer, S3WriterError
 from athena_local.sql_lexing import (
     balanced_span,
@@ -237,7 +238,9 @@ def _rows_bytes(
     if plan.kind == "csv":
         writer.writerow([name for name, _type in columns])
     for row in rows:
-        writer.writerow(["" if value is None else str(value) for value in row])
+        writer.writerow(
+            ["" if value is None else serialize_cell(value) for value in row]
+        )
     return buffer.getvalue().encode("utf-8")
 
 

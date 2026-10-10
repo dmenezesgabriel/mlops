@@ -137,7 +137,7 @@ def test_select_csv_round_trips_through_moto_s3(
     csv_key = f"analytics/{query_id}.csv"
     metadata_key = f"analytics/{query_id}.csv.metadata"
     assert stack.object_bytes(stack.results_bucket, csv_key) == (
-        b'"id","name","ok"\n"1","alpha","True"\n"","beta","False"\n'
+        b'"id","name","ok"\n"1","alpha","true"\n"","beta","false"\n'
     )
     assert json.loads(
         stack.object_bytes(stack.results_bucket, metadata_key).decode("utf-8")

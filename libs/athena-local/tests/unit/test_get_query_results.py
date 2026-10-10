@@ -158,6 +158,32 @@ def test_get_results_serializes_cell_types_to_varchar_value(
     ]
 
 
+def test_get_results_json_encodes_complex_cells(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    record = succeeded_result(
+        store,
+        [[{"k": 1}, [1, 2]]],
+        columns=[
+            ("m", "map(varchar, integer)"),
+            ("a", "array(integer)"),
+        ],
+    )
+
+    output = get_query_results(
+        store, executor, {"QueryExecutionId": record.query_execution_id}
+    )
+
+    # Array/map cells render the JSON real Athena emits in VarCharValue
+    # (Jackson-compact), never Python's repr.
+    assert output["ResultSet"]["Rows"][1]["Data"] == [
+        {"VarCharValue": '{"k":1}'},
+        {"VarCharValue": "[1,2]"},
+    ]
+
+
 def test_get_results_null_cells_omit_varchar_value_key(
     store: ExecutionStore,
     executor: QueryExecutor,

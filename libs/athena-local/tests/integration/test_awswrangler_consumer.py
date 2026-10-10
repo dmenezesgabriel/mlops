@@ -82,7 +82,7 @@ def test_read_sql_query_csv_path_round_trips_live(
     )
     assert body == (
         '"one","ratio","amount","flag","day","ts","nothing"\n'
-        '"1","1.5","12.34","True","2023-06-15",'
+        '"1","1.5","12.34","true","2023-06-15",'
         '"2023-06-15 10:20:30.123",""\n'
     )
     assert str(frame["one"].dtype) == "Int32"
