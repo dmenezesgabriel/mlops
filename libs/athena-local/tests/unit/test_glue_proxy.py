@@ -75,6 +75,13 @@ class BadPatternClient(FakeGlueClient):
         raise re.error("bad pattern")
 
 
+class MalformedDatabaseClient(FakeGlueClient):
+    """Fake whose GetDatabase answer lacks a JSON object member."""
+
+    def get_database(self, Name: str) -> dict[str, object]:  # noqa: N803
+        return {"Database": "not-an-object"}
+
+
 def test_list_databases_translates_glue_database() -> None:
     proxy = GlueProxy(FakeGlueClient(databases=[SAMPLE_DATABASE]))
 
@@ -130,6 +137,17 @@ def test_database_parameters_none_when_only_engine_stamp() -> None:
     proxy = GlueProxy(FakeGlueClient(databases=[stamped]))
 
     assert proxy.get_database("enginedb").parameters is None
+
+
+def test_get_database_malformed_member_is_internal_server() -> None:
+    """A member that is not a JSON object breaks the wire contract — a
+    shaped 500, never a silent None parse."""
+    proxy = GlueProxy(MalformedDatabaseClient())
+
+    with pytest.raises(
+        InternalServerException, match="missing Database member"
+    ):
+        proxy.get_database("sampledb")
 
 
 def test_get_database_missing_raises_metadata_exception() -> None:
@@ -203,6 +221,33 @@ def test_list_tables_translates_storage_descriptor_columns() -> None:
         "EXTERNAL": "TRUE",
         "location": "s3://bucket/json",
     }
+
+
+def test_list_tables_numeric_create_time_passes_through_as_epoch() -> None:
+    """A numeric CreateTime (not a datetime) is already an epoch value."""
+    table = {**SAMPLE_TABLE, "CreateTime": 1_700_000_000}
+    proxy = GlueProxy(FakeGlueClient(tables={"geo": [table]}))
+
+    tables = proxy.list_tables("geo", None)
+
+    assert tables[0].create_time == 1_700_000_000.0
+
+
+def test_list_tables_skips_non_object_column_entries() -> None:
+    """A malformed Columns entry is dropped, not surfaced as a blank column."""
+    table = {
+        **SAMPLE_TABLE,
+        "StorageDescriptor": {
+            "Columns": ["junk", {"Name": "population", "Type": "int"}]
+        },
+    }
+    proxy = GlueProxy(FakeGlueClient(tables={"geo": [table]}))
+
+    tables = proxy.list_tables("geo", None)
+
+    assert tables[0].columns == [
+        GlueColumn(name="population", column_type="int", comment=None)
+    ]
 
 
 def test_list_tables_missing_database_propagates_metadata_exception() -> None:

@@ -81,6 +81,7 @@ CLASSIFICATION_CASES = [
     ("DESCRIBE t", "UTILITY", "DESCRIBE"),
     ("desc t", "UTILITY", "DESCRIBE"),
     ("EXPLAIN SELECT 1", "UTILITY", "EXPLAIN_SELECT"),
+    ("EXPLAIN", "UTILITY", "EXPLAIN"),
     ("USE analytics", "UTILITY", "USE_ANALYTICS"),
     ("ANALYZE TABLE t", "UTILITY", "ANALYZE_TABLE"),
     ("SET SESSION query_max_run_time = '1h'", "UTILITY", "SET_SESSION"),

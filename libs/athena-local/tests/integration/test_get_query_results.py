@@ -230,6 +230,24 @@ def test_client_request_token_replays_the_original_id(
     assert listed.count(first["QueryExecutionId"]) == 1
 
 
+def test_runtime_statistics_report_live_engine_counters(
+    inline_results_harness: InlineResultsHarness,
+) -> None:
+    """GetQueryRuntimeStatistics round-trips the live record's counters —
+    the op had no live-stack surface (G-287), so a drift between the
+    executor's recorded stats and the wire shape would go unseen."""
+    harness = inline_results_harness
+    query_id = _start_values_query(harness)
+    _poll_until_terminal(harness.athena, query_id)
+
+    statistics = harness.athena.get_query_runtime_statistics(
+        QueryExecutionId=query_id
+    )["QueryRuntimeStatistics"]
+
+    assert statistics["Timeline"]["EngineExecutionTimeInMillis"] >= 0
+    assert statistics["Rows"]["InputBytes"] >= 0
+
+
 def _start_values_query(harness: InlineResultsHarness) -> str:
     started = harness.athena.start_query_execution(
         QueryString="SELECT x FROM (VALUES 1, 2, 3, 4, 5, 6) AS t(x)",

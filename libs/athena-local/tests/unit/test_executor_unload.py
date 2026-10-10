@@ -219,6 +219,58 @@ def test_unload_statement_error_still_drops_the_temp_table(
     asyncio.run(scenario())
 
 
+def test_unload_drop_failure_on_error_exit_keeps_the_engine_reason(
+    store: ExecutionStore,
+) -> None:
+    """A cleanup failure on a non-success exit is swallowed, not reported.
+
+    The engine already decided the verdict; a Glue blip during the
+    best-effort drop must not overwrite the statement's own failure reason
+    (the success-path drop, by contrast, does fail the execution — tested
+    above).
+    """
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient(
+            [
+                result_page(next_uri=URI_1),
+                result_page(
+                    next_uri=None,
+                    error=TrinoQueryError(
+                        message="Target directory is not empty",
+                        error_type="USER_ERROR",
+                        error_name="HIVE_PATH_ALREADY_EXISTS",
+                    ),
+                ),
+            ]
+        )
+        snapshotter = RecordingSnapshotter(
+            drop_error=InternalServerException("glue unreachable")
+        )
+        executor = QueryExecutor(
+            store=store,
+            client=client,
+            writer=RecordingWriter(),
+            snapshotter=snapshotter,
+        )
+        record = await executor.start(
+            query=UNLOAD_QUERY,
+            workgroup="primary",
+            database="analytics",
+            statement_classification=UNLOAD_CLASSIFICATION,
+        )
+        await executor._tasks[record.query_execution_id]
+
+        assert record.state == FAILED
+        assert "Target directory is not empty" in (
+            record.state_change_reason or ""
+        )
+        assert "glue unreachable" not in (record.state_change_reason or "")
+        assert snapshotter.drop_calls == [record.unload_cleanup_table]
+
+    asyncio.run(scenario())
+
+
 def test_unload_cancel_still_drops_the_temp_table(
     store: ExecutionStore,
 ) -> None:

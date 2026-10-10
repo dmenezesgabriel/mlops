@@ -19,6 +19,22 @@ from tests.unit._s3_fakes import RecordingObjectStore, s3_client_error
 PREFIX = "s3://results-bucket/analytics/"
 
 
+class TokenlessTruncatingStore(RecordingObjectStore):
+    """Answers IsTruncated without a NextContinuationToken — a broken page."""
+
+    def list_objects_v2(  # noqa: N803 (mirrors the botocore keyword vocabulary)
+        self,
+        Bucket: str,  # noqa: N803
+        Prefix: str = "",  # noqa: N803
+        ContinuationToken: str | None = None,  # noqa: N803
+    ) -> dict[str, object]:
+        self.list_calls.append((Bucket, Prefix))
+        return {
+            "Contents": [{"Key": f"{Prefix}a.csv"}],
+            "IsTruncated": True,
+        }
+
+
 def test_put_object_stores_bytes_at_the_uri_path() -> None:
     store = RecordingObjectStore()
     writer = S3Writer(store)
@@ -63,6 +79,15 @@ def test_list_object_paths_follows_continuation_tokens() -> None:
     assert [path.rsplit("/", 1)[-1] for path in paths] == [
         f"f{i:02d}.parquet" for i in range(5)
     ]
+
+
+def test_list_object_paths_truncated_without_token_raises() -> None:
+    """A truncated page with no continuation token is a broken contract —
+    following it would loop forever, so the listing fails instead."""
+    writer = S3Writer(TokenlessTruncatingStore())
+
+    with pytest.raises(S3WriterError, match="without a NextContinuationToken"):
+        writer.list_object_paths("s3://bucket/prefix/")
 
 
 def test_put_object_absorbs_client_error_as_s3_writer_error() -> None:

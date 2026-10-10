@@ -30,6 +30,7 @@ from tests.unit._execution_fakes import started_execution
 from tests.unit._executor_fakes import (
     URI_1,
     URI_2,
+    URI_3,
     CancellingWriter,
     GatedStatementClient,
     GatedWriter,
@@ -138,6 +139,44 @@ def test_canceled_then_fetch_error_stays_cancelled(
         await executor._tasks[record.query_execution_id]
 
         assert record.state == CANCELLED  # transport error must not win
+
+    asyncio.run(scenario())
+
+
+def test_cancel_mid_poll_stops_fetching(
+    store: ExecutionStore,
+) -> None:
+    """A cancel landing inside an in-flight nextUri fetch ends the poll.
+
+    The fetch returns a page still carrying a nextUri, but the loop's
+    CANCELLED check must exit before following it — a poll that ignored the
+    stop would keep a dead statement running coordinator-side.
+    """
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient(
+            [
+                result_page(next_uri=URI_1, stats={"state": "RUNNING"}),
+                result_page(next_uri=URI_2, stats={"state": "RUNNING"}),
+                result_page(next_uri=URI_3, stats={"state": "RUNNING"}),
+                result_page(next_uri=None, data=[[1]]),
+            ],
+            fetch_delay_seconds=0.05,
+        )
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        record = await executor.start(query="SELECT 1", workgroup="primary")
+        await asyncio.sleep(0.02)  # actively inside fetch_next(URI_2)
+
+        await executor.cancel(record.query_execution_id)
+        await executor._tasks[record.query_execution_id]
+
+        assert record.state == CANCELLED
+        # fetch(URI_2) returned the URI_3 page after the cancel landed; the
+        # loop must not have issued a third fetch for it.
+        assert client.fetches == [URI_1, URI_2]
+        assert client.cancellations == [URI_2]
 
     asyncio.run(scenario())
 

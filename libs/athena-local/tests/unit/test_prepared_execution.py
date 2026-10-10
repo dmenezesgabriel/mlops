@@ -98,6 +98,19 @@ def test_parse_missing_name_raises_shaped_error() -> None:
         parse_execute_statement("EXECUTE")
 
 
+def test_parse_unterminated_quoted_name_raises_shaped_error() -> None:
+    with pytest.raises(
+        InvalidRequestException, match="unterminated quoted identifier"
+    ):
+        parse_execute_statement('EXECUTE "unterminated')
+
+
+def test_parse_non_identifier_name_raises_shaped_error() -> None:
+    # ``(`` cannot start a bare name — only a quoted identifier may.
+    with pytest.raises(InvalidRequestException, match="identifier or quoted"):
+        parse_execute_statement("EXECUTE (junk")
+
+
 def test_parse_trailing_text_raises_shaped_error() -> None:
     with pytest.raises(InvalidRequestException, match="USING"):
         parse_execute_statement("EXECUTE st BOGUS")

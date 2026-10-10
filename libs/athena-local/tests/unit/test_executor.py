@@ -198,6 +198,38 @@ def test_fetch_transport_error_marks_failed(store: ExecutionStore) -> None:
     asyncio.run(scenario())
 
 
+def test_poll_fetch_transport_error_marks_failed(
+    store: ExecutionStore,
+) -> None:
+    """A transport failure on a poll fetch fails the RUNNING execution.
+
+    The error is scoped to URI_2, so the preflight submit + URI_1 fetch
+    stay healthy and only the background poll breaks — the arm the
+    preflight-scoped case above cannot reach.
+    """
+
+    async def scenario() -> None:
+        client = ScriptedStatementClient(
+            [result_page(next_uri=URI_1), result_page(next_uri=URI_2)],
+            fetch_delay_seconds=0.05,
+            fetch_error=TrinoTransportError("read timeout"),
+            fetch_error_uri=URI_2,
+        )
+        executor = QueryExecutor(
+            store=store, client=client, writer=RecordingWriter()
+        )
+        record = await executor.start(query="SELECT 1", workgroup="primary")
+        await executor._tasks[record.query_execution_id]
+
+        assert record.state == FAILED
+        assert "Trino unreachable" in (record.state_change_reason or "")
+        # URI_1 was the healthy preflight fetch; only the poll fetch broke.
+        assert client.fetches == [URI_1, URI_2]
+        assert record.query_execution_id not in executor._tasks
+
+    asyncio.run(scenario())
+
+
 def test_preflight_syntax_error_raises_400_before_any_execution(
     store: ExecutionStore,
 ) -> None:

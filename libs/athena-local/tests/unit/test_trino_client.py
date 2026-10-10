@@ -436,6 +436,20 @@ def test_page_without_id_raises_transport_error() -> None:
         )
 
 
+def test_non_object_json_body_raises_transport_error() -> None:
+    """A valid-JSON body that is not an object is off-protocol — a list
+    page would read as finished and drop the statement's results."""
+    handler = ScriptedTrinoHandler([(200, "[1, 2]", None)])
+    client = _trino_client(handler)
+
+    with pytest.raises(TrinoTransportError, match="expected a JSON object"):
+        asyncio.run(
+            client.submit_statement(
+                "SELECT 1", catalog="hive", schema="analytics", user="alice"
+            )
+        )
+
+
 def test_connection_failure_raises_transport_error() -> None:
     client = TrinoClient(
         BASE_URL,

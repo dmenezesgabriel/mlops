@@ -159,6 +159,46 @@ def test_unload_location_non_unload_is_none() -> None:
     assert unload_location("SELECT 'UNLOAD' AS kind") is None
 
 
+@pytest.mark.parametrize(
+    "prefix",
+    [
+        "AUTOTO",
+        "PROTO",
+        "X_TO",
+    ],
+    ids=["AUTOTO", "PROTO", "underscore_TO"],
+)
+def test_unload_location_word_boundary_prefix_is_not_to(
+    prefix: str,
+) -> None:
+    """``TO`` glued to a trailing identifier char is not the TO clause.
+
+    ``AUTOTO'x'``-shaped prefixes end in the letters T and O; reading them
+    as the clause would invent an ``x`` location from a token that is part
+    of an identifier (the word-boundary arm ``_to_clause_at`` carries).
+    """
+    query = f"UNLOAD (SELECT 1) {prefix}'s3://bucket/out/'"
+
+    assert unload_location(query) is None
+
+
+def test_unload_location_unterminated_literal_is_none() -> None:
+    """An unterminated quote aborts the scan — there is no readable TO."""
+    assert unload_location("UNLOAD (SELECT 'unterminated") is None
+
+
+def test_unload_location_unterminated_to_literal_is_the_tail() -> None:
+    """A TO whose literal never closes yields the rest of the text.
+
+    Trino will reject the statement itself; the location parser's lenient
+    tail arm is pinned so a malformed query cannot invent a different
+    prefix than the text carries.
+    """
+    location = unload_location("UNLOAD (SELECT 1) TO 'unterminated")
+
+    assert location == "unterminated"
+
+
 def capture(
     snapshotter: OutputSnapshotter,
     *,
@@ -227,6 +267,22 @@ def test_capture_insert_defaults_database_from_context() -> None:
 
     assert snapshot is not None
     assert snapshot.location == "s3://data-bucket/events/"
+
+
+def test_capture_insert_without_into_target_is_a_target_error() -> None:
+    """An INSERT-classified statement with no INTO target cannot snapshot —
+    the capture fails shaped rather than listing an arbitrary location."""
+    snapshotter, _store = snapshotter_with(
+        tables={"analytics": [INSERT_TABLE]}
+    )
+
+    with pytest.raises(ManifestTargetError, match="no INTO target"):
+        capture(
+            snapshotter,
+            query="INSERT events SELECT 1",
+            database="analytics",
+            substatement_type="INSERT",
+        )
 
 
 def test_capture_insert_missing_database_is_a_target_error() -> None:

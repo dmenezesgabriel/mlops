@@ -399,6 +399,25 @@ def test_get_results_invalid_next_token_is_shaped_400(
         )
 
 
+def test_get_results_non_string_next_token_is_shaped_400(
+    store: ExecutionStore,
+    executor: QueryExecutor,
+    workgroups: WorkGroupStore,
+) -> None:
+    # A JSON number is a type error, not a malformed token — the member is
+    # rejected before offset decoding ever runs.
+    record = succeeded_result(store, [["1"]])
+
+    with pytest.raises(InvalidRequestException, match="must be a string"):
+        get_query_results(
+            executor,
+            {
+                "QueryExecutionId": record.query_execution_id,
+                "NextToken": 3,
+            },
+        )
+
+
 def test_get_results_next_token_past_end_returns_no_rows(
     store: ExecutionStore,
     executor: QueryExecutor,

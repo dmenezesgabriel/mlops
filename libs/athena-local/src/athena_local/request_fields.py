@@ -208,7 +208,6 @@ def optional_int(
     name: str,
     *,
     minimum: int | None = None,
-    maximum: int | None = None,
 ) -> int | None:
     raw = member(payload, name)
     if raw is None:
@@ -220,10 +219,6 @@ def optional_int(
     if minimum is not None and raw < minimum:
         raise InvalidRequestException(
             f"{name} must be at least {minimum}, got {raw}"
-        )
-    if maximum is not None and raw > maximum:
-        raise InvalidRequestException(
-            f"{name} must be at most {maximum}, got {raw}"
         )
     return raw
 

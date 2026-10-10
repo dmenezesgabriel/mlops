@@ -26,6 +26,7 @@ from athena_local.trino_client import (
 QUERY_ID = "20260920_000000_00000_exec001"
 URI_1 = f"http://trino:8080/v1/statement/{QUERY_ID}/1"
 URI_2 = f"http://trino:8080/v1/statement/{QUERY_ID}/2"
+URI_3 = f"http://trino:8080/v1/statement/{QUERY_ID}/3"
 
 
 def result_page(
