@@ -75,7 +75,7 @@ _LITERAL_OR_EXPRESSION_RE = re.compile(
 # in quotes anyway — aws docs "Use parameterized queries"). The alternation
 # order mirrors ``sql_lexing._COMMENT_ISOLATING_RE``.
 _PLACEHOLDER_SCAN_RE = re.compile(
-    r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"|--[^\n]*"
+    r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"|`(?:[^`]|``)*`|--[^\n]*"
     r"|/\*.*?\*/|/\*.*|\?"
 )
 
@@ -347,7 +347,7 @@ def _split_top_level_values(text: str) -> list[str]:
     index = 0
     while index < len(text):
         char = text[index]
-        if char in {"'", '"'}:
+        if char in {"'", '"', "`"}:
             index = quoted_end(text, index, char)
             continue
         if char == "(":

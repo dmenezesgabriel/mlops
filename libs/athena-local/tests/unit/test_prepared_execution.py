@@ -83,6 +83,16 @@ def test_parse_using_comma_inside_string_literal_does_not_split() -> None:
     assert parts == ExecuteParts(name="st", values=["'a,b'", "2"])
 
 
+def test_parse_using_comma_inside_backtick_identifier_does_not_split() -> None:
+    parts = parse_execute_statement("EXECUTE st USING `a,b`, 2")
+    assert parts == ExecuteParts(name="st", values=["`a,b`", "2"])
+
+
+def test_parse_using_escaped_backtick_identifier_stays_whole() -> None:
+    parts = parse_execute_statement("EXECUTE st USING `a``,b`, 2")
+    assert parts == ExecuteParts(name="st", values=["`a``,b`", "2"])
+
+
 def test_parse_missing_name_raises_shaped_error() -> None:
     with pytest.raises(InvalidRequestException, match="statement name"):
         parse_execute_statement("EXECUTE")
@@ -144,6 +154,25 @@ def test_bind_ignores_question_marker_inside_string_literal() -> None:
 
 def test_bind_ignores_question_marker_inside_comment() -> None:
     assert bind_parameters("SELECT ? -- ?", ["1"]) == "SELECT (1) -- ?"
+
+
+def test_bind_ignores_question_marker_inside_backtick_identifier() -> None:
+    assert (
+        bind_parameters("SELECT `a?b` FROM t WHERE x = ?", ["1"])
+        == "SELECT `a?b` FROM t WHERE x = (1)"
+    )
+
+
+def test_bind_ignores_marker_after_escaped_backtick() -> None:
+    assert (
+        bind_parameters("SELECT `a``?` FROM t WHERE x = ?", ["1"])
+        == "SELECT `a``?` FROM t WHERE x = (1)"
+    )
+
+
+def test_bind_backtick_marker_counts_one_placeholder() -> None:
+    with pytest.raises(ParameterCountError, match="expected 1 but found 2"):
+        bind_parameters("SELECT `a?b` FROM t WHERE x = ?", ["1", "2"])
 
 
 def test_bind_count_mismatch_raises_naming_counts() -> None:
