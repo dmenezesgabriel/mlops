@@ -12,7 +12,11 @@ from __future__ import annotations
 import pytest
 from athena_local.dialect import to_trino_dialect
 from athena_local.errors import InvalidRequestException
-from athena_local.hive_types import _MAX_TYPE_NESTING, hive_type_to_trino
+from athena_local.hive_types import (
+    _MAX_TYPE_NESTING,
+    hive_column_defs,
+    hive_type_to_trino,
+)
 
 
 def _nested_array(depth: int) -> str:
@@ -43,3 +47,41 @@ def test_deep_external_table_column_raises_a_shaped_400() -> None:
     )
     with pytest.raises(InvalidRequestException, match="nesting depth"):
         to_trino_dialect(query, "db")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "",  # no type name
+        "int extra",  # trailing text after a scalar
+        "+",  # not a type name
+        "bogus",  # unknown scalar
+        "decimal(",  # unbalanced scalar params
+        "array int",  # complex type without `<`
+        "array<",  # empty element list
+        "array<int extra>",  # missing `>` before extra text
+        "struct<>",  # empty struct
+        "struct<a: >",  # field without a type
+        "struct<a:int bogus>",  # missing `,`/`>`
+    ],
+)
+def test_unparseable_hive_types_return_none(text: str) -> None:
+    assert hive_type_to_trino(text) is None
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "a",  # column without a type
+        "a bogus",  # unparseable column type
+        "a int COMMENT 'x",  # unterminated comment literal
+    ],
+)
+def test_unparseable_column_defs_return_none(text: str) -> None:
+    assert hive_column_defs(text) is None
+
+
+def test_column_def_with_comment_maps() -> None:
+    columns = hive_column_defs("a int COMMENT 'x'")
+    assert columns is not None
+    assert columns[0].sql == "\"a\" int COMMENT 'x'"

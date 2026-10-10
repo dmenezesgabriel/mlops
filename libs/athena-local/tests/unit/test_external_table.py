@@ -300,12 +300,76 @@ def test_hive_column_types_translate(hive_type: str, trino_type: str) -> None:
         "SELECT 'CREATE EXTERNAL TABLE x (a int)'",
         # CREATE EXTERNAL VIEW, not a table.
         "CREATE EXTERNAL VIEW v AS SELECT 1",
+        # --- Guard-arm sweep (G-263): each Athena-invalid clause shape the
+        # matcher can bail on passes through for Trino's own 400. ---
+        "CREATE EXTERNAL TABLE",  # no target
+        "CREATE EXTERNAL TABLE t (a) STORED AS PARQUET "
+        "LOCATION 's3://b/x/'",  # column without a type
+        "CREATE EXTERNAL TABLE t (a int) PARTITIONED BYX (a) "
+        "LOCATION 's3://b/x/'",  # PARTITIONED BY not matched
+        "CREATE EXTERNAL TABLE t (a int) PARTITIONED BY (a "
+        "STORED AS PARQUET LOCATION 's3://b/x/'",  # unbalanced span
+        "CREATE EXTERNAL TABLE t (a int) PARTITIONED BY (a) "
+        "LOCATION 's3://b/x/'",  # bad partition column def
+        "CREATE EXTERNAL TABLE t (a int) CLUSTERED BYX (a) "
+        "LOCATION 's3://b/x/'",  # CLUSTERED BY not matched
+        "CREATE EXTERNAL TABLE t (a int) CLUSTERED BY (a "
+        "INTO 2 BUCKETS STORED AS PARQUET LOCATION 's3://b/x/'",
+        # M-8: bucket names must be identifiers — `1abc`/empty entries bail.
+        "CREATE EXTERNAL TABLE t (a int) CLUSTERED BY (1abc) "
+        "INTO 2 BUCKETS STORED AS PARQUET LOCATION 's3://b/x/'",
+        "CREATE EXTERNAL TABLE t (a int) CLUSTERED BY (a, ) "
+        "INTO 2 BUCKETS STORED AS PARQUET LOCATION 's3://b/x/'",
+        "CREATE EXTERNAL TABLE t (a int) CLUSTERED BY (a) "
+        "STORED AS PARQUET LOCATION 's3://b/x/'",  # no INTO n BUCKETS
+        "CREATE EXTERNAL TABLE t (a int) ROW FORMATX "
+        "LOCATION 's3://b/x/'",  # ROW FORMAT not matched
+        "CREATE EXTERNAL TABLE t (a int) ROW FORMAT BOGUS "
+        "LOCATION 's3://b/x/'",  # neither SERDE nor DELIMITED
+        "CREATE EXTERNAL TABLE t (a int) ROW FORMAT SERDE 'x",  # unterminated serde
+        "CREATE EXTERNAL TABLE t (a int) ROW FORMAT SERDE 'x' "
+        "WITH SERDEPROPERTIES ('a'='b' STORED AS PARQUET "
+        "LOCATION 's3://b/x/'",  # unbalanced SERDEPROPERTIES span
+        "CREATE EXTERNAL TABLE t (a int) WITH BOGUS "
+        "STORED AS PARQUET LOCATION 's3://b/x/'",  # WITH, not SERDEPROPERTIES
+        "CREATE EXTERNAL TABLE t (a int) ROW FORMAT DELIMITED "
+        "FIELDS TERMINATED BY 'x",  # unterminated delimiter literal
+        "CREATE EXTERNAL TABLE t (a int) STORED AS",  # STORED AS, no word
+        "CREATE EXTERNAL TABLE t (a int) STORED AS INPUTFORMAT "
+        "'com.x.In",  # unterminated INPUTFORMAT literal
+        "CREATE EXTERNAL TABLE t (a int) STORED AS INPUTFORMAT "
+        "'com.x.In' OUTPUTFORMAT 'com.x.Out",  # unterminated OUTPUTFORMAT
+        "CREATE EXTERNAL TABLE t (a int) STORED AS PARQUET "
+        "LOCATION 's3://b/x/' LOCATION",  # LOCATION without a literal
+        "CREATE EXTERNAL TABLE t (a int) STORED AS PARQUET "
+        "LOCATION 's3://b/x/' COMMENT 'x",  # unterminated COMMENT literal
+        "CREATE EXTERNAL TABLE t (a int) STORED AS PARQUET "
+        "LOCATION 's3://b/x/' TBLPROPERTIES",  # TBLPROPERTIES without `(`
+        "CREATE EXTERNAL TABLE t (a int) STORED AS PARQUET "
+        "LOCATION 's3://b/x/' TBLPROPERTIES ('k'",  # unbalanced span
+        "CREATE EXTERNAL TABLE t (a int) STORED AS PARQUET "
+        "LOCATION 's3://b/x/' TBLPROPERTIES ('k')",  # malformed pair
     ],
 )
 def test_unmappable_or_non_athena_statements_pass_through(
     query: str,
 ) -> None:
     assert to_trino_dialect(query, "db") == query
+
+
+def test_dropped_serdeproperties_and_trailing_tblproperty_comma() -> None:
+    # A top-level WITH SERDEPROPERTIES is parsed and dropped (documented
+    # limitation); a trailing empty TBLPROPERTIES entry hits the `continue`
+    # arm and is skipped rather than failing the rewrite.
+    assert to_trino_dialect(
+        "CREATE EXTERNAL TABLE t (a int) WITH SERDEPROPERTIES ('a'='b') "
+        "STORED AS PARQUET LOCATION 's3://b/x/' "
+        "TBLPROPERTIES ('k'='v',)",
+        "db",
+    ) == (
+        'CREATE TABLE "db"."t" ("a" int) '
+        "WITH (format='PARQUET', external_location='s3://b/x/')"
+    )
 
 
 @pytest.mark.parametrize(

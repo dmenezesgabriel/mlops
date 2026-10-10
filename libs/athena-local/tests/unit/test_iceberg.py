@@ -224,6 +224,63 @@ class TestIcebergCreate:
             is None
         )
 
+    def test_malformed_tblproperties_pair_passes_through(self) -> None:
+        # M-6: a pair that is not `'k' = 'v'` bails the whole rewrite.
+        assert (
+            route(
+                "CREATE TABLE `t` (`id` bigint) LOCATION 's3://b/t/' "
+                "TBLPROPERTIES ('table_type'='ICEBERG', 'badpair')",
+                set(),
+            )
+            is None
+        )
+
+    def test_tblproperties_trailing_comma_is_skipped(self) -> None:
+        # The trailing empty entry hits the `continue` arm (G-267).
+        sql = route(
+            "CREATE TABLE `t` (`id` bigint) LOCATION 's3://b/t/' "
+            "TBLPROPERTIES ('table_type'='ICEBERG',)",
+            set(),
+        )
+        assert sql == (
+            'CREATE TABLE iceberg."analytics"."t" ("id" bigint) '
+            "WITH (format='PARQUET', location='s3://b/t/')"
+        )
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            # No target / unparseable column list / clause boundary.
+            "CREATE TABLE  (`id` bigint) LOCATION 's3://b/t/' "
+            "TBLPROPERTIES ('table_type'='ICEBERG')",
+            "CREATE TABLE `t` (`id` bigint LOCATION 's3://b/t/' "
+            "TBLPROPERTIES ('table_type'='ICEBERG')",
+            "CREATE TABLE `t` (`id`) LOCATION 's3://b/t/' "
+            "TBLPROPERTIES ('table_type'='ICEBERG')",
+            "CREATE TABLE `t` (`id` bigint) LOCATION 's3://b/t/' 123 "
+            "TBLPROPERTIES ('table_type'='ICEBERG')",
+            # LOCATION literal edge shapes.
+            "CREATE TABLE `t` (`id` bigint) LOCATION "
+            "TBLPROPERTIES ('table_type'='ICEBERG')",  # no literal
+            "CREATE TABLE `t` (`id` bigint) LOCATION 'x",  # unterminated LOCATION
+            # PARTITIONED BY edges.
+            "CREATE TABLE `t` (`id` bigint) LOCATION 's3://b/t/' "
+            "PARTITIONED BYX (cat) TBLPROPERTIES ('table_type'='ICEBERG')",
+            "CREATE TABLE `t` (`id` bigint) LOCATION 's3://b/t/' "
+            "PARTITIONED BY ( ) TBLPROPERTIES ('table_type'='ICEBERG')",
+            "CREATE TABLE `t` (`id` bigint) LOCATION 's3://b/t/' "
+            "PARTITIONED BY (cat TBLPROPERTIES ('table_type'='ICEBERG')",
+            # TBLPROPERTIES edges.
+            "CREATE TABLE `t` (`id` bigint) LOCATION 's3://b/t/' TBLPROPERTIES",
+            "CREATE TABLE `t` (`id` bigint) LOCATION 's3://b/t/' "
+            "TBLPROPERTIES ('table_type'='ICEBERG'",
+            "CREATE TABLE `t` (`id` bigint) LOCATION 's3://b/t/' "
+            "TBLPROPERTIES ('table_type'='ICEBERG') junk",
+        ],
+    )
+    def test_create_bail_out_arms_pass_through(self, query: str) -> None:
+        assert route(query, set()) is None
+
 
 class TestIcebergAlter:
     ICE = {("analytics", "t")}
@@ -261,3 +318,22 @@ class TestIcebergAlter:
     def test_other_alter_clauses_route_verbatim(self) -> None:
         sql = route("ALTER TABLE `t` RENAME TO `t2`", self.ICE)
         assert sql == 'ALTER TABLE iceberg."analytics"."t" RENAME TO "t2"'
+
+    def test_add_columns_with_unparseable_defs_routes_verbatim(self) -> None:
+        # A bad column def / an unparseable tail cannot become an ADD COLUMN,
+        # so the ALTER routes with its target qualified and the clause as-is.
+        assert route("ALTER TABLE `t` ADD COLUMNS (`w`)", self.ICE) == (
+            'ALTER TABLE iceberg."analytics"."t" ADD COLUMNS ("w")'
+        )
+        assert route(
+            "ALTER TABLE `t` ADD COLUMNS (`w` double) junk", self.ICE
+        ) == (
+            'ALTER TABLE iceberg."analytics"."t" ADD COLUMNS ("w" double) junk'
+        )
+
+    def test_change_column_with_unparseable_type_routes_verbatim(self) -> None:
+        assert route(
+            "ALTER TABLE `t` CHANGE COLUMN `v` `v` bogus", self.ICE
+        ) == (
+            'ALTER TABLE iceberg."analytics"."t" CHANGE COLUMN "v" "v" bogus'
+        )

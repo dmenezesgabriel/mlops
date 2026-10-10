@@ -152,6 +152,10 @@ def test_leading_whitespace_and_case_are_preserved() -> None:
         # Unterminated literals or parens can't be trusted to a rewrite.
         ("ALTER TABLE sales ADD PARTITION (a='1'", "analytics"),
         ("ALTER TABLE sales ADD PARTITION (a='1) LOCATION 'x'", "a"),
+        # No target after ALTER TABLE.
+        ("ALTER TABLE", "analytics"),
+        # Unterminated LOCATION literal in the tail.
+        ("ALTER TABLE sales ADD PARTITION (region='AP') LOCATION 'x", "a"),
     ],
 )
 def test_non_partition_or_malformed_statements_pass_through(

@@ -332,6 +332,18 @@ def test_unload_generates_distinct_temp_table_names() -> None:
             "d",
         ),  # a second statement
         ("SELECT 'unload (x) to ''y'''", "d"),  # keyword inside a literal
+        # Malformed WITH lists and unterminated spans: AWS rejects them, so
+        # the emulator passes the text through for Trino's own 400 rather
+        # than inventing a shape.  A `k=` with an empty value is the M-7 arm:
+        # an empty value must not become a shaped InvalidRequest.
+        ("UNLOAD (SELECT 1) TO 's3://b/o/' WITH (format=)", "d"),
+        ("UNLOAD (SELECT 1) TO 's3://b/o/' WITH (format)", "d"),
+        ("UNLOAD (SELECT 1) TO 's3://b/o/' WITH (='PARQUET')", "d"),
+        ("UNLOAD (SELECT 1) TO 's3://b/o/' WITH (bad-key='PARQUET')", "d"),
+        ("UNLOAD (SELECT 1) TO 's3://b/o/' WITH ()", "d"),
+        ("UNLOAD (SELECT 1) TO 's3://b/o", "d"),  # unterminated TO literal
+        # Unbalanced WITH span.
+        ("UNLOAD (SELECT 1) TO 's3://b/o/' WITH (format='PARQUET'", "d"),
     ],
 )
 def test_unload_unmapped_statements_pass_through(

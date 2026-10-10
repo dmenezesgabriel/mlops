@@ -391,7 +391,14 @@ def _backtick_normalize(query: str) -> str:
 
 
 def _emit_backticks(query: str, start: int, end: int, out: list[str]) -> None:
-    """Convert `` `…` `` spans inside ``[start, end)`` to ``"…"``-quoted."""
+    """Convert `` `…` `` spans inside ``[start, end)`` to ``"…"``-quoted.
+
+    ``end`` is always a ``protected_spans`` boundary (or the input end), and
+    that same scan skips a backtick span whole, so a backtick found in
+    ``[start, end)`` always closes at or before ``end`` — a crossing-span
+    guard is unreachable (G-267 M-3: the removed ``close > end`` arm was an
+    equivalent mutant, confirmed by fuzzing this normalizer).
+    """
     index = start
     segment = start
     while index < end:
@@ -399,8 +406,6 @@ def _emit_backticks(query: str, start: int, end: int, out: list[str]) -> None:
             index += 1
             continue
         close = quoted_end(query, index, "`")
-        if close > end:
-            break  # Unterminated backtick — leave the tail for Trino.
         out.append(query[segment:index])
         name = query[index + 1 : close - 1].replace("``", "`")
         out.append(f'"{quoted_identifier(name)}"')

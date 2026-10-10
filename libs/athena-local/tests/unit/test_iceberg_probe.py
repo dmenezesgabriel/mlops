@@ -95,6 +95,19 @@ class TestVerdictCache:
         probe.is_iceberg_table("analytics", "t")
         assert client.get_table_calls == [("analytics", "t")] * 2
 
+    def test_entry_is_stale_at_exactly_ttl_seconds(self) -> None:
+        # M-7: the check is `< ttl_seconds`, so at exactly the boundary the
+        # verdict is re-probed rather than served from cache.
+        now = [1000.0]
+        client = self._client()
+        probe = GlueIcebergProbe(
+            GlueProxy(client), ttl_seconds=30.0, clock=lambda: now[0]
+        )
+        probe.is_iceberg_table("analytics", "t")
+        now[0] += 30.0
+        probe.is_iceberg_table("analytics", "t")
+        assert client.get_table_calls == [("analytics", "t")] * 2
+
     def test_oldest_entry_evicts_at_capacity(self) -> None:
         tables = {
             "analytics": [

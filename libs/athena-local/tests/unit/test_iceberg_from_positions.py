@@ -286,3 +286,17 @@ class TestDistinctFromPredicate:
         # ``SELECT DISTINCT a`` — the ``distinct`` there is not a predicate.
         sql = route("SELECT DISTINCT a FROM ice_t", {("analytics", "ice_t")})
         assert sql == 'SELECT DISTINCT a FROM iceberg."analytics"."ice_t"'
+
+    def test_bare_distinct_from_is_a_table_position(self) -> None:
+        # A `DISTINCT` with nothing before it is not an IS [NOT] DISTINCT
+        # predicate, so the FROM still opens a table list (G-267 arm).
+        assert route("DISTINCT FROM ice_t", {("analytics", "ice_t")}) == (
+            'DISTINCT FROM iceberg."analytics"."ice_t"'
+        )
+
+    def test_select_distinct_before_from_is_a_table_position(self) -> None:
+        # No expression between SELECT DISTINCT and FROM: the preceding word
+        # is neither `is` nor `not`, so the FROM is a table position.
+        assert route(
+            "SELECT DISTINCT FROM ice_t", {("analytics", "ice_t")}
+        ) == ('SELECT DISTINCT FROM iceberg."analytics"."ice_t"')

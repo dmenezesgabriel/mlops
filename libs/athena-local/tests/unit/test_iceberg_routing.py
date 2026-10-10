@@ -69,6 +69,15 @@ class TestIcebergRouting:
             'ON target."id" = source."id" WHEN MATCHED THEN DELETE'
         )
 
+    def test_doubled_backtick_identifier_unescapes(self) -> None:
+        # M-4: a doubled `` `` `` inside a backtick span is one literal
+        # backtick, then the whole span becomes a double-quoted identifier.
+        sql = route("SELECT `a``b` FROM ice_t", self.ICE)
+        assert sql == 'SELECT "a`b" FROM iceberg."analytics"."ice_t"'
+
+    def test_unterminated_backtick_is_not_routed(self) -> None:
+        assert route("SELECT * FROM `t", self.ICE) is None
+
     def test_delete_from_iceberg_table_is_qualified(self) -> None:
         sql = route('DELETE FROM "ice_t"', self.ICE)
         assert sql == 'DELETE FROM iceberg."analytics"."ice_t"'
@@ -269,6 +278,14 @@ class TestIcebergCommaItems:
             'UPDATE iceberg."analytics"."ice_t" SET a = 1, b = 2 WHERE id = 3'
         )
         assert ("analytics", "b") not in probe.calls
+
+    def test_trailing_comma_stops_the_item_walk(self) -> None:
+        # After the last item, a comma then nothing: the walk ends (G-267).
+        sql = route("SELECT * FROM ice_t,", self.ICE)
+        assert sql == 'SELECT * FROM iceberg."analytics"."ice_t",'
+
+    def test_comma_without_an_item_leaves_the_statement_alone(self) -> None:
+        assert route("SELECT * FROM , ice_t", self.ICE) is None
 
 
 class TestShowSchemaArgs:

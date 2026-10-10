@@ -60,6 +60,12 @@ def test_split_top_level_keeps_doubled_identifier_escapes_whole() -> None:
     assert split_top_level("`we``ird,y`, z") == ["`we``ird,y`", " z"]
 
 
+def test_split_top_level_unterminated_literal_stops_the_scan() -> None:
+    # An unterminated ``'…'`` can't be split further: ``string_end`` answers
+    # None and the scan breaks, returning the fragment collected so far.
+    assert split_top_level("a, 'b") == ["a", " "]
+
+
 def test_strip_comments_drops_line_and_block_comments() -> None:
     assert strip_comments("select 1 -- tail\nfrom t") == "select 1 \nfrom t"
     assert strip_comments("a /* mid */ b") == "a  b"
