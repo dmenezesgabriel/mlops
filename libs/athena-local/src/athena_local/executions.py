@@ -12,14 +12,10 @@ footprint the bound that matters).
 
 from __future__ import annotations
 
-import uuid
 from dataclasses import dataclass, field
 from time import time
 
-from athena_local.common_schemas import (
-    ResultConfiguration,
-    ResultReuseByAgeConfiguration,
-)
+from athena_local.common_schemas import ResultConfiguration
 from athena_local.errors import InvalidRequestException
 from athena_local.execution_record import (
     CANCELLED,
@@ -31,7 +27,6 @@ from athena_local.execution_record import (
     TERMINAL_STATES,
     QueryExecutionRecord,
 )
-from athena_local.output_targets import OutputSnapshot
 from athena_local.pagination import offset_page
 from athena_local.statement_classification import normalize_statement_text
 
@@ -89,53 +84,21 @@ class ExecutionStore:
         self.by_id.clear()
         self.by_request_token.clear()
 
-    def create(
-        self,
-        query: str,
-        workgroup: str,
-        database: str | None = None,
-        catalog: str | None = None,
-        result_configuration: ResultConfiguration | None = None,
-        managed_results: bool = False,
-        execution_parameters: list[str] | None = None,
-        client_request_token: str | None = None,
-        statement_type: str | None = None,
-        substatement_type: str | None = None,
-        output_snapshot: OutputSnapshot | None = None,
-        manifest_target_error: str | None = None,
-        resolved_statement: str | None = None,
-        result_reuse_configuration: ResultReuseByAgeConfiguration
-        | None = None,
-        unload_cleanup_table: tuple[str, str] | None = None,
-        partition_noop_on_exists: bool = False,
-    ) -> QueryExecutionRecord:
-        execution_id = str(uuid.uuid4())
-        record = QueryExecutionRecord(
-            query_execution_id=execution_id,
-            query=query,
-            workgroup=workgroup,
-            database=database,
-            catalog=catalog,
-            result_configuration=result_configuration,
-            managed_results=managed_results,
-            execution_parameters=execution_parameters,
-            statement_type=statement_type,
-            substatement_type=substatement_type,
-            output_snapshot=output_snapshot,
-            manifest_target_error=manifest_target_error,
-            resolved_statement=resolved_statement,
-            result_reuse_configuration=result_reuse_configuration,
-            unload_cleanup_table=unload_cleanup_table,
-            partition_noop_on_exists=partition_noop_on_exists,
-            request_token=client_request_token,
-        )
+    def create(self, record: QueryExecutionRecord) -> QueryExecutionRecord:
+        """Register ``record`` and return it.
+
+        ``QueryExecutionRecord.from_submission`` owns the submit-time field
+        mapping (AF-144); the store only assigns the registry slot, first-wins
+        the ClientRequestToken map, and evicts past the retention cap.
+        """
+        execution_id = record.query_execution_id
         self.by_id[execution_id] = record
-        if client_request_token is not None:
+        if record.request_token is not None:
             # First-wins: the executor's dedup check normally prevents a
             # second create, but a raced duplicate still replays the
             # original id.
             self.by_request_token.setdefault(
-                (workgroup, client_request_token), execution_id
+                (record.workgroup, record.request_token), execution_id
             )
         self._evict_over_retention_cap()
         return record
@@ -234,11 +197,9 @@ class ExecutionStore:
         now = time()
         oldest_allowed = now - max_age_minutes * 60
         for record in reversed(self.by_id.values()):
-            if record.is_retention_expired(now):
-                continue
-            if record.state != SUCCEEDED:
-                continue
-            if (record.completion_time or 0) < oldest_allowed:
+            if not self._is_reuse_candidate(
+                record, now=now, oldest_allowed=oldest_allowed
+            ):
                 continue
             if record.matches_reuse_identity(
                 workgroup=workgroup,
@@ -250,6 +211,17 @@ class ExecutionStore:
             ):
                 return record
         return None
+
+    @staticmethod
+    def _is_reuse_candidate(
+        record: QueryExecutionRecord, *, now: float, oldest_allowed: float
+    ) -> bool:
+        """Whether ``record`` passes the retention/state/age reuse guards."""
+        if record.is_retention_expired(now):
+            return False
+        if record.state != SUCCEEDED:
+            return False
+        return (record.completion_time or 0) >= oldest_allowed
 
     def batch_get(
         self, query_execution_ids: list[str]

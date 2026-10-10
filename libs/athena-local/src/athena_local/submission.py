@@ -210,32 +210,8 @@ class SubmissionPlanner:
     ) -> QueryExecutionRecord:
         """Create the execution record with the submit-time wire fields."""
         prepared = prepared or PreparedSubmission()
-        classification = request.statement_classification
         return self._store.create(
-            query=request.query,
-            workgroup=request.workgroup,
-            database=request.database,
-            catalog=request.catalog,
-            result_configuration=request.result_configuration,
-            managed_results=request.managed_results,
-            execution_parameters=request.execution_parameters,
-            client_request_token=request.client_request_token,
-            statement_type=(
-                classification.statement_type
-                if classification is not None
-                else None
-            ),
-            substatement_type=(
-                classification.substatement_type
-                if classification is not None
-                else None
-            ),
-            output_snapshot=prepared.output_snapshot,
-            manifest_target_error=prepared.manifest_target_error,
-            resolved_statement=request.resolved_statement,
-            result_reuse_configuration=request.result_reuse_configuration,
-            unload_cleanup_table=prepared.unload_cleanup_table,
-            partition_noop_on_exists=prepared.partition_noop_on_exists,
+            QueryExecutionRecord.from_submission(request, prepared)
         )
 
     async def prepare(self, request: StartRequest) -> PreparedSubmission:

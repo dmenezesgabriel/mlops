@@ -20,7 +20,7 @@ from athena_local.executions import (
     SUCCEEDED,
     ExecutionStore,
 )
-from tests.unit._execution_fakes import succeeded_execution
+from tests.unit._execution_fakes import started_execution, succeeded_execution
 
 
 @pytest.fixture()
@@ -72,7 +72,7 @@ def test_in_flight_executions_are_never_evicted() -> None:
     # outside it and push the store past the cap until they terminate.
     store = ExecutionStore(max_retained_executions=2)
     queued = [
-        store.create(query=f"SELECT {index}", workgroup="primary")
+        started_execution(store, query=f"SELECT {index}", workgroup="primary")
         for index in range(3)
     ]
 
@@ -97,8 +97,11 @@ def test_eviction_frees_the_client_request_token() -> None:
     assert first.query_execution_id not in store.by_id
     assert store.find_by_request_token("primary", "tok") is None
 
-    retry = store.create(
-        query="SELECT 1", workgroup="primary", client_request_token="tok"
+    retry = started_execution(
+        store,
+        query="SELECT 1",
+        workgroup="primary",
+        client_request_token="tok",
     )
     assert retry.query_execution_id != first.query_execution_id
     assert store.find_by_request_token("primary", "tok") is retry
@@ -108,11 +111,17 @@ def test_evicting_a_duplicate_token_keeps_the_original_mapping() -> None:
     # First-wins registration means the surviving record owns the token;
     # evicting the raced duplicate must not delete its mapping.
     store = ExecutionStore(max_retained_executions=2)
-    original = store.create(
-        query="SELECT 1", workgroup="primary", client_request_token="tok"
+    original = started_execution(
+        store,
+        query="SELECT 1",
+        workgroup="primary",
+        client_request_token="tok",
     )
-    duplicate = store.create(
-        query="SELECT 1", workgroup="primary", client_request_token="tok"
+    duplicate = started_execution(
+        store,
+        query="SELECT 1",
+        workgroup="primary",
+        client_request_token="tok",
     )
     duplicate.transition_to(RUNNING)
     duplicate.transition_to(SUCCEEDED)
@@ -156,14 +165,17 @@ def test_expired_executions_read_as_absent(store: ExecutionStore) -> None:
     assert store.find_by_request_token("primary", "tok") is None
 
     # The expired token is free: a retry runs fresh and re-registers.
-    retry = store.create(
-        query="SELECT 2", workgroup="primary", client_request_token="tok"
+    retry = started_execution(
+        store,
+        query="SELECT 2",
+        workgroup="primary",
+        client_request_token="tok",
     )
     assert store.find_by_request_token("primary", "tok") is retry
 
 
 def test_running_executions_never_expire(store: ExecutionStore) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
     record.transition_to(RUNNING)
 
     # completion_time is unset until a terminal transition, so in-flight

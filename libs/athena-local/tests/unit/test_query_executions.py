@@ -34,6 +34,7 @@ from athena_local.query_executions import (
     stop_query_execution,
 )
 from athena_local.state import PreparedStatementStore, WorkGroupStore
+from tests.unit._execution_fakes import started_execution
 from tests.unit._query_execution_fakes import (
     RecordingResultWriter,
     TerminalStatementClient,
@@ -97,7 +98,7 @@ def test_get_returns_full_payload(
     executor: QueryExecutor,
     workgroups: WorkGroupStore,
 ) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
 
     output = get_query_execution(
         store, {"QueryExecutionId": record.query_execution_id}
@@ -115,7 +116,8 @@ def test_get_query_execution_reports_full_artifact_path(
     executor: QueryExecutor,
     workgroups: WorkGroupStore,
 ) -> None:
-    record = store.create(
+    record = started_execution(
+        store,
         query="SELECT 1",
         workgroup="primary",
         result_configuration=ResultConfiguration(
@@ -166,8 +168,8 @@ def test_batch_get_returns_found_and_unprocessed(
     executor: QueryExecutor,
     workgroups: WorkGroupStore,
 ) -> None:
-    first = store.create(query="SELECT 1", workgroup="primary")
-    second = store.create(query="SELECT 2", workgroup="primary")
+    first = started_execution(store, query="SELECT 1", workgroup="primary")
+    second = started_execution(store, query="SELECT 2", workgroup="primary")
 
     output = batch_get_query_execution(
         store,
@@ -245,9 +247,9 @@ def test_list_returns_ids_newest_first(
     executor: QueryExecutor,
     workgroups: WorkGroupStore,
 ) -> None:
-    first = store.create(query="SELECT 1", workgroup="primary")
-    second = store.create(query="SELECT 2", workgroup="primary")
-    third = store.create(query="SELECT 3", workgroup="primary")
+    first = started_execution(store, query="SELECT 1", workgroup="primary")
+    second = started_execution(store, query="SELECT 2", workgroup="primary")
+    third = started_execution(store, query="SELECT 3", workgroup="primary")
 
     output = list_query_executions(store, {})
 
@@ -264,9 +266,9 @@ def test_list_defaults_to_primary_and_filters_workgroup(
     executor: QueryExecutor,
     workgroups: WorkGroupStore,
 ) -> None:
-    first = store.create(query="SELECT 1", workgroup="primary")
-    second = store.create(query="SELECT 2", workgroup="primary")
-    other = store.create(query="SELECT 3", workgroup="analytics")
+    first = started_execution(store, query="SELECT 1", workgroup="primary")
+    second = started_execution(store, query="SELECT 2", workgroup="primary")
+    other = started_execution(store, query="SELECT 3", workgroup="analytics")
 
     output = list_query_executions(store, {})
 
@@ -286,7 +288,7 @@ def test_list_paginates_with_offset_next_token(
     workgroups: WorkGroupStore,
 ) -> None:
     records = [
-        store.create(query=f"SELECT {index}", workgroup="primary")
+        started_execution(store, query=f"SELECT {index}", workgroup="primary")
         for index in range(5)
     ]
 
@@ -355,7 +357,7 @@ def test_list_accepts_zero_max_results(
     # full page with no NextToken — a 0-item page plus token would loop a
     # paginator forever.
     records = [
-        store.create(query=f"SELECT {index}", workgroup="primary")
+        started_execution(store, query=f"SELECT {index}", workgroup="primary")
         for index in range(3)
     ]
 
@@ -383,7 +385,7 @@ def test_list_empty_body_defaults_to_primary(
     executor: QueryExecutor,
     workgroups: WorkGroupStore,
 ) -> None:
-    first = store.create(query="SELECT 1", workgroup="primary")
+    first = started_execution(store, query="SELECT 1", workgroup="primary")
 
     output = list_query_executions(store, None)
 
@@ -395,7 +397,7 @@ def test_stop_marks_execution_cancelled(
     executor: QueryExecutor,
     workgroups: WorkGroupStore,
 ) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
 
     output = asyncio.run(
         stop_query_execution(

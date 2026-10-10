@@ -12,6 +12,7 @@ from __future__ import annotations
 import pytest
 from athena_local.common_schemas import (
     ResultConfiguration,
+    ResultReuseByAgeConfiguration,
 )
 from athena_local.errors import InvalidRequestException
 from athena_local.executions import (
@@ -21,7 +22,12 @@ from athena_local.executions import (
     RUNNING,
     SUCCEEDED,
     ExecutionStore,
+    QueryExecutionRecord,
 )
+from athena_local.output_targets import OutputSnapshot
+from athena_local.statement_classification import StatementClassification
+from athena_local.submission import PreparedSubmission, StartRequest
+from tests.unit._execution_fakes import started_execution
 
 
 @pytest.fixture()
@@ -30,7 +36,8 @@ def store() -> ExecutionStore:
 
 
 def test_create_assigns_uuid_and_starts_queued(store: ExecutionStore) -> None:
-    record = store.create(
+    record = started_execution(
+        store,
         query="SELECT 1",
         workgroup="analytics",
         database="default",
@@ -47,6 +54,91 @@ def test_create_assigns_uuid_and_starts_queued(store: ExecutionStore) -> None:
     assert store.get(record.query_execution_id) is record
 
 
+def test_from_submission_maps_every_wire_and_prepared_field() -> None:
+    # AF-144: from_submission is the single submit-time field mapping.
+    result_configuration = ResultConfiguration(
+        output_location="s3://bucket/results/"
+    )
+    reuse = ResultReuseByAgeConfiguration(enabled=True, max_age_in_minutes=30)
+    snapshot = OutputSnapshot(
+        location="s3://bucket/results/", before_paths=frozenset({"old.csv"})
+    )
+    request = StartRequest(
+        query="SELECT 1",
+        workgroup="analytics",
+        database="default",
+        catalog="AwsDataCatalog",
+        result_configuration=result_configuration,
+        managed_results=True,
+        execution_parameters=["k=v"],
+        client_request_token="token-1",
+        statement_classification=StatementClassification(
+            statement_type="DML", substatement_type="SELECT"
+        ),
+        resolved_statement="SELECT 1 /* resolved */",
+        result_reuse_configuration=reuse,
+    )
+    prepared = PreparedSubmission(
+        output_snapshot=snapshot,
+        manifest_target_error="capture failed",
+        unload_cleanup_table=("db", "staging"),
+        partition_noop_on_exists=True,
+    )
+
+    record = QueryExecutionRecord.from_submission(request, prepared)
+
+    assert record.state == QUEUED
+    assert len(record.query_execution_id) == 36
+    assert {
+        "query": record.query,
+        "workgroup": record.workgroup,
+        "database": record.database,
+        "catalog": record.catalog,
+        "result_configuration": record.result_configuration,
+        "managed_results": record.managed_results,
+        "execution_parameters": record.execution_parameters,
+        # The request's ClientRequestToken is stored as request_token.
+        "request_token": record.request_token,
+        "statement_type": record.statement_type,
+        "substatement_type": record.substatement_type,
+        "resolved_statement": record.resolved_statement,
+        "result_reuse_configuration": record.result_reuse_configuration,
+        "output_snapshot": record.output_snapshot,
+        "manifest_target_error": record.manifest_target_error,
+        "unload_cleanup_table": record.unload_cleanup_table,
+        "partition_noop_on_exists": record.partition_noop_on_exists,
+    } == {
+        "query": "SELECT 1",
+        "workgroup": "analytics",
+        "database": "default",
+        "catalog": "AwsDataCatalog",
+        "result_configuration": result_configuration,
+        "managed_results": True,
+        "execution_parameters": ["k=v"],
+        "request_token": "token-1",
+        "statement_type": "DML",
+        "substatement_type": "SELECT",
+        "resolved_statement": "SELECT 1 /* resolved */",
+        "result_reuse_configuration": reuse,
+        "output_snapshot": snapshot,
+        "manifest_target_error": "capture failed",
+        "unload_cleanup_table": ("db", "staging"),
+        "partition_noop_on_exists": True,
+    }
+
+
+def test_from_submission_without_classification_leaves_types_none() -> None:
+    record = QueryExecutionRecord.from_submission(
+        StartRequest(query="SELECT 1", workgroup="analytics"),
+        PreparedSubmission(),
+    )
+
+    assert record.statement_type is None
+    assert record.substatement_type is None
+    assert record.request_token is None
+    assert record.output_snapshot is None
+
+
 def test_get_unknown_execution_raises(store: ExecutionStore) -> None:
     with pytest.raises(InvalidRequestException) as error:
         store.get("no-such-execution")
@@ -56,7 +148,7 @@ def test_get_unknown_execution_raises(store: ExecutionStore) -> None:
 
 
 def test_transition_chain_pins_completion_time(store: ExecutionStore) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
 
     record.transition_to(RUNNING, reason="dispatched")
     assert record.state == RUNNING
@@ -68,7 +160,7 @@ def test_transition_chain_pins_completion_time(store: ExecutionStore) -> None:
 
 
 def test_failed_transition_records_reason(store: ExecutionStore) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
 
     record.transition_to(RUNNING)
     record.transition_to(FAILED, reason="query syntax error")
@@ -78,7 +170,7 @@ def test_failed_transition_records_reason(store: ExecutionStore) -> None:
 
 
 def test_terminal_states_are_immutable(store: ExecutionStore) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
     record.transition_to(RUNNING)
     record.transition_to(SUCCEEDED)
 
@@ -90,7 +182,7 @@ def test_terminal_states_are_immutable(store: ExecutionStore) -> None:
 
 
 def test_illegal_transition_is_rejected(store: ExecutionStore) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
 
     with pytest.raises(ValueError):
         record.transition_to(
@@ -102,7 +194,7 @@ def test_failed_from_queued_is_valid(store: ExecutionStore) -> None:
     # Submit-time rejection: a start preflight transport failure
     # terminals the execution straight from QUEUED, like Athena rejecting a
     # query before it ever runs.
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
 
     record.transition_to(FAILED, reason="Trino unreachable: timeout")
 
@@ -112,7 +204,7 @@ def test_failed_from_queued_is_valid(store: ExecutionStore) -> None:
 
 
 def test_cancelled_from_queued_is_valid(store: ExecutionStore) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
 
     record.transition_to(CANCELLED)
 
@@ -123,7 +215,7 @@ def test_cancelled_from_queued_is_valid(store: ExecutionStore) -> None:
 def test_apply_engine_statistics_copies_only_integers(
     store: ExecutionStore,
 ) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
 
     record.apply_engine_statistics(
         {"processedBytes": 1024, "wallTimeMillis": 5, "processedRows": 9}
@@ -136,7 +228,7 @@ def test_apply_engine_statistics_copies_only_integers(
 def test_apply_engine_statistics_ignores_missing_fields(
     store: ExecutionStore,
 ) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
 
     record.apply_engine_statistics({"state": "FINISHED"})
 
@@ -147,7 +239,7 @@ def test_apply_engine_statistics_ignores_missing_fields(
 def test_apply_engine_statistics_ignores_non_integer_values(
     store: ExecutionStore,
 ) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
 
     record.apply_engine_statistics(
         {"processedBytes": "many", "wallTimeMillis": 7}
@@ -160,7 +252,8 @@ def test_apply_engine_statistics_ignores_non_integer_values(
 def test_payload_shape_with_all_optional_members(
     store: ExecutionStore,
 ) -> None:
-    record = store.create(
+    record = started_execution(
+        store,
         query="SELECT 1",
         workgroup="analytics",
         database="default",
@@ -213,7 +306,8 @@ def test_payload_reports_full_artifact_output_location(
     substatement_type: str,
     expected_suffix: str,
 ) -> None:
-    record = store.create(
+    record = started_execution(
+        store,
         query="SELECT 1",
         workgroup="primary",
         result_configuration=ResultConfiguration(
@@ -239,7 +333,8 @@ def test_payload_reports_full_artifact_output_location(
 def test_manifest_output_location_pairs_with_data_manifest_location(
     store: ExecutionStore,
 ) -> None:
-    record = store.create(
+    record = started_execution(
+        store,
         query="INSERT INTO analytics.events SELECT 1",
         workgroup="primary",
         result_configuration=ResultConfiguration(
@@ -268,7 +363,7 @@ def test_manifest_output_location_pairs_with_data_manifest_location(
 def test_terminal_payload_carries_completion_time(
     store: ExecutionStore,
 ) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
     record.transition_to(RUNNING)
     record.transition_to(SUCCEEDED)
 
@@ -281,7 +376,7 @@ def test_terminal_payload_carries_completion_time(
 def test_payload_always_carries_statistics_defaults(
     store: ExecutionStore,
 ) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
     record.apply_engine_statistics(
         {"processedBytes": 2048, "wallTimeMillis": 3}
     )
@@ -300,7 +395,7 @@ def test_payload_always_carries_statistics_defaults(
 def test_payload_includes_statement_type_and_manifest_when_set(
     store: ExecutionStore,
 ) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
     record.statement_type = "DML"
     record.data_manifest_location = "s3://bucket/q-manifest.csv"
 
@@ -315,7 +410,7 @@ def test_payload_includes_statement_type_and_manifest_when_set(
 def test_payload_includes_substatement_type_when_set(
     store: ExecutionStore,
 ) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
     record.statement_type = "DML"
     record.substatement_type = "SELECT"
 
@@ -328,7 +423,7 @@ def test_payload_includes_substatement_type_when_set(
 def test_cache_result_page_starts_empty_and_copies_rows(
     store: ExecutionStore,
 ) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
 
     assert record.result_columns == []
     assert record.result_rows == []

@@ -26,6 +26,7 @@ from athena_local.output_targets import OutputSnapshot
 from athena_local.s3_writer import S3Writer
 from athena_local.trino_client import TrinoPage
 from botocore.exceptions import EndpointConnectionError
+from tests.unit._execution_fakes import started_execution
 from tests.unit._s3_fakes import RecordingObjectStore, s3_client_error
 
 RESULT_LOCATION = "s3://results-bucket/analytics/"
@@ -62,7 +63,8 @@ def make_record(
     output_snapshot: OutputSnapshot | None = None,
     manifest_target_error: str | None = None,
 ) -> QueryExecutionRecord:
-    record = store.create(
+    record = started_execution(
+        store,
         query=query,
         workgroup="primary",
         database="analytics",
@@ -621,7 +623,8 @@ def test_manifest_target_error_fails_the_write() -> None:
 
 def test_missing_output_location_fails_with_write_error() -> None:
     store = RecordingObjectStore()
-    record = ExecutionStore().create(
+    record = started_execution(
+        ExecutionStore(),
         query="SELECT 1",
         workgroup="primary",
         statement_type="DML",

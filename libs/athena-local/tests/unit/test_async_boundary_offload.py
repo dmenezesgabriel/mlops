@@ -23,6 +23,7 @@ from athena_local.output_targets import OutputSnapshotter
 from athena_local.s3_writer import S3Writer
 from athena_local.statement_classification import StatementClassification
 from athena_local.trino_client import TrinoPage
+from tests.unit._execution_fakes import started_execution
 from tests.unit._executor_fakes import (
     URI_1,
     RecordingSnapshotter,
@@ -221,7 +222,8 @@ def test_unload_cleanup_drops_the_temp_table_off_the_loop() -> None:
 
 
 def _record_for_write() -> QueryExecutionRecord:
-    record = ExecutionStore().create(
+    record = started_execution(
+        ExecutionStore(),
         query="SELECT a FROM analytics.t",
         workgroup="primary",
         database="analytics",

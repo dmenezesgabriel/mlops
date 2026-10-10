@@ -22,6 +22,7 @@ from athena_local.executions import (
 from athena_local.executor import QueryExecutor
 from athena_local.query_results import get_query_results
 from pytest_bdd import given, parsers, scenarios, then, when
+from tests.unit._execution_fakes import started_execution
 
 scenarios("query_executions.feature")
 
@@ -60,7 +61,9 @@ def outcome() -> QueryResultsOutcome:
 @given(parsers.re(r"a SUCCEEDED query result with (?P<count>\d+) row(?:s)?"))
 def _succeeded_result(outcome: QueryResultsOutcome, count: str) -> None:
     row_count = int(count)
-    record = outcome.store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(
+        outcome.store, query="SELECT 1", workgroup="primary"
+    )
     record.transition_to(RUNNING)
     record.cache_result_page(
         [("id", "integer")],

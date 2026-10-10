@@ -21,7 +21,7 @@ from athena_local.executions import (
     ExecutionStore,
 )
 from athena_local.statement_classification import normalize_statement_text
-from tests.unit._execution_fakes import succeeded_execution
+from tests.unit._execution_fakes import started_execution, succeeded_execution
 
 
 @pytest.fixture()
@@ -32,8 +32,8 @@ def store() -> ExecutionStore:
 def test_batch_get_returns_found_records_and_unprocessed_ids(
     store: ExecutionStore,
 ) -> None:
-    first = store.create(query="SELECT 1", workgroup="primary")
-    second = store.create(query="SELECT 2", workgroup="primary")
+    first = started_execution(store, query="SELECT 1", workgroup="primary")
+    second = started_execution(store, query="SELECT 2", workgroup="primary")
 
     found, unprocessed = store.batch_get(
         [
@@ -51,7 +51,8 @@ def test_batch_get_returns_found_records_and_unprocessed_ids(
 def test_find_by_request_token_returns_the_tokened_execution(
     store: ExecutionStore,
 ) -> None:
-    record = store.create(
+    record = started_execution(
+        store,
         query="SELECT 1",
         workgroup="primary",
         client_request_token="token-1",
@@ -63,8 +64,11 @@ def test_find_by_request_token_returns_the_tokened_execution(
 def test_find_by_request_token_is_scoped_per_workgroup_and_token(
     store: ExecutionStore,
 ) -> None:
-    store.create(
-        query="SELECT 1", workgroup="primary", client_request_token="token-1"
+    started_execution(
+        store,
+        query="SELECT 1",
+        workgroup="primary",
+        client_request_token="token-1",
     )
 
     assert store.find_by_request_token("analytics", "token-1") is None
@@ -74,7 +78,7 @@ def test_find_by_request_token_is_scoped_per_workgroup_and_token(
 def test_find_by_request_token_misses_tokenless_executions(
     store: ExecutionStore,
 ) -> None:
-    store.create(query="SELECT 1", workgroup="primary")
+    started_execution(store, query="SELECT 1", workgroup="primary")
 
     assert store.find_by_request_token("primary", "token-1") is None
 
@@ -85,11 +89,17 @@ def test_request_token_mapping_keeps_the_first_execution(
     # The executor's dedup check normally prevents a second create; the map
     # still keeps the first id so a raced duplicate replays the original
     # response (StartQueryExecution is idempotent — service-2.json).
-    first = store.create(
-        query="SELECT 1", workgroup="primary", client_request_token="token-1"
+    first = started_execution(
+        store,
+        query="SELECT 1",
+        workgroup="primary",
+        client_request_token="token-1",
     )
-    second = store.create(
-        query="SELECT 1", workgroup="primary", client_request_token="token-1"
+    second = started_execution(
+        store,
+        query="SELECT 1",
+        workgroup="primary",
+        client_request_token="token-1",
     )
 
     assert second is not first
@@ -97,8 +107,11 @@ def test_request_token_mapping_keeps_the_first_execution(
 
 
 def test_reset_drops_request_token_mappings(store: ExecutionStore) -> None:
-    store.create(
-        query="SELECT 1", workgroup="primary", client_request_token="token-1"
+    started_execution(
+        store,
+        query="SELECT 1",
+        workgroup="primary",
+        client_request_token="token-1",
     )
 
     store.reset()
@@ -110,7 +123,8 @@ def test_reset_drops_request_token_mappings(store: ExecutionStore) -> None:
 def test_same_request_matches_an_identical_submission(
     store: ExecutionStore,
 ) -> None:
-    record = store.create(
+    record = started_execution(
+        store,
         query="SELECT 1",
         workgroup="primary",
         database="analytics",
@@ -131,7 +145,7 @@ def test_same_request_matches_an_identical_submission(
 def test_same_request_detects_each_changed_parameter(
     store: ExecutionStore,
 ) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
 
     assert not record.same_request(
         query="SELECT 2",
@@ -294,7 +308,9 @@ def test_find_reusable_rejects_expired_and_unfinished_results(
     assert expired.completion_time is not None
     expired.completion_time -= 120  # completed two minutes ago
 
-    still_running = store.create(query="SELECT 1", workgroup="primary")
+    still_running = started_execution(
+        store, query="SELECT 1", workgroup="primary"
+    )
     still_running.transition_to(RUNNING)
 
     assert (
@@ -328,8 +344,8 @@ def test_find_reusable_rejects_expired_and_unfinished_results(
 def test_record_caches_normalized_query_at_create(
     store: ExecutionStore,
 ) -> None:
-    record = store.create(
-        query=" SELECT  1 -- trailing\n", workgroup="primary"
+    record = started_execution(
+        store, query=" SELECT  1 -- trailing\n", workgroup="primary"
     )
 
     assert record.normalized_query == normalize_statement_text(
@@ -419,7 +435,8 @@ def test_reuse_results_from_copies_the_result_surface(
         result_configuration=ResultConfiguration(output_location="s3://b/"),
     )
     source.cache_result_page([("col", "integer")], [[1]])
-    record = store.create(
+    record = started_execution(
+        store,
         query="SELECT 1",
         workgroup="primary",
         result_configuration=ResultConfiguration(output_location="s3://b/"),
@@ -444,7 +461,8 @@ def test_payload_reports_result_reuse_members(store: ExecutionStore) -> None:
         result_configuration=ResultConfiguration(output_location="s3://b/"),
         result_reuse_configuration=reuse,
     )
-    record = store.create(
+    record = started_execution(
+        store,
         query="SELECT 1",
         workgroup="primary",
         result_configuration=ResultConfiguration(output_location="s3://b/"),
@@ -471,7 +489,8 @@ def test_payload_reports_result_reuse_members(store: ExecutionStore) -> None:
 
 
 def test_payload_reports_reuse_not_taken(store: ExecutionStore) -> None:
-    record = store.create(
+    record = started_execution(
+        store,
         query="SELECT 1",
         workgroup="primary",
         result_reuse_configuration=ResultReuseByAgeConfiguration(enabled=True),
@@ -487,7 +506,7 @@ def test_payload_reports_reuse_not_taken(store: ExecutionStore) -> None:
 def test_payload_omits_reuse_members_when_not_requested(
     store: ExecutionStore,
 ) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
 
     payload = record.to_payload()
 

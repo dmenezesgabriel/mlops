@@ -14,6 +14,7 @@ from athena_local.executions import (
     QueryExecutionRecord,
 )
 from athena_local.trino_client import TrinoColumn, TrinoPage
+from tests.unit._execution_fakes import started_execution
 
 
 def terminal_page() -> TrinoPage:
@@ -64,7 +65,7 @@ def succeeded_result(
     rows: list[list[object]],
     columns: list[tuple[str, str]] | None = None,
 ) -> QueryExecutionRecord:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
     record.transition_to(RUNNING)
     record.cache_result_page(
         columns or [("id", "integer")],

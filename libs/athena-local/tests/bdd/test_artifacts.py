@@ -20,6 +20,7 @@ from athena_local.output_targets import OutputSnapshot
 from athena_local.s3_writer import S3Writer
 from athena_local.trino_client import TrinoPage
 from pytest_bdd import given, parsers, scenarios, then, when
+from tests.unit._execution_fakes import started_execution
 from tests.unit._s3_fakes import RecordingObjectStore
 
 scenarios("artifacts.feature")
@@ -252,7 +253,8 @@ def _build_record(
     substatement_type: str,
     output_snapshot: OutputSnapshot | None = None,
 ) -> QueryExecutionRecord:
-    record = ExecutionStore().create(
+    record = started_execution(
+        ExecutionStore(),
         query=query,
         workgroup="primary",
         result_configuration=ResultConfiguration(

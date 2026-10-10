@@ -35,6 +35,7 @@ from athena_local.trino_client import TrinoPage
 from botocore.client import BaseClient
 from moto.backends import get_backend
 from tests.integration.conftest import LiveMotoServer
+from tests.unit._execution_fakes import started_execution
 
 # A Trino-shaped engine query id: manifest attribution keys on it — Trino
 # stamps it into every data file name a write lands (`{qid}_{uuid}` hive,
@@ -100,7 +101,8 @@ def make_record(
     columns: list[tuple[str, str]] | None = None,
     rows: list[list[object]] | None = None,
 ) -> QueryExecutionRecord:
-    record = ExecutionStore().create(
+    record = started_execution(
+        ExecutionStore(),
         query=query,
         workgroup="primary",
         database="analytics",

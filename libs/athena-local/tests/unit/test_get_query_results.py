@@ -25,6 +25,7 @@ from athena_local.query_results import (
     get_query_runtime_statistics,
 )
 from athena_local.state import PreparedStatementStore, WorkGroupStore
+from tests.unit._execution_fakes import started_execution
 from tests.unit._query_execution_fakes import (
     RecordingResultWriter,
     TerminalStatementClient,
@@ -62,7 +63,7 @@ def test_get_results_pre_finish_is_shaped_400(
     executor: QueryExecutor,
     workgroups: WorkGroupStore,
 ) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
     record.transition_to(RUNNING)
 
     with pytest.raises(InvalidRequestException) as error:
@@ -78,7 +79,7 @@ def test_get_results_succeeded_returns_header_and_rows(
     executor: QueryExecutor,
     workgroups: WorkGroupStore,
 ) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
     record.transition_to(RUNNING)
     record.cache_result_page(
         [("col_a", "varchar"), ("col_b", "integer")], [["x", 3]]
@@ -210,7 +211,7 @@ def test_get_results_failed_execution_returns_empty_result_set(
     executor: QueryExecutor,
     workgroups: WorkGroupStore,
 ) -> None:
-    record = store.create(query="SELEC", workgroup="primary")
+    record = started_execution(store, query="SELEC", workgroup="primary")
     record.transition_to(RUNNING)
     record.transition_to(FAILED, reason="syntax error")
 
@@ -230,7 +231,9 @@ def test_get_results_zero_column_result_set_has_no_header_row(
     # terraform-provider-aws's executeAndExpectNoRows hard-fails on ANY row
     # for DDL (internal/service/athena/database.go); real AWS answers
     # Rows: [] when the execution carried no result columns.
-    record = store.create(query="CREATE SCHEMA x", workgroup="primary")
+    record = started_execution(
+        store, query="CREATE SCHEMA x", workgroup="primary"
+    )
     record.transition_to(RUNNING)
     record.cache_result_page([], [])
     record.transition_to(SUCCEEDED)
@@ -441,7 +444,7 @@ def test_runtime_statistics_return_recorded_counters(
     executor: QueryExecutor,
     workgroups: WorkGroupStore,
 ) -> None:
-    record = store.create(query="SELECT 1", workgroup="primary")
+    record = started_execution(store, query="SELECT 1", workgroup="primary")
     record.apply_engine_statistics(
         {"processedBytes": 1024, "wallTimeMillis": 250}
     )

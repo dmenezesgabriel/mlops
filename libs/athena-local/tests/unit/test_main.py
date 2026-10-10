@@ -28,6 +28,7 @@ from athena_local.main import (
     workgroup_store,
 )
 from fastapi.testclient import TestClient
+from tests.unit._execution_fakes import started_execution
 
 QUERY_PLANE_OPERATIONS = {
     "StartQueryExecution",
@@ -421,7 +422,7 @@ def test_build_query_executor_uses_compose_default_endpoints(
 
 
 def test_reset_query_plane_clears_executions_and_rebinds_handlers() -> None:
-    execution_store.create(query="SELECT 1", workgroup="primary")
+    started_execution(execution_store, query="SELECT 1", workgroup="primary")
 
     reset_query_plane()
 

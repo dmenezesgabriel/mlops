@@ -26,6 +26,7 @@ from athena_local.executor import ArtifactWriteError, QueryExecutor
 from athena_local.trino_client import (
     TrinoTransportError,
 )
+from tests.unit._execution_fakes import started_execution
 from tests.unit._executor_fakes import (
     URI_1,
     URI_2,
@@ -362,7 +363,9 @@ def test_cancel_on_terminal_execution_is_a_no_op(
         executor = QueryExecutor(
             store=store, client=client, writer=RecordingWriter()
         )
-        record = store.create(query="SELECT 1", workgroup="primary")
+        record = started_execution(
+            store, query="SELECT 1", workgroup="primary"
+        )
         record.transition_to(RUNNING)
         record.transition_to(terminal_state)
 

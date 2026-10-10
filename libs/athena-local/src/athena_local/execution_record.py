@@ -16,8 +16,10 @@ class). ``ExecutionStore`` (executions.py) owns the registry and retention.
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
 from time import time
+from typing import TYPE_CHECKING
 
 from athena_local.common_schemas import (
     ResultConfiguration,
@@ -31,6 +33,11 @@ from athena_local.statement_classification import (
     artifact_output_kind,
     normalize_statement_text,
 )
+
+if TYPE_CHECKING:
+    # ``submission`` imports this module at runtime, so the submit-path
+    # request types resolve only for type-checkers (no import cycle).
+    from athena_local.submission import PreparedSubmission, StartRequest
 
 QUEUED = "QUEUED"
 RUNNING = "RUNNING"
@@ -134,6 +141,45 @@ class QueryExecutionRecord:
 
     def __post_init__(self) -> None:
         self.normalized_query = normalize_statement_text(self.query)
+
+    @classmethod
+    def from_submission(
+        cls, request: StartRequest, prepared: PreparedSubmission
+    ) -> QueryExecutionRecord:
+        """Build the record one StartQueryExecution submission describes.
+
+        Single home for the wire-field mapping (AF-144): a new submit-time
+        field is added on ``StartRequest``, on this record, and in the
+        ``cls(...)`` call below — never on ``ExecutionStore.create``.
+        """
+        classification = request.statement_classification
+        return cls(
+            query_execution_id=str(uuid.uuid4()),
+            query=request.query,
+            workgroup=request.workgroup,
+            database=request.database,
+            catalog=request.catalog,
+            result_configuration=request.result_configuration,
+            managed_results=request.managed_results,
+            execution_parameters=request.execution_parameters,
+            request_token=request.client_request_token,
+            statement_type=(
+                classification.statement_type
+                if classification is not None
+                else None
+            ),
+            substatement_type=(
+                classification.substatement_type
+                if classification is not None
+                else None
+            ),
+            resolved_statement=request.resolved_statement,
+            result_reuse_configuration=request.result_reuse_configuration,
+            output_snapshot=prepared.output_snapshot,
+            manifest_target_error=prepared.manifest_target_error,
+            unload_cleanup_table=prepared.unload_cleanup_table,
+            partition_noop_on_exists=prepared.partition_noop_on_exists,
+        )
 
     def is_retention_expired(self, now: float) -> bool:
         """Whether the record is past AWS's 45-day query-history window.
