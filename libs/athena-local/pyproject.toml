@@ -39,7 +39,7 @@ packages = ["src/athena_local"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q -rfEs --tb=short --show-capture=no --import-mode=importlib"
+addopts = "-q -rfEs --tb=short --import-mode=importlib"
 console_output_style = "classic"
 
 [tool.pyright]

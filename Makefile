@@ -6,6 +6,10 @@ MANIM_CUSTOM_IMAGE ?= mlops-manim-prod
 VIDEO_OUTPUT_DIR ?= videos/output
 
 .SILENT:
+# Each `$(MAKE) -C <package>` would print "Entering/Leaving directory" twice per package: a third
+# of the gate output measured on 2026-10-10. Sub-makes inherit MAKEFLAGS, and each package loop names
+# the package when it fails, so the failing directory stays visible.
+MAKEFLAGS += --no-print-directory
 .PHONY: install scaffold format lint type-check test test-bdd test-e2e test-videos-docker coverage complexity dependencies architecture security maintainability quality build-site preview-site evaluate-translation render-video check-videos diagrams-build diagrams-render jupyterlab-build jupyterlab collect preprocess features train tune evaluate deploy monitor mlflow
 SITE_CONFIG ?= site/site.yaml
 SITE_OUTPUT ?= site/build
@@ -25,22 +29,22 @@ PACKAGES = libs/mlops-shared libs/data-science-scaffold libs/ssg libs/ssg-i18n l
 
 format:
 	for package in $(PACKAGES); do \
-		$(MAKE) -C $$package format || exit 1; \
+		$(MAKE) -C $$package format || { echo "$@: failed in $$package" >&2; exit 1; }; \
 	done
 
 lint:
 	for package in $(PACKAGES); do \
-		$(MAKE) -C $$package lint || exit 1; \
+		$(MAKE) -C $$package lint || { echo "$@: failed in $$package" >&2; exit 1; }; \
 	done
 
 type-check:
 	for package in $(PACKAGES); do \
-		$(MAKE) -C $$package type-check || exit 1; \
+		$(MAKE) -C $$package type-check || { echo "$@: failed in $$package" >&2; exit 1; }; \
 	done
 
 test:
 	for package in $(PACKAGES); do \
-		$(MAKE) -C $$package test || exit 1; \
+		$(MAKE) -C $$package test || { echo "$@: failed in $$package" >&2; exit 1; }; \
 	done
 
 test-videos-docker: libs/videos/Dockerfile
@@ -51,7 +55,7 @@ test-videos-docker: libs/videos/Dockerfile
 	  -v "$(CURDIR)/libs/videos-linter/src:/app/libs/videos-linter/src:ro" \
 	  -w /tmp \
 	  mlops-manim-test sh -lc \
-	  '. /opt/venv/bin/activate && python -m pytest /app/libs/videos/tests/integration/ -m docker -q -rfEs --tb=short --show-capture=no'
+	  '. /opt/venv/bin/activate && python -m pytest /app/libs/videos/tests/integration/ -m docker -q -rfEs --tb=short'
 
 test-bdd:
 	uv run pytest projects/$(PROJECT)/tests/bdd
@@ -61,17 +65,17 @@ test-e2e:
 
 coverage:
 	for package in $(PACKAGES); do \
-		$(MAKE) -C $$package coverage || exit 1; \
+		$(MAKE) -C $$package coverage || { echo "$@: failed in $$package" >&2; exit 1; }; \
 	done
 
 complexity:
 	for package in $(PACKAGES); do \
-		$(MAKE) -C $$package complexity || exit 1; \
+		$(MAKE) -C $$package complexity || { echo "$@: failed in $$package" >&2; exit 1; }; \
 	done
 
 dependencies:
 	for package in $(PACKAGES); do \
-		$(MAKE) -C $$package dependencies || exit 1; \
+		$(MAKE) -C $$package dependencies || { echo "$@: failed in $$package" >&2; exit 1; }; \
 	done
 
 architecture:
@@ -81,12 +85,12 @@ architecture:
 
 security:
 	for package in $(PACKAGES); do \
-		$(MAKE) -C $$package security || exit 1; \
+		$(MAKE) -C $$package security || { echo "$@: failed in $$package" >&2; exit 1; }; \
 	done
 
 maintainability:
 	for package in $(PACKAGES); do \
-		$(MAKE) -C $$package maintainability || exit 1; \
+		$(MAKE) -C $$package maintainability || { echo "$@: failed in $$package" >&2; exit 1; }; \
 	done
 
 quality: lint type-check coverage complexity dependencies architecture security maintainability
@@ -134,7 +138,7 @@ check-videos:
 	@echo "=== Type-checking video source ==="
 	uv run pyright libs/videos/src/videos/
 	@echo "=== Running video unit tests ==="
-	uv run pytest libs/videos/tests/ -m "not docker" -q -rfEs --tb=short --show-capture=no
+	uv run pytest libs/videos/tests/ -m "not docker" -q -rfEs --tb=short
 	@echo "=== Running Docker visual regression tests ==="
 	$(MAKE) test-videos-docker
 	@echo "=== All video checks passed ==="
@@ -159,7 +163,7 @@ test-diagrams-docker: libs/diagrams/Dockerfile
 	docker run --rm \
 	  -v "$(CURDIR)/libs/diagrams/src:/app/src:ro" \
 	  -v "$(CURDIR)/libs/diagrams/tests:/app/tests:ro" \
-	  mlops-diagrams-test pytest /app/tests/ -q -rfEs --tb=short --show-capture=no
+	  mlops-diagrams-test pytest /app/tests/ -q -rfEs --tb=short
 
 collect preprocess features train tune evaluate deploy monitor:
 	uv run python -m $(PROJECT).interfaces.cli $@ --config projects/$(PROJECT)/configs/project.yaml

@@ -74,7 +74,7 @@ known-first-party = ["glue_overlay"]
 
 [tool.pytest.ini_options]
 testpaths = ["libs", "projects"]
-addopts = "-q -rfEs --tb=short --show-capture=no --import-mode=importlib --strict-markers --strict-config"
+addopts = "-q -rfEs --tb=short --import-mode=importlib --strict-markers --strict-config"
 console_output_style = "classic"
 markers = [
   "integration: package-local integration tests",

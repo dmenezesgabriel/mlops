@@ -1,4 +1,12 @@
 repos:
+  # ShellCheck's own hook (koalaman/shellcheck README): the pinned upstream image, run offline
+  # by pre-commit over every file it identifies as shell, by extension or shebang.
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.11.0
+    hooks:
+      - id: shellcheck
+        # docker/.zshrc is zsh, which ShellCheck does not support (SC2148).
+        exclude: ^docker/\.zshrc$
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.15
     hooks:
