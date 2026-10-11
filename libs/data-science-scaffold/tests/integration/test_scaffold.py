@@ -203,6 +203,70 @@ def test_rendered_config_loader_passes_through_memory_tracking_uri(
     assert config.mlflow.tracking_uri == "sqlite:///:memory:"
 
 
+@pytest.mark.parametrize("test_size", [0.0, 1.0, 1.5, -0.1])
+def test_rendered_split_rejects_out_of_range_test_size(
+    tmp_path: Path, test_size: float
+) -> None:
+    # Arrange — the pre-fix `max(1, int(n * (1 - test_size)))` silently
+    # accepts the degenerate ratios the shipped projects reject.
+    generated = generate("dummy_test_proj", tmp_path)
+    module = _load_rendered_training(generated, "dummy_test_proj")
+    dataset = module.pd.DataFrame({"pickup_count": range(10)})
+
+    # Act & Assert
+    with pytest.raises(ValueError, match=f"test_size {test_size}"):
+        module.DemandDatasetSplitter().split(dataset, test_size)
+
+
+@pytest.mark.parametrize("rows", [0, 1])
+def test_rendered_split_rejects_unsplittable_dataset(
+    tmp_path: Path, rows: int
+) -> None:
+    # Arrange — a one-row dataset can only yield an empty holdout.
+    generated = generate("dummy_test_proj", tmp_path)
+    module = _load_rendered_training(generated, "dummy_test_proj")
+    dataset = module.pd.DataFrame({"pickup_count": range(rows)})
+
+    # Act & Assert
+    with pytest.raises(ValueError, match=f"{rows} rows"):
+        module.DemandDatasetSplitter().split(dataset, test_size=0.2)
+
+
+def test_rendered_split_holdout_is_the_tail_rows(tmp_path: Path) -> None:
+    # Arrange
+    generated = generate("dummy_test_proj", tmp_path)
+    module = _load_rendered_training(generated, "dummy_test_proj")
+    dataset = module.pd.DataFrame({"pickup_count": range(10)})
+
+    # Act — ceil(10 * 0.25) = 3 rows form the holdout.
+    train, holdout = module.DemandDatasetSplitter().split(
+        dataset, test_size=0.25
+    )
+
+    # Assert
+    assert len(train) == 7
+    assert len(holdout) == 3
+    assert list(holdout["pickup_count"]) == [7, 8, 9]
+
+
+def test_rendered_split_keeps_one_train_row_under_large_test_size(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    generated = generate("dummy_test_proj", tmp_path)
+    module = _load_rendered_training(generated, "dummy_test_proj")
+    dataset = module.pd.DataFrame({"pickup_count": range(2)})
+
+    # Act — the holdout clamps so the train frame stays non-empty.
+    train, holdout = module.DemandDatasetSplitter().split(
+        dataset, test_size=0.9
+    )
+
+    # Assert
+    assert len(train) == 1
+    assert len(holdout) == 1
+
+
 def test_rendered_cli_config_error_exits_named(tmp_path: Path) -> None:
     # A rendered project's CLI must turn a loader error into a named exit,
     # not a raw interpreter traceback (G-307): the JSON log line still
@@ -290,6 +354,18 @@ def _load_rendered_configuration(generated: Path, slug: str) -> ModuleType:
     module_path = generated / "src" / slug / "configuration.py"
     spec = importlib.util.spec_from_file_location(
         f"{slug}.configuration", module_path
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_rendered_training(generated: Path, slug: str) -> ModuleType:
+    module_path = generated / "src" / slug / "models" / "training.py"
+    spec = importlib.util.spec_from_file_location(
+        f"{slug}.models.training", module_path
     )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
