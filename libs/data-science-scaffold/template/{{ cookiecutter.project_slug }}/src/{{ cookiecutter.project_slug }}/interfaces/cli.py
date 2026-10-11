@@ -69,7 +69,17 @@ def main() -> None:
     MlopsLoggingConfigurator().configure()
     registry = create_registry()
     arguments = create_parser(registry).parse_args()
-    run_command(registry, arguments.command, Path(arguments.config))
+    try:
+        run_command(registry, arguments.command, Path(arguments.config))
+    except (
+        ValueError,
+        TypeError,
+        FileNotFoundError,
+        ImportError,
+        RuntimeError,
+    ) as exc:
+        # NotImplementedError (the pipeline stubs' raise) is a RuntimeError.
+        raise SystemExit(str(exc)) from exc
 
 
 if __name__ == "__main__":

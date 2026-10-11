@@ -1,4 +1,5 @@
 import importlib.util
+import os
 import subprocess
 import sys
 import tomllib
@@ -200,6 +201,45 @@ def test_rendered_config_loader_passes_through_memory_tracking_uri(
 
     # Assert
     assert config.mlflow.tracking_uri == "sqlite:///:memory:"
+
+
+def test_rendered_cli_config_error_exits_named(tmp_path: Path) -> None:
+    # A rendered project's CLI must turn a loader error into a named exit,
+    # not a raw interpreter traceback (G-307): the JSON log line still
+    # carries the escaped exception, so pin the interpreter's own output.
+    generated = generate("dummy_test_proj", tmp_path)
+    config_path = generated / "configs" / "project.yaml"
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace(
+            "year: 2023", "year: yes"
+        ),
+        encoding="utf-8",
+    )
+
+    # Act — run the real CLI entry point with the malformed config.
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "dummy_test_proj.interfaces.cli",
+            "collect",
+            "--config",
+            "configs/project.yaml",
+        ],
+        cwd=generated,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "PYTHONPATH": str(generated / "src")},
+    )
+
+    # Assert
+    lines = result.stderr.splitlines()
+    assert result.returncode == 1
+    assert "Traceback (most recent call last):" not in lines
+    assert lines[-1] == (
+        "Invalid project config key year: expected integer, got True"
+    )
 
 
 def test_pre_gen_hook_exits_clean_inside_rendered_tree(tmp_path: Path) -> None:
