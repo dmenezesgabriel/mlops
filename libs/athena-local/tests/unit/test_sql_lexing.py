@@ -10,8 +10,9 @@ touching comment markers inside ``'…'`` literals.
 
 from __future__ import annotations
 
-import time
+import re
 
+import pytest
 from athena_local import sql_lexing
 from athena_local.sql_lexing import (
     quoted_end,
@@ -103,14 +104,24 @@ def test_comment_regex_matches_tokens_not_characters() -> None:
     assert sql_lexing._COMMENT_ISOLATING_RE.findall(token_free) == []
 
 
-def test_strip_comments_scales_to_query_string_cap() -> None:
-    # 262144 is the QueryString model cap (service-2.json). The pre-sub
-    # scanner measured ~92 ms here; the pass-through lands single-digit ms,
-    # so 50 ms bounds it loosely while still failing the old shape.
+def test_strip_comments_scales_to_query_string_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # 262144 is the QueryString model cap (service-2.json). The bound is
+    # per-token callback count, not wall-clock — the per-character regex
+    # this replaced invoked the callback ~262k times on this input (~92 ms)
+    # where the isolating regex calls it once per literal/comment token,
+    # and a 50 ms ceiling flaked under suite load with no scan regression.
     unit = "SELECT a, b FROM schema.table WHERE x = 'v' AND y > 1 "
     statement = (unit * (262_144 // len(unit) + 1))[:262_144]
-    start = time.perf_counter()
-    stripped = strip_comments(statement)
-    elapsed_ms = (time.perf_counter() - start) * 1000
-    assert stripped == statement
-    assert elapsed_ms < 50
+    calls = 0
+    original_drop = sql_lexing._drop_comment
+
+    def counting_drop(match: re.Match[str]) -> str:
+        nonlocal calls
+        calls += 1
+        return original_drop(match)
+
+    monkeypatch.setattr(sql_lexing, "_drop_comment", counting_drop)
+    assert strip_comments(statement) == statement
+    assert calls == statement.count("'v'")

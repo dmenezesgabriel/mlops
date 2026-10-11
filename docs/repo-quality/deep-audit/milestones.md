@@ -182,7 +182,8 @@
   tests"; mutation battery over all 11 bdd files → 7 killed / 3 headline
   scenarios survive; split-fix 2026-10-08: 24158 test LOC was one L-sized
   item).
-- [ ] Remediate promoted S1+ gaps.
+- [x] Remediate promoted S1+ gaps. (AF-118…AF-155 all shipped — every
+  AU-20…AU-26b gap dispositioned; register has zero open rows.)
 
 ## MA-8 — Cross-cutting + close
 
