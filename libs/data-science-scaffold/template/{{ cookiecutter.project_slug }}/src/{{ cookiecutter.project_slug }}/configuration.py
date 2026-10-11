@@ -84,6 +84,12 @@ class ProjectConfigLoader:
         self._yaml_loader = yaml_loader or YamlMappingLoader()
 
     def load(self, config_path: Path) -> ProjectConfig:
+        if config_path.parent.name != "configs":
+            raise ValueError(
+                f"Invalid project config path {config_path}: expected "
+                f"a file inside a configs/ directory"
+            )
+
         raw_config = self._yaml_loader.load(config_path)
         project_root = config_path.parent.parent.resolve()
         resolver = RepositoryPathResolver(project_root)
@@ -187,7 +193,11 @@ class ProjectConfigLoader:
             return tracking_uri
 
         relative_path = tracking_uri[len(sqlite_prefix) :]
-        if not relative_path or Path(relative_path).is_absolute():
+        if (
+            not relative_path
+            or relative_path == ":memory:"
+            or Path(relative_path).is_absolute()
+        ):
             return tracking_uri
 
         absolute_path = project_root / relative_path
@@ -228,7 +238,7 @@ class ProjectConfigLoader:
 
     def _integer(self, config: dict[str, object], key: str) -> int:
         value = config.get(key)
-        if isinstance(value, int):
+        if isinstance(value, int) and not isinstance(value, bool):
             return value
 
         raise ValueError(
@@ -237,7 +247,7 @@ class ProjectConfigLoader:
 
     def _float(self, config: dict[str, object], key: str) -> float:
         value = config.get(key)
-        if isinstance(value, int | float):
+        if isinstance(value, int | float) and not isinstance(value, bool):
             return float(value)
 
         raise ValueError(
@@ -247,7 +257,8 @@ class ProjectConfigLoader:
     def _integer_list(self, config: dict[str, object], key: str) -> list[int]:
         value = config.get(key)
         if isinstance(value, list) and all(
-            isinstance(item, int) for item in cast(list[object], value)
+            isinstance(item, int) and not isinstance(item, bool)
+            for item in cast(list[object], value)
         ):
             return cast(list[int], value)
 

@@ -71,6 +71,101 @@ def test_project_config_loader_rejects_colliding_section_keys(
         ProjectConfigLoader().load(config_path)
 
 
+@pytest.mark.parametrize(
+    ("config_edit", "match"),
+    [
+        pytest.param(
+            ("months: [1]", "months: [on, off]"),
+            "expected integer list",
+            id="bool_months",
+        ),
+        pytest.param(
+            ("year: 2023", "year: yes"),
+            "expected integer",
+            id="bool_year",
+        ),
+        pytest.param(
+            ("test_size: 0.2", "test_size: on"),
+            "expected number",
+            id="bool_test_size",
+        ),
+    ],
+)
+def test_project_config_loader_rejects_yaml_bool_values(
+    tmp_path: Path, config_edit: tuple[str, str], match: str
+) -> None:
+    # Arrange — YAML-1.1 bools must not pass the numeric guards
+    # (`isinstance(True, int)` is True).
+    config_path = tmp_path / "configs" / "project.yaml"
+    config_path.parent.mkdir()
+    old, new = config_edit
+    config_path.write_text(
+        _project_config().replace(old, new), encoding="utf-8"
+    )
+
+    # Act & Assert
+    with pytest.raises(ValueError, match=match):
+        ProjectConfigLoader().load(config_path)
+
+
+def test_project_config_loader_accepts_integer_for_float_key(
+    tmp_path: Path,
+) -> None:
+    # Arrange — YAML `1` parses as int; the number contract accepts it.
+    config_path = tmp_path / "configs" / "project.yaml"
+    config_path.parent.mkdir()
+    config_path.write_text(
+        _project_config().replace("max_mae: 1.0", "max_mae: 1"),
+        encoding="utf-8",
+    )
+
+    # Act
+    config = ProjectConfigLoader().load(config_path)
+
+    # Assert
+    assert config.evaluation.max_mae == 1.0
+
+
+def test_project_config_loader_rejects_config_outside_configs_dir(
+    tmp_path: Path,
+) -> None:
+    # Arrange — `project_root` is derived as `config_path.parent.parent`,
+    # which is only meaningful when the config sits under `configs/`.
+    config_path = tmp_path / "project.yaml"
+    config_path.write_text(_project_config(), encoding="utf-8")
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="configs/"):
+        ProjectConfigLoader().load(config_path)
+
+
+@pytest.mark.parametrize(
+    "tracking_uri",
+    [
+        pytest.param("sqlite:///:memory:", id="in_memory_sqlite"),
+        pytest.param("https://tracking.example.com", id="non_sqlite"),
+        pytest.param("sqlite:////var/data/mlflow.db", id="absolute_sqlite"),
+        pytest.param("sqlite:///", id="empty_sqlite_path"),
+    ],
+)
+def test_project_config_loader_passes_through_non_relative_tracking_uris(
+    tmp_path: Path, tracking_uri: str
+) -> None:
+    # Arrange
+    config_path = tmp_path / "configs" / "project.yaml"
+    config_path.parent.mkdir()
+    config_path.write_text(
+        _project_config().replace("sqlite:///mlflow.db", f'"{tracking_uri}"'),
+        encoding="utf-8",
+    )
+
+    # Act
+    config = ProjectConfigLoader().load(config_path)
+
+    # Assert — only relative sqlite paths are anchored to the project root.
+    assert config.mlflow.tracking_uri == tracking_uri
+
+
 def _project_config() -> str:
     return """
 paths:

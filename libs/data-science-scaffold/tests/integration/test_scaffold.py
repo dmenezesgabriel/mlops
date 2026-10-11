@@ -112,6 +112,96 @@ def test_rendered_config_loader_rejects_non_string_section_keys(
         module.ProjectConfigLoader().load(config_path)
 
 
+def test_generated_configs_tree_has_no_include_stubs(tmp_path: Path) -> None:
+    # The rendered configs/ dir must hold only project.yaml — the include:
+    # convention was never implemented and the stubs errored on the wrong key.
+    generated = generate("dummy_test_proj", tmp_path)
+
+    assert sorted(
+        entry.name for entry in (generated / "configs").iterdir()
+    ) == ["project.yaml"]
+
+
+@pytest.mark.parametrize(
+    ("config_edit", "match"),
+    [
+        pytest.param(
+            ("months: [1]", "months: [on, off]"),
+            "expected integer list",
+            id="bool_months",
+        ),
+        pytest.param(
+            ("year: 2023", "year: yes"),
+            "expected integer",
+            id="bool_year",
+        ),
+        pytest.param(
+            ("test_size: 0.2", "test_size: on"),
+            "expected number",
+            id="bool_test_size",
+        ),
+    ],
+)
+def test_rendered_config_loader_rejects_yaml_bool_values(
+    tmp_path: Path, config_edit: tuple[str, str], match: str
+) -> None:
+    # Arrange — `isinstance(True, int)` is True; YAML-1.1 bools must not
+    # pass the rendered numeric guards.
+    generated = generate("dummy_test_proj", tmp_path)
+    module = _load_rendered_configuration(generated, "dummy_test_proj")
+    config_path = generated / "configs" / "project.yaml"
+    old, new = config_edit
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace(old, new),
+        encoding="utf-8",
+    )
+
+    # Act & Assert
+    with pytest.raises(ValueError, match=match):
+        module.ProjectConfigLoader().load(config_path)
+
+
+def test_rendered_config_loader_rejects_config_outside_configs_dir(
+    tmp_path: Path,
+) -> None:
+    # Arrange — `project_root` is derived as `config_path.parent.parent`;
+    # a config outside `configs/` anchors every relative path to a
+    # wrong root instead of failing.
+    generated = generate("dummy_test_proj", tmp_path)
+    module = _load_rendered_configuration(generated, "dummy_test_proj")
+    config_path = generated / "project.yaml"
+    config_path.write_text(
+        (generated / "configs" / "project.yaml").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="configs/"):
+        module.ProjectConfigLoader().load(config_path)
+
+
+def test_rendered_config_loader_passes_through_memory_tracking_uri(
+    tmp_path: Path,
+) -> None:
+    # Arrange — `sqlite:///:memory:` is an absolute form, not a relative
+    # path to anchor under the project root.
+    generated = generate("dummy_test_proj", tmp_path)
+    module = _load_rendered_configuration(generated, "dummy_test_proj")
+    config_path = generated / "configs" / "project.yaml"
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace(
+            "sqlite:///mlflow.db", '"sqlite:///:memory:"'
+        ),
+        encoding="utf-8",
+    )
+
+    # Act
+    config = module.ProjectConfigLoader().load(config_path)
+
+    # Assert
+    assert config.mlflow.tracking_uri == "sqlite:///:memory:"
+
+
 def test_pre_gen_hook_exits_clean_inside_rendered_tree(tmp_path: Path) -> None:
     # Arrange — render and run the hook exactly as cookiecutter does
     # (template → script, cwd = the just-created project dir) with a stray
