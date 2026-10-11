@@ -79,19 +79,48 @@ def test_generated_project_gates_match_live_shape(tmp_path: Path) -> None:
 
 def test_rendered_predict_normalizes_pyfunc_output(tmp_path: Path) -> None:
     # The scaffold env lacks feast/mlflow, so api.py can't be exec'd here;
-    # pin the rendered normalization + ndarray mock shapes by source instead.
+    # pin the rendered normalization + ndarray fake shapes by source instead.
     generated = generate("dummy_test_proj", tmp_path)
 
     api_source = (
         generated / "src" / "dummy_test_proj" / "inference" / "api.py"
     ).read_text(encoding="utf-8")
-    test_source = (
-        generated / "tests" / "unit" / "inference" / "test_api.py"
-    ).read_text(encoding="utf-8")
+    fakes_source = (generated / "tests" / "fakes.py").read_text(
+        encoding="utf-8"
+    )
 
     assert "np.asarray(raw_prediction).ravel()[0]" in api_source
     assert "cast(" not in api_source
-    assert "np.array([12.5])" in test_source
+    assert "np.array(self.predictions)" in fakes_source
+
+
+def test_rendered_serving_resources_load_lazily(tmp_path: Path) -> None:
+    # G-310: the rendered api.py must not eager-init at import — the config
+    # load, FeatureStore, set_tracking_uri and load_model stay inside the
+    # lazy builder (the live projects' shipped AF-105/AF-92 shape).
+    generated = generate("dummy_test_proj", tmp_path)
+
+    api_source = (
+        generated / "src" / "dummy_test_proj" / "inference" / "api.py"
+    ).read_text(encoding="utf-8")
+
+    # The lazy seam exists and is cached behind a module-level sentinel.
+    assert "@dataclass(frozen=True)" in api_source
+    assert "def _load_serving_resources() -> _ServingResources:" in api_source
+    assert "def _serving_resources() -> _ServingResources:" in api_source
+    assert "_resources: _ServingResources | None = None" in api_source
+    # Only a registry-level failure degrades to the 503 contract.
+    assert "except MlflowException:" in api_source
+
+    # No side-effecting call is unindented (module level); each lives inside
+    # the lazy builder's body.
+    assert "\nFeatureStore(repo_path=" not in api_source
+    assert "\n    store = FeatureStore(repo_path=" in api_source
+    assert "\nmlflow.set_tracking_uri(" not in api_source
+    assert "\n    mlflow.set_tracking_uri(" in api_source
+    assert (
+        "model: PyFuncModel | None = mlflow.pyfunc.load_model(" in api_source
+    )
 
 
 def test_rendered_config_loader_rejects_non_string_section_keys(
