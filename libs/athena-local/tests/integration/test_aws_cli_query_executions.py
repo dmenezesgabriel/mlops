@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 
 import pytest
-from tests.integration._cli_examples import load_example
+from tests._cli_examples import load_example
 from tests.integration._cli_harness import (
     CliStack,
     as_dict,

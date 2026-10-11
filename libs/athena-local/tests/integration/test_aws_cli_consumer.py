@@ -25,7 +25,7 @@ import subprocess
 
 import awscli
 import pytest
-from tests.integration._cli_examples import example_stems, load_example
+from tests._cli_examples import example_stems, load_example
 from tests.integration._cli_harness import (
     CliStack,
     as_dict,

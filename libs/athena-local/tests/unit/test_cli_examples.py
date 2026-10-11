@@ -10,7 +10,7 @@ file (the CLI ships multi-example files such as ``start-query-execution``).
 
 from __future__ import annotations
 
-from tests.integration._cli_examples import extract_command_tokens
+from tests._cli_examples import extract_command_tokens
 
 SINGLE_COMMAND_RST = """
 **To return information about a workgroup**
