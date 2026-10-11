@@ -71,9 +71,18 @@ def test_generated_project_gates_match_live_shape(tmp_path: Path) -> None:
         "src",
         "tests",
     ]
+    # `fakes` resolves under --import-mode=importlib only via this pin.
+    assert pyproject["tool"]["pytest"]["ini_options"]["pythonpath"] == [
+        "tests"
+    ]
+    # The stub bodies raise NotImplementedError; these args stay documented
+    # but unused, and vulture would name them.
     assert pyproject["tool"]["vulture"]["ignore_names"] == [
         "raw_directory",
         "n_trials",
+        "output_directory",
+        "trips_path",
+        "training_dataset_path",
     ]
 
 
@@ -363,6 +372,83 @@ def test_rendered_cli_config_error_exits_named(tmp_path: Path) -> None:
     assert lines[-1] == (
         "Invalid project config key year: expected integer, got True"
     )
+
+
+def test_rendered_pipeline_stubs_exit_named(tmp_path: Path) -> None:
+    # A rendered pipeline stub must fail loudly naming its command — never
+    # exit 0 on a config-load-only body that logs a success line.
+    generated = generate("dummy_test_proj", tmp_path)
+    environment = {**os.environ, "PYTHONPATH": str(generated / "src")}
+
+    for command in (
+        "collect",
+        "preprocess",
+        "features",
+        "train",
+        "tune",
+        "evaluate",
+        "deploy",
+        "monitor",
+    ):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "dummy_test_proj.interfaces.cli",
+                command,
+                "--config",
+                "configs/project.yaml",
+            ],
+            cwd=generated,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=environment,
+        )
+        lines = result.stderr.splitlines()
+        assert result.returncode == 1, command
+        assert "Traceback (most recent call last):" not in lines
+        assert lines[-1] == f"{command} pipeline is not implemented", command
+        combined_output = result.stdout + result.stderr
+        assert "pipeline_completed" not in combined_output, command
+
+
+def test_rendered_domain_stubs_raise_not_implemented(tmp_path: Path) -> None:
+    # Scaffolded domain classes must fail loudly, never fabricate
+    # artifacts; the dead `source_url` config surface dies with them.
+    generated = generate("dummy_test_proj", tmp_path)
+    package = generated / "src" / "dummy_test_proj"
+
+    stubs = {
+        "data/collection.py": "TlcYellowTaxiParquetCollector.collect",
+        "data/preprocessing.py": "YellowTaxiTripPreprocessor.preprocess",
+        "data/supervised_dataset.py": "NextHourDemandDatasetBuilder.build",
+        "features/feast_materialization.py": "LocalFeastMaterializer.apply",
+        "features/hourly_demand.py": "HourlyDemandFeatureBuilder.build",
+        "models/tuning.py": "DemandModelTuner.tune",
+    }
+    fabrications = {
+        "data/collection.py": "_tripdata_",
+        "data/preprocessing.py": ".to_parquet(",
+        "data/supervised_dataset.py": ".to_parquet(",
+        "features/feast_materialization.py": ".mkdir(",
+        "features/hourly_demand.py": ".to_parquet(",
+        "models/tuning.py": "return 1.0",
+    }
+    for relative_path, surface in stubs.items():
+        source = (package / relative_path).read_text(encoding="utf-8")
+        assert "raise NotImplementedError" in source, relative_path
+        assert f'"{surface} is not implemented"' in source, relative_path
+        assert fabrications[relative_path] not in source, relative_path
+
+    configuration_source = (package / "configuration.py").read_text(
+        encoding="utf-8"
+    )
+    project_yaml = (generated / "configs" / "project.yaml").read_text(
+        encoding="utf-8"
+    )
+    assert "source_url" not in configuration_source
+    assert "source_url" not in project_yaml
 
 
 def test_pre_gen_hook_exits_clean_inside_rendered_tree(tmp_path: Path) -> None:

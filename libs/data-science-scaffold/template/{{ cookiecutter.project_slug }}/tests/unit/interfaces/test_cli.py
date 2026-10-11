@@ -92,3 +92,25 @@ def test_main_missing_config_exits_named(
 
     assert isinstance(excinfo.value.code, str)
     assert str(missing) in excinfo.value.code
+
+
+def test_main_not_implemented_pipeline_exits_clean(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    project_config_yaml: str,
+) -> None:
+    # Arrange
+    config_path = tmp_path / "configs" / "project.yaml"
+    config_path.parent.mkdir()
+    config_path.write_text(project_config_yaml, encoding="utf-8")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["dummy", "collect", "--config", str(config_path)],
+    )
+
+    # Act / Assert
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main()
+
+    assert excinfo.value.code == "collect pipeline is not implemented"

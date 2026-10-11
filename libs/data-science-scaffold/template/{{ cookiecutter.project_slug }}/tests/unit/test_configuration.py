@@ -16,7 +16,7 @@ def test_project_config_loader_resolves_project_paths(tmp_path: Path) -> None:
 
     # Assert
     assert config.paths.raw_data == tmp_path / "data" / "raw"
-    assert config.collection.source_url(1).endswith("2023-01.parquet")
+    assert config.collection.taxi_type == "yellow"
 
 
 def test_project_config_loader_anchors_relative_mlflow_uri_to_project_root(
@@ -178,7 +178,6 @@ collection:
   year: 2023
   months: [1]
   taxi_type: yellow
-  source_url_template: https://example.test/{year}-{month:02d}.parquet
 features:
   training_dataset_path: data/processed/training_dataset.parquet
   offline_features_path: data/processed/hourly_demand_features.parquet

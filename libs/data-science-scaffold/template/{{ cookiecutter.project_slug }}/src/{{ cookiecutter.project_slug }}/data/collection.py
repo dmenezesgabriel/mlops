@@ -6,6 +6,8 @@ from {{ cookiecutter.project_slug }}.configuration import CollectionConfig
 class TlcYellowTaxiParquetCollector:
     """Collect immutable trip parquet files into local raw storage.
 
+    Scaffolded stub — calls raise NotImplementedError.
+
     Example:
         TlcYellowTaxiParquetCollector().collect(config, Path("data/raw"))
     """
@@ -13,9 +15,6 @@ class TlcYellowTaxiParquetCollector:
     def collect(
         self, config: CollectionConfig, output_directory: Path
     ) -> tuple[Path, ...]:
-        output_directory.mkdir(parents=True, exist_ok=True)
-        return tuple(
-            output_directory
-            / f"{config.taxi_type}_tripdata_{config.year}-{month:02d}.parquet"
-            for month in config.months
+        raise NotImplementedError(
+            "TlcYellowTaxiParquetCollector.collect is not implemented"
         )

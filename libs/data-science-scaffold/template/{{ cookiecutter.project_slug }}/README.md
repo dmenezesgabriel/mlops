@@ -13,3 +13,5 @@ make evaluate PROJECT={{ cookiecutter.project_slug }}
 ```
 
 The project uses local parquet files, Feast with DuckDB, and MLflow with SQLite.
+Every pipeline `run()` and scaffolded domain stub raises `NotImplementedError`
+until implemented.
