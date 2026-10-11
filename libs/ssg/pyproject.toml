@@ -36,6 +36,12 @@ mdit-py-plugins = "mdit_py_plugins"
 DEP002 = ["ssg-i18n", "ssg-i18n-machine-translation", "ssg-syntax-highlighting", "ssg-latex"]
 DEP003 = ["ssg"]
 
+[tool.coverage.run]
+# bare `--cov` traces the editable `ssg-*` plugin workspace dependencies;
+# those modules are covered by their own suites, so measure only this
+# package's code.
+source = ["src", "tests"]
+
 [build-system]
 requires = ["hatchling==1.27.0"]
 build-backend = "hatchling.build"
