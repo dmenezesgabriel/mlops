@@ -123,6 +123,36 @@ def test_rendered_serving_resources_load_lazily(tmp_path: Path) -> None:
     )
 
 
+def test_rendered_feature_contract_is_single_sourced(tmp_path: Path) -> None:
+    # The scaffold env lacks feast/mlflow, so pin by source: the serving
+    # surfaces must import the hourly_demand contract constants, not carry
+    # private literal copies that can drift apart.
+    generated = generate("dummy_test_proj", tmp_path)
+    package = generated / "src" / "dummy_test_proj"
+    api_source = (package / "inference" / "api.py").read_text(encoding="utf-8")
+    batch_source = (package / "inference" / "batch_predict.py").read_text(
+        encoding="utf-8"
+    )
+    contract_source = (package / "features" / "hourly_demand.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "from dummy_test_proj.features.hourly_demand import" in api_source
+    assert (
+        "from dummy_test_proj.features.hourly_demand import FEATURE_COLUMNS"
+        in batch_source
+    )
+    assert "_FEATURE_COLUMNS" not in api_source
+    assert "_feature_columns" not in batch_source
+    assert 'f"hourly_pickup_demand:' not in api_source
+    assert "FEATURE_VIEW_NAME" in contract_source
+    assert "def load_entity_df" in contract_source
+    # The conformance pin ships inside the generated project's own suite.
+    assert (
+        generated / "tests" / "unit" / "features" / "test_hourly_demand.py"
+    ).is_file()
+
+
 def test_rendered_config_loader_rejects_non_string_section_keys(
     tmp_path: Path,
 ) -> None:

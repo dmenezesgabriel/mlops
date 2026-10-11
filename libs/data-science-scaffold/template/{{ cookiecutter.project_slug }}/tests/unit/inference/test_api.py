@@ -15,6 +15,9 @@ from fastapi.testclient import TestClient
 from mlflow.exceptions import MlflowException
 
 import {{ cookiecutter.project_slug }}.inference.api as api
+from {{ cookiecutter.project_slug }}.features.hourly_demand import (
+    FEATURE_REFS,
+)
 from {{ cookiecutter.project_slug }}.inference.api import app
 
 _API_LOGGER = "{{ cookiecutter.project_slug }}.inference.api"
@@ -162,16 +165,7 @@ def test_predict_returns_prediction(monkeypatch: pytest.MonkeyPatch) -> None:
         "predicted_demand": 12.5,
     }
     assert store.online_calls == [
-        (
-            [
-                "hourly_pickup_demand:pickup_count",
-                "hourly_pickup_demand:hour",
-                "hourly_pickup_demand:day_of_week",
-                "hourly_pickup_demand:is_weekend",
-                "hourly_pickup_demand:month",
-            ],
-            [{"pickup_location_id": 142}],
-        )
+        (list(FEATURE_REFS), [{"pickup_location_id": 142}])
     ]
     assert len(model.predicted_frames) == 1
 
@@ -289,13 +283,4 @@ def test_fetch_online_features_requests_all_feature_columns(
 
     # Assert
     assert features is FakeFeatureStore.online_result
-    assert store.online_calls[0][0] == [
-        f"hourly_pickup_demand:{name}"
-        for name in [
-            "pickup_count",
-            "hour",
-            "day_of_week",
-            "is_weekend",
-            "month",
-        ]
-    ]
+    assert store.online_calls[0][0] == list(FEATURE_REFS)

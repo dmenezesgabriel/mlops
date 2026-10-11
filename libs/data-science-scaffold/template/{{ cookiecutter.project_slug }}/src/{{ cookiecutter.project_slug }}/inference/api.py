@@ -12,6 +12,10 @@ from mlflow.exceptions import MlflowException
 from mlflow.pyfunc import PyFuncModel
 
 from {{ cookiecutter.project_slug }}.configuration import ProjectConfigLoader
+from {{ cookiecutter.project_slug }}.features.hourly_demand import (
+    FEATURE_COLUMNS,
+    FEATURE_REFS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +24,6 @@ app = FastAPI(title="{{ cookiecutter.project_title }} Serving API")
 # api.py sits at src/{{ cookiecutter.project_slug }}/inference/api.py — the
 # project config lives at <project root>/configs/project.yaml, three parents up.
 _CONFIG_PATH = Path(__file__).resolve().parents[3] / "configs" / "project.yaml"
-_FEATURE_COLUMNS = [
-    "pickup_count",
-    "hour",
-    "day_of_week",
-    "is_weekend",
-    "month",
-]
 
 
 @dataclass(frozen=True)
@@ -72,9 +69,7 @@ def fetch_online_features(location_id: int) -> pd.DataFrame:
         features = fetch_online_features(142)
     """
     entity_rows = [{"pickup_location_id": location_id}]
-    feature_refs = [
-        f"hourly_pickup_demand:{name}" for name in _FEATURE_COLUMNS
-    ]
+    feature_refs = list(FEATURE_REFS)
     features_df = (
         _serving_resources()
         .store.get_online_features(
@@ -87,7 +82,7 @@ def fetch_online_features(location_id: int) -> pd.DataFrame:
 
 
 def _features_missing(features: pd.DataFrame) -> bool:
-    if features.empty or not set(_FEATURE_COLUMNS) <= set(features.columns):
+    if features.empty or not set(FEATURE_COLUMNS) <= set(features.columns):
         return True
     count_na: bool = features["pickup_count"].isna().iloc[0]
     return count_na
@@ -125,7 +120,7 @@ def predict_demand(location_id: int) -> dict[str, Any]:
             detail=f"No online features found for location ID {location_id}",
         )
 
-    pred_features = features[_FEATURE_COLUMNS]
+    pred_features = features[list(FEATURE_COLUMNS)]
 
     raw_prediction: Any = model.predict(  # pyright: ignore[reportUnknownMemberType]
         pred_features
