@@ -191,6 +191,13 @@
   swept, 13 gaps promoted — G-303…G-315; residuals concentrate in the
   scaffold template: 8 rows re-inject shipped defect classes into the next
   generated project.)
-- [ ] **AX-2** user-facing surface → bdd scenario matrix; S4 rows promoted.
+- [x] **AX-2** user-facing surface → bdd scenario matrix; S4 rows promoted.
+  (31 surface rows — `audits/AX-2.md`; 7 gaps promoted G-316…G-322, all S4:
+  ssg `preview`/`--collection`, `ssg-i18n-evaluate` + transformers EP,
+  `diagrams-cli`, `videos` CLI + videos-linter seam, ml_spec + nyc_taxi
+  CLI/batch/feast sets, scaffold template `predict.feature` 1-vs-4 drift.
+  Scenario-covered: `/predict` ×2 + athena-local wire 53; athena-local
+  CLI/terraform consumer holes structural; sagemaker_*/glue_overlay/
+  emulator surfaces e2e-covered, no rows.)
 - [ ] Ship remaining `AF-*`; **AX-3** close-out — register dispositioned,
   seeds resolved, docs marked complete.
