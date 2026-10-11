@@ -85,30 +85,6 @@ class FakeMlflowModule:
         self.tracking_uri = tracking_uri
 
 
-class FakeMlflowClient:
-    """`mlflow.client.MlflowClient` stand-in recording uri + alias calls."""
-
-    instances: ClassVar[list["FakeMlflowClient"]] = []
-
-    def __init__(self, tracking_uri: str | None = None) -> None:
-        self.tracking_uri = tracking_uri
-        self.alias_calls: list[dict[str, str]] = []
-        type(self).instances.append(self)
-
-    def set_registered_model_alias(
-        self, name: str, alias: str, version: str
-    ) -> None:
-        self.alias_calls.append(
-            {"name": name, "alias": alias, "version": version}
-        )
-
-
-class FakeMlflowClientModule:
-    """`mlflow.client` module stand-in for the `import_module` seam."""
-
-    MlflowClient = FakeMlflowClient
-
-
 class FailingRunner:
     """Pipeline runner stand-in raising a scripted exception."""
 
@@ -147,4 +123,3 @@ def reset_fake_state() -> None:
     FakeFeatureStore.instances = []
     FakeFeatureStore.online_result = pd.DataFrame()
     FakeFeatureStore.online_error = None
-    FakeMlflowClient.instances = []

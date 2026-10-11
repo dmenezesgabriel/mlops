@@ -1,1 +1,1 @@
-"""Model training and registry modules."""
+"""Model training and tuning modules."""
