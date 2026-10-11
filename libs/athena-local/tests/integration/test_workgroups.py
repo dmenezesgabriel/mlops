@@ -3,9 +3,11 @@
 Acceptance check. Uses the LiveAthenaServer fixture (threaded uvicorn on
 a random port) — the same pattern the botocore smoke already uses, so no docker
 stack is needed for the workgroup control plane. The awswrangler config path
-is the exact function wrangler runs before every query
-(``awswrangler/athena/_utils.py:158-187``); its endpoint override is the
-documented ``wr.config.athena_endpoint_url`` (``awswrangler/_utils.py:259-260``).
+starts at the public ``wr.athena.get_work_group``
+(``awswrangler/athena/_utils.py:1099``), whose response wrangler's per-query
+``_get_workgroup_config`` unwraps (``_utils.py:158-187``); its endpoint
+override is the documented ``wr.config.athena_endpoint_url``
+(``awswrangler/_utils.py:259-260``).
 """
 
 from __future__ import annotations
@@ -122,7 +124,7 @@ def test_delete_primary_work_group_is_blocked(
     assert "primary" in error["Message"]
 
 
-def test_awswrangler_get_work_group_config_reads_created_workgroup(
+def test_awswrangler_get_work_group_reads_created_workgroup(
     live_athena_server: LiveAthenaServer,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -145,18 +147,25 @@ def test_awswrangler_get_work_group_config_reads_created_workgroup(
         },
     )
 
-    config = wr.athena._utils._get_workgroup_config(
-        session=session, workgroup="analytics"
+    work_group = wr.athena.get_work_group(
+        workgroup="analytics", boto3_session=session
+    )["WorkGroup"]
+
+    # The exact keys wrangler's per-query ``_get_workgroup_config`` unwraps
+    # (awswrangler==3.17.1, ``athena/_utils.py:165-186``).
+    configuration = work_group["Configuration"]
+    assert (
+        configuration["ResultConfiguration"]["OutputLocation"]
+        == "s3://results-bucket/analytics/"
     )
+    assert configuration["EnforceWorkGroupConfiguration"] is True
+    assert (
+        "EncryptionConfiguration" not in configuration["ResultConfiguration"]
+    )
+    assert "ManagedQueryResultsConfiguration" not in configuration
 
-    assert config.s3_output == "s3://results-bucket/analytics/"
-    assert config.enforced is True
-    assert config.encryption is None
-    assert config.kms_key is None
-    assert config.managed_results is False
 
-
-def test_awswrangler_default_wrangler_path_reads_primary(
+def test_awswrangler_get_work_group_reads_primary(
     live_athena_server: LiveAthenaServer,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -167,14 +176,14 @@ def test_awswrangler_default_wrangler_path_reads_primary(
     )
 
     # The exact call wrangler performs when a query names no workgroup.
-    config = wr.athena._utils._get_workgroup_config(
-        session=_wrangler_session(), workgroup="primary"
-    )
+    work_group = wr.athena.get_work_group(
+        workgroup="primary", boto3_session=_wrangler_session()
+    )["WorkGroup"]
 
-    assert config.enforced is False
-    assert config.s3_output is None
-    assert config.encryption is None
-    assert config.managed_results is False
+    configuration = work_group["Configuration"]
+    assert configuration["EnforceWorkGroupConfiguration"] is False
+    assert "ResultConfiguration" not in configuration
+    assert "ManagedQueryResultsConfiguration" not in configuration
 
 
 def _wrangler_session() -> boto3.Session:

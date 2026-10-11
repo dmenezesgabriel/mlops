@@ -166,7 +166,7 @@ def test_build_query_executor_reads_max_concurrent_queries_from_env(
 
     executor = build_query_executor(ExecutionStore())
 
-    assert executor._semaphore._value == 2
+    assert executor.max_concurrent_queries == 2
 
 
 def test_build_query_executor_defaults_max_concurrent_queries(
@@ -176,7 +176,7 @@ def test_build_query_executor_defaults_max_concurrent_queries(
 
     executor = build_query_executor(ExecutionStore())
 
-    assert executor._semaphore._value == 4
+    assert executor.max_concurrent_queries == 4
 
 
 @pytest.mark.parametrize("bad_value", ["abc", "0", "-1", "2.5"])

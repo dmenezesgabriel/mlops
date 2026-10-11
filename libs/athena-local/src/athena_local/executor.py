@@ -94,6 +94,9 @@ class QueryExecutor:
         self._store = store
         self._client = client
         self._writer = writer
+        # The configured bound is public so wiring tests read it off the
+        # executor instead of pinning the semaphore mechanism's name.
+        self.max_concurrent_queries = max_concurrent_queries
         self._semaphore = asyncio.Semaphore(max_concurrent_queries)
         self._snapshotter = snapshotter
         self._planner = SubmissionPlanner(

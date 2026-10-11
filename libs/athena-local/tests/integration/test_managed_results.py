@@ -143,7 +143,7 @@ def test_managed_workgroup_ignores_request_output_location(
     assert "OutputLocation" not in execution["ResultConfiguration"]
 
 
-def test_awswrangler_get_workgroup_config_reads_managed_workgroup(
+def test_awswrangler_get_work_group_reads_managed_workgroup(
     managed_results_harness: ManagedResultsHarness,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -164,16 +164,19 @@ def test_awswrangler_get_workgroup_config_reads_managed_workgroup(
         },
     )
 
-    config = wr.athena._utils._get_workgroup_config(
-        session=_wrangler_session(), workgroup=MANAGED_WORKGROUP_NAME
-    )
+    work_group = wr.athena.get_work_group(
+        workgroup=MANAGED_WORKGROUP_NAME, boto3_session=_wrangler_session()
+    )["WorkGroup"]
 
-    assert config.managed_results is True
-    assert config.s3_output is None
+    # The exact keys wrangler's per-query ``_get_workgroup_config`` unwraps
+    # (awswrangler==3.17.1, ``athena/_utils.py:165-186``).
+    configuration = work_group["Configuration"]
+    assert configuration["ManagedQueryResultsConfiguration"]["Enabled"] is True
+    assert "ResultConfiguration" not in configuration
     # EnforceWorkGroupConfiguration defaults to True on create (moto parity:
     # workgroup_schemas.defaulted, moto/athena WorkGroup.__init__) — the
     # same shape wrangler's own `workgroup_managed` fixture uses.
-    assert config.enforced is True
+    assert configuration["EnforceWorkGroupConfiguration"] is True
 
 
 def _wrangler_session() -> boto3.Session:
