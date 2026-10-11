@@ -50,7 +50,7 @@
 
 | ID | Item | Trigger | Acceptance | Size |
 |---|---|---|---|---|
-| AX-1 | Cross-cutting pattern sweep: every pattern flagged ≥2× in audit reports (e.g. stringized casts, ClassVar mutable state, silent `except`) gets a repo-wide grep verification + consolidated gap rows | MA-7 done | Sweep table in `audits/AX-1.md`; rows promoted | M |
+| AX-1 | [x] done 2026-10-11 — report `audits/AX-1.md`; 24 patterns swept (11 resolved/no-instance, 2 noted-not-defect), 13 gaps promoted G-303…G-315 (S3×11, S4×2); headline: residuals concentrate in the scaffold template — 8 rows re-inject shipped classes into the next generated project (`include:` stubs, bool guards, `parent.parent` anchor, bare `main()`, unbounded split, ambient `MlflowClient` + dead registry, eager-init api echo/swallow, lying pipeline logs); ssg editable-plugin cov pollution = 7th occurrence; athena-local unit→integration import + `_semaphore._value`/`wr._utils` pins + ssg `_dependencies` pin close it out | Cross-cutting pattern sweep: every pattern flagged ≥2× in audit reports (e.g. stringized casts, ClassVar mutable state, silent `except`) gets a repo-wide grep verification + consolidated gap rows | MA-7 done | Sweep table in `audits/AX-1.md`; rows promoted | M |
 | AX-2 | Integration/bdd coverage sweep: map every user-facing surface (CLIs, services, pipeline runs) to bdd scenarios; missing surfaces → S4 rows | All audits done | Surface→scenario matrix; rows promoted | M |
 | AX-3 | Close-out: register empty or residual-only with written waivers; README "Known risk seeds" resolved; this doc set's status → complete in parent README | All AF-* done | Register dispositioned; docs updated | S |
 

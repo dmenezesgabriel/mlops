@@ -187,7 +187,10 @@
 
 ## MA-8 — Cross-cutting + close
 
-- [ ] **AX-1** repo-wide pattern sweep (patterns flagged ≥2×).
+- [x] **AX-1** repo-wide pattern sweep (patterns flagged ≥2×). (24 patterns
+  swept, 13 gaps promoted — G-303…G-315; residuals concentrate in the
+  scaffold template: 8 rows re-inject shipped defect classes into the next
+  generated project.)
 - [ ] **AX-2** user-facing surface → bdd scenario matrix; S4 rows promoted.
 - [ ] Ship remaining `AF-*`; **AX-3** close-out — register dispositioned,
   seeds resolved, docs marked complete.
