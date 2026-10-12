@@ -40,7 +40,7 @@ These are Linux's commands; on another OS take the same four readings with its o
 
 - Heavy here: `make test`, `make coverage`, `make test-bdd`, `make test-e2e`, `make test-videos-docker`.
 - The `docker-compose.yml` services keep running after the task that started them: Trino alone held 2 GB while idle (`docker stats`, 2026-10-10). `docker compose stop` when no task needs them.
-- Semgrep runs `--config p/default --metrics off`: on this tree it runs the same 551 rules and reports the same 42 findings as `--config auto`, which refuses to run with metrics off (measured 2026-10-10). Keep both flags; `auto` sends the project's metrics to semgrep.dev.
+- Semgrep runs `--config p/default --metrics off --error`: on this tree it runs the same 551 rules and reports the same findings as `--config auto`, which refuses to run with metrics off (measured 2026-10-10). Keep the flags; `auto` sends the project's metrics to semgrep.dev, and without `--error` a finding passes the gate. A reviewed false positive gets an inline `# nosemgrep: <rule-id>` beside its reason, as `libs/ssg` and `libs/ssg-notebook-render` do; never a global `--exclude-rule`.
 
 ## Code style
 

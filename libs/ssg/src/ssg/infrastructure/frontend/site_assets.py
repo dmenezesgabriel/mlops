@@ -1,3 +1,5 @@
+# files() is Python 3.9+; this package requires >= 3.11
+# nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 from importlib.resources import files
 
 

@@ -34,7 +34,7 @@ dependencies:
 security:
 	uv run bandit -q -r src docker -ll
 	uv run vulture --min-confidence 80 src docker
-	uv run semgrep --quiet --config p/default --metrics off .
+	uv run semgrep --quiet --config p/default --metrics off --error .
 
 maintainability:
 	uv run xenon --max-absolute B --max-modules A --max-average A . -e "*/node_modules/*"

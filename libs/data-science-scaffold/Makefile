@@ -31,7 +31,7 @@ dependencies:
 security:
 	uv run bandit -q -r src -ll
 	uv run vulture --min-confidence 80 src
-	uv run semgrep --quiet --config p/default --metrics off .
+	uv run semgrep --quiet --config p/default --metrics off --error .
 
 maintainability:
 	uv run xenon --max-absolute B --max-modules A --max-average A src
