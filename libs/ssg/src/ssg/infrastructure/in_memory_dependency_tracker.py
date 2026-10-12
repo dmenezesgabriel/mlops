@@ -1,4 +1,5 @@
 from collections import defaultdict
+from collections.abc import Mapping
 from pathlib import Path
 
 from ssg.application.ports.dependency_tracker import DependencyTracker
@@ -9,6 +10,18 @@ class InMemoryDependencyTracker(DependencyTracker):
     def __init__(self) -> None:
         self._dependencies: dict[Path, set[Page]] = defaultdict(set)
         self._registered_paths: dict[Page, set[Path]] = defaultdict(set)
+
+    @property
+    def dependencies(self) -> Mapping[Path, frozenset[Page]]:
+        """Snapshot of the tracked path → dependent-pages store.
+
+        The public read view for the retention bound: dead keys must be
+        evicted, so `len(tracker.dependencies)` only counts live paths.
+        """
+        return {
+            path: frozenset(pages)
+            for path, pages in self._dependencies.items()
+        }
 
     def register_dependency(self, page: Page, path: Path) -> None:
         resolved_path = path.resolve()

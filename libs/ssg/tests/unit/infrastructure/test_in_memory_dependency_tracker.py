@@ -52,4 +52,4 @@ class TestInMemoryDependencyTracker:
         # evicted entirely instead of retaining a stale Page.
         assert tracker.affected_pages({tmp_path / "shared.yaml"}) == {page_b}
         assert tracker.affected_pages({tmp_path / "only_a.yaml"}) == set()
-        assert len(tracker._dependencies) == 1
+        assert len(tracker.dependencies) == 1

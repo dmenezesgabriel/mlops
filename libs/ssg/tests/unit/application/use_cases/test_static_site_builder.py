@@ -644,11 +644,11 @@ class TestStaticSiteBuilder:
 
         # Assert — only the live dep set remains: the page's own source
         # plus the current extra path.
-        assert len(dependency_tracker._dependencies) == 2
+        assert len(dependency_tracker.dependencies) == 2
         assert (
             sum(
                 len(pages)
-                for pages in dependency_tracker._dependencies.values()
+                for pages in dependency_tracker.dependencies.values()
             )
             == 2
         )
