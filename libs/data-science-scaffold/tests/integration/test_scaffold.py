@@ -132,6 +132,34 @@ def test_rendered_serving_resources_load_lazily(tmp_path: Path) -> None:
     )
 
 
+def test_rendered_predict_feature_covers_error_arms(tmp_path: Path) -> None:
+    # G-322: the live projects pin all four predict arms; the rendered
+    # project must ship the same scenarios or the next generated project
+    # inherits the thinner surface map.
+    generated = generate("dummy_test_proj", tmp_path)
+
+    feature_source = (
+        generated / "tests" / "bdd" / "features" / "predict.feature"
+    ).read_text(encoding="utf-8")
+    steps_source = (generated / "tests" / "bdd" / "test_predict.py").read_text(
+        encoding="utf-8"
+    )
+
+    for scenario_name in (
+        "Successful demand prediction",
+        "Missing champion model returns service unavailable",
+        "Missing online features returns not found",
+        "Feature store failure returns a generic server error",
+    ):
+        assert f"Scenario: {scenario_name}" in feature_source
+        assert scenario_name in steps_source
+
+    # The parametrized status step and the internals-hiding assert are the
+    # wiring the error arms hang on.
+    assert "parsers.parse" in steps_source
+    assert "step_detail_hides_internals" in steps_source
+
+
 def test_rendered_feature_contract_is_single_sourced(tmp_path: Path) -> None:
     # The scaffold env lacks feast/mlflow, so pin by source: the serving
     # surfaces must import the hourly_demand contract constants, not carry
