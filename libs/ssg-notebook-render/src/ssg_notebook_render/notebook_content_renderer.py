@@ -53,7 +53,7 @@ except (
 else:
     gfm_plugin = _gfm_plugin
 
-# Directives are the only template surface (docs/ssg/ssg.md): calls shaped
+# Directives are the only template surface (docs/components/ssg/ssg.md): calls shaped
 # `{{ helper("arg") }}` are extracted and run; every other `{{ … }}`/`{% … %}`
 # is author text and must reach the Markdown pass verbatim — rendering the
 # cell source as a Jinja program evaluated arbitrary expressions and aborted

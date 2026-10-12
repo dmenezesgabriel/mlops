@@ -2,8 +2,10 @@
 
 How a package audit runs: the dimensions every symbol is checked against, the
 measurement each claim must carry, the severity classes, and the report
-template. This is the permanent companion to the ephemeral working docs
-(`backlog.md`, `gaps.md`, `audits/`).
+template. This is the permanent companion to the ephemeral working docs —
+under the unified layout (2026-10-12): `docs/backlog.md`, `docs/gaps.md`,
+`docs/audits/`; the completed run's set is in `docs/archive/repo-quality/
+deep-audit/`.
 
 ## 1. Purpose and scope
 
@@ -93,7 +95,11 @@ carries a measurement or a failing test (ADR-0001).
 - **Type honesty**: quote the signature + the `file:line`; state the true
   runtime contract and why the annotation diverges.
 
-## 7. Audit report template (`audits/AU-NN-<slug>.md`)
+## 7. Audit report template (`docs/audits/AU-NN-<slug>.md`)
+
+Under the unified `docs/` layout (2026-10-12) reports land in `docs/audits/` —
+they back the live `docs/gaps.md` register. The completed run's reports are
+archived at `docs/archive/repo-quality/deep-audit/audits/`.
 
 ```markdown
 # AU-NN — <package> audit (YYYY-MM-DD)

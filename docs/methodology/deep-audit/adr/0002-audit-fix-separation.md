@@ -13,9 +13,10 @@ evidence the fix was justified by.
 
 ## Decision
 
-- An `AU-*` audit session may touch only `docs/repo-quality/deep-audit/`
-  (the `AU-NN` report + `gaps.md` rows + checked boxes). `src/` and
-  `tests/` stay untouched.
+- An `AU-*` audit session may touch only the audit doc set — under the
+  unified layout (2026-10-12): `docs/audits/` (the `AU-NN` report) +
+  `docs/gaps.md` rows + checked boxes; originally
+  `docs/repo-quality/deep-audit/`. `src/` and `tests/` stay untouched.
 - Every confirmed finding is promoted to an `AF-*` fix item at the
   milestone's remediation step (S1 items preempt the audit sequence).
 - Scratch harnesses an audit needs (microbenchmarks, stress scripts) are

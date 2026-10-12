@@ -1,5 +1,8 @@
 # Execution session protocol — Repo Deep Audit (OPERATIONAL)
 
+> **ARCHIVED 2026-10-12 — superseded by `docs/prompt-execution.md`.** Kept as
+> the historical protocol of the closed deep-audit workstream.
+
 > **Operational session protocol.** How an execution session runs for this
 > workstream. References permanent docs (`methodology.md`, `adr/`) and
 > ephemeral working docs; like all planning docs, its content is never cited

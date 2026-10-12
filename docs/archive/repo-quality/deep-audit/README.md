@@ -1,5 +1,9 @@
 # Repo Deep Audit — documentation index
 
+> **ARCHIVED 2026-10-12 — closed workstream (MA-0…MA-8 shipped).** The live
+> doc set is `docs/` (`README.md` for the index); the permanent methodology
+> moved to `docs/methodology/deep-audit/` (with its `adr/`).
+
 Walk every workspace library and application down its callstack — every public
 class, method, and function — and measure, not assume: asymptotic behavior,
 type-signature honesty, design-pattern fit, correctness, memory retention,
@@ -21,10 +25,10 @@ written reason); all known risk seeds below resolved.
 
 | Path | Kind | Status |
 |---|---|---|
-| [methodology.md](methodology.md) | **Permanent** — audit rubric: dimensions, measurement standards, severity classes, report template | Keep in sync with practice |
-| [adr/](adr/) | **Permanent** — methodology decisions (Nygard-style, numbered, append-only) | Supersede only with a new ADR |
+| [methodology.md](../../../methodology/deep-audit/methodology.md) | **Permanent** — audit rubric: dimensions, measurement standards, severity classes, report template | Keep in sync with practice |
+| [adr/](../../../methodology/deep-audit/adr/) | **Permanent** — methodology decisions (Nygard-style, numbered, append-only) | Supersede only with a new ADR |
 | [prd.md](prd.md) | **Ephemeral** — audit requirements (what each package audit must produce + acceptance) | Must NOT be cited from code |
-| [prompt-execution.md](prompt-execution.md) | **Operational** — session execution protocol, mapped to this repo's files | Keep in sync with doc map |
+| [prompt-execution.md](prompt-execution.md) | **Operational** — session execution protocol, mapped to this repo's files | Archived — superseded by `docs/prompt-execution.md` |
 | [backlog.md](backlog.md) | **Ephemeral** — audit items `AU-*`, fix items `AF-*`, cross-cutting `AX-*` | Must NOT be cited from code |
 | [milestones.md](milestones.md) | **Ephemeral** — ordered phases MA-0…MA-8 | Must NOT be cited from code |
 | [gaps.md](gaps.md) | **Ephemeral** — measured finding register, one small-step fix sketch per row | Must NOT be cited from code |

@@ -288,17 +288,17 @@ independent of the query engine" import-linter contract.
 
 | ADR | Decision |
 |---|---|
-| [0001](adr/0001-trino-query-engine.md) | Trino is the SQL engine, driven via `/v1/statement` |
-| [0002](adr/0002-own-service-own-port.md) | `athena` = own container + own port; moto untouched |
-| [0003](adr/0003-in-memory-control-plane-state.md) | Control-plane state in memory only |
-| [0004](adr/0004-studio-apis-out-of-scope.md) | Studio/notebook/session/calculation APIs out of scope v1 (shaped errors) |
-| [0005](adr/0005-metadata-plane-glue-through-moto.md) | Catalog metadata via Hive metastore=glue + read-proxy to moto Glue |
-| [0006](adr/0006-data-plane-native-s3-through-moto.md) | Trino native S3 client → moto S3 (spike-gated) |
-| [0007](adr/0007-result-artifacts-and-outputlocation-semantics.md) | Artifact naming/format + `OutputLocation` semantics per wrangler |
-| [0008](adr/0008-json11-dispatch-and-error-parity.md) | JSON 1.1 dispatch + botocore-parity errors; no moto internals |
-| [0009](adr/0009-async-query-execution-state-machine.md) | Async execution state machine + pre-finish read error parity |
-| [0010](adr/0010-csv-header-row-and-bytes.md) | `{QueryID}.csv` carries the quoted header row as line 1 (supersedes ADR-0007's headerless descriptor) |
-| [0011](adr/0011-managed-results-skip-s3-artifacts.md) | Managed-results workgroups write no S3 artifacts; rows served inline (carve-out to ADR-0009 #4) |
+| [0001](../adr/0001-trino-query-engine.md) | Trino is the SQL engine, driven via `/v1/statement` |
+| [0002](../adr/0002-own-service-own-port.md) | `athena` = own container + own port; moto untouched |
+| [0003](../adr/0003-in-memory-control-plane-state.md) | Control-plane state in memory only |
+| [0004](../adr/0004-studio-apis-out-of-scope.md) | Studio/notebook/session/calculation APIs out of scope v1 (shaped errors) |
+| [0005](../adr/0005-metadata-plane-glue-through-moto.md) | Catalog metadata via Hive metastore=glue + read-proxy to moto Glue |
+| [0006](../adr/0006-data-plane-native-s3-through-moto.md) | Trino native S3 client → moto S3 (spike-gated) |
+| [0007](../adr/0007-result-artifacts-and-outputlocation-semantics.md) | Artifact naming/format + `OutputLocation` semantics per wrangler |
+| [0008](../adr/0008-json11-dispatch-and-error-parity.md) | JSON 1.1 dispatch + botocore-parity errors; no moto internals |
+| [0009](../adr/0009-async-query-execution-state-machine.md) | Async execution state machine + pre-finish read error parity |
+| [0010](../adr/0010-csv-header-row-and-bytes.md) | `{QueryID}.csv` carries the quoted header row as line 1 (supersedes ADR-0007's headerless descriptor) |
+| [0011](../adr/0011-managed-results-skip-s3-artifacts.md) | Managed-results workgroups write no S3 artifacts; rows served inline (carve-out to ADR-0009 #4) |
 
 ## 10. Quality Requirements
 

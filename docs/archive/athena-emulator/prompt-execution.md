@@ -1,5 +1,8 @@
 # Execution session protocol — Athena Local Emulator (OPERATIONAL)
 
+> **ARCHIVED 2026-10-12 — superseded by `docs/prompt-execution.md`.** Kept as
+> the historical protocol of the closed athena-emulator workstream.
+
 > **Operational session protocol.** Describes how an execution session runs for
 > this project. It references the permanent docs and the ephemeral working
 > docs; like all planning docs, its content is never cited in code — only the

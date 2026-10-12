@@ -1,5 +1,8 @@
 # Repo-wide quality — documentation index
 
+> **ARCHIVED 2026-10-12 — both workstreams closed.** The live doc set is
+> `docs/` (`README.md` for the index).
+
 Two workstreams live here:
 
 1. **Gate parity** (this directory's `backlog.md`/`milestones.md`) — **complete**:

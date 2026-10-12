@@ -1,4 +1,4 @@
-# Architecture
+# Architecture — repo boundaries
 
 The repository separates reusable MLOps contracts, generic static publishing, and project-specific machine learning code.
 

@@ -368,7 +368,7 @@ def test_render_markdown_inlines_transclusion_within_paragraph(
 
 def test_render_renders_gfm_table_in_markdown_cell(tmp_path: Path) -> None:
     # Arrange — notebook cell markdown shares the page grammar
-    # (docs/ssg/ssg.md): a pipe table must reach `<table>`, not literal
+    # (docs/components/ssg/ssg.md): a pipe table must reach `<table>`, not literal
     # pipes. ssg's page renderer enables the GFM/table plugin; the cell
     # renderer must load the same.
     notebook_path = tmp_path / "feature_engineering.ipynb"

@@ -3,7 +3,7 @@
 Local AWS Athena emulator: an Apache Trino-backed service (dockerized, port
 5001) with JSON-1.1 protocol parity for boto3, awswrangler, AWS CLI, and
 terraform-provider-aws, co-located with moto for S3/Glue/STS. See
-`docs/athena-emulator/architecture.md` for the building-block view and the
+`docs/architecture/athena-local.md` for the building-block view and the
 wire-protocol evidence index.
 
 ## Running with docker compose
@@ -114,4 +114,4 @@ pytest + coverage, radon/xenon, deptry, bandit/vulture/semgrep). Integration
 tests reach a running stack through `ATHENA_LOCAL_TEST_ENDPOINT` (the 70-op
 parity loop) and `ATHENA_LOCAL_TRINO_URL` / `ATHENA_LOCAL_MOTO_ENDPOINT_URL`
 (consumer-suite harness). Design decisions live in
-`docs/athena-emulator/architecture.md` and `docs/athena-emulator/adr/`.
+`docs/architecture/athena-local.md` and `docs/adr/`.
