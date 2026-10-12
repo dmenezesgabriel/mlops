@@ -199,5 +199,9 @@
   Scenario-covered: `/predict` ×2 + athena-local wire 53; athena-local
   CLI/terraform consumer holes structural; sagemaker_*/glue_overlay/
   emulator surfaces e2e-covered, no rows.)
-- [ ] Ship remaining `AF-*`; **AX-3** close-out — register dispositioned,
-  seeds resolved, docs marked complete.
+- [x] Ship remaining `AF-*`; **AX-3** close-out — register dispositioned,
+  seeds resolved, docs marked complete. (AF-156…AF-174 shipped the
+  AX-1/AX-2 rows; AX-3 verified all 324 gaps dispositioned — 323 shipped,
+  G-07 waived — backfilled the 7 register rows that had triage-only
+  dispositions, annotated all 8 risk seeds resolved, and marked the
+  workstream complete in the parent README 2026-10-12.)

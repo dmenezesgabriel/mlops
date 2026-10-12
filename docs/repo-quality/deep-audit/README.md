@@ -13,6 +13,10 @@ and the `projects/athena_emulator` parity-notebook glue. `docs/repo-quality/`
 (gate-parity work, complete) made every package *measurable*; this workstream
 makes every package *verified*.
 
+**Status: complete 2026-10-12** — 27 package audits + 2 cross-cutting sweeps;
+324 measured gaps dispositioned (323 shipped via `AF-*` items, 1 waived with
+written reason); all known risk seeds below resolved.
+
 ## Documentation map
 
 | Path | Kind | Status |
@@ -81,30 +85,53 @@ plugins/consumers built on them. Lines are `wc -l` of `src/**/*.py` / `tests`.
 Exclusions: `projects/notebooks` (no Python), `projects/ml_monitoring_draft`
 (scratch draft with its own `.venv`, not a workspace package).
 
-## Known risk seeds (audit starting points, not findings)
+## Known risk seeds (audit starting points — all resolved 2026-10-12)
 
-Unverified suspicions worth probing — each must be measured before it earns a
-gap row:
+Unverified suspicions worth probing — each was measured by its audit; the
+resolution follows each seed:
 
 - `libs/athena-local/src/athena_local/state.py` — in-memory stores; unbounded
   growth under long sessions? Pagination off-by-ones (opaque tokens).
+  → **Resolved AU-21**: TTL+cap bounds the stores (5000 creates @ cap 500 →
+  pinned, tracemalloc 961 KB steady-state); opaque-token off-by-ones shipped
+  as canonical NextToken decode + list-op bounds (G-248/G-256/G-280/G-291).
 - `libs/sagemaker-local/src/sagemaker_local/patches.py` (317 LOC) — monkey-
   patches the sagemaker SDK; upstream signature drift is the known hazard.
+  → **Resolved AU-15**: all patched seams signature-verified against
+  sagemaker 2.257.1; drift's real failure mode was decontextualized crashes,
+  shipped via G-178-class fixes (AF-80…AF-86).
 - `docker/moto/glue_overlay.py` — parses wire requests; request-shape and
-  error-path review.
+  error-path review. → **Resolved AU-03**: 8 gaps shipped (AF-14…AF-19),
+  incl. the S1 stale column statistics resurrecting on table/db recreate.
 - `libs/videos/…/manim/renderer.py` — subprocess + temp files; resource
-  cleanup and argument safety.
+  cleanup and argument safety. → **Resolved AU-13**: premise stale — no
+  subprocess exists, manim renders in-process; the measured hazards
+  (unsorted partial-movie glob, substring temp-dir test, class-level
+  non-reentrant lock) shipped via AF-68…AF-79.
 - `libs/ssg/…/markdown_content_renderer.py` — per-page O(n) passes; plugin
-  entry-point loading.
+  entry-point loading. → **Resolved AU-05**: the per-page Jinja-eval pass was
+  deleted and the marker/asset collisions shipped (G-42/43/49 → AF-30);
+  entry-point loads now contract-validated (G-41 → AF-29).
 - `libs/ssg-i18n/…/document_translator.py` (439 LOC) — translation batching;
   repeated normalization passes (a prior perf fix shipped in QF-2 territory).
+  → **Resolved AU-09**: measured S2s shipped — glossary `re.compile` per term
+  per sentence (0.19→55 ms) and no incremental/scoped translation; the
+  marker-heal corruption + Quote/SetextHeading blind spots shipped too.
 - `libs/mlops-shared` `config.py`/`logging.py` — global logging state;
-  ClassVar-style registries shared across projects.
+  ClassVar-style registries shared across projects. → **Resolved AU-01**:
+  clean — no retained registries (tracemalloc flat over 2000 calls),
+  single-threaded-by-construction + 8×1000-op stress clean; the real
+  findings (log-field spoofing, silent drops, YAML coercion, path escape)
+  shipped via AF-01…AF-06.
 - `projects/ml_specialization` — zero test LOC recorded; audit starts with a
-  coverage/truth measurement.
+  coverage/truth measurement. → **Resolved AU-17**: premise stale (280 test
+  LOC existed); the coverage truth was the gap — bare `--cov` reported 84%
+  polluted while scoped own-tree measured 73% < the 75 floor (G-208,
+  remediated; 99.87% own-tree post-MA-6).
 
 ## Implementer starting point
 
-Read in order: `methodology.md` → the audit item in `backlog.md` → its
-evidence anchors → run the audit read-only → file `audits/AU-NN-*.md` + gap
-rows. Keep PRD / backlog / milestones / gaps / audits out of the code.
+The workstream is closed — this doc set is evidence and history. Read
+`methodology.md` for the rubric, `audits/` for the per-package evidence, and
+`gaps.md` for the measured findings and their dispositions. Keep PRD /
+backlog / milestones / gaps / audits out of the code.
