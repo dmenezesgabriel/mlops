@@ -1,13 +1,23 @@
 import logging
 from pathlib import Path
 from threading import Event
+from time import monotonic, sleep
 
 import pytest
 from ssg.infrastructure.watchdog_site_reloader import (
     DebouncedEventHandler,
     WatchdogSiteReloader,
 )
-from watchdog.events import FileSystemEvent
+from watchdog.events import (
+    FileClosedEvent,
+    FileClosedNoWriteEvent,
+    FileCreatedEvent,
+    FileDeletedEvent,
+    FileModifiedEvent,
+    FileMovedEvent,
+    FileOpenedEvent,
+    FileSystemEvent,
+)
 
 
 class TestWatchdogSiteReloader:
@@ -99,19 +109,121 @@ class TestWatchdogSiteReloader:
         )
         assert absolute_ignored._is_ignored(Path("site/build/index.html"))
 
+    @pytest.mark.parametrize(
+        "event_class", [FileOpenedEvent, FileClosedNoWriteEvent]
+    )
+    def test_on_any_event_ignores_read_class_events(
+        self, tmp_path: Path, event_class: type[FileSystemEvent]
+    ) -> None:
+        # Arrange — watchdog emits opened/closed_no_write on plain reads;
+        # queuing them makes every rebuild's own reads retrigger the next.
+        flushed = Event()
+        reported: list[set[Path]] = []
+        handler = DebouncedEventHandler(
+            lambda paths: (reported.append(paths), flushed.set()),
+            interval_seconds=0.05,
+        )
+
+        # Act
+        handler.on_any_event(event_class(str(tmp_path / "page.md")))
+
+        # Assert — nothing queued, so the debounce timer never fires
+        assert not flushed.wait(timeout=0.5)
+        assert reported == []
+
+    @pytest.mark.parametrize(
+        "event_class",
+        [
+            FileCreatedEvent,
+            FileModifiedEvent,
+            FileDeletedEvent,
+            FileClosedEvent,
+        ],
+    )
+    def test_on_any_event_queues_write_class_events(
+        self, tmp_path: Path, event_class: type[FileSystemEvent]
+    ) -> None:
+        # Arrange
+        flushed = Event()
+        reported: list[set[Path]] = []
+        handler = DebouncedEventHandler(
+            lambda paths: (reported.append(paths), flushed.set()),
+            interval_seconds=0.05,
+        )
+
+        # Act
+        handler.on_any_event(event_class(str(tmp_path / "page.md")))
+
+        # Assert
+        assert flushed.wait(timeout=2.0)
+        assert reported == [{(tmp_path / "page.md").resolve()}]
+
+    def test_on_any_event_queues_moved_event(self, tmp_path: Path) -> None:
+        # Arrange — FileMovedEvent carries a dest_path alongside src_path
+        flushed = Event()
+        reported: list[set[Path]] = []
+        handler = DebouncedEventHandler(
+            lambda paths: (reported.append(paths), flushed.set()),
+            interval_seconds=0.05,
+        )
+        src = tmp_path / "old.md"
+        dest = tmp_path / "new.md"
+
+        # Act
+        handler.on_any_event(FileMovedEvent(str(src), str(dest)))
+
+        # Assert
+        assert flushed.wait(timeout=2.0)
+        assert reported == [{src.resolve()}]
+
+    def test_reloader_does_not_retrigger_on_reads_inside_on_change(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — every rebuild reads the config and page sources inside
+        # the watched dirs; those reads must not count as changes or the
+        # rebuild requeues itself forever.
+        reloader = WatchdogSiteReloader()
+        watched_dir = tmp_path / "watched"
+        watched_dir.mkdir()
+        config_file = watched_dir / "site.yaml"
+        config_file.write_text("site:\n  title: t\n", encoding="utf-8")
+
+        calls: list[set[Path]] = []
+        first_call = Event()
+
+        def on_change(paths: set[Path]) -> None:
+            calls.append(paths)
+            config_file.read_text(encoding="utf-8")
+            first_call.set()
+
+        # Act — one edit must flush exactly once
+        reloader.watch((watched_dir,), on_change, interval_seconds=0.05)
+        (watched_dir / "page.md").write_text("# edited\n", encoding="utf-8")
+
+        # Assert
+        assert first_call.wait(timeout=5.0)
+        deadline = monotonic() + 1.5
+        while monotonic() < deadline and len(calls) <= 1:
+            sleep(0.05)
+        assert len(calls) == 1
+
     def test_on_any_event_decodes_bytes_src_path(self, tmp_path: Path) -> None:
         # Arrange — watchdog can report src_path as bytes on some backends;
         # the handler must decode before resolving/ignoring.
+        flushed = Event()
+        reported: list[set[Path]] = []
         handler = DebouncedEventHandler(
-            lambda paths: None, interval_seconds=60
+            lambda paths: (reported.append(paths), flushed.set()),
+            interval_seconds=0.05,
         )
-        event = FileSystemEvent(str(tmp_path / "page.md").encode("utf-8"))
+        event = FileModifiedEvent(str(tmp_path / "page.md").encode("utf-8"))
 
         # Act
         handler.on_any_event(event)
 
         # Assert
-        assert handler._changed_paths == {(tmp_path / "page.md").resolve()}
+        assert flushed.wait(timeout=2.0)
+        assert reported == [{(tmp_path / "page.md").resolve()}]
 
     def test_execute_safely_logs_and_swallows_on_change_failure(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture

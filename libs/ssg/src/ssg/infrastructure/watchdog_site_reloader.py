@@ -3,12 +3,34 @@ from collections.abc import Callable
 from logging import getLogger
 from pathlib import Path
 
-from watchdog.events import FileSystemEvent, FileSystemEventHandler
+from watchdog.events import (
+    EVENT_TYPE_CLOSED,
+    EVENT_TYPE_CREATED,
+    EVENT_TYPE_DELETED,
+    EVENT_TYPE_MODIFIED,
+    EVENT_TYPE_MOVED,
+    FileSystemEvent,
+    FileSystemEventHandler,
+)
 from watchdog.observers import Observer
 
 from ssg.application.ports import SiteReloader
 
 LOGGER = getLogger(__name__)
+
+# inotify also emits opened/closed_no_write for plain reads — queueing them
+# makes a reloader callback's own reads (config, page sources) retrigger the
+# next rebuild forever. closed is IN_CLOSE_WRITE (write-opens only, unlike
+# closed_no_write) and stays so mmap writes are not missed.
+_CHANGE_EVENT_TYPES = frozenset(
+    {
+        EVENT_TYPE_CREATED,
+        EVENT_TYPE_DELETED,
+        EVENT_TYPE_MODIFIED,
+        EVENT_TYPE_MOVED,
+        EVENT_TYPE_CLOSED,
+    }
+)
 
 
 class DebouncedEventHandler(FileSystemEventHandler):
@@ -29,7 +51,7 @@ class DebouncedEventHandler(FileSystemEventHandler):
         self._timer: threading.Timer | None = None
 
     def on_any_event(self, event: FileSystemEvent) -> None:
-        if event.is_directory:
+        if event.is_directory or event.event_type not in _CHANGE_EVENT_TYPES:
             return
 
         with self._lock:
