@@ -41,6 +41,51 @@ Steps:
 nine showcase notebooks against the live stack — zero FAIL rows committed in
 `PARITY.md`.
 
+## M9 — ssg site experience (backlog SX-*)
+
+Goal: the `libs/ssg` built site carries the table-stakes reader features
+of the two dominant docs frameworks — Material for MkDocs and Astro
+Starlight — ranked by default-on evidence (mkdocs `config/defaults.py:157`;
+starlight `utils/user-config.ts:194-317`). Scope + per-feature evidence in
+`docs/prd.md` §ssg site experience (FR-11…FR-24); out-of-scope list in
+`docs/backlog.md` §B.
+
+Steps:
+1. [ ] Heading permalink affordance (SX-1)
+   - Evidence: starlight `utils/user-config.ts:299`; `infrastructure/html_article_outline_builder.py:13-32`
+2. [ ] Copy button on code blocks (SX-2)
+   - Evidence: starlight `schemas/i18n.ts:232-240`; `libs/ssg-syntax-highlighting/…/pygments_highlighter.py`
+3. [ ] Dark palette + `prefers-color-scheme` (SX-3)
+   - Evidence: measured zero `prefers-color-scheme` in `static/css/site.css`
+4. [ ] Theme toggle + persistence + FOUC guard (SX-4)
+   - Evidence: starlight `ThemeSelect.astro`; `base.html:6` `data-theme` hook
+5. [ ] `search-index.json` per locale (SX-5)
+   - Evidence: mkdocs `contrib/search/search_index.py:48-53,124-125`
+6. [ ] Search UI + playwright smoke (SX-6)
+   - Evidence: starlight `Search.astro`; `partials/header.html:7-38`
+7. [ ] `site.url`/`site.repo_url` → canonical + OG + favicon (SX-7)
+   - Evidence: starlight `user-config.ts:241,263`; `partials/head.html:1-11`
+8. [ ] `sitemap.xml` + `robots.txt` (SX-8)
+   - Evidence: mkdocs `commands/build.py:109`
+9. [ ] `404.html` (SX-9)
+   - Evidence: mkdocs `themes/mkdocs/404.html`
+10. [ ] Print stylesheet (SX-10)
+    - Evidence: starlight `style/print.css:1`
+11. [ ] GitHub-alert admonitions in md + notebook cells (SX-11)
+    - Evidence: starlight `integrations/remark-asides.ts`; `mdit_py_plugins` `admon`/`colon_fence` in `.venv`
+12. [ ] TOC scrollspy + back-to-top (SX-12)
+    - Evidence: material `setting-up-navigation.md:451,498`; `site.js:13-27`
+13. [ ] Mobile TOC `<details>` (SX-13)
+    - Evidence: starlight `MobileTableOfContents.astro`; `site.css:540`
+14. [ ] Last-updated + edit-this-page (SX-14)
+    - Evidence: starlight `LastUpdated.astro`/`EditLink.astro`, `user-config.ts:200,261`
+
+**Exit criteria:** `make quality` green for `libs/ssg` +
+`libs/ssg-syntax-highlighting`; `make build-site` emits
+`search-index.json` per locale, `sitemap.xml`, `robots.txt`, `404.html`;
+playwright smoke covers search + theme toggle; every feature works in
+both locales and degrades without JS.
+
 ## Sequence & dependencies
 
 M8 standalone — no external blockers. NB-7 (style contract) gates NB-8…15;
@@ -48,3 +93,8 @@ NB-16 closes last. Notebook file slots `NN_` follow reader order; each item
 removes the same-numbered retired parity notebook in the same commit, so
 `PARITY.md` coverage dips transiently between items and is complete again at
 NB-16.
+
+M9 standalone — touches `libs/ssg`(+`-syntax-highlighting`) and `site/`
+only. All SX items independent except SX-4→SX-3, SX-6→SX-5, SX-8→SX-7,
+SX-14→SX-7; steps ordered quick-wins first, search slice mid-milestone,
+SEO slice before the dependent freshness item.
