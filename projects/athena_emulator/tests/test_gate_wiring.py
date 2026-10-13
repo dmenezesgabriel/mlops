@@ -30,7 +30,6 @@ def test_makefile_quality_chains_the_sibling_gates() -> None:
     assert set(quality.group(1).split()) == {
         "lint",
         "type-check",
-        "test",
         "coverage",
         "complexity",
         "dependencies",

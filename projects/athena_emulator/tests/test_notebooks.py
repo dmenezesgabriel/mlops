@@ -230,7 +230,7 @@ def test_execute_notebook_skips_without_kernel_deps(
 ) -> None:
     monkeypatch.setattr(importlib.util, "find_spec", lambda name: None)
     with pytest.raises(pytest.skip.Exception):
-        _execute_notebook("01_smoke_and_endpoints.ipynb")
+        _execute_notebook("01_quickstart.ipynb")
 
 
 @pytest.fixture

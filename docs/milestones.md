@@ -15,7 +15,7 @@ fragment (the `record()`/`persist()` machinery is kept, reframed as
 capabilities demonstrated).
 
 Steps:
-1. [ ] Style contract + `01_quickstart.ipynb`; removes `01_smoke_and_endpoints.ipynb` (NB-7)
+1. [x] Style contract + `01_quickstart.ipynb`; removes `01_smoke_and_endpoints.ipynb` (NB-7)
    - Evidence: `projects/athena_emulator/PARITY.md` §01 (4 PASS); `research_repos/aws-sdk-pandas/tutorials/006 - Amazon Athena.ipynb`
 2. [ ] `02_analytics_dataframes.ipynb`; removes `02_boto3_control_plane.ipynb` (NB-8)
    - Evidence: `PARITY.md` §04 (30 PASS); `libs/athena-local/tests/integration/test_awswrangler_consumer.py`

@@ -10,7 +10,7 @@ Example:
     >>> from _evidence import EVIDENCE, persist, record, render
     >>> record("endpoint routing", "PASS", "athena→:5001 s3→:5000", 12.0)
     >>> print(render())
-    >>> persist("01_smoke_and_endpoints")
+    >>> persist("01_quickstart")
 """
 
 from __future__ import annotations
