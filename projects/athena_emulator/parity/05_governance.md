@@ -4,11 +4,11 @@
 |---|---|---|---|
 | primary workgroup seeded (ENABLED, enforce=False, engine AUTO/3) | PASS | state=ENABLED enforce=False |  |
 | list_engine_versions (single AUTO/engine-3 entry) | PASS | 1 version(s): Athena engine version 3 |  |
-| workgroup create/get/update/list (defaults applied) | PASS | nb05-wg-bdcb0c8d: enforce=True default, BytesScannedCutoffPerQuery 10485760→20971520→removed via ConfigurationUpdates |  |
+| workgroup create/get/update/list (defaults applied) | PASS | nb05-wg-d8ea3d15: enforce=True default, BytesScannedCutoffPerQuery 10485760→20971520→removed via ConfigurationUpdates |  |
 | workgroup error taxonomy (duplicate/missing/primary-delete → 400) | PASS | InvalidRequestException 400 for all three |  |
-| enforced workgroup overrides client OutputLocation | PASS | client passed s3://nb05-e18d2289cfe3/client-prefix/; reported+written=s3://nb05-e18d2289cfe3/wg-enforced/f792bcbc-cde8-412f-b594-dc6fc7169e04.csv | 280.791 |
-| non-enforced workgroup OutputLocation fallback | PASS | request omitted ResultConfiguration; reported+written=s3://nb05-e18d2289cfe3/wg-fallback/abaa13f9-79c3-4033-a4e4-280865a1446f.csv | 280.091 |
-| managed-results workgroup (no OutputLocation, inline rows, no S3 writes) | PASS | ResultConfiguration={}; rows=1; ignored/ empty | 286.617 |
+| enforced workgroup overrides client OutputLocation | PASS | client passed s3://nb05-f24b51eaa387/client-prefix/; reported+written=s3://nb05-f24b51eaa387/wg-enforced/862fc950-ac84-4091-818a-d5996fb990d8.csv | 266.35 |
+| non-enforced workgroup OutputLocation fallback | PASS | request omitted ResultConfiguration; reported+written=s3://nb05-f24b51eaa387/wg-fallback/0ae3caac-cf4a-4dfd-a9fb-aa22f982c079.csv | 263.507 |
+| managed-results workgroup (no OutputLocation, inline rows, no S3 writes) | PASS | ResultConfiguration={}; rows=1; ignored/ empty | 264.365 |
 | disabled workgroup rejects StartQueryExecution | PASS | InvalidRequestException (400) |  |
 | workgroup EncryptionConfiguration echoed verbatim on GetWorkGroup | PASS | SSE_KMS + KmsKey echoed: {'EncryptionOption': 'SSE_KMS', 'KmsKey': 'arn:aws:kms:us-east-1:123456789012:key/00000000-0000-0000-0000-000000000000'} |  |
 | data catalogs CRUD + AwsDataCatalog seed + LAMBDA normalization | PASS | AwsDataCatalog=GLUE; function→catalog/metadata-function/record-function; FEDERATED→400; missing→400 |  |

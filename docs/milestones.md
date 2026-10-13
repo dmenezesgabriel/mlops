@@ -25,7 +25,7 @@ Steps:
    - Evidence: `PARITY.md` §03 (21 PASS); `test_prepared_execution.py`, `test_result_reuse.py`, `test_named_queries.py`
 5. [x] `05_governance.ipynb`; removes `05_wrangler_write_catalog_and_gaps.ipynb` (NB-11)
    - Evidence: `PARITY.md` §02 (15 PASS); `test_workgroups.py`, `test_tags.py`, `test_data_catalogs.py`
-6. [ ] `06_iceberg_tables.ipynb` (NB-12)
+6. [x] `06_iceberg_tables.ipynb` (NB-12)
    - Evidence: `PARITY.md` §05 iceberg rows; `test_iceberg_consumer.py`; `docs/adr/0013-iceberg-via-dedicated-trino-catalog-and-glue-marker-routing.md`
 7. [ ] `07_aws_cli.ipynb` (NB-13)
    - Evidence: `research_repos/aws-cli/awscli/examples/athena/` (28 `.rst`); `libs/athena-local/tests/integration/test_aws_cli_consumer.py`
