@@ -89,9 +89,6 @@ class FakeAthenaClient:
     def delete_prepared_statement(self, **kwargs: object) -> None:
         self._record("delete_prepared_statement", kwargs)
 
-    def delete_work_group(self, **kwargs: object) -> None:
-        self._record("delete_work_group", kwargs)
-
     def list_data_catalogs(self, **kwargs: object) -> dict[str, object]:
         self._record("list_data_catalogs", kwargs)
         return {
@@ -165,15 +162,6 @@ class FakeGlueClient:
 
     def delete_database(self, **kwargs: object) -> None:
         self._record("delete_database", kwargs)
-
-
-def test_probe_outcome_returns_value() -> None:
-    assert helpers.probe_outcome(lambda: 42) == 42
-
-
-def test_probe_outcome_returns_the_exception_it_caught() -> None:
-    error = RuntimeError("boom")
-    assert helpers.probe_outcome(lambda: _raise(error)) is error
 
 
 def test_error_detail_formats_client_error() -> None:

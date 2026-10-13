@@ -1,12 +1,14 @@
-# athena_emulator — parity validation notebooks
+# athena_emulator — usage showcase notebooks
 
-Tutorial-style runnable examples that drive common boto3 / awswrangler flows
-against the compose Athena emulator stack — each feature gets explanatory
-markdown plus a canonical usage cell displaying real output — and record a
-measured `PASS`/`FAIL`/`GAP` per feature for gap discovery. They are not an
-integration test suite: integrated consumer tests live in
-`libs/athena-local/tests/`; the nbclient hook here only re-executes the
-notebooks to regenerate evidence.
+Scenario-driven runnable showcases — one per real-world consumer flow — that
+walk boto3 / awswrangler / AWS CLI / terraform usage against the compose
+Athena emulator stack: a persona+goal intro, short markdown sections,
+canonical usage cells displaying real committed output, throwaway
+bucket/database/workgroup resources per run with a cleanup cell, and a
+closing "Capabilities demonstrated" matrix recording a measured
+`PASS`/`FAIL`/`GAP` per feature. They are not an integration test suite:
+integrated consumer tests live in `libs/athena-local/tests/`; the nbclient
+hook here only re-executes the notebooks to regenerate evidence.
 
 Stack (`docker-compose.yml`, network `mlops_net`): `athena` :5001 (emulator),
 `trino` :8485 host / :8080 in-net (query engine), `moto` :5000 (S3/Glue),
@@ -14,8 +16,8 @@ Stack (`docker-compose.yml`, network `mlops_net`): `athena` :5001 (emulator),
 
 ## Layout
 
-- `notebooks/NN_*.ipynb` — one notebook per surface; committed executed
-  outputs are the evidence
+- `notebooks/NN_*.ipynb` — one notebook per consumer flow; committed
+  executed outputs are the evidence
 - `notebooks/_evidence.py` — shared evidence recorder
 - `notebooks/_helpers.py` — shared probe/cleanup helpers (imported like `_evidence`)
 - `parity/NN_*.md` — per-notebook matrix fragments (generated)

@@ -33,7 +33,7 @@ Steps:
    - Evidence: `libs/athena-local/tests/terraform/apply/main.tf` (5 `aws_athena_*` resources); `test_terraform_apply.py`; `_terraform_harness.py:96,108`
 9. [x] `09_boundaries.ipynb` (NB-15)
    - Evidence: `PARITY.md` §02/§03/§05 error rows; `docs/adr/0004-studio-apis-out-of-scope.md`
-10. [ ] Close-out — README re-describe, dead helpers trimmed, full re-execute (NB-16)
+10. [x] Close-out — README re-describe, dead helpers trimmed, full re-execute (NB-16)
     - Evidence: `projects/athena_emulator/README.md`; `projects/athena_emulator/tests/test_notebooks.py:117-143`
 
 **Exit criteria:** `cd projects/athena_emulator && make quality` green AND

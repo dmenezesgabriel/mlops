@@ -8,7 +8,7 @@ explicit parameters so no helper depends on notebook-kernel globals.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Protocol, TypeVar
+from typing import Any, Protocol
 
 from botocore.exceptions import ClientError
 
@@ -22,12 +22,9 @@ __all__ = [
     "error_code_status",
     "error_detail",
     "object_keys_under",
-    "probe_outcome",
     "query_execution",
     "run_workgroup_names",
 ]
-
-T = TypeVar("T")
 
 
 # boto3 service operations are dynamic — BaseClient carries none of them
@@ -56,14 +53,6 @@ class GlueOps(Protocol):
     def get_tables(self, **kwargs: object) -> dict[str, Any]: ...
     def delete_table(self, **kwargs: object) -> None: ...
     def delete_database(self, **kwargs: object) -> None: ...
-
-
-def probe_outcome(call: Callable[[], T]) -> T | Exception:
-    """``call()``'s value, or the exception it raised — both are evidence."""
-    try:
-        return call()
-    except Exception as exc:  # a measured probe records any failure
-        return exc
 
 
 def error_detail(error: Exception) -> str:
