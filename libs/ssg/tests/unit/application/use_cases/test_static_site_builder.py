@@ -66,10 +66,10 @@ class SpyPageRenderer:
 
 class SpyArticleOutlineBuilder:
     def __init__(self) -> None:
-        self.build_calls: list[tuple[str, str]] = []
+        self.build_calls: list[tuple[str, str, str]] = []
 
-    def build(self, title: str, body: str) -> Article:
-        self.build_calls.append((title, body))
+    def build(self, title: str, body: str, permalink_label: str) -> Article:
+        self.build_calls.append((title, body, permalink_label))
         return Article(
             title=title,
             body='<h2 id="overview">Overview</h2>',
@@ -188,7 +188,7 @@ class TestStaticSiteBuilder:
             page,
         )
         assert article_outline_builder.build_calls == [
-            ("Overview", "<p>Rendered body</p>")
+            ("Overview", "<p>Rendered body</p>", "Permalink to this section")
         ]
         assert (
             rendered_page.article.body,
@@ -249,7 +249,7 @@ class TestStaticSiteBuilder:
             ("<p>Rendered body</p>", site)
         ]
         assert article_outline_builder.build_calls == [
-            ("Overview", "<p>Processed body</p>")
+            ("Overview", "<p>Processed body</p>", "Permalink to this section")
         ]
 
     def test_build_rejects_unsupported_page_source(

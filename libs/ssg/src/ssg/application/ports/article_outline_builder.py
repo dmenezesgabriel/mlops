@@ -4,4 +4,6 @@ from ssg.domain import Article
 
 
 class ArticleOutlineBuilder(Protocol):
-    def build(self, title: str, body: str) -> Article: ...
+    def build(
+        self, title: str, body: str, permalink_label: str
+    ) -> Article: ...

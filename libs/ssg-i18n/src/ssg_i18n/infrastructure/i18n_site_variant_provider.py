@@ -223,6 +223,7 @@ class I18nSiteVariantProvider(SiteVariantProvider):
             "label_on_this_page": "On this page",
             "label_previous": "Previous",
             "label_next": "Next",
+            "label_heading_permalink": "Permalink to this section",
             "label_reports": "reports",
             "label_dispatches": "Dispatches",
             "label_projects": "Projects",

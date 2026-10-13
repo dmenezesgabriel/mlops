@@ -43,7 +43,7 @@ portfolio.
 
 | ID | Item | Work | Evidence | Depends |
 |---|---|---|---|---|
-| SX-1 | [ ] Heading permalink affordance: `headerlink` anchor injected by the outline builder (ids already assigned) + hover style; FR-16 | S | starlight `user-config.ts:299` (default true) + `integrations/rehype-heading-links.ts`; ours `infrastructure/html_article_outline_builder.py:13-32`, `article_toc.html` hrefs must match | — |
+| SX-1 | [x] Heading permalink affordance: `headerlink` anchor injected by the outline builder (ids already assigned) + hover style; FR-16 | S | starlight `user-config.ts:299` (default true) + `integrations/rehype-heading-links.ts`; ours `infrastructure/html_article_outline_builder.py:13-32`, `article_toc.html` hrefs must match | — |
 | SX-2 | [ ] Copy button on code blocks: `<pre>` wrapper in the highlighter + `navigator.clipboard` handler + "Copied!" i18n label; FR-15 | S | starlight `schemas/i18n.ts:232-240`; material `content.code.copy`; ours `libs/ssg-syntax-highlighting/…/pygments_highlighter.py`, `static/js/site.js`, i18n `extension_setting` pattern `page.html:23-28` | — |
 | SX-3 | [ ] Dark palette: CSS custom-prop dark `data-theme` variant + `prefers-color-scheme` default, no FOUC; FR-13 | S | material `docs/setup/changing-the-colors.md`; starlight `ThemeProvider.astro`; measured: zero `prefers-color-scheme` in `static/css/site.css` | — |
 | SX-4 | [ ] Theme toggle in `header-actions` + `localStorage` + inline FOUC-guard script; FR-14 | S | starlight `ThemeSelect.astro`; ours `partials/header.html:7-38`, `base.html:6` (`data-theme` hook already on `<body>`) | SX-3 |

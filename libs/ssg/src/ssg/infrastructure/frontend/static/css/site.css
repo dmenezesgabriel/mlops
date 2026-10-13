@@ -360,6 +360,13 @@ a:focus-visible, button:focus-visible { outline: 4px solid var(--focus); outline
 }
 .article-body h2 { font-size: clamp(2rem, 4vw, 3.5rem); }
 .article-body h3 { font-size: clamp(1.45rem, 3vw, 2.25rem); }
+.article-body .headerlink {
+  margin-inline-start: 0.4em;
+  opacity: 0;
+  text-decoration: none;
+}
+.article-body :is(:hover, :target) > .headerlink,
+.article-body .headerlink:focus-visible { opacity: 1; }
 .article-body p, .article-body li { color: var(--ink-soft); }
 .article-body blockquote {
   border-left: 0.55rem solid var(--signal);
@@ -634,4 +641,8 @@ pre::-webkit-scrollbar-thumb:hover {
   overflow-y: hidden;
   padding: 0.5em 0;
   max-width: 100%;
+}
+
+@media print {
+  .article-body .headerlink { display: none; }
 }

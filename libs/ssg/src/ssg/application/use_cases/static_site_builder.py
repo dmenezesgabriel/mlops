@@ -247,7 +247,15 @@ class StaticSiteBuilder:
             site=site,
             collection=collection,
             page=page,
-            article=self._article_outline_builder.build(page.title, body),
+            article=self._article_outline_builder.build(
+                page.title,
+                body,
+                site.extension_setting(
+                    "i18n",
+                    "label_heading_permalink",
+                    "Permalink to this section",
+                ),
+            ),
             navigation=site.navigation_for(collection, page),
             previous_link=self._pager_link(
                 previous_page,

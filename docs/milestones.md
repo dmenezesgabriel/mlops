@@ -51,7 +51,7 @@ starlight `utils/user-config.ts:194-317`). Scope + per-feature evidence in
 `docs/backlog.md` §B.
 
 Steps:
-1. [ ] Heading permalink affordance (SX-1)
+1. [x] Heading permalink affordance (SX-1)
    - Evidence: starlight `utils/user-config.ts:299`; `infrastructure/html_article_outline_builder.py:13-32`
 2. [ ] Copy button on code blocks (SX-2)
    - Evidence: starlight `schemas/i18n.ts:232-240`; `libs/ssg-syntax-highlighting/…/pygments_highlighter.py`

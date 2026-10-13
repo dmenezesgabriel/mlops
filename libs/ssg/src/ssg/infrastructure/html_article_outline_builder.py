@@ -6,7 +6,7 @@ from ssg.domain import Article, ArticleHeading
 
 
 class HtmlArticleOutlineBuilder(ArticleOutlineBuilder):
-    def build(self, title: str, body: str) -> Article:
+    def build(self, title: str, body: str, permalink_label: str) -> Article:
         headings: list[ArticleHeading] = []
         used_slugs: dict[str, int] = {}
 
@@ -27,7 +27,14 @@ class HtmlArticleOutlineBuilder(ArticleOutlineBuilder):
             headings.append(
                 ArticleHeading(label=label, href=f"#{heading_id}", level=level)
             )
-            return f"<h{level}{attributes}>{heading_html}</h{level}>"
+            permalink = (
+                f'<a class="headerlink" '
+                f'href="#{escape(heading_id, quote=True)}" '
+                f'aria-label="{escape(permalink_label, quote=True)}">¶</a>'
+            )
+            return (
+                f"<h{level}{attributes}>{heading_html}{permalink}</h{level}>"
+            )
 
         outlined_body = _HEADING_PATTERN.sub(add_heading_id, body)
         return Article(

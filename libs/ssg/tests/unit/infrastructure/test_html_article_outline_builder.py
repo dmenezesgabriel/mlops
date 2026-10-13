@@ -1,8 +1,16 @@
 import pytest
-from ssg.domain import demote_top_level_headings
+from ssg.domain import Article, demote_top_level_headings
 from ssg.infrastructure.html_article_outline_builder import (
     HtmlArticleOutlineBuilder,
 )
+
+PERMALINK_LABEL = "Permalink to this section"
+
+
+def build_article(title: str, rendered_html: str) -> Article:
+    return HtmlArticleOutlineBuilder().build(
+        title, rendered_html, PERMALINK_LABEL
+    )
 
 
 def test_demote_top_level_headings_preserves_heading_attributes() -> None:
@@ -50,10 +58,15 @@ def test_article_outline_builder_keeps_existing_heading_id(
     rendered_html: str,
 ) -> None:
     # Act
-    article = HtmlArticleOutlineBuilder().build("T", rendered_html)
+    article = build_article("T", rendered_html)
 
-    # Assert
-    assert article.body == rendered_html
+    # Assert — the headerlink anchor is appended inside the heading; the
+    # author-supplied id is preserved verbatim (never re-slugged).
+    assert article.body == rendered_html.replace(
+        "</h2>",
+        '<a class="headerlink" href="#keep" '
+        f'aria-label="{PERMALINK_LABEL}">¶</a></h2>',
+    )
     assert article.headings[0].href == "#keep"
 
 
@@ -64,10 +77,14 @@ def test_article_outline_builder_ignores_id_inside_other_attribute_value() -> (
     rendered_html = '<h2 data-x="a id=5">T</h2>'
 
     # Act
-    article = HtmlArticleOutlineBuilder().build("T", rendered_html)
+    article = build_article("T", rendered_html)
 
     # Assert
-    assert article.body == '<h2 id="t" data-x="a id=5">T</h2>'
+    assert article.body == (
+        '<h2 id="t" data-x="a id=5">T'
+        f'<a class="headerlink" href="#t" '
+        f'aria-label="{PERMALINK_LABEL}">¶</a></h2>'
+    )
     assert article.headings[0].href == "#t"
 
 
@@ -78,7 +95,7 @@ def test_article_outline_builder_adds_stable_heading_anchors() -> None:
     )
 
     # Act
-    article = HtmlArticleOutlineBuilder().build("Overview", rendered_html)
+    article = build_article("Overview", rendered_html)
 
     # Assert
     assert article.headings[0].label == "Problem Framing"
@@ -95,7 +112,7 @@ def test_article_outline_builder_dedupes_duplicate_heading_labels() -> None:
     rendered_html = "<h2>Overview</h2><p>Body</p><h2>Overview</h2>"
 
     # Act
-    article = HtmlArticleOutlineBuilder().build("T", rendered_html)
+    article = build_article("T", rendered_html)
 
     # Assert
     assert 'id="overview"' in article.body
@@ -112,7 +129,7 @@ def test_article_outline_builder_skips_heading_without_label() -> None:
     rendered_html = "<h2>   </h2><p>Body</p>"
 
     # Act
-    article = HtmlArticleOutlineBuilder().build("T", rendered_html)
+    article = build_article("T", rendered_html)
 
     # Assert
     assert article.body == rendered_html
@@ -125,8 +142,56 @@ def test_article_outline_builder_falls_back_to_section_slug() -> None:
     rendered_html = "<h2>!!!</h2>"
 
     # Act
-    article = HtmlArticleOutlineBuilder().build("T", rendered_html)
+    article = build_article("T", rendered_html)
 
     # Assert
-    assert article.body == '<h2 id="section">!!!</h2>'
+    assert article.body == (
+        '<h2 id="section">!!!'
+        f'<a class="headerlink" href="#section" '
+        f'aria-label="{PERMALINK_LABEL}">¶</a></h2>'
+    )
     assert article.headings[0].href == "#section"
+
+
+def test_article_outline_builder_injects_headerlink_anchor() -> None:
+    # Arrange — mkdocs/Python-Markdown convention: the permalink anchor sits
+    # inside the heading so :hover/:target on the heading reveals it.
+    rendered_html = (
+        "<h2>Problem Framing</h2><p>Body</p><h3>Metric &amp; Target</h3>"
+    )
+
+    # Act
+    article = build_article("Overview", rendered_html)
+
+    # Assert — every heading self-links and the anchor href is identical to
+    # the TOC entry href, so TOC and inline anchors can never diverge.
+    assert article.body == (
+        '<h2 id="problem-framing">Problem Framing'
+        f'<a class="headerlink" href="#problem-framing" '
+        f'aria-label="{PERMALINK_LABEL}">¶</a></h2>'
+        "<p>Body</p>"
+        '<h3 id="metric-target">Metric &amp; Target'
+        f'<a class="headerlink" href="#metric-target" '
+        f'aria-label="{PERMALINK_LABEL}">¶</a></h3>'
+    )
+    assert [heading.href for heading in article.headings] == [
+        "#problem-framing",
+        "#metric-target",
+    ]
+
+
+def test_article_outline_builder_escapes_permalink_label() -> None:
+    # Arrange — the label is an attribute value; quotes must be escaped.
+    rendered_html = "<h2>Title</h2>"
+
+    # Act
+    article = HtmlArticleOutlineBuilder().build(
+        "T", rendered_html, 'Link "here" & <now>'
+    )
+
+    # Assert
+    assert article.body == (
+        '<h2 id="title">Title'
+        '<a class="headerlink" href="#title" '
+        'aria-label="Link &quot;here&quot; &amp; &lt;now&gt;">¶</a></h2>'
+    )
