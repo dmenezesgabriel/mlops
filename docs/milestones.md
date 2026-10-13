@@ -19,7 +19,7 @@ Steps:
    - Evidence: `projects/athena_emulator/PARITY.md` §01 (4 PASS); `research_repos/aws-sdk-pandas/tutorials/006 - Amazon Athena.ipynb`
 2. [x] `02_analytics_dataframes.ipynb`; removes `02_boto3_control_plane.ipynb` (NB-8)
    - Evidence: `PARITY.md` §04 (28 PASS); `libs/athena-local/tests/integration/test_awswrangler_consumer.py`
-3. [ ] `03_data_engineering.ipynb`; removes `03_boto3_query_lifecycle.ipynb` (NB-9)
+3. [x] `03_data_engineering.ipynb`; removes `03_boto3_query_lifecycle.ipynb` (NB-9)
    - Evidence: `PARITY.md` §04/§05 write+DDL rows; `test_unload_consumer.py`, `test_external_table.py`, `test_alter_add_partition.py`
 4. [ ] `04_app_integration.ipynb`; removes `04_wrangler_read_paths.ipynb` (NB-10)
    - Evidence: `PARITY.md` §03 (21 PASS); `test_prepared_execution.py`, `test_result_reuse.py`, `test_named_queries.py`
