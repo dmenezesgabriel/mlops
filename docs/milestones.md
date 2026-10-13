@@ -23,7 +23,7 @@ Steps:
    - Evidence: `PARITY.md` §04/§05 write+DDL rows; `test_unload_consumer.py`, `test_external_table.py`, `test_alter_add_partition.py`
 4. [x] `04_app_integration.ipynb`; removes `04_wrangler_read_paths.ipynb` (NB-10)
    - Evidence: `PARITY.md` §03 (21 PASS); `test_prepared_execution.py`, `test_result_reuse.py`, `test_named_queries.py`
-5. [ ] `05_governance.ipynb`; removes `05_wrangler_write_catalog_and_gaps.ipynb` (NB-11)
+5. [x] `05_governance.ipynb`; removes `05_wrangler_write_catalog_and_gaps.ipynb` (NB-11)
    - Evidence: `PARITY.md` §02 (15 PASS); `test_workgroups.py`, `test_tags.py`, `test_data_catalogs.py`
 6. [ ] `06_iceberg_tables.ipynb` (NB-12)
    - Evidence: `PARITY.md` §05 iceberg rows; `test_iceberg_consumer.py`; `docs/adr/0013-iceberg-via-dedicated-trino-catalog-and-glue-marker-routing.md`

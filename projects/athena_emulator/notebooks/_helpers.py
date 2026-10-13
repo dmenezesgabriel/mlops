@@ -16,6 +16,7 @@ __all__ = [
     "client_error_of",
     "client_error_status",
     "delete_run_buckets",
+    "delete_run_catalogs",
     "delete_run_databases",
     "delete_workgroup_contents",
     "error_code_status",
@@ -39,6 +40,8 @@ class AthenaOps(Protocol):
     def delete_named_query(self, **kwargs: object) -> None: ...
     def list_prepared_statements(self, **kwargs: object) -> dict[str, Any]: ...
     def delete_prepared_statement(self, **kwargs: object) -> None: ...
+    def list_data_catalogs(self, **kwargs: object) -> dict[str, Any]: ...
+    def delete_data_catalog(self, **kwargs: object) -> None: ...
 
 
 class S3Ops(Protocol):
@@ -164,6 +167,15 @@ def delete_run_buckets(
                 Delete={"Objects": [{"Key": obj["Key"]} for obj in objects]},
             )
         s3.delete_bucket(Bucket=name)
+
+
+def delete_run_catalogs(athena: AthenaOps, prefix: str) -> None:
+    """Delete every data catalog carrying the run prefix."""
+    summaries = athena.list_data_catalogs()["DataCatalogsSummary"]
+    for summary in summaries:
+        if not summary["CatalogName"].startswith(prefix):
+            continue
+        athena.delete_data_catalog(Name=summary["CatalogName"])
 
 
 def delete_run_databases(glue: GlueOps, prefix: str) -> None:

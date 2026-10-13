@@ -50,6 +50,7 @@ class FakeAthenaClient:
         self.work_groups: list[dict[str, object]] = []
         self.named_query_ids: dict[str, list[str]] = {}
         self.prepared_statements: dict[str, list[dict[str, str]]] = {}
+        self.catalog_names: list[str] = []
 
     def _record(self, op: str, kwargs: dict[str, object]) -> None:
         self.calls.append((op, kwargs))
@@ -90,6 +91,17 @@ class FakeAthenaClient:
 
     def delete_work_group(self, **kwargs: object) -> None:
         self._record("delete_work_group", kwargs)
+
+    def list_data_catalogs(self, **kwargs: object) -> dict[str, object]:
+        self._record("list_data_catalogs", kwargs)
+        return {
+            "DataCatalogsSummary": [
+                {"CatalogName": name} for name in self.catalog_names
+            ]
+        }
+
+    def delete_data_catalog(self, **kwargs: object) -> None:
+        self._record("delete_data_catalog", kwargs)
 
 
 class FakeS3Client:
@@ -304,6 +316,17 @@ def test_delete_run_buckets_honors_extra_predicate() -> None:
         ("list_buckets", {}),
         ("list_objects_v2", {"Bucket": "aws-athena-query-results-x"}),
         ("delete_bucket", {"Bucket": "aws-athena-query-results-x"}),
+    ]
+
+
+def test_delete_run_catalogs_deletes_only_prefixed() -> None:
+    athena = FakeAthenaClient()
+    athena.catalog_names = ["nb05-a", "AwsDataCatalog", "nb05-b"]
+    helpers.delete_run_catalogs(athena, "nb05-")
+    assert athena.calls == [
+        ("list_data_catalogs", {}),
+        ("delete_data_catalog", {"Name": "nb05-a"}),
+        ("delete_data_catalog", {"Name": "nb05-b"}),
     ]
 
 
