@@ -29,7 +29,7 @@ Steps:
    - Evidence: `PARITY.md` §05 iceberg rows; `test_iceberg_consumer.py`; `docs/adr/0013-iceberg-via-dedicated-trino-catalog-and-glue-marker-routing.md`
 7. [x] `07_aws_cli.ipynb` (NB-13)
    - Evidence: `research_repos/aws-cli/awscli/examples/athena/` (28 `.rst`); `libs/athena-local/tests/integration/test_aws_cli_consumer.py`
-8. [ ] `08_terraform_iac.ipynb` (NB-14)
+8. [x] `08_terraform_iac.ipynb` (NB-14)
    - Evidence: `libs/athena-local/tests/terraform/apply/main.tf` (5 `aws_athena_*` resources); `test_terraform_apply.py`; `_terraform_harness.py:96,108`
 9. [ ] `09_boundaries.ipynb` (NB-15)
    - Evidence: `PARITY.md` §02/§03/§05 error rows; `docs/adr/0004-studio-apis-out-of-scope.md`
