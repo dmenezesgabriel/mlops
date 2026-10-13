@@ -27,7 +27,7 @@ Steps:
    - Evidence: `PARITY.md` §02 (15 PASS); `test_workgroups.py`, `test_tags.py`, `test_data_catalogs.py`
 6. [x] `06_iceberg_tables.ipynb` (NB-12)
    - Evidence: `PARITY.md` §05 iceberg rows; `test_iceberg_consumer.py`; `docs/adr/0013-iceberg-via-dedicated-trino-catalog-and-glue-marker-routing.md`
-7. [ ] `07_aws_cli.ipynb` (NB-13)
+7. [x] `07_aws_cli.ipynb` (NB-13)
    - Evidence: `research_repos/aws-cli/awscli/examples/athena/` (28 `.rst`); `libs/athena-local/tests/integration/test_aws_cli_consumer.py`
 8. [ ] `08_terraform_iac.ipynb` (NB-14)
    - Evidence: `libs/athena-local/tests/terraform/apply/main.tf` (5 `aws_athena_*` resources); `test_terraform_apply.py`; `_terraform_harness.py:96,108`
