@@ -2,7 +2,7 @@ from pathlib import Path
 from urllib.parse import urldefrag
 
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Locator, Page, expect
 
 
 @pytest.mark.playwright
@@ -63,6 +63,20 @@ class TestBuiltSiteSmoke:
         _assert_back_to_top_shows_on_scroll_up(page, built_site_url)
         _assert_back_to_top_localizes(page, built_site_url)
         _assert_back_to_top_hidden_without_js(page, built_site_url)
+
+    def test_built_site_mobile_toc_disclosure(
+        self,
+        page: Page,
+        built_site_url: str,
+    ) -> None:
+        _assert_mobile_toc_disclosure(page, built_site_url)
+        _assert_mobile_toc_link_pick_closes(page, built_site_url)
+        _assert_mobile_toc_closes_on_escape_and_outside_click(
+            page, built_site_url
+        )
+        _assert_mobile_toc_localizes(page, built_site_url)
+        _assert_mobile_toc_hidden_on_desktop(page, built_site_url)
+        _assert_mobile_toc_works_without_js(page, built_site_url)
 
 
 def _assert_home_page(page: Page, base_url: str) -> None:
@@ -519,6 +533,86 @@ def _assert_back_to_top_hidden_without_js(page: Page, base_url: str) -> None:
     )
     page.unroute("**/assets/site.js")
     expect(page.locator(".back-to-top")).not_to_be_visible()
+
+
+_MOBILE_VIEWPORT = {"width": 390, "height": 820}
+_MOBILE_TOC_PAGE = "/nyc-taxi-demand-forecasting/model-evaluation.html"
+
+
+def _open_mobile_toc(page: Page, base_url: str) -> Locator:
+    page.set_viewport_size(_MOBILE_VIEWPORT)
+    page.goto(f"{base_url}{_MOBILE_TOC_PAGE}", wait_until="networkidle")
+    mobile_toc = page.locator(".mobile-toc")
+    mobile_toc.locator("summary").click()
+    return mobile_toc
+
+
+def _assert_mobile_toc_disclosure(page: Page, base_url: str) -> None:
+    # ≤58rem the aside TOC is replaced by the disclosure at article top;
+    # at 390px the mobile menu test already pins this breakpoint working.
+    mobile_toc = page.locator(".mobile-toc")
+    page.set_viewport_size(_MOBILE_VIEWPORT)
+    page.goto(f"{base_url}{_MOBILE_TOC_PAGE}", wait_until="networkidle")
+    expect(mobile_toc).to_be_visible()
+    expect(page.locator(".article-toc")).not_to_be_visible()
+    expect(mobile_toc.locator("summary")).to_contain_text("On this page")
+    expect(mobile_toc.locator("nav a").first).not_to_be_visible()
+
+    mobile_toc.locator("summary").click()
+    assert mobile_toc.get_attribute("open") is not None
+    expect(mobile_toc.locator("nav a").first).to_be_visible()
+
+
+def _assert_mobile_toc_link_pick_closes(page: Page, base_url: str) -> None:
+    mobile_toc = _open_mobile_toc(page, base_url)
+    first_link = mobile_toc.locator("nav a").first
+    href = first_link.get_attribute("href")
+    assert href and href.startswith("#")
+    first_link.click()
+    assert page.url.endswith(href)
+    assert mobile_toc.get_attribute("open") is None
+
+
+def _assert_mobile_toc_closes_on_escape_and_outside_click(
+    page: Page, base_url: str
+) -> None:
+    mobile_toc = _open_mobile_toc(page, base_url)
+    page.keyboard.press("Escape")
+    assert mobile_toc.get_attribute("open") is None
+
+    mobile_toc.locator("summary").click()
+    assert mobile_toc.get_attribute("open") is not None
+    page.locator(".article h1").click()
+    assert mobile_toc.get_attribute("open") is None
+
+
+def _assert_mobile_toc_localizes(page: Page, base_url: str) -> None:
+    page.set_viewport_size(_MOBILE_VIEWPORT)
+    page.goto(
+        f"{base_url}/pt-BR{_MOBILE_TOC_PAGE}",
+        wait_until="networkidle",
+    )
+    expect(page.locator(".mobile-toc summary")).to_contain_text("Nesta pagina")
+
+
+def _assert_mobile_toc_hidden_on_desktop(page: Page, base_url: str) -> None:
+    page.set_viewport_size({"width": 1280, "height": 800})
+    page.goto(f"{base_url}{_MOBILE_TOC_PAGE}", wait_until="networkidle")
+    expect(page.locator(".mobile-toc")).not_to_be_visible()
+    expect(page.locator(".article-toc")).to_be_visible()
+
+
+def _assert_mobile_toc_works_without_js(page: Page, base_url: str) -> None:
+    # <details> toggles natively, so a no-JS reader still reaches the TOC;
+    # only the close conveniences (link pick, outside click, Escape) go away.
+    page.set_viewport_size(_MOBILE_VIEWPORT)
+    page.route("**/assets/site.js", lambda route: route.abort())
+    page.goto(f"{base_url}{_MOBILE_TOC_PAGE}", wait_until="networkidle")
+    page.unroute("**/assets/site.js")
+    mobile_toc = page.locator(".mobile-toc")
+    expect(mobile_toc).to_be_visible()
+    mobile_toc.locator("summary").click()
+    assert mobile_toc.get_attribute("open") is not None
 
 
 def _configured_paths() -> tuple[str, ...]:

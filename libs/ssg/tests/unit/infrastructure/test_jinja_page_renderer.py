@@ -118,6 +118,55 @@ def test_render_page_omits_empty_table_of_contents(tmp_path: Path) -> None:
 
     # Assert
     assert "article-toc" not in rendered_html
+    assert "mobile-toc" not in rendered_html
+
+
+def test_render_page_renders_mobile_toc_details_before_article(
+    tmp_path: Path,
+) -> None:
+    # Arrange — the mobile disclosure sits at the top of the article column
+    # so a ≤58rem reader reaches the TOC without scrolling past the page.
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path)
+    rendered_page = RenderedPage(
+        site=site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Overview",
+            body='<h2 id="problem-framing">Problem Framing</h2><p>Body.</p>',
+            headings=(
+                ArticleHeading(
+                    label="Problem Framing", href="#problem-framing", level=2
+                ),
+            ),
+        ),
+        navigation=site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert '<details class="mobile-toc">' in rendered_html
+    assert rendered_html.index('<details class="mobile-toc">') < (
+        rendered_html.index('<article class="article"')
+    )
+    assert rendered_html.index('<details class="mobile-toc">') > (
+        rendered_html.index('<main class="content"')
+    )
+    assert rendered_html.count('href="#problem-framing"') == 2
+
+
+def test_assets_include_mobile_toc_wiring() -> None:
+    # Arrange / Act
+    assets = JinjaPageRenderer().assets()
+
+    # Assert
+    assert ".mobile-toc" in assets["site.css"]
+    assert "details.mobile-toc" in assets["site.js"]
 
 
 def test_render_page_uses_site_locale_as_html_language(tmp_path: Path) -> None:

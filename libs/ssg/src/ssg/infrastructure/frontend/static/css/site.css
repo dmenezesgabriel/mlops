@@ -360,22 +360,46 @@ html.has-search .site-search { display: block; }
   position: sticky;
   top: 6.2rem;
 }
-.article-toc ol { list-style: none; margin: 0.75rem 0 0; padding: 0; }
-.article-toc li + li { margin-top: 0.45rem; }
-.article-toc a {
+.article-toc ol, .mobile-toc ol { list-style: none; margin: 0.75rem 0 0; padding: 0; }
+.article-toc li + li, .mobile-toc li + li { margin-top: 0.45rem; }
+.article-toc a, .mobile-toc a {
   color: var(--ink-soft);
   display: block;
   font-size: 0.9rem;
   line-height: 1.35;
   text-decoration: none;
 }
-.article-toc a:hover { color: var(--signal); }
+.article-toc a:hover, .mobile-toc a:hover { color: var(--signal); }
 .article-toc a[aria-current="true"] {
   background: var(--taxi);
   color: var(--on-accent);
   font-weight: 700;
 }
 .article-toc__link--level-3 { padding-left: 0.85rem; }
+
+.mobile-toc {
+  background: var(--surface);
+  border: 3px solid var(--ink);
+  box-shadow: var(--shadow-hard);
+  display: none;
+  margin-bottom: 1.4rem;
+}
+.mobile-toc summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  list-style: none;
+  padding: 0.75rem 1rem;
+}
+.mobile-toc summary::-webkit-details-marker { display: none; }
+.mobile-toc summary::after {
+  content: "▾";
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+.mobile-toc[open] summary::after { content: "▴"; }
+.mobile-toc nav { border-top: 2px solid var(--ink); padding: 0.5rem 1rem 0.9rem; }
 
 .hero, .article, .collection-card, .pager a, .not-found {
   background: var(--surface);
@@ -722,7 +746,8 @@ html.has-code-copy .code-copy-button { display: block; }
   .site-shell { display: block; }
   .sidebar { display: none; margin: 1rem 0 1.4rem; max-height: none; position: static; }
   .sidebar.is-open { display: block; }
-  .article-toc { margin-top: 1.4rem; max-height: none; position: static; }
+  .article-toc { display: none; }
+  .mobile-toc { display: block; }
   .hero::after { position: static; display: inline-block; margin-top: 1rem; }
 }
 
@@ -829,7 +854,7 @@ pre::-webkit-scrollbar-thumb:hover {
   body[data-theme] { color-scheme: light; }
   body { background: none; }
 
-  .skip-link, .header-actions, .sidebar, .article-toc, .pager,
+  .skip-link, .header-actions, .sidebar, .article-toc, .mobile-toc, .pager,
   .article-body .headerlink, .code-copy-button, .back-to-top { display: none; }
 
   .site-header { position: static; }

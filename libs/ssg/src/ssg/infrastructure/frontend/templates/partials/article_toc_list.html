@@ -1,0 +1,7 @@
+<ol>
+  {% for heading in article.headings %}
+    <li>
+      <a class="{{ heading.depth_class() }}" href="{{ heading.href }}">{{ heading.label }}</a>
+    </li>
+  {% endfor %}
+</ol>

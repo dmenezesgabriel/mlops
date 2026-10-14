@@ -18,6 +18,7 @@
   <div class="site-shell article-layout">
     {% include 'partials/navigation.html' %}
     <main class="content" id="main-content" tabindex="-1">
+      {% include 'partials/mobile_toc.html' %}
       <article class="article" data-page-slug="{{ rendered_page.page.slug }}">
         <header class="article-header story-step">
           <p class="eyebrow">{{ rendered_page.collection.title }}</p>

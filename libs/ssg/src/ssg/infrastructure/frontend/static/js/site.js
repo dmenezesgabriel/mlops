@@ -312,6 +312,31 @@ if (articleToc && tocAnchors.length && 'IntersectionObserver' in window) {
   tocHeadings.forEach((heading) => tocObserver.observe(heading));
 }
 
+// Mobile TOC disclosure (starlight
+// components/MobileTableOfContents.astro semantics): the <details> toggles
+// natively without JS; these only close it again — after a link pick, on an
+// outside click, and on Escape with focus handed back to the summary.
+const mobileToc = document.querySelector('details.mobile-toc');
+
+if (mobileToc instanceof HTMLDetailsElement) {
+  mobileToc.querySelectorAll('a').forEach((anchor) => {
+    anchor.addEventListener('click', () => {
+      mobileToc.open = false;
+    });
+  });
+  document.addEventListener('click', (event) => {
+    if (event.target instanceof Node && !mobileToc.contains(event.target)) {
+      mobileToc.open = false;
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !mobileToc.open) return;
+    const hadFocus = mobileToc.contains(document.activeElement);
+    mobileToc.open = false;
+    if (hadFocus) mobileToc.querySelector('summary')?.focus();
+  });
+}
+
 // navigation.top parity (material components/top/index.ts): the button
 // appears only when the reader scrolls up while below the top. It ships
 // hidden in markup, so no-JS readers never see a dead control.

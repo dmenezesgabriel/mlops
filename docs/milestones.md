@@ -75,7 +75,7 @@ Steps:
     - Evidence: starlight `integrations/remark-asides.ts`; `mdit_py_plugins` `admon`/`colon_fence` in `.venv`
 12. [x] TOC scrollspy + back-to-top (SX-12)
     - Evidence: material `setting-up-navigation.md:451,498`; `site.js:13-27`
-13. [ ] Mobile TOC `<details>` (SX-13)
+13. [x] Mobile TOC `<details>` (SX-13)
     - Evidence: starlight `MobileTableOfContents.astro`; `site.css:540`
 14. [ ] Last-updated + edit-this-page (SX-14)
     - Evidence: starlight `LastUpdated.astro`/`EditLink.astro`, `user-config.ts:200,261`

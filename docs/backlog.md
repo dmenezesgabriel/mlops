@@ -55,7 +55,7 @@ portfolio.
 | SX-10 | [x] Print stylesheet: nav/pager/toc hidden, content full-width; FR-20 | S | starlight `style/print.css:1`; ours `static/css/site.css` | — |
 | SX-11 | [x] Admonitions: GitHub-alert `> [!NOTE|TIP|IMPORTANT|WARNING|CAUTION]` in md + notebook cells, i18n labels, callout CSS; FR-21 | M | starlight `integrations/remark-asides.ts` + `user-components/Aside.astro`; material `docs/reference/admonitions.md`; `mdit_py_plugins` already in `.venv` (`admon`, `colon_fence`); ours `markdown_content_renderer.py:64-79` loader + notebook renderer | — |
 | SX-12 | [x] TOC scrollspy (`aria-current`) + back-to-top button; FR-22 | S | material `toc.follow`/`navigation.top` (`setting-up-navigation.md:451,498`); starlight `TableOfContents.astro`; ours `site.js:13-27` IntersectionObserver precedent, `partials/article_toc.html` | — |
-| SX-13 | [ ] Mobile TOC `<details>` at article top, visible ≤58rem; FR-23 | S | starlight `MobileTableOfContents.astro`; ours `partials/article_toc.html` + `page.html:19-35`, breakpoint `site.css:540` | — |
+| SX-13 | [x] Mobile TOC `<details>` at article top, visible ≤58rem; FR-23 | S | starlight `MobileTableOfContents.astro`; ours `partials/article_toc.html` + `page.html:19-35`, breakpoint `site.css:540` | — |
 | SX-14 | [ ] Last-updated (git log per page source) + edit-this-page link; FR-24 | M | starlight `LastUpdated.astro`/`EditLink.astro` + `user-config.ts:200,261`; ours `site_config_repository.py`, `partials/footer.html`/`pager.html` region, `site.repo_url` from SX-7 | SX-7 |
 
 ## Definition of Done (all items)

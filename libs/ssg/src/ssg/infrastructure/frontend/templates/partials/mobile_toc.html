@@ -1,0 +1,11 @@
+{% if article.has_table_of_contents() %}
+{% set toc_label = site.extension_setting('i18n', 'label_on_this_page', 'On this page') %}
+<details class="mobile-toc">
+  <summary>
+    <span class="data-label">{{ toc_label }}</span>
+  </summary>
+  <nav aria-label="{{ toc_label }}">
+    {% include 'partials/article_toc_list.html' %}
+  </nav>
+</details>
+{% endif %}

@@ -36,6 +36,7 @@ def _assert_print_hides_chrome(page: Page, base_url: str) -> None:
     for selector in (
         ".sidebar",
         ".article-toc",
+        ".mobile-toc",
         ".pager",
         ".header-actions",
         ".skip-link",
