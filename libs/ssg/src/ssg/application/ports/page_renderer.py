@@ -3,6 +3,7 @@ from typing import Protocol
 from ssg.domain import (
     ContentCollection,
     RenderedIndex,
+    RenderedNotFound,
     RenderedPage,
     Site,
 )
@@ -18,5 +19,9 @@ class PageRenderer(Protocol):
     ) -> str: ...
 
     def render_robots_txt(self, site: Site) -> str: ...
+
+    def render_not_found(
+        self, rendered_not_found: RenderedNotFound
+    ) -> str: ...
 
     def assets(self) -> dict[str, str]: ...

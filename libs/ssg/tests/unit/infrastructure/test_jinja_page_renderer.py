@@ -8,6 +8,7 @@ from ssg.domain import (
     LanguageLink,
     Page,
     RenderedIndex,
+    RenderedNotFound,
     RenderedPage,
     Site,
 )
@@ -762,6 +763,167 @@ def test_render_robots_txt_omits_sitemap_line_without_site_url(
     assert "User-agent: *" in robots_txt
     assert "Allow: /" in robots_txt
     assert "Sitemap:" not in robots_txt
+
+
+def test_render_not_found_keeps_site_chrome(tmp_path: Path) -> None:
+    # Arrange — the 404 page is a shell page: same head/header/sidebar/footer
+    # chrome as index.html (mkdocs extends its base template; starlight's
+    # built-in route renders the common page).
+    renderer = JinjaPageRenderer()
+    site, _collection, _page = _site_with_collection(tmp_path)
+    rendered_not_found = RenderedNotFound(
+        site=site,
+        navigation=site.navigation_for(None, None),
+        language_links=(),
+    )
+
+    # Act
+    rendered_html = renderer.render_not_found(rendered_not_found)
+
+    # Assert
+    assert '<header class="site-header">' in rendered_html
+    assert '<aside class="sidebar" id="site-navigation">' in rendered_html
+    assert '<footer class="site-footer">' in rendered_html
+    assert (
+        '<main class="content" id="main-content" tabindex="-1">'
+        in rendered_html
+    )
+    assert '<section class="not-found' in rendered_html
+    assert "404" in rendered_html
+    assert "Page not found" in rendered_html
+    assert "<title>404 - Learning Site</title>" in rendered_html
+
+
+def test_render_not_found_absolutizes_assets_when_site_url_set(
+    tmp_path: Path,
+) -> None:
+    # Arrange — a 404 may be served at any missing-path depth, where relative
+    # asset hrefs would resolve under the missing directory; the template
+    # prefixes assets/links with the absolute locale root (starlight emits
+    # site-absolute URLs; mkdocs' relative 404 shares this limitation).
+    renderer = JinjaPageRenderer()
+    site, _collection, _page = _site_with_collection(tmp_path, url=True)
+    rendered_not_found = RenderedNotFound(
+        site=site,
+        navigation=site.navigation_for(None, None),
+        language_links=(),
+    )
+
+    # Act
+    rendered_html = renderer.render_not_found(rendered_not_found)
+
+    # Assert
+    assert 'href="https://example.com/docs/assets/site.css"' in rendered_html
+    assert (
+        'content="https://example.com/docs/search-index.json"' in rendered_html
+    )
+    assert (
+        'href="https://example.com/docs/assets/favicon.svg"' in rendered_html
+    )
+    assert 'src="https://example.com/docs/assets/site.js"' in rendered_html
+
+
+def test_render_not_found_prefixes_assets_per_locale(
+    tmp_path: Path,
+) -> None:
+    # Arrange — each locale root carries its own assets/, so a pt-BR 404
+    # resolves them under the locale prefix like its canonical does.
+    renderer = JinjaPageRenderer()
+    site, _collection, _page = _site_with_collection(tmp_path)
+    localized_site = Site(
+        title=site.title,
+        description=site.description,
+        collections=site.collections,
+        locale="pt-BR",
+        url="https://example.com/docs",
+    )
+    rendered_not_found = RenderedNotFound(
+        site=localized_site,
+        navigation=localized_site.navigation_for(None, None),
+        language_links=(),
+    )
+
+    # Act
+    rendered_html = renderer.render_not_found(rendered_not_found)
+
+    # Assert
+    assert '<html lang="pt-BR">' in rendered_html
+    assert (
+        'href="https://example.com/docs/pt-BR/assets/site.css"'
+        in rendered_html
+    )
+    assert 'href="https://example.com/docs/pt-BR/404.html"' in rendered_html
+
+
+def test_render_not_found_falls_back_to_relative_assets_without_site_url(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    renderer = JinjaPageRenderer()
+    site, _collection, _page = _site_with_collection(tmp_path)
+    rendered_not_found = RenderedNotFound(
+        site=site,
+        navigation=site.navigation_for(None, None),
+        language_links=(),
+    )
+
+    # Act
+    rendered_html = renderer.render_not_found(rendered_not_found)
+
+    # Assert
+    assert 'href="assets/site.css"' in rendered_html
+    assert 'content="search-index.json"' in rendered_html
+
+
+def test_render_not_found_uses_i18n_labels(tmp_path: Path) -> None:
+    # Arrange
+    renderer = JinjaPageRenderer()
+    site, _collection, _page = _site_with_collection(tmp_path)
+    localized_site = Site(
+        title=site.title,
+        description=site.description,
+        collections=site.collections,
+        locale="pt-BR",
+        extensions={
+            "i18n": {
+                "label_not_found": "Página não encontrada",
+                "label_home": "Voltar ao início",
+            }
+        },
+    )
+    rendered_not_found = RenderedNotFound(
+        site=localized_site,
+        navigation=localized_site.navigation_for(None, None),
+        language_links=(),
+    )
+
+    # Act
+    rendered_html = renderer.render_not_found(rendered_not_found)
+
+    # Assert
+    assert "Página não encontrada" in rendered_html
+    assert "Voltar ao início" in rendered_html
+    assert "Page not found" not in rendered_html
+
+
+def test_render_not_found_links_back_home(tmp_path: Path) -> None:
+    # Arrange — starlight's 404 carries a "Go to home" action; ours points at
+    # the navigation's home href (already locale-aware and absolutized by the
+    # builder when site.url is set).
+    renderer = JinjaPageRenderer()
+    site, _collection, _page = _site_with_collection(tmp_path, url=True)
+    rendered_not_found = RenderedNotFound(
+        site=site,
+        navigation=site.navigation_for(None, None),
+        language_links=(),
+    )
+
+    # Act
+    rendered_html = renderer.render_not_found(rendered_not_found)
+
+    # Assert
+    assert 'href="index.html"' in rendered_html
+    assert "Back to home" in rendered_html
 
 
 def _site_with_collection(

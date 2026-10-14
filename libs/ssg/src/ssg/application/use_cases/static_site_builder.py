@@ -1,4 +1,5 @@
 import os
+from dataclasses import replace
 from logging import getLogger
 from pathlib import Path
 from uuid import uuid4
@@ -15,11 +16,14 @@ from ssg.domain import (
     BuildContext,
     ContentCollection,
     LanguageLink,
+    NavigationSection,
     Page,
     PagerLink,
     RenderedIndex,
+    RenderedNotFound,
     RenderedPage,
     Site,
+    SiteNavigation,
     SiteVariant,
 )
 
@@ -134,8 +138,6 @@ class StaticSiteBuilder:
         )
         self._write_assets(site_variant.output_path)
         self._write_index(site_variant, site_variants, selected_collections)
-        from dataclasses import replace
-
         variant_context = replace(
             context, output_path=site_variant.output_path
         )
@@ -150,6 +152,9 @@ class StaticSiteBuilder:
         self._search_index.write(site_variant.output_path)
         self._write_sitemap(site_variant, selected_collections)
         self._write_robots_txt(site_variant)
+        self._write_not_found(
+            site_variant, site_variants, selected_collections
+        )
 
     def _build_collection(
         self,
@@ -265,6 +270,82 @@ class StaticSiteBuilder:
         robots_path.write_text(
             self._page_renderer.render_robots_txt(site_variant.site),
             encoding="utf-8",
+        )
+
+    def _write_not_found(
+        self,
+        site_variant: SiteVariant,
+        site_variants: tuple[SiteVariant, ...],
+        selected_collections: tuple[ContentCollection, ...],
+    ) -> None:
+        site = site_variant.site
+        rendered_not_found = RenderedNotFound(
+            site=site,
+            navigation=self._absolute_navigation(
+                site.navigation_for(
+                    None, None, collections=selected_collections
+                ),
+                site,
+            ),
+            language_links=self._not_found_language_links(
+                site_variant, site_variants
+            ),
+        )
+        not_found_path = site_variant.output_path / "404.html"
+        not_found_path.write_text(
+            self._page_renderer.render_not_found(rendered_not_found),
+            encoding="utf-8",
+        )
+
+    def _absolute_navigation(
+        self, navigation: SiteNavigation, site: Site
+    ) -> SiteNavigation:
+        # Hosts serve the root 404.html for missing paths at any depth
+        # (e.g. GitHub Pages answers /docs/a/b/c with it), so hrefs must not
+        # resolve relative to the missing path's directory — with site.url
+        # set they are emitted absolute, matching starlight's site-absolute
+        # links; without one they stay relative, like mkdocs' 404.
+        if not site.url:
+            return navigation
+        return SiteNavigation(
+            home_href=site.absolute_url(navigation.home_href),
+            sections=tuple(
+                self._absolute_section(section, site)
+                for section in navigation.sections
+            ),
+        )
+
+    def _absolute_section(
+        self, section: NavigationSection, site: Site
+    ) -> NavigationSection:
+        # navigation_for(None, None, ...) leaves section.links empty — page
+        # links only exist in a current-collection context — so only the
+        # section href needs rewriting.
+        return replace(section, href=site.absolute_url(section.href))
+
+    def _not_found_language_links(
+        self,
+        current_variant: SiteVariant,
+        site_variants: tuple[SiteVariant, ...],
+    ) -> tuple[LanguageLink, ...]:
+        return tuple(
+            LanguageLink(
+                label=site_variant.site.locale,
+                href=self._not_found_href(current_variant, site_variant),
+                current=site_variant.site.locale
+                == current_variant.site.locale,
+            )
+            for site_variant in site_variants
+        )
+
+    def _not_found_href(
+        self, current_variant: SiteVariant, target_variant: SiteVariant
+    ) -> str:
+        if target_variant.site.url:
+            return target_variant.site.absolute_url("404.html")
+        return self._relative_href(
+            current_variant.output_path,
+            target_variant.output_path / "404.html",
         )
 
     def _rendered_page(

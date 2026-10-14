@@ -75,3 +75,65 @@ class TestLocalPreviewServer:
         finally:
             conn.close()
             server.shutdown()
+
+    def test_serves_404_html_for_missing_paths(self, tmp_path: Path) -> None:
+        # Arrange — mkdocs serve answers missing paths with the built
+        # 404.html (commands/serve.py:71-79); the preview mirrors that so the
+        # emitted page is reachable locally at any depth.
+        (tmp_path / "404.html").write_text(
+            "<html>Not found</html>", encoding="utf-8"
+        )
+        server, port = _start_preview_server(tmp_path)
+        conn = HTTPConnection("127.0.0.1", port, timeout=10)
+        try:
+            # Act
+            conn.request("GET", "/missing/deep/path.html")
+            response = conn.getresponse()
+
+            # Assert
+            assert response.status == 404
+            assert response.read().decode("utf-8") == "<html>Not found</html>"
+        finally:
+            conn.close()
+            server.shutdown()
+
+    def test_missing_path_without_404_html_keeps_default_error(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — no emitted 404.html means there is nothing to serve;
+        # fall back to SimpleHTTPRequestHandler's default error page.
+        server, port = _start_preview_server(tmp_path)
+        conn = HTTPConnection("127.0.0.1", port, timeout=10)
+        try:
+            # Act
+            conn.request("GET", "/missing.html")
+            response = conn.getresponse()
+
+            # Assert
+            assert response.status == 404
+            assert "File not found" in response.read().decode("utf-8")
+        finally:
+            conn.close()
+            server.shutdown()
+
+    def test_non_404_errors_keep_default_error_page(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — the 404 override must not swallow other error codes;
+        # an unsupported method still gets the base handler's 501 page.
+        (tmp_path / "404.html").write_text(
+            "<html>Not found</html>", encoding="utf-8"
+        )
+        server, port = _start_preview_server(tmp_path)
+        conn = HTTPConnection("127.0.0.1", port, timeout=10)
+        try:
+            # Act
+            conn.request("POST", "/page.html")
+            response = conn.getresponse()
+
+            # Assert
+            assert response.status == 501
+            assert "Not found" not in response.read().decode("utf-8")
+        finally:
+            conn.close()
+            server.shutdown()

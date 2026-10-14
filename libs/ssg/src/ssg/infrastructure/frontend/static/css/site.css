@@ -371,7 +371,7 @@ html.has-search .site-search { display: block; }
 .article-toc a:hover { color: var(--signal); }
 .article-toc__link--level-3 { padding-left: 0.85rem; }
 
-.hero, .article, .collection-card, .pager a {
+.hero, .article, .collection-card, .pager a, .not-found {
   background: var(--surface);
   border: 3px solid var(--ink);
   box-shadow: var(--shadow-hard);
@@ -460,6 +460,20 @@ html.has-search .site-search { display: block; }
   white-space: nowrap;
 }
 .article-body th { background: var(--taxi); color: var(--on-accent); font-family: var(--font-mono); font-size: 0.82rem; }
+
+.not-found {
+  padding: clamp(1.5rem, 5vw, 5rem);
+  text-align: center;
+}
+.not-found h1 {
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 9vw, 8rem);
+  font-weight: 800;
+  letter-spacing: -0.055em;
+  line-height: 0.88;
+  margin: 0.35rem 0 1rem;
+}
+.not-found a { font-family: var(--font-mono); font-weight: 600; }
 
 .source-panel, .media-frame, .notebook-cell, .data-callout, .chart-frame, .diagram-frame {
   background: var(--surface);

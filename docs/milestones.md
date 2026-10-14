@@ -67,7 +67,7 @@ Steps:
    - Evidence: starlight `user-config.ts:241,263`; `partials/head.html:1-11`
 8. [x] `sitemap.xml` + `robots.txt` (SX-8)
    - Evidence: mkdocs `commands/build.py:109`
-9. [ ] `404.html` (SX-9)
+9. [x] `404.html` (SX-9)
    - Evidence: mkdocs `themes/mkdocs/404.html`
 10. [ ] Print stylesheet (SX-10)
     - Evidence: starlight `style/print.css:1`

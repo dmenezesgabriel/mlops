@@ -2,6 +2,7 @@ from ssg.application.ports import PageRenderer
 from ssg.domain import (
     ContentCollection,
     RenderedIndex,
+    RenderedNotFound,
     RenderedPage,
     Site,
 )
@@ -24,6 +25,7 @@ class JinjaPageRenderer(PageRenderer):
         self._robots_txt_template = self._environment.get_template(
             "robots.txt"
         )
+        self._not_found_template = self._environment.get_template("404.html")
 
     def render_page(self, rendered_page: RenderedPage) -> str:
         return self._page_template.render(rendered_page=rendered_page)
@@ -40,6 +42,11 @@ class JinjaPageRenderer(PageRenderer):
 
     def render_robots_txt(self, site: Site) -> str:
         return self._robots_txt_template.render(site=site)
+
+    def render_not_found(self, rendered_not_found: RenderedNotFound) -> str:
+        return self._not_found_template.render(
+            rendered_not_found=rendered_not_found
+        )
 
     def assets(self) -> dict[str, str]:
         return {

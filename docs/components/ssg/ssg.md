@@ -46,6 +46,7 @@ site/build/index.html
 site/build/search-index.json
 site/build/sitemap.xml
 site/build/robots.txt
+site/build/404.html
 site/build/assets/site.css
 site/build/assets/site.js
 site/build/assets/favicon.svg
@@ -55,6 +56,8 @@ site/build/<collection>/<page>.html
 Every page `<head>` carries Open Graph tags and the packaged favicon. When the optional `site.url` config sets the absolute http(s) deployment base (e.g. `https://example.github.io/site`), pages also emit `<link rel="canonical">` + `og:url` resolved per locale root — a `pt-BR` variant canonicals under `<url>/pt-BR/`. `site.repo_url` records the source repository URL for repo-link affordances.
 
 Each variant root also carries `robots.txt` (`User-agent: *`/`Allow: /` plus a `Sitemap:` pointer) and — only when `site.url` is set, since `<loc>` entries must be absolute — `sitemap.xml` listing the index and every page's canonical URL, so a `pt-BR` variant publishes its own sitemap under `<url>/pt-BR/`.
+
+Each variant root also emits `404.html` with the full site chrome (head/header/sidebar/footer). Hosts like GitHub Pages serve it for missing paths at any depth, so when `site.url` is set every on-page URL — assets, navigation, language links, the search-index pointer — is emitted absolute under the locale root; without `site.url` they stay relative. The preview server answers missing paths with it (mkdocs `serve.py` parity).
 
 Use `--collection <name>` only for focused local builds. Projects do not own separate sites.
 

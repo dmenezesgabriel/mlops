@@ -62,6 +62,7 @@ def test_static_site_generation_from_configured_content_collection(
     _assert_syntax_highlighting_rendered(rendered_html, overview_html)
     _assert_site_files_written(output_path, page_path)
     _assert_seo_files_written(output_path)
+    _assert_not_found_written(output_path)
 
 
 def _assert_head_metadata(rendered_html: str, output_path: Path) -> None:
@@ -160,6 +161,18 @@ def _assert_seo_files_written(output_path: Path) -> None:
     robots_txt = (output_path / "robots.txt").read_text(encoding="utf-8")
     assert "User-agent: *" in robots_txt
     assert "Sitemap: https://example.com/learning/sitemap.xml" in robots_txt
+
+
+def _assert_not_found_written(output_path: Path) -> None:
+    not_found_html = (output_path / "404.html").read_text(encoding="utf-8")
+    assert '<section class="not-found' in not_found_html
+    assert "Page not found" in not_found_html
+    assert '<header class="site-header">' in not_found_html
+    assert '<footer class="site-footer">' in not_found_html
+    assert (
+        'href="https://example.com/learning/assets/site.css"' in not_found_html
+    )
+    assert 'href="https://example.com/learning/index.html"' in not_found_html
 
 
 def _create_site_with_notebook_collection(tmp_path: Path) -> Path:

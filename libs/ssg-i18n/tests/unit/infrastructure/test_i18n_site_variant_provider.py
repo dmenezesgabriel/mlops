@@ -471,6 +471,29 @@ def test_variants_translates_search_labels(tmp_path: Path) -> None:
     )
 
 
+def test_variants_translates_not_found_labels(tmp_path: Path) -> None:
+    # Arrange
+    collection = _write_collection(
+        tmp_path / "content", "coll0", (("a", "First words.\n"),)
+    )
+    translator = RecordingTextTranslator(
+        {
+            "Page not found": "Página não encontrada",
+            "Back to home": "Voltar ao início",
+        }
+    )
+    provider = I18nSiteVariantProvider(translator)
+    site = _make_site(collection)
+
+    # Act
+    variants = provider.variants(site, _make_context(tmp_path))
+
+    # Assert
+    portuguese_i18n = variants[1].site.extensions["i18n"]
+    assert portuguese_i18n["label_not_found"] == "Página não encontrada"
+    assert portuguese_i18n["label_home"] == "Voltar ao início"
+
+
 def test_variants_falls_back_to_injected_translator_in_machine_mode_without_factory(
     tmp_path: Path,
 ) -> None:

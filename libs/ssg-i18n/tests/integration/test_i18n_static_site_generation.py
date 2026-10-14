@@ -37,6 +37,8 @@ def test_i18n_build_composes_with_content_and_html_extensions(
             "Run TR0X0123456789abcdef after validation.": (
                 "Execute TR0X0123456789abcdef apos a validacao."
             ),
+            "Page not found": "Pagina nao encontrada",
+            "Back to home": "Voltar ao inicio",
         }
     )
     from ssg.infrastructure.html_article_outline_builder import (
@@ -110,6 +112,24 @@ def test_i18n_build_composes_with_content_and_html_extensions(
     assert (
         "Sitemap: https://example.com/learning/pt-BR/sitemap.xml"
         in portuguese_robots
+    )
+    _assert_portuguese_not_found_page(output_path)
+
+
+def _assert_portuguese_not_found_page(output_path: Path) -> None:
+    portuguese_not_found = (output_path / "pt-BR" / "404.html").read_text(
+        encoding="utf-8"
+    )
+    assert '<html lang="pt-BR">' in portuguese_not_found
+    assert "Pagina nao encontrada" in portuguese_not_found
+    assert "Voltar ao inicio" in portuguese_not_found
+    assert (
+        'href="https://example.com/learning/pt-BR/assets/site.css"'
+        in portuguese_not_found
+    )
+    assert (
+        'href="https://example.com/learning/pt-BR/404.html"'
+        in portuguese_not_found
     )
 
 

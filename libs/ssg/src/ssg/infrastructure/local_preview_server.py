@@ -19,6 +19,34 @@ class LiveReloadRequestHandler(SimpleHTTPRequestHandler):
 
         super().do_GET()
 
+    def send_error(
+        self,
+        code: int,
+        message: str | None = None,
+        explain: str | None = None,
+    ) -> None:
+        not_found_page = self._not_found_page(code)
+        if not_found_page is None:
+            super().send_error(code, message, explain)
+            return
+        body = not_found_page.read_bytes()
+        self.send_response(404)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _not_found_page(self, code: int) -> Path | None:
+        # mkdocs serve answers missing paths with the built 404.html
+        # (commands/serve.py:71-79) — mirror that so the emitted page is
+        # reachable at any depth during preview, not just on a static host.
+        if code != 404:
+            return None
+        candidate = Path(self.directory) / "404.html"
+        if not candidate.is_file():
+            return None
+        return candidate
+
     def _handle_live_reload(self) -> None:
         self.close_connection = True
         self.send_response(200)

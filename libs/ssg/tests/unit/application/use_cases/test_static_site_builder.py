@@ -10,6 +10,7 @@ from ssg.domain import (
     ContentCollection,
     Page,
     RenderedIndex,
+    RenderedNotFound,
     RenderedPage,
     Site,
     SiteVariant,
@@ -57,6 +58,7 @@ class SpyPageRenderer:
             tuple[Site, tuple[ContentCollection, ...]]
         ] = []
         self.render_robots_txt_calls: list[Site] = []
+        self.render_not_found_calls: list[RenderedNotFound] = []
 
     def render_page(self, rendered_page: RenderedPage) -> str:
         self.render_page_calls.append(rendered_page)
@@ -75,6 +77,10 @@ class SpyPageRenderer:
     def render_robots_txt(self, site: Site) -> str:
         self.render_robots_txt_calls.append(site)
         return "robots"
+
+    def render_not_found(self, rendered_not_found: RenderedNotFound) -> str:
+        self.render_not_found_calls.append(rendered_not_found)
+        return "<html>404</html>"
 
     def assets(self) -> dict[str, str]:
         return {"site.css": "body {}", "site.js": ""}
@@ -1004,3 +1010,166 @@ class TestStaticSiteBuilder:
         _site, collections = page_renderer.render_sitemap_calls[-1]
         assert collections == (collection,)
         assert collections[0].pages == (page1, page2)
+
+    def test_build_writes_404_page_per_site_variant(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — hosts serve the root 404.html for any missing path, so
+        # each locale root carries its own copy (mkdocs ships it as a theme
+        # template; starlight emits a built-in route).
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        site = Site(
+            title="Learning Site",
+            description="",
+            collections=(collection,),
+        )
+        page_renderer = SpyPageRenderer()
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=page_renderer,
+            site_variant_provider=LocalizedSiteVariantProvider(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+        )
+
+        # Act
+        builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+        # Assert
+        for variant_path in (tmp_path / "build", tmp_path / "build" / "pt-BR"):
+            assert (variant_path / "404.html").read_text(
+                encoding="utf-8"
+            ) == "<html>404</html>"
+        assert [
+            call.site.locale for call in page_renderer.render_not_found_calls
+        ] == ["en", "pt-BR"]
+
+    def test_404_urls_are_absolute_when_site_url_set(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — a served 404 may sit at any missing-path depth (e.g.
+        # GitHub Pages answers /mlops/a/b/c with the root 404.html), so
+        # relative hrefs would resolve against the missing path's directory;
+        # with site.url configured every on-page URL is emitted absolute.
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        site = Site(
+            title="Learning Site",
+            description="",
+            collections=(collection,),
+            url="https://example.com/docs",
+        )
+        page_renderer = SpyPageRenderer()
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=page_renderer,
+            site_variant_provider=LocalizedSiteVariantProvider(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+        )
+
+        # Act
+        builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+        # Assert
+        english, portuguese = page_renderer.render_not_found_calls
+        assert (
+            english.navigation.home_href
+            == "https://example.com/docs/index.html"
+        )
+        assert english.navigation.sections[0].href == (
+            "https://example.com/docs/sample-collection/overview.html"
+        )
+        assert [
+            (link.label, link.href) for link in english.language_links
+        ] == [
+            ("en", "https://example.com/docs/404.html"),
+            ("pt-BR", "https://example.com/docs/pt-BR/404.html"),
+        ]
+        assert (
+            portuguese.navigation.home_href
+            == "https://example.com/docs/pt-BR/index.html"
+        )
+        assert [
+            link.href for link in portuguese.language_links if link.current
+        ] == ["https://example.com/docs/pt-BR/404.html"]
+
+    def test_404_urls_stay_relative_without_site_url(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — no deployment URL means there is no absolute base to
+        # resolve against; the page keeps relative hrefs (mkdocs' shape) and
+        # renders correctly when served at its own root path.
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        site = Site(
+            title="Learning Site",
+            description="",
+            collections=(collection,),
+        )
+        page_renderer = SpyPageRenderer()
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=page_renderer,
+            site_variant_provider=LocalizedSiteVariantProvider(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+        )
+
+        # Act
+        builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+        # Assert
+        english, portuguese = page_renderer.render_not_found_calls
+        assert english.navigation.home_href == "index.html"
+        assert english.navigation.sections[0].href == (
+            "sample-collection/overview.html"
+        )
+        assert [link.href for link in english.language_links] == [
+            "404.html",
+            "pt-BR/404.html",
+        ]
+        assert [link.href for link in portuguese.language_links] == [
+            "../404.html",
+            "404.html",
+        ]
