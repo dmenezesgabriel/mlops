@@ -18,5 +18,6 @@ def _read_frontend_asset(relative_path: str) -> str:
 
 SITE_CSS = _read_frontend_asset("css/site.css")
 SITE_JS = _read_frontend_asset("js/site.js")
+SITE_FAVICON = _read_frontend_asset("favicon.svg")
 
-__all__ = ["SITE_CSS", "SITE_JS"]
+__all__ = ["SITE_CSS", "SITE_FAVICON", "SITE_JS"]

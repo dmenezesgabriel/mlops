@@ -4,6 +4,18 @@
 <meta name="description" content="{{ description }}">
 <meta name="ssg:search-index" content="{{ asset_prefix }}search-index.json">
 <title>{{ title }}</title>
+<link rel="icon" href="{{ asset_prefix }}assets/favicon.svg" type="image/svg+xml">
+{% if site.url %}
+<link rel="canonical" href="{{ site.absolute_url(canonical_path) }}">
+{% endif %}
+<meta property="og:title" content="{{ title }}">
+<meta property="og:type" content="{{ og_type }}">
+{% if site.url %}
+<meta property="og:url" content="{{ site.absolute_url(canonical_path) }}">
+{% endif %}
+<meta property="og:locale" content="{{ site.locale }}">
+<meta property="og:description" content="{{ description }}">
+<meta property="og:site_name" content="{{ site.title }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="{{ asset_prefix }}assets/site.css">

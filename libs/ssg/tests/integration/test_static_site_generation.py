@@ -57,9 +57,34 @@ def test_static_site_generation_from_configured_content_collection(
         output_path / "sample-collection" / "overview.html"
     ).read_text(encoding="utf-8")
     _assert_navigation_rendered(rendered_html)
+    _assert_head_metadata(rendered_html, output_path)
     _assert_notebook_content_rendered(rendered_html)
     _assert_syntax_highlighting_rendered(rendered_html, overview_html)
     _assert_site_files_written(output_path, page_path)
+
+
+def _assert_head_metadata(rendered_html: str, output_path: Path) -> None:
+    assert (
+        '<link rel="canonical" '
+        'href="https://example.com/learning/'
+        'sample-collection/feature-engineering.html">' in rendered_html
+    )
+    assert '<meta property="og:type" content="article">' in rendered_html
+    assert (
+        '<meta property="og:url" '
+        'content="https://example.com/learning/'
+        'sample-collection/feature-engineering.html">' in rendered_html
+    )
+    assert (
+        '<link rel="icon" href="../assets/favicon.svg" '
+        'type="image/svg+xml">' in rendered_html
+    )
+    index_html = (output_path / "index.html").read_text(encoding="utf-8")
+    assert (
+        '<link rel="canonical" href="https://example.com/learning/">'
+        in index_html
+    )
+    assert '<meta property="og:type" content="website">' in index_html
 
 
 def _assert_navigation_rendered(rendered_html: str) -> None:
@@ -98,6 +123,7 @@ def _assert_syntax_highlighting_rendered(
 def _assert_site_files_written(output_path: Path, page_path: Path) -> None:
     assert (output_path / "index.html").exists()
     assert (output_path / "assets" / "site.css").exists()
+    assert (output_path / "assets" / "favicon.svg").exists()
     search_index = json.loads(
         (output_path / "search-index.json").read_text(encoding="utf-8")
     )
@@ -139,6 +165,7 @@ def _write_config(site_path: Path, tmp_path: Path) -> None:
     (site_path / "site.yaml").write_text(
         "site:\n"
         "  title: Learning Site\n"
+        "  url: https://example.com/learning\n"
         "collections:\n"
         "  - name: sample_collection\n"
         "    title: Sample Collection\n"

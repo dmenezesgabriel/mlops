@@ -63,7 +63,7 @@ Steps:
    - Evidence: mkdocs `contrib/search/search_index.py:48-53,124-125`
 6. [x] Search UI + playwright smoke (SX-6)
    - Evidence: starlight `Search.astro`; `partials/header.html:7-38`
-7. [ ] `site.url`/`site.repo_url` → canonical + OG + favicon (SX-7)
+7. [x] `site.url`/`site.repo_url` → canonical + OG + favicon (SX-7)
    - Evidence: starlight `user-config.ts:241,263`; `partials/head.html:1-11`
 8. [ ] `sitemap.xml` + `robots.txt` (SX-8)
    - Evidence: mkdocs `commands/build.py:109`

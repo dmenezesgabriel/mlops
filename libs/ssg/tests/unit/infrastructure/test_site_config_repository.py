@@ -705,3 +705,85 @@ def test_load_allows_same_basename_across_asset_kinds(tmp_path: Path) -> None:
     collection = site.collections[0]
     assert collection.videos["clip"].name == "demo.ext"
     assert collection.images["diagram"].name == "demo.ext"
+
+
+def test_load_reads_site_urls(tmp_path: Path) -> None:
+    # Arrange
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "  url: https://example.com/docs\n"
+        "  repo_url: https://github.com/example/repo\n"
+        "collections:\n"
+        "  - name: sample_collection\n"
+        "    title: Sample Collection\n"
+        "    source_root: ../content/sample_collection\n"
+        "    pages:\n"
+        "      - slug: overview\n"
+        "        title: Overview\n"
+        "        source: README.md\n",
+        encoding="utf-8",
+    )
+
+    # Act
+    site = SiteConfigRepository().load(config_path)
+
+    # Assert
+    assert site.url == "https://example.com/docs"
+    assert site.repo_url == "https://github.com/example/repo"
+
+
+def test_load_defaults_site_urls_to_empty(tmp_path: Path) -> None:
+    # Arrange — url/repo_url are optional: canonical and og:url tags are
+    # simply not emitted until a deployment URL is configured.
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n  title: Learning Site\ncollections: []\n",
+        encoding="utf-8",
+    )
+
+    # Act
+    site = SiteConfigRepository().load(config_path)
+
+    # Assert
+    assert site.url == ""
+    assert site.repo_url == ""
+
+
+@pytest.mark.parametrize("key", ["url", "repo_url"])
+def test_load_rejects_non_string_site_urls(tmp_path: Path, key: str) -> None:
+    # Arrange
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        f"site:\n  title: Learning Site\n  {key}: 42\ncollections: []\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match=f"expected {key} string"):
+        SiteConfigRepository().load(config_path)
+
+
+@pytest.mark.parametrize("key", ["url", "repo_url"])
+@pytest.mark.parametrize(
+    "value",
+    ["example.com/no-scheme", "/relative/path", "ftp://example.com"],
+)
+def test_load_rejects_non_absolute_site_urls(
+    tmp_path: Path, key: str, value: str
+) -> None:
+    # Arrange — canonical/og:url need an absolute http(s) base; a relative
+    # or scheme-less value would emit broken links.
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        f'  {key}: "{value}"\n'
+        "collections: []\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="expected absolute http"):
+        SiteConfigRepository().load(config_path)

@@ -2,6 +2,7 @@ import re
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import cast
+from urllib.parse import urlparse
 
 import yaml
 
@@ -34,6 +35,8 @@ class SiteConfigRepository(SiteRepository):
             ),
             extensions=self._read_extensions(manifest, config_path),
             collections=collections,
+            url=self._optional_url(site_config, "url", config_path),
+            repo_url=self._optional_url(site_config, "repo_url", config_path),
         )
 
     def _reject_duplicate_collections(
@@ -346,6 +349,24 @@ class SiteConfigRepository(SiteRepository):
 
         raise ValueError(
             f"Invalid site config {config_path}: expected {key} string"
+        )
+
+    def _optional_url(
+        self,
+        config: Mapping[object, object],
+        key: str,
+        config_path: Path,
+    ) -> str:
+        value = self._optional_string(config, key, "", config_path)
+        if not value:
+            return ""
+        parsed = urlparse(value)
+        if parsed.scheme in ("http", "https") and parsed.netloc:
+            return value
+
+        raise ValueError(
+            f"Invalid site {key} {value!r} in {config_path}: "
+            "expected absolute http(s) URL"
         )
 
     def _require_string_key(self, key: object, config_path: Path) -> str:

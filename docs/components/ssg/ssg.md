@@ -46,8 +46,11 @@ site/build/index.html
 site/build/search-index.json
 site/build/assets/site.css
 site/build/assets/site.js
+site/build/assets/favicon.svg
 site/build/<collection>/<page>.html
 ```
+
+Every page `<head>` carries Open Graph tags and the packaged favicon. When the optional `site.url` config sets the absolute http(s) deployment base (e.g. `https://example.github.io/site`), pages also emit `<link rel="canonical">` + `og:url` resolved per locale root — a `pt-BR` variant canonicals under `<url>/pt-BR/`. `site.repo_url` records the source repository URL for repo-link affordances.
 
 Use `--collection <name>` only for focused local builds. Projects do not own separate sites.
 

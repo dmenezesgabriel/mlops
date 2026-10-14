@@ -170,6 +170,8 @@ class I18nSiteVariantProvider(SiteVariantProvider):
             locale=locale.tag,
             default_locale=default_locale.tag,
             extensions=self._localized_extensions(site, session),
+            url=site.url,
+            repo_url=site.repo_url,
         )
 
     def _translation_session(

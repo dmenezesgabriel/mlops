@@ -9,6 +9,8 @@
   {% set title = rendered_page.page.title ~ ' - ' ~ rendered_page.collection.title %}
   {% set description = site.description %}
   {% set asset_prefix = '../' %}
+  {% set canonical_path = rendered_page.collection.output_slug ~ '/' ~ rendered_page.page.file_name() %}
+  {% set og_type = 'article' %}
   {% include 'partials/head.html' %}
 {% endblock %}
 {% block body %}

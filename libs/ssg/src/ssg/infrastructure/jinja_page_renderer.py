@@ -3,7 +3,11 @@ from ssg.domain import RenderedIndex, RenderedPage
 from ssg.infrastructure.frontend.jinja_environment import (
     create_frontend_environment,
 )
-from ssg.infrastructure.frontend.site_assets import SITE_CSS, SITE_JS
+from ssg.infrastructure.frontend.site_assets import (
+    SITE_CSS,
+    SITE_FAVICON,
+    SITE_JS,
+)
 
 
 class JinjaPageRenderer(PageRenderer):
@@ -19,4 +23,8 @@ class JinjaPageRenderer(PageRenderer):
         return self._index_template.render(rendered_index=rendered_index)
 
     def assets(self) -> dict[str, str]:
-        return {"site.css": SITE_CSS, "site.js": SITE_JS}
+        return {
+            "site.css": SITE_CSS,
+            "site.js": SITE_JS,
+            "favicon.svg": SITE_FAVICON,
+        }

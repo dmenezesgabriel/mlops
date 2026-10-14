@@ -1,4 +1,5 @@
 import re
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -550,3 +551,27 @@ def test_variants_rejects_translations_path_outside_config_root(
     # Act / Assert
     with pytest.raises(ValueError, match="translations_path"):
         provider.variants(site, _make_context(tmp_path))
+
+
+def test_variants_preserves_site_urls_in_non_default_locale(
+    tmp_path: Path,
+) -> None:
+    # Arrange — url/repo_url must survive localization or canonical, og:url,
+    # and repo links would silently vanish from non-default-locale pages.
+    collection = _write_collection(
+        tmp_path / "content", "coll0", (("a", "First words.\n"),)
+    )
+    provider = I18nSiteVariantProvider(RecordingTextTranslator({}))
+    site = replace(
+        _make_site(collection),
+        url="https://example.com/docs",
+        repo_url="https://github.com/example/repo",
+    )
+
+    # Act
+    variants = provider.variants(site, _make_context(tmp_path))
+
+    # Assert
+    assert variants[0].site.url == "https://example.com/docs"
+    assert variants[1].site.url == "https://example.com/docs"
+    assert variants[1].site.repo_url == "https://github.com/example/repo"

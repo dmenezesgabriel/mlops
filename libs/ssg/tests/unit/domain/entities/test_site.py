@@ -159,6 +159,62 @@ def test_navigation_for_collection_without_page_marks_no_current_link(
     assert navigation.sections[0].current_link_index is None
 
 
+def test_absolute_url_returns_empty_when_site_url_unset() -> None:
+    # Arrange
+    site = Site(title="Learning Site", description="", collections=())
+
+    # Act / Assert
+    assert site.absolute_url("sample-collection/overview.html") == ""
+
+
+def test_absolute_url_joins_site_url_and_page_path() -> None:
+    # Arrange — a trailing slash on the configured URL must not double up.
+    site = Site(
+        title="Learning Site",
+        description="",
+        collections=(),
+        url="https://example.com/docs/",
+    )
+
+    # Act / Assert
+    assert (
+        site.absolute_url("sample-collection/overview.html")
+        == "https://example.com/docs/sample-collection/overview.html"
+    )
+
+
+def test_absolute_url_with_no_path_returns_locale_root() -> None:
+    # Arrange
+    site = Site(
+        title="Learning Site",
+        description="",
+        collections=(),
+        url="https://example.com/docs",
+    )
+
+    # Act / Assert
+    assert site.absolute_url() == "https://example.com/docs/"
+
+
+def test_absolute_url_prefixes_non_default_locale() -> None:
+    # Arrange
+    site = Site(
+        title="Learning Site",
+        description="",
+        collections=(),
+        url="https://example.com/docs",
+        locale="pt-BR",
+        default_locale="en",
+    )
+
+    # Act / Assert
+    assert (
+        site.absolute_url("sample-collection/overview.html")
+        == "https://example.com/docs/pt-BR/sample-collection/overview.html"
+    )
+    assert site.absolute_url() == "https://example.com/docs/pt-BR/"
+
+
 def _collection_with_pages(
     tmp_path: Path,
     name: str,

@@ -1,6 +1,8 @@
 site:
   title: MLOps Lab
   description: Real-world machine learning projects and end-to-end MLOps workflows.
+  url: https://dmenezesgabriel.github.io/mlops
+  repo_url: https://github.com/dmenezesgabriel/mlops
 extensions:
   i18n:
     default_locale: en

@@ -15,9 +15,28 @@ class Site:
     locale: str = "en"
     default_locale: str = "en"
     extensions: dict[str, dict[str, str]] | None = None
+    url: str = ""
+    repo_url: str = ""
 
     def html_language(self) -> str:
         return self.locale
+
+    def absolute_url(self, path: str = "") -> str:
+        """Absolute URL for a path inside this variant's locale root.
+
+        Returns "" when no deployment `url` is configured. An empty `path`
+        yields the locale root URL (index canonical).
+
+        Example: ``site.absolute_url("guide/intro.html")`` ->
+        ``https://example.com/docs/pt-BR/guide/intro.html`` on a pt-BR
+        variant.
+        """
+        if not self.url:
+            return ""
+        prefix = (
+            "" if self.locale == self.default_locale else f"{self.locale}/"
+        )
+        return f"{self.url.rstrip('/')}/{prefix}{path}"
 
     def extension_setting(
         self, extension_name: str, setting_name: str, default: str

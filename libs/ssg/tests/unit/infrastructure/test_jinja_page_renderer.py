@@ -489,8 +489,161 @@ def test_frontend_templates_and_static_assets_are_package_files() -> None:
     assert "IntersectionObserver" in script_path.read_text(encoding="utf-8")
 
 
-def _site_with_collection(
+def test_render_page_emits_canonical_og_and_favicon(tmp_path: Path) -> None:
+    # Arrange
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path, url=True)
+    rendered_page = RenderedPage(
+        site=site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Overview", body="<p>Rendered content.</p>", headings=()
+        ),
+        navigation=site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert (
+        '<link rel="canonical" '
+        'href="https://example.com/docs/sample-collection/overview.html">'
+        in rendered_html
+    )
+    assert (
+        '<link rel="icon" href="../assets/favicon.svg" '
+        'type="image/svg+xml">' in rendered_html
+    )
+    assert '<meta property="og:type" content="article">' in rendered_html
+    assert (
+        '<meta property="og:url" '
+        'content="https://example.com/docs/sample-collection/overview.html">'
+        in rendered_html
+    )
+    assert '<meta property="og:locale" content="en">' in rendered_html
+    assert (
+        '<meta property="og:description" '
+        'content="Rendered content collections.">' in rendered_html
+    )
+    assert (
+        '<meta property="og:site_name" content="Learning Site">'
+        in rendered_html
+    )
+
+
+def test_render_index_emits_root_canonical_and_website_og(
     tmp_path: Path,
+) -> None:
+    # Arrange
+    renderer = JinjaPageRenderer()
+    site, collection, _page = _site_with_collection(tmp_path, url=True)
+    rendered_index = RenderedIndex(
+        site=site,
+        collections=(collection,),
+        navigation=site.navigation_for(None, None),
+    )
+
+    # Act
+    rendered_html = renderer.render_index(rendered_index)
+
+    # Assert
+    assert (
+        '<link rel="canonical" href="https://example.com/docs/">'
+        in rendered_html
+    )
+    assert '<meta property="og:type" content="website">' in rendered_html
+    assert (
+        '<meta property="og:url" content="https://example.com/docs/">'
+        in rendered_html
+    )
+    assert (
+        '<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">'
+        in rendered_html
+    )
+
+
+def test_render_page_omits_canonical_and_og_url_without_site_url(
+    tmp_path: Path,
+) -> None:
+    # Arrange — no deployment URL configured: canonical and og:url have no
+    # absolute base to resolve against, so they are skipped while the
+    # remaining head metadata still renders.
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path)
+    rendered_page = RenderedPage(
+        site=site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Overview", body="<p>Rendered content.</p>", headings=()
+        ),
+        navigation=site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert 'rel="canonical"' not in rendered_html
+    assert 'property="og:url"' not in rendered_html
+    assert '<meta property="og:title"' in rendered_html
+    assert 'rel="icon"' in rendered_html
+
+
+def test_render_page_prefixes_canonical_with_non_default_locale(
+    tmp_path: Path,
+) -> None:
+    # Arrange — a pt-BR variant deploys under <site.url>/pt-BR/, so its
+    # canonical must carry the locale prefix rather than collapse onto the
+    # default-locale URL.
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path)
+    localized_site = Site(
+        title=site.title,
+        description=site.description,
+        collections=site.collections,
+        url="https://example.com/docs",
+        locale="pt-BR",
+    )
+    rendered_page = RenderedPage(
+        site=localized_site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Visao Geral", body="<p>Conteudo.</p>", headings=()
+        ),
+        navigation=localized_site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert (
+        'href="https://example.com/docs/pt-BR/'
+        'sample-collection/overview.html"' in rendered_html
+    )
+    assert '<meta property="og:locale" content="pt-BR">' in rendered_html
+
+
+def test_assets_include_favicon() -> None:
+    # Arrange / Act
+    assets = JinjaPageRenderer().assets()
+
+    # Assert
+    assert "<svg" in assets["favicon.svg"]
+
+
+def _site_with_collection(
+    tmp_path: Path, url: bool = False
 ) -> tuple[Site, ContentCollection, Page]:
     page = Page(
         slug="overview", title="Overview", source_path=tmp_path / "README.md"
@@ -510,5 +663,6 @@ def _site_with_collection(
         title="Learning Site",
         description="Rendered content collections.",
         collections=(collection,),
+        url="https://example.com/docs" if url else "",
     )
     return site, collection, page
