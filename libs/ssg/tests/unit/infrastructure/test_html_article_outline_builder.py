@@ -195,3 +195,76 @@ def test_article_outline_builder_escapes_permalink_label() -> None:
         '<a class="headerlink" href="#title" '
         'aria-label="Link &quot;here&quot; &amp; &lt;now&gt;">¶</a></h2>'
     )
+
+
+def test_build_captures_section_text_between_headings() -> None:
+    # Arrange — a section is a heading plus the content that follows it, up
+    # to the next heading (mkdocs ContentSection).
+    rendered_html = (
+        "<h2>Setup</h2><p>Install it.</p><h2>Usage</h2><p>Run it.</p>"
+    )
+
+    # Act
+    article = build_article("T", rendered_html)
+
+    # Assert
+    assert [heading.section_text for heading in article.headings] == [
+        "Install it.",
+        "Run it.",
+    ]
+
+
+def test_build_section_text_strips_markup_and_collapses_whitespace() -> None:
+    # Arrange — mkdocs `_add_entry` normalization: tags out, runs of
+    # whitespace collapse to a single space.
+    rendered_html = (
+        "<h2>Setup</h2><p>Install <strong>all</strong>\n   of it.</p>"
+    )
+
+    # Act
+    article = build_article("T", rendered_html)
+
+    # Assert
+    assert article.headings[0].section_text == "Install all of it."
+
+
+def test_build_attributes_text_after_unlabeled_heading_to_previous_section() -> (
+    None
+):
+    # Arrange — an unlabeled heading starts no indexable section; the text
+    # that follows it still belongs to the previous indexed section.
+    rendered_html = "<h2>Setup</h2><p>One.</p><h2>   </h2><p>Two.</p>"
+
+    # Act
+    article = build_article("T", rendered_html)
+
+    # Assert
+    assert len(article.headings) == 1
+    assert article.headings[0].section_text == "One. Two."
+
+
+def test_build_plain_text_strips_tags_and_includes_preamble() -> None:
+    # Arrange — the page-level entry indexes the whole body text, preamble
+    # and heading labels included (mkdocs `stripped_html`).
+    rendered_html = "<p>Intro text.</p><h2>Setup</h2><p>Install it.</p>"
+
+    # Act
+    article = build_article("T", rendered_html)
+
+    # Assert
+    assert article.plain_text == "Intro text. Setup Install it."
+
+
+def test_build_plain_text_omits_script_and_style_blocks() -> None:
+    # Arrange — notebook widget outputs can carry script/style payloads;
+    # their source is not searchable text.
+    rendered_html = (
+        "<p>Text.</p><script>var x = 1;</script><style>.a {}</style>"
+    )
+
+    # Act
+    article = build_article("T", rendered_html)
+
+    # Assert
+    assert article.plain_text == "Text."
+    assert article.headings == ()

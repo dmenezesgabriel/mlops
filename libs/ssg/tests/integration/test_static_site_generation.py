@@ -1,4 +1,5 @@
 import base64
+import json
 from pathlib import Path
 
 import nbformat
@@ -29,6 +30,7 @@ def test_static_site_generation_from_configured_content_collection(
     from ssg.infrastructure.in_memory_dependency_tracker import (
         InMemoryDependencyTracker,
     )
+    from ssg.infrastructure.in_memory_search_index import InMemorySearchIndex
     from ssg.infrastructure.single_site_variant_provider import (
         SingleSiteVariantProvider,
     )
@@ -44,6 +46,7 @@ def test_static_site_generation_from_configured_content_collection(
         site_variant_provider=SingleSiteVariantProvider(),
         article_outline_builder=HtmlArticleOutlineBuilder(),
         dependency_tracker=InMemoryDependencyTracker(),
+        search_index=InMemorySearchIndex(),
     )
 
     builder.build(config_path, output_path)
@@ -95,6 +98,15 @@ def _assert_syntax_highlighting_rendered(
 def _assert_site_files_written(output_path: Path, page_path: Path) -> None:
     assert (output_path / "index.html").exists()
     assert (output_path / "assets" / "site.css").exists()
+    search_index = json.loads(
+        (output_path / "search-index.json").read_text(encoding="utf-8")
+    )
+    index_locations = [entry["location"] for entry in search_index["docs"]]
+    assert "sample-collection/overview.html" in index_locations
+    assert (
+        "sample-collection/feature-engineering.html#feature-engineering"
+        in index_locations
+    )
     assert "Second Collection" in (output_path / "index.html").read_text(
         encoding="utf-8"
     )

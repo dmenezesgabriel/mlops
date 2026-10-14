@@ -8,6 +8,7 @@ from ssg.application.ports.content_renderer import ContentRenderer
 from ssg.application.ports.dependency_tracker import DependencyTracker
 from ssg.application.ports.html_post_processor import HtmlPostProcessor
 from ssg.application.ports.page_renderer import PageRenderer
+from ssg.application.ports.search_index import SearchIndex
 from ssg.application.ports.site_repository import SiteRepository
 from ssg.application.ports.site_variant_provider import SiteVariantProvider
 from ssg.domain import (
@@ -36,6 +37,7 @@ class StaticSiteBuilder:
         site_variant_provider: SiteVariantProvider,
         article_outline_builder: ArticleOutlineBuilder,
         dependency_tracker: DependencyTracker,
+        search_index: SearchIndex,
         html_post_processors: tuple[HtmlPostProcessor, ...] = (),
     ) -> None:
         self._site_repository = site_repository
@@ -45,6 +47,7 @@ class StaticSiteBuilder:
         self._site_variant_provider = site_variant_provider
         self._article_outline_builder = article_outline_builder
         self._dependency_tracker = dependency_tracker
+        self._search_index = search_index
 
     def build(
         self,
@@ -57,6 +60,7 @@ class StaticSiteBuilder:
             p.resolve() for p in changed_paths
         ]:
             self._dependency_tracker.clear()
+            self._search_index.clear()
             affected_pages = None
         else:
             affected_pages = self._dependency_tracker.affected_pages(
@@ -143,6 +147,7 @@ class StaticSiteBuilder:
                 variant_context,
                 affected_pages,
             )
+        self._search_index.write(site_variant.output_path)
 
     def _build_collection(
         self,
@@ -184,6 +189,12 @@ class StaticSiteBuilder:
             body = self._render_body(site, collection, page, context)
             rendered_page = self._rendered_page(
                 site_variant, site_variants, collection, page, body
+            )
+            location = f"{collection.output_slug}/{page.file_name()}"
+            self._search_index.update_page(
+                output_path,
+                location,
+                rendered_page.article.search_entries(location),
             )
             rendered_html = self._page_renderer.render_page(rendered_page)
             output_file = collection_output_path / page.file_name()

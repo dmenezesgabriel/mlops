@@ -80,6 +80,7 @@ def create_site_builder() -> StaticSiteBuilder:
     from ssg.infrastructure.in_memory_dependency_tracker import (
         InMemoryDependencyTracker,
     )
+    from ssg.infrastructure.in_memory_search_index import InMemorySearchIndex
     from ssg.infrastructure.single_site_variant_provider import (
         SingleSiteVariantProvider,
     )
@@ -93,6 +94,7 @@ def create_site_builder() -> StaticSiteBuilder:
         page_renderer=JinjaPageRenderer(),
         article_outline_builder=HtmlArticleOutlineBuilder(),
         dependency_tracker=InMemoryDependencyTracker(),
+        search_index=InMemorySearchIndex(),
     )
 
 

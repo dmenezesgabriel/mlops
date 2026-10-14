@@ -7,6 +7,7 @@ class ArticleHeading:
     label: str
     href: str
     level: int
+    section_text: str = ""
 
     def depth_class(self) -> str:
         return f"article-toc__link--level-{self.level}"

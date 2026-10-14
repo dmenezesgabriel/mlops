@@ -7,7 +7,7 @@ from ssg.domain import Article, ArticleHeading
 
 class HtmlArticleOutlineBuilder(ArticleOutlineBuilder):
     def build(self, title: str, body: str, permalink_label: str) -> Article:
-        headings: list[ArticleHeading] = []
+        recorded: list[tuple[str, str, int]] = []
         used_slugs: dict[str, int] = {}
 
         def add_heading_id(match: re.Match[str]) -> str:
@@ -24,9 +24,7 @@ class HtmlArticleOutlineBuilder(ArticleOutlineBuilder):
                 attributes = (
                     f' id="{escape(heading_id, quote=True)}"{attributes}'
                 )
-            headings.append(
-                ArticleHeading(label=label, href=f"#{heading_id}", level=level)
-            )
+            recorded.append((label, heading_id, level))
             permalink = (
                 f'<a class="headerlink" '
                 f'href="#{escape(heading_id, quote=True)}" '
@@ -37,8 +35,22 @@ class HtmlArticleOutlineBuilder(ArticleOutlineBuilder):
             )
 
         outlined_body = _HEADING_PATTERN.sub(add_heading_id, body)
+        headings = tuple(
+            ArticleHeading(
+                label=label,
+                href=f"#{heading_id}",
+                level=level,
+                section_text=section_text,
+            )
+            for (label, heading_id, level), section_text in zip(
+                recorded, _section_texts(body), strict=True
+            )
+        )
         return Article(
-            title=title, body=outlined_body, headings=tuple(headings)
+            title=title,
+            body=outlined_body,
+            headings=headings,
+            plain_text=_plain_text(body),
         )
 
 
@@ -48,8 +60,39 @@ _HEADING_PATTERN = re.compile(
 )
 
 
+def _section_texts(body: str) -> list[str]:
+    # One plain-text section per labeled heading: the content between its
+    # close tag and the next heading open tag. Unlabeled headings start no
+    # section — their trailing text stays with the previous section.
+    sections: list[list[str]] = []
+    cursor = 0
+    for match in _HEADING_PATTERN.finditer(body):
+        if sections:
+            sections[-1].append(body[cursor : match.start()])
+        if _heading_label(match.group("body")):
+            sections.append([])
+        cursor = match.end()
+    if sections:
+        sections[-1].append(body[cursor:])
+
+    return [_plain_text("".join(chunks)) for chunks in sections]
+
+
 def _heading_label(heading_html: str) -> str:
-    text = re.sub(r"<[^>]+>", "", heading_html)
+    return _plain_text(heading_html)
+
+
+_NON_CONTENT_BLOCK_PATTERN = re.compile(
+    r"<(script|style)\b[^>]*>.*?</\1\s*>",
+    re.DOTALL | re.IGNORECASE,
+)
+
+_TAG_PATTERN = re.compile(r"<[^>]+>")
+
+
+def _plain_text(html: str) -> str:
+    without_blocks = _NON_CONTENT_BLOCK_PATTERN.sub(" ", html)
+    text = _TAG_PATTERN.sub(" ", without_blocks)
     return " ".join(unescape(text).split())
 
 

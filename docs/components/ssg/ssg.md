@@ -43,6 +43,7 @@ The default build renders all configured collections into one navigable static s
 
 ```text
 site/build/index.html
+site/build/search-index.json
 site/build/assets/site.css
 site/build/assets/site.js
 site/build/<collection>/<page>.html

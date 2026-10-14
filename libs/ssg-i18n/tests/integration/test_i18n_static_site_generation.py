@@ -45,6 +45,7 @@ def test_i18n_build_composes_with_content_and_html_extensions(
     from ssg.infrastructure.in_memory_dependency_tracker import (
         InMemoryDependencyTracker,
     )
+    from ssg.infrastructure.in_memory_search_index import InMemorySearchIndex
 
     builder = StaticSiteBuilder(
         site_repository=SiteConfigRepository(),
@@ -59,6 +60,7 @@ def test_i18n_build_composes_with_content_and_html_extensions(
         ),
         article_outline_builder=HtmlArticleOutlineBuilder(),
         dependency_tracker=InMemoryDependencyTracker(),
+        search_index=InMemorySearchIndex(),
     )
 
     # Act

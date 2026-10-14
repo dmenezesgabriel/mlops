@@ -59,7 +59,7 @@ Steps:
    - Evidence: measured zero `prefers-color-scheme` in `static/css/site.css`
 4. [x] Theme toggle + persistence + FOUC guard (SX-4)
    - Evidence: starlight `ThemeSelect.astro`; `base.html:6` `data-theme` hook
-5. [ ] `search-index.json` per locale (SX-5)
+5. [x] `search-index.json` per locale (SX-5)
    - Evidence: mkdocs `contrib/search/search_index.py:48-53,124-125`
 6. [ ] Search UI + playwright smoke (SX-6)
    - Evidence: starlight `Search.astro`; `partials/header.html:7-38`

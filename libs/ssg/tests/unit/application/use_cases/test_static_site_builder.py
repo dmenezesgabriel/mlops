@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,7 @@ from ssg.domain import (
 from ssg.infrastructure.in_memory_dependency_tracker import (
     InMemoryDependencyTracker,
 )
+from ssg.infrastructure.in_memory_search_index import InMemorySearchIndex
 from ssg.infrastructure.single_site_variant_provider import (
     SingleSiteVariantProvider,
 )
@@ -74,8 +76,14 @@ class SpyArticleOutlineBuilder:
             title=title,
             body='<h2 id="overview">Overview</h2>',
             headings=(
-                ArticleHeading(label="Overview", href="#overview", level=2),
+                ArticleHeading(
+                    label="Overview",
+                    href="#overview",
+                    level=2,
+                    section_text="Section text",
+                ),
             ),
+            plain_text="Plain text",
         )
 
 
@@ -167,6 +175,7 @@ class TestStaticSiteBuilder:
             article_outline_builder=article_outline_builder,
             site_variant_provider=SingleSiteVariantProvider(),
             dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
         )
 
         # Act
@@ -239,6 +248,7 @@ class TestStaticSiteBuilder:
             html_post_processors=(html_post_processor,),
             site_variant_provider=SingleSiteVariantProvider(),
             dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
         )
 
         # Act
@@ -279,6 +289,7 @@ class TestStaticSiteBuilder:
             site_variant_provider=SingleSiteVariantProvider(),
             article_outline_builder=SpyArticleOutlineBuilder(),
             dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
         )
 
         # Act / Assert
@@ -315,6 +326,7 @@ class TestStaticSiteBuilder:
             site_variant_provider=LocalizedSiteVariantProvider(),
             article_outline_builder=SpyArticleOutlineBuilder(),
             dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
         )
 
         # Act
@@ -374,6 +386,7 @@ class TestStaticSiteBuilder:
             site_variant_provider=LocalizedSiteVariantProvider(),
             article_outline_builder=SpyArticleOutlineBuilder(),
             dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
         )
 
         # Act
@@ -462,6 +475,7 @@ class TestStaticSiteBuilder:
             article_outline_builder=SpyArticleOutlineBuilder(),
             site_variant_provider=SingleSiteVariantProvider(),
             dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
         )
 
         # Act
@@ -507,6 +521,7 @@ class TestStaticSiteBuilder:
             page_renderer=page_renderer,
             article_outline_builder=SpyArticleOutlineBuilder(),
             dependency_tracker=dependency_tracker,
+            search_index=InMemorySearchIndex(),
             site_variant_provider=SingleSiteVariantProvider(),
         )
 
@@ -545,6 +560,7 @@ class TestStaticSiteBuilder:
             content_renderers=(SpyContentRenderer(),),
             page_renderer=page_renderer,
             dependency_tracker=dependency_tracker,
+            search_index=InMemorySearchIndex(),
             site_variant_provider=SingleSiteVariantProvider(),
             article_outline_builder=SpyArticleOutlineBuilder(),
         )
@@ -584,6 +600,7 @@ class TestStaticSiteBuilder:
             page_renderer=SpyPageRenderer(),
             article_outline_builder=SpyArticleOutlineBuilder(),
             dependency_tracker=dependency_tracker,
+            search_index=InMemorySearchIndex(),
             site_variant_provider=SingleSiteVariantProvider(),
         )
         builder.build(config_path, output_path)
@@ -630,6 +647,7 @@ class TestStaticSiteBuilder:
             page_renderer=SpyPageRenderer(),
             article_outline_builder=SpyArticleOutlineBuilder(),
             dependency_tracker=dependency_tracker,
+            search_index=InMemorySearchIndex(),
             site_variant_provider=SingleSiteVariantProvider(),
         )
         builder.build(config_path, output_path)
@@ -652,3 +670,170 @@ class TestStaticSiteBuilder:
             )
             == 2
         )
+
+    def test_build_writes_search_index_per_site_variant(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        site = Site(
+            title="Learning Site", description="", collections=(collection,)
+        )
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=SpyPageRenderer(),
+            site_variant_provider=LocalizedSiteVariantProvider(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+        )
+
+        # Act
+        builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+        # Assert — one index file per variant output path: default locale
+        # at the root, pt-BR under its own directory.
+        expected_entries = [
+            {
+                "title": "Overview",
+                "text": "Plain text",
+                "location": "sample-collection/overview.html",
+            },
+            {
+                "title": "Overview",
+                "text": "Section text",
+                "location": "sample-collection/overview.html#overview",
+            },
+        ]
+        english_index = json.loads(
+            (tmp_path / "build" / "search-index.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        portuguese_index = json.loads(
+            (tmp_path / "build" / "pt-BR" / "search-index.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert english_index == {"docs": expected_entries}
+        assert portuguese_index == {"docs": expected_entries}
+
+    def test_incremental_build_keeps_skipped_pages_index_entries(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — incremental rebuilds skip unaffected pages; their search
+        # entries must survive in the rewritten index.
+        config_path = tmp_path / "site.yaml"
+        output_path = tmp_path / "build"
+        page1 = Page(
+            slug="page1", title="Page 1", source_path=tmp_path / "page1.md"
+        )
+        page2 = Page(
+            slug="page2", title="Page 2", source_path=tmp_path / "page2.md"
+        )
+        collection = ContentCollection(
+            name="sample",
+            title="Sample",
+            source_root=tmp_path,
+            output_slug="sample",
+            pages=(page1, page2),
+            videos={},
+        )
+        site = Site(title="Site", description="", collections=(collection,))
+        content_renderer = DependencyRecordingRenderer(dependency_paths=())
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(content_renderer,),
+            page_renderer=SpyPageRenderer(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+            site_variant_provider=SingleSiteVariantProvider(),
+        )
+        builder.build(config_path, output_path)
+
+        # Act
+        builder.build(
+            config_path, output_path, changed_paths={page2.source_path}
+        )
+
+        # Assert
+        index = json.loads(
+            (output_path / "search-index.json").read_text(encoding="utf-8")
+        )
+        assert [entry["location"] for entry in index["docs"]] == [
+            "sample/page1.html",
+            "sample/page1.html#overview",
+            "sample/page2.html",
+            "sample/page2.html#overview",
+        ]
+
+    def test_full_rebuild_clears_stale_index_entries(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — a page dropped from the site config must leave the index:
+        # the config-change rebuild path clears accumulated entries.
+        config_path = tmp_path / "site.yaml"
+        output_path = tmp_path / "build"
+        page1 = Page(
+            slug="page1", title="Page 1", source_path=tmp_path / "page1.md"
+        )
+        page2 = Page(
+            slug="page2", title="Page 2", source_path=tmp_path / "page2.md"
+        )
+        collection = ContentCollection(
+            name="sample",
+            title="Sample",
+            source_root=tmp_path,
+            output_slug="sample",
+            pages=(page1, page2),
+            videos={},
+        )
+        site = Site(title="Site", description="", collections=(collection,))
+        site_repository = SpySiteRepository(site)
+        builder = StaticSiteBuilder(
+            site_repository=site_repository,
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=SpyPageRenderer(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+            site_variant_provider=SingleSiteVariantProvider(),
+        )
+        builder.build(config_path, output_path)
+        trimmed_collection = ContentCollection(
+            name="sample",
+            title="Sample",
+            source_root=tmp_path,
+            output_slug="sample",
+            pages=(page1,),
+            videos={},
+        )
+        site_repository.site = Site(
+            title="Site", description="", collections=(trimmed_collection,)
+        )
+
+        # Act
+        builder.build(config_path, output_path, changed_paths={config_path})
+
+        # Assert
+        index = json.loads(
+            (output_path / "search-index.json").read_text(encoding="utf-8")
+        )
+        assert [entry["location"] for entry in index["docs"]] == [
+            "sample/page1.html",
+            "sample/page1.html#overview",
+        ]

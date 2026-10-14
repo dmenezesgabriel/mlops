@@ -13,6 +13,7 @@ from ssg.domain.value_objects.navigation_section import NavigationSection
 from ssg.domain.value_objects.pager_link import PagerLink
 from ssg.domain.value_objects.rendered_index import RenderedIndex
 from ssg.domain.value_objects.rendered_page import RenderedPage
+from ssg.domain.value_objects.search_index_entry import SearchIndexEntry
 from ssg.domain.value_objects.site_navigation import SiteNavigation
 from ssg.domain.value_objects.site_variant import SiteVariant
 
@@ -30,6 +31,7 @@ __all__ = [
     "PagerLink",
     "RenderedIndex",
     "RenderedPage",
+    "SearchIndexEntry",
     "SiteNavigation",
     "SiteVariant",
 ]
