@@ -1,9 +1,4 @@
-from collections.abc import Iterator
-from contextlib import contextmanager
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from threading import Thread
-from typing import Any
 from urllib.parse import urldefrag
 
 import pytest
@@ -15,84 +10,48 @@ class TestBuiltSiteSmoke:
     def test_built_site_supports_navigation_i18n_and_mobile_menu(
         self,
         page: Page,
+        built_site_url: str,
     ) -> None:
-        # Arrange
-        site_build_path = Path("site/build")
-        if not site_build_path.exists():
-            site_build_path = Path("../../site/build")
-        assert site_build_path.exists(), (
-            "Missing site/build: expected `make build-site` before e2e"
-        )
-
-        # Act & Assert
-        with _serve_directory(site_build_path) as base_url:
-            _assert_home_page(page, base_url)
-            _assert_language_switcher(page, base_url)
-            _assert_configured_pages(page, base_url)
-            _assert_notebook_and_code_pages(page, base_url)
-            _assert_static_assets(page, base_url)
-            _assert_mobile_menu(page, base_url)
-            _assert_code_copy_buttons(page, base_url)
-            _assert_code_copy_degrades_without_js(page, base_url)
+        _assert_home_page(page, built_site_url)
+        _assert_language_switcher(page, built_site_url)
+        _assert_configured_pages(page, built_site_url)
+        _assert_notebook_and_code_pages(page, built_site_url)
+        _assert_static_assets(page, built_site_url)
+        _assert_mobile_menu(page, built_site_url)
+        _assert_code_copy_buttons(page, built_site_url)
+        _assert_code_copy_degrades_without_js(page, built_site_url)
 
     def test_built_site_honors_dark_color_scheme(
         self,
         page: Page,
+        built_site_url: str,
     ) -> None:
-        # Arrange
-        site_build_path = Path("site/build")
-        if not site_build_path.exists():
-            site_build_path = Path("../../site/build")
-        assert site_build_path.exists(), (
-            "Missing site/build: expected `make build-site` before e2e"
-        )
-
-        # Act & Assert
-        with _serve_directory(site_build_path) as base_url:
-            _assert_dark_scheme_default(page, base_url)
-            _assert_light_scheme_default(page, base_url)
-            _assert_data_theme_overrides_media(page, base_url)
-            _assert_dark_scheme_without_js(page, base_url)
+        _assert_dark_scheme_default(page, built_site_url)
+        _assert_light_scheme_default(page, built_site_url)
+        _assert_data_theme_overrides_media(page, built_site_url)
+        _assert_dark_scheme_without_js(page, built_site_url)
 
     def test_built_site_theme_toggle_persists(
         self,
         page: Page,
+        built_site_url: str,
     ) -> None:
-        # Arrange
-        site_build_path = Path("site/build")
-        if not site_build_path.exists():
-            site_build_path = Path("../../site/build")
-        assert site_build_path.exists(), (
-            "Missing site/build: expected `make build-site` before e2e"
-        )
-
-        # Act & Assert
-        with _serve_directory(site_build_path) as base_url:
-            _assert_theme_select_flips(page, base_url)
-            _assert_theme_persists_across_reload(page, base_url)
-            _assert_theme_auto_follows_system(page, base_url)
-            _assert_theme_select_i18n(page, base_url)
-            _assert_theme_select_hidden_without_js(page, base_url)
+        _assert_theme_select_flips(page, built_site_url)
+        _assert_theme_persists_across_reload(page, built_site_url)
+        _assert_theme_auto_follows_system(page, built_site_url)
+        _assert_theme_select_i18n(page, built_site_url)
+        _assert_theme_select_hidden_without_js(page, built_site_url)
 
     def test_built_site_search_filters_and_ranks(
         self,
         page: Page,
+        built_site_url: str,
     ) -> None:
-        # Arrange
-        site_build_path = Path("site/build")
-        if not site_build_path.exists():
-            site_build_path = Path("../../site/build")
-        assert site_build_path.exists(), (
-            "Missing site/build: expected `make build-site` before e2e"
-        )
-
-        # Act & Assert
-        with _serve_directory(site_build_path) as base_url:
-            _assert_search_fetches_lazily(page, base_url)
-            _assert_search_ranks_title_hits_first(page, base_url)
-            _assert_search_keyboard_and_no_results(page, base_url)
-            _assert_search_scopes_to_locale(page, base_url)
-            _assert_search_hidden_without_js(page, base_url)
+        _assert_search_fetches_lazily(page, built_site_url)
+        _assert_search_ranks_title_hits_first(page, built_site_url)
+        _assert_search_keyboard_and_no_results(page, built_site_url)
+        _assert_search_scopes_to_locale(page, built_site_url)
+        _assert_search_hidden_without_js(page, built_site_url)
 
 
 def _assert_home_page(page: Page, base_url: str) -> None:
@@ -455,23 +414,3 @@ def _configured_paths() -> tuple[str, ...]:
         "/pt-BR/",
         "/pt-BR/nyc-taxi-demand-forecasting/overview.html",
     )
-
-
-@contextmanager
-def _serve_directory(directory: Path) -> Iterator[str]:
-    class QuietHandler(SimpleHTTPRequestHandler):
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            super().__init__(*args, directory=str(directory), **kwargs)
-
-        def log_message(self, _format: str, *args: object) -> None:
-            return
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), QuietHandler)
-    thread = Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        yield f"http://127.0.0.1:{server.server_port}"
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)

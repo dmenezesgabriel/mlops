@@ -69,7 +69,7 @@ Steps:
    - Evidence: mkdocs `commands/build.py:109`
 9. [x] `404.html` (SX-9)
    - Evidence: mkdocs `themes/mkdocs/404.html`
-10. [ ] Print stylesheet (SX-10)
+10. [x] Print stylesheet (SX-10)
     - Evidence: starlight `style/print.css:1`
 11. [ ] GitHub-alert admonitions in md + notebook cells (SX-11)
     - Evidence: starlight `integrations/remark-asides.ts`; `mdit_py_plugins` `admon`/`colon_fence` in `.venv`

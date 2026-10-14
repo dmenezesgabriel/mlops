@@ -764,9 +764,49 @@ pre::-webkit-scrollbar-thumb:hover {
   max-width: 100%;
 }
 
+/* Paper output: force the light scheme — every themed color resolves through
+   light-dark() per the element's color-scheme, so a stored dark pick or a
+   dark OS would otherwise print cream ink on white paper. Nav/pager/toc drop
+   out, the article takes the full width, and code collapses to ink and wraps
+   instead of clipping. */
 @media print {
-  .article-body .headerlink { display: none; }
-  .code-copy-button { display: none; }
-  .theme-select { display: none; }
-  .site-search { display: none; }
+  :root {
+    color-scheme: light;
+    --shadow-hard: none;
+    --shadow-soft: none;
+  }
+  body[data-theme] { color-scheme: light; }
+  body { background: none; }
+
+  .skip-link, .header-actions, .sidebar, .article-toc, .pager,
+  .article-body .headerlink, .code-copy-button { display: none; }
+
+  .site-header { position: static; }
+  .site-shell { display: block; max-width: none; padding: 0; }
+  .article { overflow: visible; }
+  .article-body > * { max-width: none; }
+
+  .article-body :is(h1, h2, h3, h4, h5, h6) { break-after: avoid; }
+  .article-body :is(p, li) { orphans: 2; widows: 2; }
+  pre, figure, .notebook-cell, .data-callout, .collection-card,
+  .chart-frame, .diagram-frame, blockquote, tr { break-inside: avoid; }
+
+  .article-body pre, .notebook-input pre, .notebook-output pre,
+  .source-panel pre {
+    background: transparent;
+    color: var(--ink);
+    overflow: visible;
+    white-space: pre-wrap;
+  }
+  .notebook-output { background: transparent; color: var(--ink); }
+  /* gruvbox-dark lands as inline styles (noclasses=True); only !important
+     beats them, and light-on-dark tokens are unreadable on paper. */
+  .highlight-token { color: var(--ink) !important; }
+
+  .article-body table { display: table; overflow-x: visible; }
+  .article-body th, .article-body td { white-space: normal; }
+  .katex-display { overflow-x: visible; }
+  /* has-reveal leaves unviewed elements translated; paper has no scroll. */
+  .story-step, .media-frame, .notebook-cell { transform: none; }
+  .hero::after, .collection-card::after { content: none; }
 }
