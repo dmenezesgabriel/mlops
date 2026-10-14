@@ -4,6 +4,9 @@ from pathlib import Path
 import pytest
 from ssg.application import StaticSiteBuilder
 from ssg.infrastructure.jinja_page_renderer import JinjaPageRenderer
+from ssg.infrastructure.markdown_alert_title_post_processor import (
+    MarkdownAlertTitlePostProcessor,
+)
 from ssg.infrastructure.markdown_content_renderer import (
     MarkdownContentRenderer,
 )
@@ -39,6 +42,15 @@ def test_i18n_build_composes_with_content_and_html_extensions(
             ),
             "Page not found": "Pagina nao encontrada",
             "Back to home": "Voltar ao inicio",
+            "Note": "Nota",
+            # Protection markers keep their slots inside the translated
+            # value, so the [!NOTE] marker and the line break restore
+            # verbatim while the sentence around them translates.
+            "TR1X0123456789abcdefTR0X0123456789abcdef"
+            "Keep runs reproducible.": (
+                "TR1X0123456789abcdefTR0X0123456789abcdef"
+                "Mantenha as execucoes reproduziveis."
+            ),
         }
     )
     from ssg.infrastructure.html_article_outline_builder import (
@@ -55,7 +67,10 @@ def test_i18n_build_composes_with_content_and_html_extensions(
             MarkdownContentRenderer(),
             NotebookContentRenderer(),
         ),
-        html_post_processors=(create_pygments_html_post_processor(),),
+        html_post_processors=(
+            MarkdownAlertTitlePostProcessor(),
+            create_pygments_html_post_processor(),
+        ),
         page_renderer=JinjaPageRenderer(),
         site_variant_provider=I18nSiteVariantProvider(
             translator, marker_token_factory=lambda: "0123456789abcdef"
@@ -78,6 +93,7 @@ def test_i18n_build_composes_with_content_and_html_extensions(
     assert '<html lang="pt-BR">' in overview_html
     assert "Use <code>MLflow</code> para rastreamento." in overview_html
     assert "highlight-token" in overview_html
+    _assert_localized_alert(output_path, overview_html)
     assert (
         "Execute <code>train_model()</code> apos a validacao." in notebook_html
     )
@@ -114,6 +130,21 @@ def test_i18n_build_composes_with_content_and_html_extensions(
         in portuguese_robots
     )
     _assert_portuguese_not_found_page(output_path)
+
+
+def _assert_localized_alert(output_path: Path, overview_html: str) -> None:
+    # pt-BR: marker survives translation, the generated title localizes via
+    # the i18n extension setting, and the body translates around it.
+    assert 'class="markdown-alert markdown-alert-note"' in overview_html
+    assert 'class="markdown-alert-icon"' in overview_html
+    assert "Nota</p>" in overview_html
+    assert "Mantenha as execucoes reproduziveis." in overview_html
+    english_html = (
+        output_path / "sample-collection" / "overview.html"
+    ).read_text(encoding="utf-8")
+    assert 'class="markdown-alert markdown-alert-note"' in english_html
+    assert "Note</p>" in english_html
+    assert "Keep runs reproducible." in english_html
 
 
 def _assert_portuguese_not_found_page(output_path: Path) -> None:
@@ -172,6 +203,7 @@ def _write_config(site_path: Path) -> None:
 def _write_markdown(content_path: Path) -> None:
     (content_path / "README.md").write_text(
         "# Overview\n\nUse `MLflow` for tracking.\n\n"
+        "> [!NOTE]\n> Keep runs reproducible.\n\n"
         "```python\n"
         "def train_model():\n"
         "    return 'ok'\n"

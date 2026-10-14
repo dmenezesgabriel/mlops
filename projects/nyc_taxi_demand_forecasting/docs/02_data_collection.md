@@ -15,6 +15,9 @@ Our collector downloads files from the cloud endpoint and saves them to a local 
 
 If a file is already present locally, the collector skips the download to conserve bandwidth and ensure idempotent, repeatable runs.
 
+> [!NOTE]
+> To force a fresh pull, delete the target parquet file from `data/raw/` and re-run the collector.
+
 ## CLI Execution
 To collect the datasets programmatically:
 ```bash

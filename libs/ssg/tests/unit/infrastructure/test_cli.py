@@ -10,6 +10,9 @@ from ssg.infrastructure.cli import (
     load_site_variant_provider,
     validate_reload_interval,
 )
+from ssg.infrastructure.markdown_alert_title_post_processor import (
+    MarkdownAlertTitlePostProcessor,
+)
 from ssg.infrastructure.markdown_content_renderer import (
     MarkdownContentRenderer,
 )
@@ -266,9 +269,11 @@ def test_load_html_post_processors_uses_html_processor_entry_points(
     # Act
     processors = load_html_post_processors()
 
-    # Assert
+    # Assert — the built-in alert-title processor ships inside ssg and runs
+    # ahead of entry-point plugins, like MarkdownContentRenderer does.
     assert requested_groups == ["ssg.html_post_processors"]
-    assert isinstance(processors[0], FakeHtmlPostProcessor)
+    assert isinstance(processors[0], MarkdownAlertTitlePostProcessor)
+    assert isinstance(processors[1], FakeHtmlPostProcessor)
 
 
 def test_load_site_variant_provider_uses_site_variant_entry_point(

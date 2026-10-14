@@ -70,6 +70,17 @@ class _MarkerDroppingTranslator:
         return "cauda traduzida"
 
 
+class _AlertKeywordLocalizingTranslator:
+    """MT fake that translates the alert keyword itself ("NOTE" -> "NOTA").
+
+    markdown-it only accepts the five English alert kinds; a translated
+    marker would silently demote the callout to a plain blockquote.
+    """
+
+    def translate(self, source_text: str, target_locale: Locale) -> str:
+        return source_text.replace("NOTE", "NOTA")
+
+
 def _fixed_marker_token() -> str:
     return "0123456789abcdef"
 
@@ -338,6 +349,34 @@ class TestDocumentTranslator:
         )
         assert recorder.calls == ["Autolink TR0X0123456789abcdef done."]
         assert result == "Autolink <http://example.com> done.\n"
+
+    def test_github_alert_marker_is_protected_not_sent_raw(self) -> None:
+        recorder = _RecordingFallbackTranslator()
+        result = DocumentTranslator(
+            recorder, marker_token_factory=_fixed_marker_token
+        ).translate_markdown_source(
+            "> [!NOTE]\n> Keep runs reproducible.\n", Locale("pt-BR")
+        )
+        # The [!kind] marker is fixed English syntax — markdown-it only
+        # accepts the five known kinds — so it must reach the translator
+        # as a protection marker, never as localizable text.
+        assert recorder.calls == [
+            "TR1X0123456789abcdefTR0X0123456789abcdefKeep runs reproducible."
+        ]
+        assert result == "> [!NOTE]\n> Keep runs reproducible.\n"
+
+    def test_github_alert_marker_survives_keyword_localization(self) -> None:
+        # A model that translates the keyword itself ("[!NOTE]" -> "[!NOTA]")
+        # must not demote the callout to a plain blockquote in the
+        # non-default locale.
+        result = DocumentTranslator(
+            _AlertKeywordLocalizingTranslator(),
+            marker_token_factory=_fixed_marker_token,
+        ).translate_markdown_source(
+            "> [!NOTE]\n> Keep runs reproducible.\n", Locale("pt-BR")
+        )
+        assert "> [!NOTE]" in result
+        assert "[!NOTA]" not in result
 
     def test_strikethrough_children_are_translated(self) -> None:
         translator = DocumentTranslator(

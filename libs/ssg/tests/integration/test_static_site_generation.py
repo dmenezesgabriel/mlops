@@ -6,6 +6,9 @@ import nbformat
 import pytest
 from ssg.application import StaticSiteBuilder
 from ssg.infrastructure.jinja_page_renderer import JinjaPageRenderer
+from ssg.infrastructure.markdown_alert_title_post_processor import (
+    MarkdownAlertTitlePostProcessor,
+)
 from ssg.infrastructure.markdown_content_renderer import (
     MarkdownContentRenderer,
 )
@@ -41,7 +44,10 @@ def test_static_site_generation_from_configured_content_collection(
             MarkdownContentRenderer(),
             NotebookContentRenderer(),
         ),
-        html_post_processors=(create_pygments_html_post_processor(),),
+        html_post_processors=(
+            MarkdownAlertTitlePostProcessor(),
+            create_pygments_html_post_processor(),
+        ),
         page_renderer=JinjaPageRenderer(),
         site_variant_provider=SingleSiteVariantProvider(),
         article_outline_builder=HtmlArticleOutlineBuilder(),
@@ -60,6 +66,7 @@ def test_static_site_generation_from_configured_content_collection(
     _assert_head_metadata(rendered_html, output_path)
     _assert_notebook_content_rendered(rendered_html)
     _assert_syntax_highlighting_rendered(rendered_html, overview_html)
+    _assert_alert_rendered(overview_html)
     _assert_site_files_written(output_path, page_path)
     _assert_seo_files_written(output_path)
     _assert_not_found_written(output_path)
@@ -120,6 +127,13 @@ def _assert_syntax_highlighting_rendered(
     assert '<code class="language-python">' in overview_html
     assert "highlight-token" in rendered_html
     assert '<code class="language-python">' in rendered_html
+
+
+def _assert_alert_rendered(overview_html: str) -> None:
+    assert '<div class="markdown-alert markdown-alert-note">' in overview_html
+    assert 'class="markdown-alert-title"' in overview_html
+    assert 'class="markdown-alert-icon"' in overview_html
+    assert "Reproducible builds matter." in overview_html
 
 
 def _assert_site_files_written(output_path: Path, page_path: Path) -> None:
@@ -225,6 +239,7 @@ def _write_config(site_path: Path, tmp_path: Path) -> None:
 def _write_markdown(source_root: Path) -> None:
     (source_root / "README.md").write_text(
         "# Overview\n\nA content collection.\n\n"
+        "> [!NOTE]\n> Reproducible builds matter.\n\n"
         "```python\n"
         "def prepare_features() -> None:\n"
         "    pass\n"

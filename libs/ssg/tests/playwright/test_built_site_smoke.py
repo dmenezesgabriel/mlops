@@ -17,6 +17,7 @@ class TestBuiltSiteSmoke:
         _assert_configured_pages(page, built_site_url)
         _assert_notebook_and_code_pages(page, built_site_url)
         _assert_static_assets(page, built_site_url)
+        _assert_alert_callouts(page, built_site_url)
         _assert_mobile_menu(page, built_site_url)
         _assert_code_copy_buttons(page, built_site_url)
         _assert_code_copy_degrades_without_js(page, built_site_url)
@@ -161,6 +162,25 @@ def _assert_static_assets(page: Page, base_url: str) -> None:
     assert script_response.status == 200
     assert "Newsreader" in css_response.text()
     assert "IntersectionObserver" in script_response.text()
+
+
+def _assert_alert_callouts(page: Page, base_url: str) -> None:
+    page.goto(
+        f"{base_url}/nyc-taxi-demand-forecasting/data-collection.html",
+        wait_until="networkidle",
+    )
+    alert = page.locator(".markdown-alert.markdown-alert-note")
+    expect(alert).to_be_visible()
+    expect(alert.locator(".markdown-alert-icon")).to_be_visible()
+    expect(alert.locator(".markdown-alert-title")).to_contain_text("Note")
+
+    page.goto(
+        f"{base_url}/pt-BR/nyc-taxi-demand-forecasting/data-collection.html",
+        wait_until="networkidle",
+    )
+    expect(
+        page.locator(".markdown-alert .markdown-alert-title")
+    ).to_contain_text("Nota")
 
 
 def _assert_mobile_menu(page: Page, base_url: str) -> None:

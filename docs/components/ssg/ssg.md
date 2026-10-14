@@ -37,6 +37,21 @@ Markdown pages and notebook markdown cells may use wikilinks:
 [[problem-framing|Problem Framing]]
 ```
 
+Markdown pages and notebook markdown cells may use GitHub alerts — a
+blockquote whose first line is exactly `> [!NOTE]`, `> [!TIP]`,
+`> [!IMPORTANT]`, `> [!WARNING]`, or `> [!CAUTION]` — rendered as a callout
+with a per-kind icon and title:
+
+```markdown
+> [!NOTE]
+> Cached files are not re-downloaded.
+```
+
+The title localizes through the variant's `i18n` extension settings
+(`label_alert_note` … `label_alert_caution`); the `[!kind]` marker itself is
+fixed English syntax that document translation preserves verbatim, while the
+alert body translates normally.
+
 ## Output
 
 The default build renders all configured collections into one navigable static site:

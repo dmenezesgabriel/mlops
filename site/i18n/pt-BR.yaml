@@ -31,6 +31,12 @@ translations:
   No results found: Nenhum resultado encontrado
   Page not found: Página não encontrada
   Back to home: Voltar ao início
+  Note: Nota
+  Tip: Dica
+  Important: Importante
+  Warning: Aviso
+  Caution: Cuidado
+  "[!NOTE]\nTo force a fresh pull, delete the target parquet file from `data/raw/` and re-run the collector.": "[!NOTE]\nPara forcar um novo download, exclua o arquivo parquet de destino em `data/raw/` e execute o coletor novamente."
   reports: relatorios
   Dispatches: Relatos
   Projects: Projetos

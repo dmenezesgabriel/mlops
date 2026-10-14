@@ -13,6 +13,9 @@ from ssg.application.ports import (
 from ssg.infrastructure.jinja_page_renderer import JinjaPageRenderer
 from ssg.infrastructure.local_preview_server import LocalPreviewServer
 from ssg.infrastructure.logging import StructuredLoggingConfigurator
+from ssg.infrastructure.markdown_alert_title_post_processor import (
+    MarkdownAlertTitlePostProcessor,
+)
 from ssg.infrastructure.markdown_content_renderer import (
     MarkdownContentRenderer,
 )
@@ -190,7 +193,7 @@ def load_html_post_processors() -> tuple[HtmlPostProcessor, ...]:
         )
         html_post_processors.append(html_post_processor)
 
-    return tuple(html_post_processors)
+    return (MarkdownAlertTitlePostProcessor(), *html_post_processors)
 
 
 def load_site_variant_provider() -> SiteVariantProvider | None:

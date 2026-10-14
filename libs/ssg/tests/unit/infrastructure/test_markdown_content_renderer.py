@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 from ssg.domain import BuildContext, ContentCollection, Page
+from ssg.infrastructure import markdown_content_renderer
 from ssg.infrastructure.in_memory_dependency_tracker import (
     InMemoryDependencyTracker,
 )
@@ -469,3 +470,128 @@ def test_render_rejects_missing_asset_file(
     # Act / Assert
     with pytest.raises(FileNotFoundError, match=match):
         MarkdownContentRenderer().render(collection, page, _context(tmp_path))
+
+
+@pytest.mark.parametrize(
+    ("marker", "kind"),
+    [
+        ("[!NOTE]", "note"),
+        ("[!TIP]", "tip"),
+        ("[!IMPORTANT]", "important"),
+        ("[!WARNING]", "warning"),
+        ("[!CAUTION]", "caution"),
+    ],
+)
+def test_render_github_alert_becomes_callout(
+    tmp_path: Path, marker: str, kind: str
+) -> None:
+    # Arrange — GitHub-alert syntax: the marker must be alone on the first
+    # blockquote line (markdown-it `alerts` option, rules_block/blockquote).
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    page = Page(
+        slug="overview",
+        title="Overview",
+        source_path=source_root / "index.md",
+    )
+
+    # Act
+    rendered = MarkdownContentRenderer().render_markdown(
+        f"> {marker}\n> Useful context.\n",
+        _collection(source_root),
+        _context(tmp_path),
+        page,
+    )
+
+    # Assert
+    assert f'<div class="markdown-alert markdown-alert-{kind}">' in rendered
+    title = marker.removeprefix("[!").removesuffix("]").capitalize()
+    assert f'<p class="markdown-alert-title">{title}</p>' in rendered
+    assert "<p>Useful context.</p>" in rendered
+    assert "<blockquote>" not in rendered
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "> [!BOGUS]\n> Not a real kind.\n",
+        "> [!TIP] trailing text\n> Marker must stand alone.\n",
+        "> A plain quote.\n",
+    ],
+    ids=["unknown-kind", "marker-with-trailing-text", "plain-blockquote"],
+)
+def test_render_non_alert_blockquote_stays_blockquote(
+    tmp_path: Path, source: str
+) -> None:
+    # Arrange — only the five GitHub kinds on their own line promote;
+    # anything else is an ordinary blockquote.
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    page = Page(
+        slug="overview",
+        title="Overview",
+        source_path=source_root / "index.md",
+    )
+
+    # Act
+    rendered = MarkdownContentRenderer().render_markdown(
+        source, _collection(source_root), _context(tmp_path), page
+    )
+
+    # Assert
+    assert "<blockquote>" in rendered
+    assert "markdown-alert" not in rendered
+
+
+def test_render_alert_renders_inner_markdown(tmp_path: Path) -> None:
+    # Arrange — the alert body is full markdown, not a plain-text slot.
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    page = Page(
+        slug="overview",
+        title="Overview",
+        source_path=source_root / "index.md",
+    )
+
+    # Act
+    rendered = MarkdownContentRenderer().render_markdown(
+        "> [!WARNING]\n> - first\n> - second\n",
+        _collection(source_root),
+        _context(tmp_path),
+        page,
+    )
+
+    # Assert
+    assert '<div class="markdown-alert markdown-alert-warning">' in rendered
+    assert "<ul>" in rendered
+    assert "<li>first</li>" in rendered
+
+
+def test_render_alerts_stay_enabled_when_table_plugin_wins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Arrange — alerts currently arrive via the gfm fallback's side effect;
+    # when a dedicated table plugin is importable the fallback is skipped,
+    # so the renderer must enable the `alerts` option itself (markdown-it
+    # models it as an option, not a rule).
+    monkeypatch.setattr(
+        markdown_content_renderer, "table_plugin", lambda md: None
+    )
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+    page = Page(
+        slug="overview",
+        title="Overview",
+        source_path=source_root / "index.md",
+    )
+
+    # Act
+    rendered = MarkdownContentRenderer().render_markdown(
+        "> [!NOTE]\n> Useful context.\n",
+        _collection(source_root),
+        _context(tmp_path),
+        page,
+    )
+
+    # Assert
+    assert 'class="markdown-alert markdown-alert-note"' in rendered

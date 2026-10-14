@@ -91,10 +91,12 @@ _MATH_MARKER_REGEX = r"MATHEXPR\d+X[0-9a-fA-F]+"
 # The MATHEXPR arm deliberately has no \b before it: markers glued to a
 # preceding token ("hour:TR1MATHEXPR1") must still be protected. The hex
 # suffix makes an authored literal unable to match, so \b buys nothing.
+# GitHub-alert markers are fixed English syntax — markdown-it only accepts
+# the five known kinds — so the keyword must never reach the translator as
+# localizable text, where a model could rewrite "[!NOTE]" into "[!NOTA]".
 _PROTECTED_PATTERN = re.compile(
     r"(\{\{.*?\}\}|\{\%.*?\}\}|\$\$.*?\$\$|(?<!\$)\$[^\$\s](?:[^\$]*?[^\$\s])?\$(?!\d)|https?://\S+|"
-    + _MATH_MARKER_REGEX
-    + ")",
+    r"\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]|" + _MATH_MARKER_REGEX + ")",
     re.DOTALL,
 )
 _WIKILINK_PATTERN = re.compile(r"\[\[([a-zA-Z0-9_-]+)(?:\|([^\]]+))?\]\]")

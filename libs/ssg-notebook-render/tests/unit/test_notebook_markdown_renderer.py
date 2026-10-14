@@ -245,3 +245,80 @@ def test_renderer_prefers_table_plugin_over_gfm_fallback(
 
     # Assert
     assert used_plugins == ["table"]
+
+
+@pytest.mark.parametrize(
+    ("marker", "kind"),
+    [
+        ("[!NOTE]", "note"),
+        ("[!TIP]", "tip"),
+        ("[!IMPORTANT]", "important"),
+        ("[!WARNING]", "warning"),
+        ("[!CAUTION]", "caution"),
+    ],
+)
+def test_render_markdown_github_alert_becomes_callout(
+    tmp_path: Path, marker: str, kind: str
+) -> None:
+    # Arrange — notebook markdown cells share the GitHub-alert syntax with
+    # plain pages (markdown-it `alerts` option).
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+
+    # Act
+    rendered = NotebookMarkdownRenderer().render_markdown(
+        f"> {marker}\n> Useful context.\n",
+        _collection(source_root),
+        _context(tmp_path),
+        _page(source_root / "cell.ipynb"),
+    )
+
+    # Assert
+    assert f'<div class="markdown-alert markdown-alert-{kind}">' in rendered
+    title = marker.removeprefix("[!").removesuffix("]").capitalize()
+    assert f'<p class="markdown-alert-title">{title}</p>' in rendered
+    assert "<blockquote>" not in rendered
+
+
+def test_render_markdown_non_alert_blockquote_stays_blockquote(
+    tmp_path: Path,
+) -> None:
+    # Arrange — an unknown kind never promotes out of a plain blockquote.
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+
+    # Act
+    rendered = NotebookMarkdownRenderer().render_markdown(
+        "> [!BOGUS]\n> Not a real kind.\n",
+        _collection(source_root),
+        _context(tmp_path),
+        _page(source_root / "cell.ipynb"),
+    )
+
+    # Assert
+    assert "<blockquote>" in rendered
+    assert "markdown-alert" not in rendered
+
+
+def test_render_markdown_alerts_stay_enabled_when_table_plugin_wins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Arrange — with a bound table plugin the gfm fallback (which sets the
+    # `alerts` option as a side effect) is skipped; the renderer must enable
+    # alerts itself.
+    monkeypatch.setattr(
+        notebook_content_renderer, "table_plugin", lambda md: None
+    )
+    source_root = tmp_path / "content"
+    source_root.mkdir()
+
+    # Act
+    rendered = NotebookMarkdownRenderer().render_markdown(
+        "> [!NOTE]\n> Useful context.\n",
+        _collection(source_root),
+        _context(tmp_path),
+        _page(source_root / "cell.ipynb"),
+    )
+
+    # Assert
+    assert 'class="markdown-alert markdown-alert-note"' in rendered

@@ -94,6 +94,10 @@ class NotebookMarkdownRenderer(MarkdownRenderer):
             md.use(table_plugin)
         elif gfm_plugin is not None:
             md.use(gfm_plugin)
+        # GitHub alerts (`> [!NOTE]` blockquotes) are an option, not a rule —
+        # the gfm fallback sets it only when it loads, so enable it directly
+        # to keep callouts independent of which table plugin won above.
+        md.options["alerts"] = True
         self._markdown = md
         self._fragment_renderer = (
             fragment_renderer or NotebookFragmentRenderer()
