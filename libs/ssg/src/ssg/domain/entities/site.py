@@ -17,6 +17,11 @@ class Site:
     extensions: dict[str, dict[str, str]] | None = None
     url: str = ""
     repo_url: str = ""
+    # edit_base_url joins the repo-relative source path into a "edit this
+    # page" href (e.g. https://github.com/org/repo/edit/master); last_updated
+    # opts pages into a git-derived "last updated" date.
+    edit_base_url: str = ""
+    last_updated: bool = False
 
     def html_language(self) -> str:
         return self.locale

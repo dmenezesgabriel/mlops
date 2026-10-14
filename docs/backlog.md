@@ -56,7 +56,7 @@ portfolio.
 | SX-11 | [x] Admonitions: GitHub-alert `> [!NOTE|TIP|IMPORTANT|WARNING|CAUTION]` in md + notebook cells, i18n labels, callout CSS; FR-21 | M | starlight `integrations/remark-asides.ts` + `user-components/Aside.astro`; material `docs/reference/admonitions.md`; `mdit_py_plugins` already in `.venv` (`admon`, `colon_fence`); ours `markdown_content_renderer.py:64-79` loader + notebook renderer | — |
 | SX-12 | [x] TOC scrollspy (`aria-current`) + back-to-top button; FR-22 | S | material `toc.follow`/`navigation.top` (`setting-up-navigation.md:451,498`); starlight `TableOfContents.astro`; ours `site.js:13-27` IntersectionObserver precedent, `partials/article_toc.html` | — |
 | SX-13 | [x] Mobile TOC `<details>` at article top, visible ≤58rem; FR-23 | S | starlight `MobileTableOfContents.astro`; ours `partials/article_toc.html` + `page.html:19-35`, breakpoint `site.css:540` | — |
-| SX-14 | [ ] Last-updated (git log per page source) + edit-this-page link; FR-24 | M | starlight `LastUpdated.astro`/`EditLink.astro` + `user-config.ts:200,261`; ours `site_config_repository.py`, `partials/footer.html`/`pager.html` region, `site.repo_url` from SX-7 | SX-7 |
+| SX-14 | [x] Last-updated (git log per page source) + edit-this-page link; FR-24 | M | starlight `LastUpdated.astro`/`EditLink.astro` + `utils/git.ts` degrade-to-omit; ours `ports/source_revision_provider.py`, `infrastructure/git_source_revision_provider.py`, `static_site_builder.py:370,404-417`, `partials/page_meta.html` + `page.html:35`, `Page.original_source_path` provenance, `site.edit_base_url`/`last_updated` in `site_config_repository.py:40-44`, i18n labels via `i18n_site_variant_provider.py` | SX-7 |
 
 ## Definition of Done (all items)
 

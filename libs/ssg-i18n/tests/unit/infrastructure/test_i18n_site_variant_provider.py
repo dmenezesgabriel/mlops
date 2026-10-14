@@ -645,3 +645,74 @@ def test_variants_preserves_site_urls_in_non_default_locale(
     assert variants[0].site.url == "https://example.com/docs"
     assert variants[1].site.url == "https://example.com/docs"
     assert variants[1].site.repo_url == "https://github.com/example/repo"
+
+
+def test_variants_preserves_edit_meta_settings_in_non_default_locale(
+    tmp_path: Path,
+) -> None:
+    # Arrange — edit_base_url/last_updated must survive localization or the
+    # meta row would silently vanish from non-default-locale pages.
+    collection = _write_collection(
+        tmp_path / "content", "coll0", (("a", "First words.\n"),)
+    )
+    provider = I18nSiteVariantProvider(RecordingTextTranslator({}))
+    site = replace(
+        _make_site(collection),
+        edit_base_url="https://github.com/example/repo/edit/main",
+        last_updated=True,
+    )
+
+    # Act
+    variants = provider.variants(site, _make_context(tmp_path))
+
+    # Assert
+    for variant in variants:
+        assert variant.site.edit_base_url == (
+            "https://github.com/example/repo/edit/main"
+        )
+        assert variant.site.last_updated is True
+
+
+def test_variants_localized_page_keeps_original_source_path(
+    tmp_path: Path,
+) -> None:
+    # Arrange — the pt-BR page renders a generated intermediate under
+    # .ssg/generated-i18n (gitignored); original_source_path keeps pointing
+    # at the authored file so git history and edit links stay real.
+    collection = _write_collection(
+        tmp_path / "content", "coll0", (("a", "First words.\n"),)
+    )
+    provider = I18nSiteVariantProvider(RecordingTextTranslator({}))
+    site = _make_site(collection)
+    authored = collection.pages[0].source_path
+
+    # Act
+    variants = provider.variants(site, _make_context(tmp_path))
+
+    # Assert
+    localized_page = variants[1].site.collections[0].pages[0]
+    assert localized_page.source_path != authored
+    assert localized_page.original_source_path == authored
+
+
+def test_variants_translates_page_meta_labels(tmp_path: Path) -> None:
+    # Arrange
+    collection = _write_collection(
+        tmp_path / "content", "coll0", (("a", "First words.\n"),)
+    )
+    translator = RecordingTextTranslator(
+        {
+            "Edit page": "Editar página",
+            "Last updated:": "Última atualização:",
+        }
+    )
+    provider = I18nSiteVariantProvider(translator)
+    site = _make_site(collection)
+
+    # Act
+    variants = provider.variants(site, _make_context(tmp_path))
+
+    # Assert
+    portuguese_i18n = variants[1].site.extensions["i18n"]
+    assert portuguese_i18n["label_edit_page"] == "Editar página"
+    assert portuguese_i18n["label_last_updated"] == "Última atualização:"

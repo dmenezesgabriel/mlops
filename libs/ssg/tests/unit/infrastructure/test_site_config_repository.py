@@ -787,3 +787,105 @@ def test_load_rejects_non_absolute_site_urls(
     # Act / Assert
     with pytest.raises(ValueError, match="expected absolute http"):
         SiteConfigRepository().load(config_path)
+
+
+def test_load_reads_edit_base_url_and_last_updated(tmp_path: Path) -> None:
+    # Arrange
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "  edit_base_url: https://github.com/example/repo/edit/main\n"
+        "  last_updated: true\n"
+        "collections:\n"
+        "  - name: sample_collection\n"
+        "    title: Sample Collection\n"
+        "    source_root: ../content/sample_collection\n"
+        "    pages:\n"
+        "      - slug: overview\n"
+        "        title: Overview\n"
+        "        source: README.md\n",
+        encoding="utf-8",
+    )
+
+    # Act
+    site = SiteConfigRepository().load(config_path)
+
+    # Assert
+    assert site.edit_base_url == "https://github.com/example/repo/edit/main"
+    assert site.last_updated is True
+
+
+def test_load_defaults_edit_base_url_and_last_updated(
+    tmp_path: Path,
+) -> None:
+    # Arrange — both are opt-in: no edit link renders without a base URL
+    # and no git probe runs until last_updated is set.
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n  title: Learning Site\ncollections: []\n",
+        encoding="utf-8",
+    )
+
+    # Act
+    site = SiteConfigRepository().load(config_path)
+
+    # Assert
+    assert site.edit_base_url == ""
+    assert site.last_updated is False
+
+
+def test_load_rejects_non_string_edit_base_url(tmp_path: Path) -> None:
+    # Arrange
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n  title: Learning Site\n  edit_base_url: 42\n"
+        "collections: []\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="expected edit_base_url string"):
+        SiteConfigRepository().load(config_path)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["example.com/no-scheme", "/relative/path", "ftp://example.com"],
+)
+def test_load_rejects_non_absolute_edit_base_url(
+    tmp_path: Path, value: str
+) -> None:
+    # Arrange — the base joins page source paths into an edit href, so it
+    # must be an absolute http(s) URL like url/repo_url.
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        f'  edit_base_url: "{value}"\n'
+        "collections: []\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="expected absolute http"):
+        SiteConfigRepository().load(config_path)
+
+
+@pytest.mark.parametrize("value", ['"true"', "42", "[x]"])
+def test_load_rejects_non_boolean_last_updated(
+    tmp_path: Path, value: str
+) -> None:
+    # Arrange
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        f"  last_updated: {value}\n"
+        "collections: []\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="expected last_updated boolean"):
+        SiteConfigRepository().load(config_path)

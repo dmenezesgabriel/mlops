@@ -1,6 +1,8 @@
+from datetime import date
 from importlib.resources import files
 from pathlib import Path
 
+import pytest
 from ssg.domain import (
     Article,
     ArticleHeading,
@@ -973,6 +975,163 @@ def test_render_not_found_links_back_home(tmp_path: Path) -> None:
     # Assert
     assert 'href="index.html"' in rendered_html
     assert "Back to home" in rendered_html
+
+
+def test_render_page_emits_page_meta_above_pager(tmp_path: Path) -> None:
+    # Arrange — starlight footer order: the meta row (edit link, last
+    # updated) sits above the prev/next pager inside the content column.
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path)
+    rendered_page = RenderedPage(
+        site=site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Overview", body="<p>Rendered content.</p>", headings=()
+        ),
+        navigation=site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+        edit_url=("https://github.com/example/repo/edit/main/README.md"),
+        last_updated=date(2025, 1, 2),
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert '<div class="page-meta">' in rendered_html
+    assert (
+        '<a class="edit-link" '
+        'href="https://github.com/example/repo/edit/main/README.md">'
+        in rendered_html
+    )
+    assert "Edit page" in rendered_html
+    assert "Last updated:" in rendered_html
+    assert '<time datetime="2025-01-02">Jan 2, 2025</time>' in rendered_html
+    assert rendered_html.index('class="page-meta"') < rendered_html.index(
+        'class="pager"'
+    )
+
+
+def test_render_page_localizes_page_meta(tmp_path: Path) -> None:
+    # Arrange
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path)
+    localized_site = Site(
+        title=site.title,
+        description=site.description,
+        collections=site.collections,
+        locale="pt-BR",
+        extensions={
+            "i18n": {
+                "label_edit_page": "Editar página",
+                "label_last_updated": "Última atualização:",
+            }
+        },
+    )
+    rendered_page = RenderedPage(
+        site=localized_site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Visao Geral", body="<p>Conteudo.</p>", headings=()
+        ),
+        navigation=localized_site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+        edit_url="https://github.com/example/repo/edit/main/README.md",
+        last_updated=date(2025, 1, 2),
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert "Editar página" in rendered_html
+    assert "Última atualização:" in rendered_html
+    assert (
+        '<time datetime="2025-01-02">2 de jan. de 2025</time>' in rendered_html
+    )
+
+
+def test_render_page_omits_page_meta_without_revision_fields(
+    tmp_path: Path,
+) -> None:
+    # Arrange — neither field set: the row must disappear entirely, not
+    # render an empty flex container.
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path)
+    rendered_page = RenderedPage(
+        site=site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Overview", body="<p>Rendered content.</p>", headings=()
+        ),
+        navigation=site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert "page-meta" not in rendered_html
+    assert "<time" not in rendered_html
+
+
+@pytest.mark.parametrize(
+    ("edit_url", "last_updated", "expected_present", "expected_absent"),
+    [
+        (
+            "https://github.com/example/repo/edit/main/README.md",
+            None,
+            "edit-link",
+            "<time",
+        ),
+        (
+            None,
+            date(2025, 1, 2),
+            "last-updated",
+            "edit-link",
+        ),
+    ],
+    ids=["edit_link_only", "last_updated_only"],
+)
+def test_render_page_meta_renders_each_field_independently(
+    tmp_path: Path,
+    edit_url: str | None,
+    last_updated: date | None,
+    expected_present: str,
+    expected_absent: str,
+) -> None:
+    # Arrange — the two opt-ins are independent (starlight renders each
+    # only when its own value resolves).
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path)
+    rendered_page = RenderedPage(
+        site=site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Overview", body="<p>Rendered content.</p>", headings=()
+        ),
+        navigation=site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+        edit_url=edit_url,
+        last_updated=last_updated,
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert '<div class="page-meta">' in rendered_html
+    assert expected_present in rendered_html
+    assert expected_absent not in rendered_html
 
 
 def _site_with_collection(

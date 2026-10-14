@@ -1,4 +1,5 @@
 import json
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -159,6 +160,26 @@ class LocalizedSiteVariantProvider:
                 site=localized_site, output_path=context.output_path / "pt-BR"
             ),
         )
+
+
+class FakeSourceRevisionProvider:
+    """Fixed revision facts; records the paths it was asked about."""
+
+    def __init__(
+        self, commit_date: date | None, repository_path: str | None
+    ) -> None:
+        self._commit_date = commit_date
+        self._repository_path = repository_path
+        self.commit_date_calls: list[Path] = []
+        self.repository_path_calls: list[Path] = []
+
+    def newest_commit_date(self, path: Path) -> date | None:
+        self.commit_date_calls.append(path)
+        return self._commit_date
+
+    def repository_path(self, path: Path) -> str | None:
+        self.repository_path_calls.append(path)
+        return self._repository_path
 
 
 class TestStaticSiteBuilder:
@@ -1120,6 +1141,248 @@ class TestStaticSiteBuilder:
         assert [
             link.href for link in portuguese.language_links if link.current
         ] == ["https://example.com/docs/pt-BR/404.html"]
+
+    def test_build_populates_edit_link_and_last_updated(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — starlight shape: editLink.baseUrl + repo-relative source
+        # path; lastUpdated = the source file's newest commit date.
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        site = Site(
+            title="Learning Site",
+            description="",
+            collections=(collection,),
+            edit_base_url="https://github.com/example/repo/edit/main/",
+            last_updated=True,
+        )
+        revisions = FakeSourceRevisionProvider(
+            commit_date=date(2025, 1, 2),
+            repository_path="content/sample_collection/README.md",
+        )
+        page_renderer = SpyPageRenderer()
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=page_renderer,
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+            site_variant_provider=SingleSiteVariantProvider(),
+            source_revision_provider=revisions,
+        )
+
+        # Act
+        builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+        # Assert
+        rendered_page = page_renderer.render_page_calls[0]
+        assert rendered_page.edit_url == (
+            "https://github.com/example/repo/edit/main/"
+            "content/sample_collection/README.md"
+        )
+        assert rendered_page.last_updated == date(2025, 1, 2)
+        assert revisions.repository_path_calls == [page.source_path]
+        assert revisions.commit_date_calls == [page.source_path]
+
+    def test_build_queries_original_source_path_when_set(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — localized variants render a generated intermediate file;
+        # revision facts must come from the authored source it replaced.
+        generated_source = tmp_path / ".ssg" / "generated" / "page.md"
+        original_source = tmp_path / "content" / "page.md"
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=generated_source,
+            original_source_path=original_source,
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        site = Site(
+            title="Learning Site",
+            description="",
+            collections=(collection,),
+            edit_base_url="https://github.com/example/repo/edit/main",
+            last_updated=True,
+        )
+        revisions = FakeSourceRevisionProvider(
+            commit_date=date(2025, 1, 2),
+            repository_path="content/page.md",
+        )
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=SpyPageRenderer(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+            site_variant_provider=SingleSiteVariantProvider(),
+            source_revision_provider=revisions,
+        )
+
+        # Act
+        builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+        # Assert
+        assert revisions.repository_path_calls == [original_source]
+        assert revisions.commit_date_calls == [original_source]
+
+    def test_build_omits_page_meta_when_features_not_configured(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — both features are opt-in: no edit_base_url, no
+        # last_updated flag means the provider is never probed.
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        site = Site(
+            title="Learning Site", description="", collections=(collection,)
+        )
+        revisions = FakeSourceRevisionProvider(
+            commit_date=date(2025, 1, 2), repository_path="README.md"
+        )
+        page_renderer = SpyPageRenderer()
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=page_renderer,
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+            site_variant_provider=SingleSiteVariantProvider(),
+            source_revision_provider=revisions,
+        )
+
+        # Act
+        builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+        # Assert
+        rendered_page = page_renderer.render_page_calls[0]
+        assert rendered_page.edit_url is None
+        assert rendered_page.last_updated is None
+        assert revisions.repository_path_calls == []
+        assert revisions.commit_date_calls == []
+
+    def test_build_omits_page_meta_when_revisions_unavailable(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — configured but git has nothing to say (file outside any
+        # work tree): the meta row degrades away instead of failing.
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        site = Site(
+            title="Learning Site",
+            description="",
+            collections=(collection,),
+            edit_base_url="https://github.com/example/repo/edit/main",
+            last_updated=True,
+        )
+        revisions = FakeSourceRevisionProvider(
+            commit_date=None, repository_path=None
+        )
+        page_renderer = SpyPageRenderer()
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=page_renderer,
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+            site_variant_provider=SingleSiteVariantProvider(),
+            source_revision_provider=revisions,
+        )
+
+        # Act
+        builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+        # Assert
+        rendered_page = page_renderer.render_page_calls[0]
+        assert rendered_page.edit_url is None
+        assert rendered_page.last_updated is None
+
+    def test_build_omits_page_meta_without_revision_provider(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — a builder composed without the port (e.g. minimal test
+        # harnesses) renders the page with no meta rather than failing.
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        site = Site(
+            title="Learning Site",
+            description="",
+            collections=(collection,),
+            edit_base_url="https://github.com/example/repo/edit/main",
+            last_updated=True,
+        )
+        page_renderer = SpyPageRenderer()
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=page_renderer,
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+            site_variant_provider=SingleSiteVariantProvider(),
+        )
+
+        # Act
+        builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+        # Assert
+        rendered_page = page_renderer.render_page_calls[0]
+        assert rendered_page.edit_url is None
+        assert rendered_page.last_updated is None
 
     def test_404_urls_stay_relative_without_site_url(
         self, tmp_path: Path

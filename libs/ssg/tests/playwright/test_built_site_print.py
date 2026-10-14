@@ -31,18 +31,21 @@ _PRINT_INK = "rgb(21, 17, 13)"
 def _assert_print_hides_chrome(page: Page, base_url: str) -> None:
     page.emulate_media(media="print")
     page.goto(f"{base_url}{_ARTICLE_PATH}", wait_until="networkidle")
-    # Nav, on-page TOC, pager and the interactive header controls are dead
-    # weight on paper; the article itself and the masthead stay.
+    # Nav, on-page TOC, pager, edit link and the interactive header
+    # controls are dead weight on paper; the article itself, the
+    # last-updated date and the masthead stay.
     for selector in (
         ".sidebar",
         ".article-toc",
         ".mobile-toc",
         ".pager",
+        ".edit-link",
         ".header-actions",
         ".skip-link",
     ):
         expect(page.locator(selector)).not_to_be_visible()
     expect(page.locator(".article")).to_be_visible()
+    expect(page.locator(".page-meta")).to_be_visible()
     expect(page.locator(".site-header")).to_be_visible()
 
 

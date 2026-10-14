@@ -77,8 +77,8 @@ Steps:
     - Evidence: material `setting-up-navigation.md:451,498`; `site.js:13-27`
 13. [x] Mobile TOC `<details>` (SX-13)
     - Evidence: starlight `MobileTableOfContents.astro`; `site.css:540`
-14. [ ] Last-updated + edit-this-page (SX-14)
-    - Evidence: starlight `LastUpdated.astro`/`EditLink.astro`, `user-config.ts:200,261`
+14. [x] Last-updated + edit-this-page (SX-14)
+    - Evidence: starlight `LastUpdated.astro`/`EditLink.astro` + `utils/git.ts`; ours `infrastructure/git_source_revision_provider.py`, `partials/page_meta.html`
 
 **Exit criteria:** `make quality` green for `libs/ssg` +
 `libs/ssg-syntax-highlighting`; `make build-site` emits

@@ -172,6 +172,8 @@ class I18nSiteVariantProvider(SiteVariantProvider):
             extensions=self._localized_extensions(site, session),
             url=site.url,
             repo_url=site.repo_url,
+            edit_base_url=site.edit_base_url,
+            last_updated=site.last_updated,
         )
 
     def _translation_session(
@@ -241,6 +243,8 @@ class I18nSiteVariantProvider(SiteVariantProvider):
             "label_not_found": "Page not found",
             "label_home": "Back to home",
             "label_back_to_top": "Back to top",
+            "label_edit_page": "Edit page",
+            "label_last_updated": "Last updated:",
             "label_alert_note": "Note",
             "label_alert_tip": "Tip",
             "label_alert_important": "Important",
@@ -292,6 +296,9 @@ class I18nSiteVariantProvider(SiteVariantProvider):
             slug=page.slug,
             title=session.translate(page.title),
             source_path=source_path,
+            # The generated translation stands in for source_path; keep the
+            # authored file as provenance for git history and edit links.
+            original_source_path=page.original_source_path or page.source_path,
         )
 
     def _ensure_translated_file(

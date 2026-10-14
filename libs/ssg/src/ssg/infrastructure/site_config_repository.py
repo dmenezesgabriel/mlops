@@ -37,6 +37,12 @@ class SiteConfigRepository(SiteRepository):
             collections=collections,
             url=self._optional_url(site_config, "url", config_path),
             repo_url=self._optional_url(site_config, "repo_url", config_path),
+            edit_base_url=self._optional_url(
+                site_config, "edit_base_url", config_path
+            ),
+            last_updated=self._optional_bool(
+                site_config, "last_updated", False, config_path
+            ),
         )
 
     def _reject_duplicate_collections(
@@ -367,6 +373,21 @@ class SiteConfigRepository(SiteRepository):
         raise ValueError(
             f"Invalid site {key} {value!r} in {config_path}: "
             "expected absolute http(s) URL"
+        )
+
+    def _optional_bool(
+        self,
+        config: Mapping[object, object],
+        key: str,
+        default: bool,
+        config_path: Path,
+    ) -> bool:
+        value = config.get(key, default)
+        if isinstance(value, bool):
+            return value
+
+        raise ValueError(
+            f"Invalid site config {config_path}: expected {key} boolean"
         )
 
     def _require_string_key(self, key: object, config_path: Path) -> str:

@@ -1,0 +1,15 @@
+{% if rendered_page.edit_url or rendered_page.last_updated %}
+<div class="page-meta">
+  {% if rendered_page.edit_url %}
+    <a class="edit-link" href="{{ rendered_page.edit_url }}">
+      {{- site.extension_setting('i18n', 'label_edit_page', 'Edit page') -}}
+    </a>
+  {% endif %}
+  {% if rendered_page.last_updated %}
+    <p class="last-updated">
+      {{ site.extension_setting('i18n', 'label_last_updated', 'Last updated:') }}
+      <time datetime="{{ rendered_page.last_updated.isoformat() }}">{{ rendered_page.last_updated | format_date(site.locale) }}</time>
+    </p>
+  {% endif %}
+</div>
+{% endif %}

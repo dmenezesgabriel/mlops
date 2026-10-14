@@ -3,6 +3,8 @@ site:
   description: Real-world machine learning projects and end-to-end MLOps workflows.
   url: https://dmenezesgabriel.github.io/mlops
   repo_url: https://github.com/dmenezesgabriel/mlops
+  edit_base_url: https://github.com/dmenezesgabriel/mlops/edit/master
+  last_updated: true
 extensions:
   i18n:
     default_locale: en

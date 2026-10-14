@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from urllib.parse import urldefrag
 
@@ -77,6 +78,16 @@ class TestBuiltSiteSmoke:
         _assert_mobile_toc_localizes(page, built_site_url)
         _assert_mobile_toc_hidden_on_desktop(page, built_site_url)
         _assert_mobile_toc_works_without_js(page, built_site_url)
+
+    def test_built_site_shows_page_meta(
+        self,
+        page: Page,
+        built_site_url: str,
+    ) -> None:
+        _assert_page_meta_english(page, built_site_url)
+        _assert_page_meta_pt_br(page, built_site_url)
+        _assert_page_meta_sits_above_pager(page, built_site_url)
+        _assert_page_meta_visible_without_js(page, built_site_url)
 
 
 def _assert_home_page(page: Page, base_url: str) -> None:
@@ -613,6 +624,59 @@ def _assert_mobile_toc_works_without_js(page: Page, base_url: str) -> None:
     expect(mobile_toc).to_be_visible()
     mobile_toc.locator("summary").click()
     assert mobile_toc.get_attribute("open") is not None
+
+
+_ARTICLE_PAGE = "/nyc-taxi-demand-forecasting/overview.html"
+_EDIT_BASE = "https://github.com/dmenezesgabriel/mlops/edit/master/"
+
+
+def _assert_page_meta_english(page: Page, base_url: str) -> None:
+    page.goto(f"{base_url}{_ARTICLE_PAGE}", wait_until="networkidle")
+    meta = page.locator(".page-meta")
+    expect(meta).to_be_visible()
+
+    edit_link = meta.locator(".edit-link")
+    expect(edit_link).to_contain_text("Edit page")
+    href = edit_link.get_attribute("href")
+    assert href and href.startswith(_EDIT_BASE)
+
+    time = meta.locator("time")
+    expect(time).to_be_visible()
+    expect(time).to_have_attribute(
+        "datetime", re.compile(r"\d{4}-\d{2}-\d{2}")
+    )
+    expect(meta).to_contain_text("Last updated:")
+
+
+def _assert_page_meta_pt_br(page: Page, base_url: str) -> None:
+    page.goto(f"{base_url}/pt-BR{_ARTICLE_PAGE}", wait_until="networkidle")
+    meta = page.locator(".page-meta")
+    expect(meta.locator(".edit-link")).to_contain_text("Editar página")
+    expect(meta).to_contain_text("Última atualização:")
+    # The pt-BR page renders a generated .ssg intermediate; its edit link
+    # must still resolve to the authored source file.
+    href = meta.locator(".edit-link").get_attribute("href")
+    assert href and href.startswith(_EDIT_BASE)
+    assert ".ssg" not in href
+
+
+def _assert_page_meta_sits_above_pager(page: Page, base_url: str) -> None:
+    page.goto(f"{base_url}{_ARTICLE_PAGE}", wait_until="networkidle")
+    # DOCUMENT_POSITION_FOLLOWING (4): the pager must follow the meta row.
+    position = page.evaluate(
+        "() => document.querySelector('.page-meta')"
+        ".compareDocumentPosition(document.querySelector('.pager'))"
+    )
+    assert position & 4
+
+
+def _assert_page_meta_visible_without_js(page: Page, base_url: str) -> None:
+    # The meta row is static markup: a no-JS reader still gets both fields.
+    page.route("**/assets/site.js", lambda route: route.abort())
+    page.goto(f"{base_url}{_ARTICLE_PAGE}", wait_until="networkidle")
+    page.unroute("**/assets/site.js")
+    expect(page.locator(".page-meta")).to_be_visible()
+    expect(page.locator(".page-meta time")).to_be_visible()
 
 
 def _configured_paths() -> tuple[str, ...]:

@@ -9,6 +9,7 @@ dependencies = [
   "markupsafe==3.0.3",
   "pyyaml==6.0.3",
   "watchdog==6.0.0",
+  "babel==2.17.0",
 ]
 
 [project.optional-dependencies]

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import date
 from typing import TYPE_CHECKING
 
 from ssg.domain.value_objects.language_link import LanguageLink
@@ -22,3 +23,5 @@ class RenderedPage:
     previous_link: PagerLink | None
     next_link: PagerLink | None
     language_links: tuple[LanguageLink, ...] = ()
+    edit_url: str | None = None
+    last_updated: date | None = None

@@ -77,6 +77,9 @@ def _dispatch(arguments: argparse.Namespace) -> None:
 
 
 def create_site_builder() -> StaticSiteBuilder:
+    from ssg.infrastructure.git_source_revision_provider import (
+        GitSourceRevisionProvider,
+    )
     from ssg.infrastructure.html_article_outline_builder import (
         HtmlArticleOutlineBuilder,
     )
@@ -98,6 +101,7 @@ def create_site_builder() -> StaticSiteBuilder:
         article_outline_builder=HtmlArticleOutlineBuilder(),
         dependency_tracker=InMemoryDependencyTracker(),
         search_index=InMemorySearchIndex(),
+        source_revision_provider=GitSourceRevisionProvider(),
     )
 
 

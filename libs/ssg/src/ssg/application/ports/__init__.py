@@ -9,6 +9,9 @@ from ssg.application.ports.search_index import SearchIndex
 from ssg.application.ports.site_reloader import SiteReloader
 from ssg.application.ports.site_repository import SiteRepository
 from ssg.application.ports.site_variant_provider import SiteVariantProvider
+from ssg.application.ports.source_revision_provider import (
+    SourceRevisionProvider,
+)
 
 __all__ = [
     "ArticleOutlineBuilder",
@@ -22,4 +25,5 @@ __all__ = [
     "SiteReloader",
     "SiteRepository",
     "SiteVariantProvider",
+    "SourceRevisionProvider",
 ]

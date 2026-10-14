@@ -32,6 +32,7 @@
         </header>
         <div class="article-body stack">{{ rendered_page.article.body | safe }}</div>
       </article>
+      {% include 'partials/page_meta.html' %}
       {% include 'partials/pager.html' %}
     </main>
     {% include 'partials/article_toc.html' %}

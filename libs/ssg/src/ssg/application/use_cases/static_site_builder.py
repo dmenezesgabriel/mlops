@@ -1,5 +1,6 @@
 import os
 from dataclasses import replace
+from datetime import date
 from logging import getLogger
 from pathlib import Path
 from uuid import uuid4
@@ -12,6 +13,9 @@ from ssg.application.ports.page_renderer import PageRenderer
 from ssg.application.ports.search_index import SearchIndex
 from ssg.application.ports.site_repository import SiteRepository
 from ssg.application.ports.site_variant_provider import SiteVariantProvider
+from ssg.application.ports.source_revision_provider import (
+    SourceRevisionProvider,
+)
 from ssg.domain import (
     BuildContext,
     ContentCollection,
@@ -43,6 +47,7 @@ class StaticSiteBuilder:
         dependency_tracker: DependencyTracker,
         search_index: SearchIndex,
         html_post_processors: tuple[HtmlPostProcessor, ...] = (),
+        source_revision_provider: SourceRevisionProvider | None = None,
     ) -> None:
         self._site_repository = site_repository
         self._page_renderer = page_renderer
@@ -52,6 +57,7 @@ class StaticSiteBuilder:
         self._article_outline_builder = article_outline_builder
         self._dependency_tracker = dependency_tracker
         self._search_index = search_index
+        self._source_revision_provider = source_revision_provider
 
     def build(
         self,
@@ -359,6 +365,9 @@ class StaticSiteBuilder:
         site = site_variant.site
         previous_page = collection.previous_page(page)
         next_page = collection.next_page(page)
+        # Generated intermediates (localized sources) carry no history —
+        # revision facts always resolve against the authored file.
+        revision_source = page.original_source_path or page.source_path
         return RenderedPage(
             site=site,
             collection=collection,
@@ -388,7 +397,24 @@ class StaticSiteBuilder:
             language_links=self._page_language_links(
                 site_variant, site_variants, collection, page
             ),
+            edit_url=self._edit_url(site, revision_source),
+            last_updated=self._last_updated(site, revision_source),
         )
+
+    def _edit_url(self, site: Site, source_path: Path) -> str | None:
+        provider = self._source_revision_provider
+        if not site.edit_base_url or provider is None:
+            return None
+        repository_path = provider.repository_path(source_path)
+        if repository_path is None:
+            return None
+        return f"{site.edit_base_url.rstrip('/')}/{repository_path}"
+
+    def _last_updated(self, site: Site, source_path: Path) -> date | None:
+        provider = self._source_revision_provider
+        if not site.last_updated or provider is None:
+            return None
+        return provider.newest_commit_date(source_path)
 
     def _pager_link(self, page: Page, relation: str) -> PagerLink:
         return PagerLink(
