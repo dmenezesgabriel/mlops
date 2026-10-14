@@ -30,7 +30,7 @@ dev = [
   "types-PyYAML==6.0.12.20260518",
   "types-requests==2.33.0.20260518",
   "ssg-i18n",
-  "ssg-i18n-machine-translation[evaluation]",
+  "ssg-i18n-machine-translation[evaluation,transformers]",
   "vulture==2.16",
   "xenon==0.9.3",
 ]

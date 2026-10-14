@@ -58,6 +58,12 @@ portfolio.
 | SX-13 | [x] Mobile TOC `<details>` at article top, visible ≤58rem; FR-23 | S | starlight `MobileTableOfContents.astro`; ours `partials/article_toc.html` + `page.html:19-35`, breakpoint `site.css:540` | — |
 | SX-14 | [x] Last-updated (git log per page source) + edit-this-page link; FR-24 | M | starlight `LastUpdated.astro`/`EditLink.astro` + `utils/git.ts` degrade-to-omit; ours `ports/source_revision_provider.py`, `infrastructure/git_source_revision_provider.py`, `static_site_builder.py:370,404-417`, `partials/page_meta.html` + `page.html:35`, `Page.original_source_path` provenance, `site.edit_base_url`/`last_updated` in `site_config_repository.py:40-44`, i18n labels via `i18n_site_variant_provider.py` | SX-7 |
 
+## C. Fix items (promoted from `gaps.md` triage)
+
+| ID | Done | Item | Gap row | Severity | Acceptance | Size |
+|---|---|---|---|---|---|---|
+| AF-175 | [x] done 2026-10-14 — root dev deps carry `ssg-i18n-machine-translation[evaluation,transformers]` (`pyproject.toml:33` + 2-line `uv.lock` extras-marker regen): the configured `manual_with_machine_fallback` build now runs under a plain `uv sync` — CI's `--extra transformers` flags become redundant no-ops (left untouched). RED: `make build-site` exit 1, `Missing dependency 'transformers'` at the first catalog miss (~240 pt-BR strings; the transformers entry point loads but its lazy `_pipeline()` import raised). GREEN: `uv sync --all-packages --dev --frozen` without `--extra` → +23 pkgs (torch 2.12.0+cu130, transformers 4.57.6, sentencepiece, triton, 15 nvidia wheels); `make build-site` exit 0 — `Helsinki-NLP/opus-mt-tc-big-en-pt` fetched + CPU translation ~11 min on this host; full artifact set under `site/build/` and `site/build/pt-BR/` (index/404/sitemap/robots/search-index); `.ssg/generated-i18n/pt-BR` machine-translated (26-line diff vs source on `01_problem_framing.md`). Env note: the bare sync pruned the notebooks-extra jupyter stack — restored with `--extra notebooks` (`make install` parity). Gates: ssg-i18n-mt `make quality` 79 tests/100.00% cov, ssg-i18n 154 tests/99.77% cov, pyright strict 0 both, deptry/bandit/vulture/semgrep/xenon clean; playwright e2e 9/9 on the built site | Declare the `transformers` extra in the workspace dev group so `make build-site` satisfies the configured `manual_with_machine_fallback` mode without CI-only `--extra` flags | G-325 | S3 | `make build-site` exits 0 + machine pt-BR output + gates | XS |
+
 ## Definition of Done (all items)
 
 - Evidence cell cites `file:line` or measured numbers — never "should".

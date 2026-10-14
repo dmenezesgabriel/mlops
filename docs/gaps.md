@@ -10,9 +10,9 @@
 
 | ID | Package | Location | Dim | Severity | Measured finding | Candidate fix | Disposition |
 |---|---|---|---|---|---|---|---|
-| G-325 | ssg-i18n | `site/site.yaml` `translation_mode` + root `pyproject.toml` dev deps | D5 | S3 | `make build-site` exits 1: `manual_with_machine_fallback` mode hits `CatalogFirstTextTranslator` misses (~240 pt-BR strings, measured 2026-10-14) → machine fallback → `RuntimeError: Missing dependency 'transformers'`; root dev deps install `ssg-i18n-machine-translation[evaluation]` only, so the venv lacks the `transformers` extra the configured mode requires | Add the `transformers` extra to the workspace dev deps, or declare `build-site` requires it; alternatively keep `site/i18n/pt-BR.yaml` complete so the fallback never fires | open |
+| G-325 | ssg-i18n | `site/site.yaml` `translation_mode` + root `pyproject.toml` dev deps | D5 | S3 | `make build-site` exits 1: `manual_with_machine_fallback` mode hits `CatalogFirstTextTranslator` misses (~240 pt-BR strings, measured 2026-10-14) → machine fallback → `RuntimeError: Missing dependency 'transformers'`; root dev deps install `ssg-i18n-machine-translation[evaluation]` only, so the venv lacks the `transformers` extra the configured mode requires | Add the `transformers` extra to the workspace dev deps, or declare `build-site` requires it; alternatively keep `site/i18n/pt-BR.yaml` complete so the fallback never fires | shipped 2026-10-14 — AF-175: dev deps carry `ssg-i18n-machine-translation[evaluation,transformers]`; `make build-site` exits 0 with machine pt-BR output |
 
-- IDs are sequential `G-NN` repo-wide — next free number is **G-325**
+- IDs are sequential `G-NN` repo-wide — next free number is **G-326**
   (G-01…G-324 are dispositioned in `docs/archive/repo-quality/deep-audit/
   gaps.md`; athena-emulator's GP-* register is in
   `docs/archive/athena-emulator/gaps.md`).
