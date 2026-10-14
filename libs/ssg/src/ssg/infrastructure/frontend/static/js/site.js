@@ -242,6 +242,100 @@ if (
   });
 }
 
+// TOC scrollspy: a heading crossing the pick band just under the sticky
+// header marks its TOC link aria-current="true" (starlight
+// components-internals/TableOfContents/starlight-toc.ts semantics).
+// Starlight's 53px strip can be skipped by a fast scroll — it compensates
+// by also observing every section sibling; observing only TOC headings
+// needs a taller band (~top third of the viewport) instead.
+const articleToc = document.querySelector('.article-toc');
+const tocAnchors = articleToc
+  ? Array.from(articleToc.querySelectorAll('a[href^="#"]'))
+  : [];
+
+if (articleToc && tocAnchors.length && 'IntersectionObserver' in window) {
+  const siteHeader = document.querySelector('.site-header');
+  const linkByHeading = new Map();
+  const tocHeadings = [];
+  tocAnchors.forEach((anchor) => {
+    const heading = document.getElementById(
+      decodeURIComponent(anchor.hash.slice(1))
+    );
+    if (heading) {
+      linkByHeading.set(heading, anchor);
+      tocHeadings.push(heading);
+    }
+  });
+
+  const visibleHeadings = new Set();
+  let currentTocLink = null;
+
+  const setCurrentTocLink = (link) => {
+    if (link === currentTocLink) return;
+    if (currentTocLink) currentTocLink.removeAttribute('aria-current');
+    link.setAttribute('aria-current', 'true');
+    currentTocLink = link;
+    // toc.follow parity: keep the active anchor visible inside the
+    // self-scrolling aside — scrollTop touches the aside only, so the page
+    // position never moves.
+    if (
+      link.offsetTop < articleToc.scrollTop ||
+      link.offsetTop + link.offsetHeight >
+        articleToc.scrollTop + articleToc.clientHeight
+    ) {
+      articleToc.scrollTop = link.offsetTop - articleToc.clientHeight / 2;
+    }
+  };
+
+  const pickBandTop =
+    Math.round(
+      siteHeader ? siteHeader.getBoundingClientRect().height : 0
+    ) + 16;
+  const tocObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) {
+          visibleHeadings.delete(entry.target);
+          return;
+        }
+        visibleHeadings.add(entry.target);
+      });
+      // Document-order-last among visible headings is the section the
+      // reader is in; when none is in the band the last mark stands.
+      const current = tocHeadings
+        .filter((heading) => visibleHeadings.has(heading))
+        .pop();
+      if (current) setCurrentTocLink(linkByHeading.get(current));
+    },
+    { rootMargin: `-${pickBandTop}px 0px -70% 0px` }
+  );
+  tocHeadings.forEach((heading) => tocObserver.observe(heading));
+}
+
+// navigation.top parity (material components/top/index.ts): the button
+// appears only when the reader scrolls up while below the top. It ships
+// hidden in markup, so no-JS readers never see a dead control.
+const backToTopButton = document.querySelector('.back-to-top');
+
+if (backToTopButton instanceof HTMLButtonElement) {
+  const siteHeader = document.querySelector('.site-header');
+  let lastScrollY = window.scrollY;
+  const updateBackToTop = () => {
+    const scrollY = window.scrollY;
+    backToTopButton.hidden = !(scrollY > 0 && scrollY < lastScrollY);
+    if (!backToTopButton.hidden && siteHeader) {
+      backToTopButton.style.top = `${
+        siteHeader.getBoundingClientRect().height + 16
+      }px`;
+    }
+    lastScrollY = scrollY;
+  };
+  window.addEventListener('scroll', updateBackToTop, { passive: true });
+  backToTopButton.addEventListener('click', () => {
+    window.scrollTo({ top: 0 });
+  });
+}
+
 if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
   const source = new EventSource('/__live_reload__');
   source.onmessage = (event) => {

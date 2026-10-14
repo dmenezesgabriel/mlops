@@ -54,6 +54,16 @@ class TestBuiltSiteSmoke:
         _assert_search_scopes_to_locale(page, built_site_url)
         _assert_search_hidden_without_js(page, built_site_url)
 
+    def test_built_site_toc_scrollspy_and_back_to_top(
+        self,
+        page: Page,
+        built_site_url: str,
+    ) -> None:
+        _assert_toc_scrollspy_marks_current_section(page, built_site_url)
+        _assert_back_to_top_shows_on_scroll_up(page, built_site_url)
+        _assert_back_to_top_localizes(page, built_site_url)
+        _assert_back_to_top_hidden_without_js(page, built_site_url)
+
 
 def _assert_home_page(page: Page, base_url: str) -> None:
     page.goto(f"{base_url}/", wait_until="networkidle")
@@ -418,6 +428,97 @@ def _assert_search_hidden_without_js(page: Page, base_url: str) -> None:
     page.goto(f"{base_url}/", wait_until="networkidle")
     page.unroute("**/assets/site.js")
     expect(page.locator(".site-search")).not_to_be_visible()
+
+
+def _scroll_heading_into_pick_band(page: Page, href: str) -> None:
+    # Land the target ~150px below the viewport top, inside the scrollspy's
+    # pick band just under the sticky header. 'instant' bypasses the CSS
+    # smooth-scroll so the scroll lands before the assertions poll.
+    page.evaluate(
+        """id => {
+            const el = document.getElementById(id);
+            window.scrollTo({
+                top: el.getBoundingClientRect().top + window.scrollY - 150,
+                behavior: 'instant',
+            });
+        }""",
+        href.lstrip("#"),
+    )
+
+
+def _assert_toc_scrollspy_marks_current_section(
+    page: Page, base_url: str
+) -> None:
+    page.goto(
+        f"{base_url}/nyc-taxi-demand-forecasting/model-evaluation.html",
+        wait_until="networkidle",
+    )
+    toc_links = page.locator(".article-toc a[href^='#']")
+    first_href = toc_links.first.get_attribute("href")
+    second_href = toc_links.nth(1).get_attribute("href")
+    assert first_href and second_href
+
+    _scroll_heading_into_pick_band(page, second_href)
+    expect(toc_links.nth(1)).to_have_attribute("aria-current", "true")
+
+    _scroll_heading_into_pick_band(page, first_href)
+    expect(toc_links.first).to_have_attribute("aria-current", "true")
+    expect(toc_links.nth(1)).not_to_have_attribute("aria-current", "true")
+
+
+def _scroll_down_then_up(page: Page) -> None:
+    # 'instant' scrolls: html { scroll-behavior: smooth } would otherwise
+    # animate the jump and let the second call retarget a running
+    # animation, leaving the last scroll direction nondeterministic.
+    page.evaluate(
+        "() => window.scrollTo({"
+        "  top: document.documentElement.scrollHeight, behavior: 'instant'"
+        "})"
+    )
+    # Scroll events dispatch asynchronously — let the down-scroll land so
+    # site.js records the lower position before the upward jump registers
+    # as "scrolling up".
+    page.wait_for_function(
+        "() => window.scrollY + window.innerHeight"
+        "    >= document.documentElement.scrollHeight"
+    )
+    page.evaluate("() => window.scrollBy({ top: -400, behavior: 'instant' })")
+
+
+def _assert_back_to_top_shows_on_scroll_up(page: Page, base_url: str) -> None:
+    page.goto(
+        f"{base_url}/nyc-taxi-demand-forecasting/model-evaluation.html",
+        wait_until="networkidle",
+    )
+    button = page.locator(".back-to-top")
+    expect(button).not_to_be_visible()
+
+    _scroll_down_then_up(page)
+    expect(button).to_be_visible()
+
+    button.click()
+    page.wait_for_function("() => window.scrollY === 0")
+    expect(button).not_to_be_visible()
+
+
+def _assert_back_to_top_localizes(page: Page, base_url: str) -> None:
+    page.goto(
+        f"{base_url}/pt-BR/nyc-taxi-demand-forecasting/model-evaluation.html",
+        wait_until="networkidle",
+    )
+    expect(page.locator(".back-to-top")).to_have_text("Voltar ao topo")
+
+
+def _assert_back_to_top_hidden_without_js(page: Page, base_url: str) -> None:
+    # The button ships hidden in markup; without site.js it must never
+    # surface — a no-JS reader gets no dead control.
+    page.route("**/assets/site.js", lambda route: route.abort())
+    page.goto(
+        f"{base_url}/nyc-taxi-demand-forecasting/model-evaluation.html",
+        wait_until="networkidle",
+    )
+    page.unroute("**/assets/site.js")
+    expect(page.locator(".back-to-top")).not_to_be_visible()
 
 
 def _configured_paths() -> tuple[str, ...]:

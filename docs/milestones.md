@@ -73,7 +73,7 @@ Steps:
     - Evidence: starlight `style/print.css:1`
 11. [x] GitHub-alert admonitions in md + notebook cells (SX-11)
     - Evidence: starlight `integrations/remark-asides.ts`; `mdit_py_plugins` `admon`/`colon_fence` in `.venv`
-12. [ ] TOC scrollspy + back-to-top (SX-12)
+12. [x] TOC scrollspy + back-to-top (SX-12)
     - Evidence: material `setting-up-navigation.md:451,498`; `site.js:13-27`
 13. [ ] Mobile TOC `<details>` (SX-13)
     - Evidence: starlight `MobileTableOfContents.astro`; `site.css:540`

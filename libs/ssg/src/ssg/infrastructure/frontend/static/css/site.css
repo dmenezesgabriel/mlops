@@ -370,6 +370,11 @@ html.has-search .site-search { display: block; }
   text-decoration: none;
 }
 .article-toc a:hover { color: var(--signal); }
+.article-toc a[aria-current="true"] {
+  background: var(--taxi);
+  color: var(--on-accent);
+  font-weight: 700;
+}
 .article-toc__link--level-3 { padding-left: 0.85rem; }
 
 .hero, .article, .collection-card, .pager a, .not-found {
@@ -689,6 +694,28 @@ html.has-code-copy .code-copy-button { display: block; }
   text-align: center;
 }
 
+.back-to-top {
+  background: var(--ink);
+  border: 3px solid var(--ink);
+  color: var(--surface);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  left: 50%;
+  letter-spacing: 0.12em;
+  padding: 0.45rem 0.8rem;
+  position: fixed;
+  top: 5.75rem;
+  transform: translateX(-50%);
+  /* Below the sticky header (z 20), above unstacked content; the z 30
+     layer is pinned out of this stylesheet by a regression test. */
+  z-index: 15;
+}
+/* hidden ships in markup; an author display rule would beat the UA's
+   [hidden] = display:none, so the guard stays explicit. */
+.back-to-top[hidden] { display: none; }
+
 @media (max-width: 58rem) {
   .site-header { grid-template-columns: auto 1fr auto; }
   .menu-toggle { display: inline-flex; }
@@ -803,7 +830,7 @@ pre::-webkit-scrollbar-thumb:hover {
   body { background: none; }
 
   .skip-link, .header-actions, .sidebar, .article-toc, .pager,
-  .article-body .headerlink, .code-copy-button { display: none; }
+  .article-body .headerlink, .code-copy-button, .back-to-top { display: none; }
 
   .site-header { position: static; }
   .site-shell { display: block; max-width: none; padding: 0; }

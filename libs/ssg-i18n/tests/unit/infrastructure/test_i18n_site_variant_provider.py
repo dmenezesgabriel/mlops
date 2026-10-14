@@ -524,6 +524,23 @@ def test_variants_translates_not_found_labels(tmp_path: Path) -> None:
     assert portuguese_i18n["label_home"] == "Voltar ao início"
 
 
+def test_variants_translates_back_to_top_label(tmp_path: Path) -> None:
+    # Arrange
+    collection = _write_collection(
+        tmp_path / "content", "coll0", (("a", "First words.\n"),)
+    )
+    translator = RecordingTextTranslator({"Back to top": "Voltar ao topo"})
+    provider = I18nSiteVariantProvider(translator)
+    site = _make_site(collection)
+
+    # Act
+    variants = provider.variants(site, _make_context(tmp_path))
+
+    # Assert
+    portuguese_i18n = variants[1].site.extensions["i18n"]
+    assert portuguese_i18n["label_back_to_top"] == "Voltar ao topo"
+
+
 def test_variants_falls_back_to_injected_translator_in_machine_mode_without_factory(
     tmp_path: Path,
 ) -> None:

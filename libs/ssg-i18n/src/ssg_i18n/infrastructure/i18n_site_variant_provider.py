@@ -240,6 +240,7 @@ class I18nSiteVariantProvider(SiteVariantProvider):
             "label_projects": "Projects",
             "label_not_found": "Page not found",
             "label_home": "Back to home",
+            "label_back_to_top": "Back to top",
             "label_alert_note": "Note",
             "label_alert_tip": "Tip",
             "label_alert_important": "Important",
