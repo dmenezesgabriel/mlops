@@ -431,6 +431,40 @@ a:focus-visible, button:focus-visible { outline: 4px solid var(--focus); outline
   border: 1px solid var(--ink);
   padding: 0.08rem 0.25rem;
 }
+.code-frame { position: relative; }
+.code-copy-button {
+  background: var(--surface);
+  border: 2px solid var(--ink);
+  cursor: pointer;
+  display: none;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1;
+  padding: 0.22rem 0.35rem;
+  position: absolute;
+  right: 0.55rem;
+  top: 0.55rem;
+  z-index: 1;
+}
+html.has-code-copy .code-copy-button { display: block; }
+.code-copy-button::after {
+  background-color: var(--ink);
+  content: "";
+  display: block;
+  height: 0.95rem;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2'%3E%3Crect x='8' y='8' width='13' height='13' rx='2'/%3E%3Cpath d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/%3E%3C/svg%3E");
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  width: 0.95rem;
+}
+.code-copy-button:hover, .code-copy-button:focus-visible { background: var(--taxi); }
+.code-copy-button.is-copied::after { display: none; }
+@media (hover: hover) {
+  html.has-code-copy .code-copy-button { opacity: 0; }
+  html.has-code-copy .code-frame:hover .code-copy-button,
+  html.has-code-copy .code-copy-button:focus-visible { opacity: 1; }
+}
 .media-frame video, .media-frame img, .notebook-image img,
 .article-body > img, .article-body > video {
   background: var(--ink);
@@ -645,4 +679,5 @@ pre::-webkit-scrollbar-thumb:hover {
 
 @media print {
   .article-body .headerlink { display: none; }
+  .code-copy-button { display: none; }
 }

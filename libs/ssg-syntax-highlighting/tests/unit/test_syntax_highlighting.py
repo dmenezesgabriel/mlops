@@ -1,3 +1,5 @@
+import html
+
 from markdown_it import MarkdownIt
 from ssg.domain import Site
 from ssg_syntax_highlighting.application.syntax_highlighter import (
@@ -8,6 +10,8 @@ from ssg_syntax_highlighting.infrastructure.plugin import (
 )
 
 CODE_BLOCK = '<pre><code class="language-python">x = 1</code></pre>'
+QUOTE_LABEL = 'Copy "code"'
+AMPERSAND_LABEL = "Copiado & pronto"
 
 
 class PassThroughHighlighter:
@@ -187,3 +191,91 @@ def test_process_highlights_real_markdownit_fence_output() -> None:
     # Assert
     assert '<code class="language-python">' in processed_html
     assert "highlight-token" in processed_html
+
+
+def test_process_wraps_highlighted_block_in_code_frame_with_copy_button() -> (
+    None
+):
+    # Arrange — the frame hosts the pinned copy button outside the <pre>, the
+    # structure both references converge on (material `md-code`, expressive-code
+    # frame): the button stays visible while wide code scrolls horizontally.
+    processor = CodeBlockSyntaxHighlightingProcessor(
+        RecordingHighlighterFactory()
+    )
+
+    # Act
+    processed_html = processor.process(CODE_BLOCK, empty_site())
+
+    # Assert
+    assert processed_html == (
+        '<div class="code-frame">'
+        '<pre><code class="language-python">x = 1</code></pre>'
+        '<button type="button" class="code-copy-button"'
+        ' title="Copy to clipboard" aria-label="Copy to clipboard"'
+        ' data-copied-label="Copied!"></button></div>'
+    )
+
+
+def test_process_adds_a_button_to_every_highlighted_block() -> None:
+    # Arrange
+    processor = CodeBlockSyntaxHighlightingProcessor(
+        RecordingHighlighterFactory()
+    )
+
+    # Act
+    processed_html = processor.process(CODE_BLOCK + CODE_BLOCK, empty_site())
+
+    # Assert
+    assert processed_html.count('<div class="code-frame">') == 2
+    assert processed_html.count('class="code-copy-button"') == 2
+
+
+def test_process_carries_site_i18n_labels_on_the_copy_button() -> None:
+    # Arrange — labels resolve through the same `extension_setting` channel as
+    # the other `label_*` UI strings; the pt-BR build translates them via the
+    # i18n catalog.
+    processor = CodeBlockSyntaxHighlightingProcessor(
+        RecordingHighlighterFactory()
+    )
+    site = empty_site(
+        {
+            "i18n": {
+                "label_copy_code": "Copiar código",
+                "label_copied": "Copiado!",
+            }
+        }
+    )
+
+    # Act
+    processed_html = processor.process(CODE_BLOCK, site)
+
+    # Assert
+    assert 'title="Copiar código"' in processed_html
+    assert 'aria-label="Copiar código"' in processed_html
+    assert 'data-copied-label="Copiado!"' in processed_html
+
+
+def test_process_escapes_quote_characters_in_copy_button_labels() -> None:
+    # Arrange — labels come from site config/catalog; a quote must not break
+    # out of the attribute (same escaping the parser applies to re-emitted attrs)
+    processor = CodeBlockSyntaxHighlightingProcessor(
+        RecordingHighlighterFactory()
+    )
+    site = empty_site(
+        {
+            "i18n": {
+                "label_copy_code": QUOTE_LABEL,
+                "label_copied": AMPERSAND_LABEL,
+            }
+        }
+    )
+
+    # Act
+    processed_html = processor.process(CODE_BLOCK, site)
+
+    # Assert — the attribute values must be the html-escaped raw labels
+    assert f'title="{html.escape(QUOTE_LABEL, quote=True)}"' in processed_html
+    assert (
+        f'data-copied-label="{html.escape(AMPERSAND_LABEL, quote=True)}"'
+        in processed_html
+    )

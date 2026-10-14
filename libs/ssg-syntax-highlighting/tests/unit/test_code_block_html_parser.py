@@ -25,9 +25,10 @@ class RecordingHighlighter:
 
 def parse(
     html_text: str,
+    copy_button_markup: str = "",
 ) -> tuple[str, RecordingHighlighter]:
     highlighter = RecordingHighlighter()
-    parser = CodeBlockHtmlParser(highlighter)
+    parser = CodeBlockHtmlParser(highlighter, copy_button_markup)
     parser.feed(html_text)
     parser.close()
     return parser.rendered_html(), highlighter
@@ -301,3 +302,63 @@ def test_startendtag_without_parse_context_raises() -> None:
     # Act / Assert
     with pytest.raises(ValueError, match="Missing start-tag text"):
         parser.handle_startendtag("br", [])
+
+
+def test_highlighted_pre_is_wrapped_in_code_frame_with_button_after_pre() -> (
+    None
+):
+    # Arrange — the frame hosts the pinned copy button outside the <pre>
+    # (material `md-code` / expressive-code frame structure)
+    button_markup = '<button type="button" class="code-copy-button"></button>'
+    html_text = '<pre><code class="language-python">x</code></pre>'
+
+    # Act
+    rendered, highlighter = parse(html_text, button_markup)
+
+    # Assert
+    assert highlighter.calls == [("x", "python")]
+    assert rendered == (
+        '<div class="code-frame">'
+        '<pre><code class="language-python"><hl>x</hl></code></pre>'
+        f"{button_markup}</div>"
+    )
+
+
+def test_unhighlighted_pre_stays_byte_faithful_with_button_markup() -> None:
+    # Arrange — only highlighted (language-tagged) blocks gain the frame; a
+    # plain pre must round-trip byte-faithful even with the feature enabled
+    button_markup = '<button type="button" class="code-copy-button"></button>'
+    html_text = "<p>Before</p><pre><code>plain</code></pre><p>After</p>"
+
+    # Act
+    rendered, highlighter = parse(html_text, button_markup)
+
+    # Assert
+    assert rendered == html_text
+    assert highlighter.calls == []
+
+
+def test_button_markup_is_emitted_verbatim_after_the_pre() -> None:
+    # Arrange — the processor pre-builds (and escapes) the markup once per
+    # page; the parser must emit it verbatim, not re-serialize it
+    button_markup = '<button data-copied-label="Copiado!"></button>'
+    html_text = '<pre><code class="language-python">x</code></pre>'
+
+    # Act
+    rendered, _ = parse(html_text, button_markup)
+
+    # Assert
+    assert rendered.endswith(f"</pre>{button_markup}</div>")
+
+
+def test_unclosed_pre_flushes_verbatim_without_wrapper() -> None:
+    # Arrange — malformed author HTML: <pre> never closed; no completed
+    # capture means no frame/button, bytes round-trip
+    html_text = '<pre><code class="language-python">unclosed pre'
+
+    # Act
+    rendered, highlighter = parse(html_text, "<button></button>")
+
+    # Assert
+    assert rendered == html_text
+    assert highlighter.calls == []

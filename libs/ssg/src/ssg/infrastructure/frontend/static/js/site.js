@@ -26,6 +26,32 @@ if (!motionQuery.matches && 'IntersectionObserver' in window) {
     .forEach((element) => observer.observe(element));
 }
 
+const copyButtons = document.querySelectorAll('.code-copy-button');
+
+if ('clipboard' in navigator && copyButtons.length) {
+  document.documentElement.classList.add('has-code-copy');
+
+  copyButtons.forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) return;
+    let revertTimer = 0;
+    button.addEventListener('click', () => {
+      const source = button.closest('.code-frame')?.querySelector('pre > code');
+      const text = source?.textContent?.trimEnd() ?? '';
+      if (!text) return;
+
+      navigator.clipboard.writeText(text).then(() => {
+        button.textContent = button.dataset.copiedLabel ?? '';
+        button.classList.add('is-copied');
+        clearTimeout(revertTimer);
+        revertTimer = setTimeout(() => {
+          button.textContent = '';
+          button.classList.remove('is-copied');
+        }, 2000);
+      }, () => {});
+    });
+  });
+}
+
 if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
   const source = new EventSource('/__live_reload__');
   source.onmessage = (event) => {

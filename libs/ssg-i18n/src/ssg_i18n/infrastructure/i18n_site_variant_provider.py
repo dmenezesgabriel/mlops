@@ -224,6 +224,8 @@ class I18nSiteVariantProvider(SiteVariantProvider):
             "label_previous": "Previous",
             "label_next": "Next",
             "label_heading_permalink": "Permalink to this section",
+            "label_copy_code": "Copy to clipboard",
+            "label_copied": "Copied!",
             "label_reports": "reports",
             "label_dispatches": "Dispatches",
             "label_projects": "Projects",

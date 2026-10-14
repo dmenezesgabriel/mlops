@@ -32,6 +32,8 @@ class TestBuiltSiteSmoke:
             _assert_notebook_and_code_pages(page, base_url)
             _assert_static_assets(page, base_url)
             _assert_mobile_menu(page, base_url)
+            _assert_code_copy_buttons(page, base_url)
+            _assert_code_copy_degrades_without_js(page, base_url)
 
 
 def _assert_home_page(page: Page, base_url: str) -> None:
@@ -156,6 +158,41 @@ def _assert_mobile_menu(page: Page, base_url: str) -> None:
         "aria-expanded", "true"
     )
     expect(page.locator("#site-navigation")).to_be_visible()
+
+
+def _assert_code_copy_buttons(page: Page, base_url: str) -> None:
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.goto(
+        f"{base_url}/nyc-taxi-demand-forecasting/model-evaluation.html",
+        wait_until="networkidle",
+    )
+    # Every fenced block on the page carries the button (FR-15)
+    assert page.locator(".article-body .code-frame").count() > 0
+    assert (
+        page.locator(".article-body pre").count()
+        == page.locator(".article-body .code-frame pre").count()
+    )
+
+    first_button = page.locator(".code-copy-button").first
+    expected_text = page.locator(".code-frame pre > code").first.evaluate(
+        "code => code.textContent.trimEnd()"
+    )
+    first_button.click()
+    expect(first_button).to_contain_text("Copied!")
+    assert page.evaluate("navigator.clipboard.readText()") == expected_text
+
+
+def _assert_code_copy_degrades_without_js(page: Page, base_url: str) -> None:
+    # The button renders only under the `has-code-copy` class that site.js
+    # adds when the clipboard API exists; blocking the script must leave no
+    # dead button in the page.
+    page.route("**/assets/site.js", lambda route: route.abort())
+    page.goto(
+        f"{base_url}/nyc-taxi-demand-forecasting/model-evaluation.html",
+        wait_until="networkidle",
+    )
+    page.unroute("**/assets/site.js")
+    expect(page.locator(".code-copy-button").first).not_to_be_visible()
 
 
 def _configured_paths() -> tuple[str, ...]:
