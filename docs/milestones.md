@@ -55,7 +55,7 @@ Steps:
    - Evidence: starlight `utils/user-config.ts:299`; `infrastructure/html_article_outline_builder.py:13-32`
 2. [x] Copy button on code blocks (SX-2)
    - Evidence: starlight `schemas/i18n.ts:232-240`; `libs/ssg-syntax-highlighting/…/pygments_highlighter.py`
-3. [ ] Dark palette + `prefers-color-scheme` (SX-3)
+3. [x] Dark palette + `prefers-color-scheme` (SX-3)
    - Evidence: measured zero `prefers-color-scheme` in `static/css/site.css`
 4. [ ] Theme toggle + persistence + FOUC guard (SX-4)
    - Evidence: starlight `ThemeSelect.astro`; `base.html:6` `data-theme` hook

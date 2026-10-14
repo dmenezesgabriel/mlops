@@ -218,6 +218,41 @@ def test_assets_include_stylesheet_and_menu_script() -> None:
     assert "IntersectionObserver" in assets["site.js"]
 
 
+def test_site_css_defines_dark_theme_variant() -> None:
+    # Arrange / Act
+    assets = JinjaPageRenderer().assets()
+
+    # Assert
+    site_css = assets["site.css"]
+    assert "color-scheme: light dark" in site_css
+    assert "light-dark(" in site_css
+    assert 'body[data-theme="dark"]' in site_css
+    assert 'body[data-theme="light"]' in site_css
+
+
+def test_render_page_declares_color_scheme_meta(tmp_path: Path) -> None:
+    # Arrange
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path)
+    rendered_page = RenderedPage(
+        site=site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Overview", body="<p>Rendered content.</p>", headings=()
+        ),
+        navigation=site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert '<meta name="color-scheme" content="light dark">' in rendered_html
+
+
 def test_frontend_templates_and_static_assets_are_package_files() -> None:
     # Arrange
     frontend_files = files("ssg.infrastructure.frontend")

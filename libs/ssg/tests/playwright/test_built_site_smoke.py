@@ -35,6 +35,25 @@ class TestBuiltSiteSmoke:
             _assert_code_copy_buttons(page, base_url)
             _assert_code_copy_degrades_without_js(page, base_url)
 
+    def test_built_site_honors_dark_color_scheme(
+        self,
+        page: Page,
+    ) -> None:
+        # Arrange
+        site_build_path = Path("site/build")
+        if not site_build_path.exists():
+            site_build_path = Path("../../site/build")
+        assert site_build_path.exists(), (
+            "Missing site/build: expected `make build-site` before e2e"
+        )
+
+        # Act & Assert
+        with _serve_directory(site_build_path) as base_url:
+            _assert_dark_scheme_default(page, base_url)
+            _assert_light_scheme_default(page, base_url)
+            _assert_data_theme_overrides_media(page, base_url)
+            _assert_dark_scheme_without_js(page, base_url)
+
 
 def _assert_home_page(page: Page, base_url: str) -> None:
     page.goto(f"{base_url}/", wait_until="networkidle")
@@ -193,6 +212,56 @@ def _assert_code_copy_degrades_without_js(page: Page, base_url: str) -> None:
     )
     page.unroute("**/assets/site.js")
     expect(page.locator(".code-copy-button").first).not_to_be_visible()
+
+
+# Computed body (background-color, color) per scheme; source of truth is the
+# :root palette in site.css (`light-dark()` pairs).
+_LIGHT_BODY = ("rgb(243, 234, 216)", "rgb(21, 17, 13)")
+_DARK_BODY = ("rgb(27, 21, 16)", "rgb(241, 231, 212)")
+
+
+def _body_colors(page: Page) -> tuple[str, str]:
+    background = page.evaluate(
+        "() => getComputedStyle(document.body).backgroundColor"
+    )
+    color = page.evaluate("() => getComputedStyle(document.body).color")
+    return str(background), str(color)
+
+
+def _assert_dark_scheme_default(page: Page, base_url: str) -> None:
+    page.emulate_media(color_scheme="dark")
+    page.goto(f"{base_url}/", wait_until="networkidle")
+    assert _body_colors(page) == _DARK_BODY
+    page.goto(f"{base_url}/pt-BR/", wait_until="networkidle")
+    assert _body_colors(page) == _DARK_BODY
+
+
+def _assert_light_scheme_default(page: Page, base_url: str) -> None:
+    page.emulate_media(color_scheme="light")
+    page.goto(f"{base_url}/", wait_until="networkidle")
+    assert _body_colors(page) == _LIGHT_BODY
+
+
+def _assert_data_theme_overrides_media(page: Page, base_url: str) -> None:
+    # data-theme is the explicit-choice contract: a script-written light/dark
+    # value must beat the media query so the user's pick survives.
+    page.emulate_media(color_scheme="dark")
+    page.goto(f"{base_url}/", wait_until="networkidle")
+    page.evaluate("() => { document.body.dataset.theme = 'light'; }")
+    assert _body_colors(page) == _LIGHT_BODY
+    page.emulate_media(color_scheme="light")
+    page.evaluate("() => { document.body.dataset.theme = 'dark'; }")
+    assert _body_colors(page) == _DARK_BODY
+
+
+def _assert_dark_scheme_without_js(page: Page, base_url: str) -> None:
+    # site.js aborted: the palette still resolves dark at first paint, so a
+    # no-JS reader gets the dark scheme with no light flash.
+    page.route("**/assets/site.js", lambda route: route.abort())
+    page.emulate_media(color_scheme="dark")
+    page.goto(f"{base_url}/", wait_until="networkidle")
+    page.unroute("**/assets/site.js")
+    assert _body_colors(page) == _DARK_BODY
 
 
 def _configured_paths() -> tuple[str, ...]:

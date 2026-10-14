@@ -41,6 +41,10 @@ DEP003 = ["ssg"]
 # those modules are covered by their own suites, so measure only this
 # package's code.
 source = ["src", "tests"]
+# the coverage gate deselects `playwright` (browser e2e runs under
+# `make test-e2e`), so its modules never execute here and would only
+# accrue phantom misses that grow with each scenario added.
+omit = ["*/tests/playwright/*"]
 
 [build-system]
 requires = ["hatchling==1.27.0"]
