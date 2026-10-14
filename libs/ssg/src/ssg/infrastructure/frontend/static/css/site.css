@@ -161,6 +161,7 @@ a:focus-visible, button:focus-visible { outline: 4px solid var(--focus); outline
 .header-actions {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
   justify-content: flex-end;
 }
@@ -235,6 +236,52 @@ a:focus-visible, button:focus-visible { outline: 4px solid var(--focus); outline
   text-transform: uppercase;
 }
 html.has-theme-select .theme-select { display: block; }
+
+.site-search {
+  align-self: center;
+  display: none;
+  position: relative;
+}
+html.has-search .site-search { display: block; }
+.search-input {
+  background: var(--surface);
+  border: 3px solid var(--ink);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  padding: 0.55rem 0.5rem;
+  width: clamp(7rem, 18vw, 13rem);
+}
+.search-input::placeholder { color: var(--muted); }
+.search-results {
+  background: var(--surface);
+  border: 3px solid var(--ink);
+  box-shadow: var(--shadow-hard);
+  list-style: none;
+  margin: 0.35rem 0 0;
+  max-height: 60vh;
+  min-width: 16rem;
+  overflow-y: auto;
+  padding: 0.35rem;
+  position: absolute;
+  right: 0;
+  z-index: 24;
+}
+.search-results a {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  padding: 0.35rem 0.5rem;
+  text-decoration: none;
+}
+.search-results a:hover,
+.search-results a:focus-visible { background: var(--taxi); font-weight: 700; }
+.search-no-results {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  padding: 0.35rem 0.5rem;
+}
 
 .site-shell {
   display: grid;
@@ -707,4 +754,5 @@ pre::-webkit-scrollbar-thumb:hover {
   .article-body .headerlink { display: none; }
   .code-copy-button { display: none; }
   .theme-select { display: none; }
+  .site-search { display: none; }
 }

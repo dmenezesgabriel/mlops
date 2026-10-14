@@ -288,6 +288,137 @@ def test_render_page_includes_theme_select_and_fouc_guard(
     assert 'data-theme="editorial-lab"' not in rendered_html
 
 
+def test_render_page_includes_search_ui(tmp_path: Path) -> None:
+    # Arrange
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path)
+    rendered_page = RenderedPage(
+        site=site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Overview", body="<p>Rendered content.</p>", headings=()
+        ),
+        navigation=site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert '<div class="site-search" role="search">' in rendered_html
+    assert 'class="search-input"' in rendered_html
+    assert 'type="search"' in rendered_html
+    assert 'aria-label="Search"' in rendered_html
+    assert 'placeholder="Search pages"' in rendered_html
+    assert 'aria-controls="search-results"' in rendered_html
+    assert 'class="search-results"' in rendered_html
+    assert 'role="listbox"' in rendered_html
+    assert "No results found" in rendered_html
+
+
+def test_render_page_search_index_meta_is_page_relative(
+    tmp_path: Path,
+) -> None:
+    # Arrange — a page sits one level under the locale root, so the meta
+    # carries the same ../ prefix as the site.css/site.js asset links.
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path)
+    rendered_page = RenderedPage(
+        site=site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Overview", body="<p>Rendered content.</p>", headings=()
+        ),
+        navigation=site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert (
+        '<meta name="ssg:search-index" content="../search-index.json">'
+        in rendered_html
+    )
+
+
+def test_render_index_search_index_meta_is_root_relative(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    renderer = JinjaPageRenderer()
+    site, collection, _page = _site_with_collection(tmp_path)
+    rendered_index = RenderedIndex(
+        site=site,
+        collections=(collection,),
+        navigation=site.navigation_for(None, None),
+    )
+
+    # Act
+    rendered_html = renderer.render_index(rendered_index)
+
+    # Assert
+    assert (
+        '<meta name="ssg:search-index" content="search-index.json">'
+        in rendered_html
+    )
+
+
+def test_render_page_localizes_search_labels(tmp_path: Path) -> None:
+    # Arrange
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path)
+    localized_site = Site(
+        title=site.title,
+        description=site.description,
+        collections=site.collections,
+        locale="pt-BR",
+        extensions={
+            "i18n": {
+                "label_search": "Busca",
+                "label_search_placeholder": "Buscar páginas",
+                "label_search_no_results": "Nenhum resultado encontrado",
+            }
+        },
+    )
+    rendered_page = RenderedPage(
+        site=localized_site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Visao Geral", body="<p>Conteudo.</p>", headings=()
+        ),
+        navigation=localized_site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert 'aria-label="Busca"' in rendered_html
+    assert 'placeholder="Buscar páginas"' in rendered_html
+    assert "Nenhum resultado encontrado" in rendered_html
+
+
+def test_assets_include_search_wiring() -> None:
+    # Arrange / Act
+    assets = JinjaPageRenderer().assets()
+
+    # Assert
+    assert "has-search" in assets["site.js"]
+    assert "ssg:search-index" in assets["site.js"]
+    assert ".site-search" in assets["site.css"]
+    assert ".search-results" in assets["site.css"]
+
+
 def test_render_page_localizes_theme_select_labels(tmp_path: Path) -> None:
     # Arrange
     renderer = JinjaPageRenderer()

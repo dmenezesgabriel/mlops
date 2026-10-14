@@ -442,6 +442,34 @@ def test_variants_translates_theme_select_labels(tmp_path: Path) -> None:
     assert portuguese_i18n["label_theme_dark"] == "Escuro"
 
 
+def test_variants_translates_search_labels(tmp_path: Path) -> None:
+    # Arrange
+    collection = _write_collection(
+        tmp_path / "content", "coll0", (("a", "First words.\n"),)
+    )
+    translator = RecordingTextTranslator(
+        {
+            "Search": "Busca",
+            "Search pages": "Buscar páginas",
+            "No results found": "Nenhum resultado encontrado",
+        }
+    )
+    provider = I18nSiteVariantProvider(translator)
+    site = _make_site(collection)
+
+    # Act
+    variants = provider.variants(site, _make_context(tmp_path))
+
+    # Assert
+    portuguese_i18n = variants[1].site.extensions["i18n"]
+    assert portuguese_i18n["label_search"] == "Busca"
+    assert portuguese_i18n["label_search_placeholder"] == "Buscar páginas"
+    assert (
+        portuguese_i18n["label_search_no_results"]
+        == "Nenhum resultado encontrado"
+    )
+
+
 def test_variants_falls_back_to_injected_translator_in_machine_mode_without_factory(
     tmp_path: Path,
 ) -> None:

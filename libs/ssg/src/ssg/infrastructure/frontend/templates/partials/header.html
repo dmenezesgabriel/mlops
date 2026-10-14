@@ -5,6 +5,29 @@
     <p class="site-description">{{ site.description }}</p>
   </div>
   <div class="header-actions">
+    <div class="site-search" role="search">
+      <input
+        class="search-input"
+        type="search"
+        placeholder="{{ site.extension_setting('i18n', 'label_search_placeholder', 'Search pages') }}"
+        aria-label="{{ site.extension_setting('i18n', 'label_search', 'Search') }}"
+        autocomplete="off"
+        spellcheck="false"
+        aria-expanded="false"
+        aria-controls="search-results"
+      >
+      <ul
+        class="search-results"
+        id="search-results"
+        role="listbox"
+        aria-live="polite"
+        hidden
+      >
+        <li class="search-no-results" aria-disabled="true" hidden>
+          {{ site.extension_setting('i18n', 'label_search_no_results', 'No results found') }}
+        </li>
+      </ul>
+    </div>
     <select
       class="theme-select"
       aria-label="{{ site.extension_setting('i18n', 'label_theme', 'Theme') }}"

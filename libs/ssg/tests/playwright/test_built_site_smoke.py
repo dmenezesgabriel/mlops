@@ -74,6 +74,26 @@ class TestBuiltSiteSmoke:
             _assert_theme_select_i18n(page, base_url)
             _assert_theme_select_hidden_without_js(page, base_url)
 
+    def test_built_site_search_filters_and_ranks(
+        self,
+        page: Page,
+    ) -> None:
+        # Arrange
+        site_build_path = Path("site/build")
+        if not site_build_path.exists():
+            site_build_path = Path("../../site/build")
+        assert site_build_path.exists(), (
+            "Missing site/build: expected `make build-site` before e2e"
+        )
+
+        # Act & Assert
+        with _serve_directory(site_build_path) as base_url:
+            _assert_search_fetches_lazily(page, base_url)
+            _assert_search_ranks_title_hits_first(page, base_url)
+            _assert_search_keyboard_and_no_results(page, base_url)
+            _assert_search_scopes_to_locale(page, base_url)
+            _assert_search_hidden_without_js(page, base_url)
+
 
 def _assert_home_page(page: Page, base_url: str) -> None:
     page.goto(f"{base_url}/", wait_until="networkidle")
@@ -334,6 +354,91 @@ def _assert_theme_select_hidden_without_js(page: Page, base_url: str) -> None:
     page.goto(f"{base_url}/", wait_until="networkidle")
     page.unroute("**/assets/site.js")
     expect(page.locator(".theme-select")).not_to_be_visible()
+
+
+def _assert_search_fetches_lazily(page: Page, base_url: str) -> None:
+    # The index is a per-page lazy fetch: it must not be requested until the
+    # reader actually engages the input.
+    index_requests: list[str] = []
+    page.on(
+        "request",
+        lambda request: (
+            index_requests.append(request.url)
+            if "search-index.json" in request.url
+            else None
+        ),
+    )
+    page.goto(f"{base_url}/", wait_until="networkidle")
+    assert index_requests == []
+
+    page.locator(".search-input").click()
+    page.locator(".search-input").fill("demand")
+    expect(page.locator(".search-results")).to_be_visible()
+    assert len(index_requests) == 1
+    assert index_requests[0].endswith("/search-index.json")
+
+
+def _assert_search_ranks_title_hits_first(page: Page, base_url: str) -> None:
+    page.goto(f"{base_url}/", wait_until="networkidle")
+    page.locator(".search-input").fill("Monitoring")
+    results = page.locator(".search-results li a")
+    expect(results.first).to_be_visible()
+    # The page titled "Monitoring" must outrank pages that only mention the
+    # term in body text.
+    expect(results.first).to_have_text("Monitoring")
+    first_href = results.first.get_attribute("href")
+    assert first_href is not None and "model-monitoring" in first_href
+
+    results.first.click()
+    page.wait_for_load_state("networkidle")
+    expect(page.locator("h1")).to_contain_text("Monitoring")
+
+
+def _assert_search_keyboard_and_no_results(page: Page, base_url: str) -> None:
+    page.goto(f"{base_url}/", wait_until="networkidle")
+    search_input = page.locator(".search-input")
+    search_input.fill("demand")
+    expect(page.locator(".search-results")).to_be_visible()
+
+    # ArrowDown hands focus to the first ranked link.
+    page.keyboard.press("ArrowDown")
+    focused = page.evaluate(
+        "() => document.activeElement && document.activeElement.className"
+    )
+    assert "search-result-link" in str(focused)
+
+    page.keyboard.press("Escape")
+    expect(page.locator(".search-results")).not_to_be_visible()
+
+    search_input.fill("zzzqqq")
+    expect(page.locator(".search-results")).to_be_visible()
+    expect(page.locator(".search-no-results")).to_be_visible()
+    expect(page.locator(".search-no-results")).to_contain_text(
+        "No results found"
+    )
+
+
+def _assert_search_scopes_to_locale(page: Page, base_url: str) -> None:
+    # The pt-BR variant builds its own index; results must stay inside the
+    # locale's URL prefix.
+    page.goto(f"{base_url}/pt-BR/", wait_until="networkidle")
+    page.locator(".search-input").fill("Monitoramento")
+    results = page.locator(".search-results li a")
+    expect(results.first).to_be_visible()
+    hrefs = results.evaluate_all(
+        "links => links.map(link => link.getAttribute('href'))"
+    )
+    assert hrefs, "expected ranked results under /pt-BR/"
+    assert all("/pt-BR/" in str(href) for href in hrefs)
+
+
+def _assert_search_hidden_without_js(page: Page, base_url: str) -> None:
+    # Without site.js the input would be a dead control; the has-search gate
+    # keeps the whole widget hidden.
+    page.route("**/assets/site.js", lambda route: route.abort())
+    page.goto(f"{base_url}/", wait_until="networkidle")
+    page.unroute("**/assets/site.js")
+    expect(page.locator(".site-search")).not_to_be_visible()
 
 
 def _configured_paths() -> tuple[str, ...]:

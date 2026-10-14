@@ -96,6 +96,152 @@ if ('clipboard' in navigator && copyButtons.length) {
   });
 }
 
+// The ssg:search-index meta carries the locale-root-relative index URL (same
+// asset_prefix mechanism as site.css), so fetches and result hrefs stay
+// inside the current locale from any page depth.
+const searchRoot = document.querySelector('.site-search');
+const searchInput = searchRoot?.querySelector('.search-input');
+const searchResults = searchRoot?.querySelector('.search-results');
+const searchNoResults = searchRoot?.querySelector('.search-no-results');
+const searchIndexMeta = document.querySelector('meta[name="ssg:search-index"]');
+
+if (
+  searchRoot instanceof HTMLElement &&
+  searchInput instanceof HTMLInputElement &&
+  searchResults instanceof HTMLElement &&
+  searchIndexMeta instanceof HTMLMetaElement &&
+  'fetch' in window
+) {
+  document.documentElement.classList.add('has-search');
+
+  const searchIndexUrl = new URL(searchIndexMeta.content, document.baseURI);
+  let searchIndexPromise = null;
+
+  const loadSearchIndex = () => {
+    if (searchIndexPromise === null) {
+      searchIndexPromise = fetch(searchIndexUrl)
+        .then((response) => (response.ok ? response.json() : { docs: [] }))
+        .then((index) => index.docs ?? [])
+        .catch(() => []);
+    }
+    return searchIndexPromise;
+  };
+
+  const normalizeSearchText = (value) =>
+    value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+
+  // AND-match: every query term must hit title or text; a title hit weighs
+  // ten text hits so a page named after the term outranks mere mentions.
+  const scoreSearchEntry = (entry, terms) => {
+    const title = normalizeSearchText(entry.title ?? '');
+    const text = normalizeSearchText(entry.text ?? '');
+    let score = 0;
+    for (const term of terms) {
+      const titleHits = title.split(term).length - 1;
+      const textHits = text.split(term).length - 1;
+      if (titleHits + textHits === 0) return -1;
+      score += titleHits * 10 + textHits;
+    }
+    return score;
+  };
+
+  const rankSearchEntries = (docs, terms) =>
+    docs
+      .map((entry) => ({ entry, score: scoreSearchEntry(entry, terms) }))
+      .filter((result) => result.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10)
+      .map((result) => result.entry);
+
+  const closeSearchResults = () => {
+    searchResults.hidden = true;
+    searchInput.setAttribute('aria-expanded', 'false');
+  };
+
+  const renderSearchResults = (entries) => {
+    searchResults
+      .querySelectorAll('li:not(.search-no-results)')
+      .forEach((item) => item.remove());
+    entries.forEach((entry) => {
+      const item = document.createElement('li');
+      item.setAttribute('role', 'option');
+      const link = document.createElement('a');
+      link.className = 'search-result-link';
+      link.href = new URL(entry.location, searchIndexUrl).href;
+      link.textContent = entry.title;
+      item.appendChild(link);
+      searchResults.appendChild(item);
+    });
+    if (searchNoResults instanceof HTMLElement) {
+      searchNoResults.hidden = entries.length > 0;
+    }
+    searchResults.hidden = false;
+    searchInput.setAttribute('aria-expanded', 'true');
+  };
+
+  const runSearch = () => {
+    if (!searchInput.value.trim()) {
+      closeSearchResults();
+      return;
+    }
+    loadSearchIndex().then((docs) => {
+      // Re-read the value inside .then: the index resolves async, so the
+      // query may have advanced since this handler fired.
+      const terms = normalizeSearchText(searchInput.value)
+        .split(/\s+/)
+        .filter(Boolean);
+      if (!terms.length) {
+        closeSearchResults();
+        return;
+      }
+      renderSearchResults(rankSearchEntries(docs, terms));
+    });
+  };
+
+  // Escape refocuses the input; that synthetic focus must not reopen the
+  // dropdown the key just closed — hence the one-shot flag.
+  let skipFocusSearch = false;
+  searchInput.addEventListener('focus', () => {
+    loadSearchIndex();
+    if (skipFocusSearch) {
+      skipFocusSearch = false;
+      return;
+    }
+    runSearch();
+  });
+  searchInput.addEventListener('input', runSearch);
+
+  searchRoot.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeSearchResults();
+      skipFocusSearch = true;
+      searchInput.focus();
+      return;
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    const links = Array.from(
+      searchResults.querySelectorAll('a.search-result-link')
+    );
+    if (searchResults.hidden || !links.length) return;
+    event.preventDefault();
+    const current = links.indexOf(document.activeElement);
+    const next =
+      event.key === 'ArrowDown'
+        ? (current + 1) % links.length
+        : (current <= 0 ? links.length : current) - 1;
+    links[next].focus();
+  });
+
+  document.addEventListener('click', (event) => {
+    if (
+      event.target instanceof Node &&
+      !searchRoot.contains(event.target)
+    ) {
+      closeSearchResults();
+    }
+  });
+}
+
 if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
   const source = new EventSource('/__live_reload__');
   source.onmessage = (event) => {
