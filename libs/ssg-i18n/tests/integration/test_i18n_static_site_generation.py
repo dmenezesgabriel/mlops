@@ -94,6 +94,23 @@ def test_i18n_build_composes_with_content_and_html_extensions(
         translated_notebook["cells"][1]["source"]
         == "def train_model():\n    return 'ok'\n"
     )
+    portuguese_sitemap = (output_path / "pt-BR" / "sitemap.xml").read_text(
+        encoding="utf-8"
+    )
+    assert (
+        "<loc>https://example.com/learning/pt-BR/</loc>" in portuguese_sitemap
+    )
+    assert (
+        "<loc>https://example.com/learning/pt-BR/"
+        "sample-collection/overview.html</loc>" in portuguese_sitemap
+    )
+    portuguese_robots = (output_path / "pt-BR" / "robots.txt").read_text(
+        encoding="utf-8"
+    )
+    assert (
+        "Sitemap: https://example.com/learning/pt-BR/sitemap.xml"
+        in portuguese_robots
+    )
 
 
 def _write_site_fixture(tmp_path: Path) -> Path:
@@ -111,6 +128,7 @@ def _write_config(site_path: Path) -> None:
     (site_path / "site.yaml").write_text(
         "site:\n"
         "  title: Learning Site\n"
+        "  url: https://example.com/learning\n"
         "extensions:\n"
         "  i18n:\n"
         "    default_locale: en\n"

@@ -642,6 +642,128 @@ def test_assets_include_favicon() -> None:
     assert "<svg" in assets["favicon.svg"]
 
 
+def test_render_sitemap_lists_canonical_page_urls(tmp_path: Path) -> None:
+    # Arrange — loc values must equal the canonical URLs head.html emits:
+    # the locale root for index, <output_slug>/<slug>.html per page.
+    renderer = JinjaPageRenderer()
+    site, collection, _page = _site_with_collection(tmp_path, url=True)
+
+    # Act
+    sitemap_xml = renderer.render_sitemap(site, (collection,))
+
+    # Assert
+    assert sitemap_xml.startswith('<?xml version="1.0" encoding="UTF-8"?>')
+    assert 'xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"' in sitemap_xml
+    assert "<loc>https://example.com/docs/</loc>" in sitemap_xml
+    assert (
+        "<loc>https://example.com/docs/sample-collection/overview.html</loc>"
+        in sitemap_xml
+    )
+    assert (
+        "<loc>https://example.com/docs/sample-collection/details.html</loc>"
+        in sitemap_xml
+    )
+
+
+def test_render_sitemap_prefixes_non_default_locale(tmp_path: Path) -> None:
+    # Arrange — a pt-BR variant deploys under <site.url>/pt-BR/, so its
+    # sitemap locs carry the locale prefix like its canonicals do.
+    renderer = JinjaPageRenderer()
+    site, collection, _page = _site_with_collection(tmp_path)
+    localized_site = Site(
+        title=site.title,
+        description=site.description,
+        collections=site.collections,
+        locale="pt-BR",
+        url="https://example.com/docs",
+    )
+
+    # Act
+    sitemap_xml = renderer.render_sitemap(localized_site, (collection,))
+
+    # Assert
+    assert "<loc>https://example.com/docs/pt-BR/</loc>" in sitemap_xml
+    assert (
+        "<loc>https://example.com/docs/pt-BR/"
+        "sample-collection/overview.html</loc>" in sitemap_xml
+    )
+
+
+def test_render_sitemap_escapes_url_ampersands(tmp_path: Path) -> None:
+    # Arrange — loc text must be XML-escaped (mkdocs passes each url
+    # through |e); a bare & would produce a malformed document.
+    renderer = JinjaPageRenderer()
+    site, collection, _page = _site_with_collection(tmp_path)
+    site = Site(
+        title=site.title,
+        description=site.description,
+        collections=site.collections,
+        url="https://example.com/docs?x=1&y=2",
+    )
+
+    # Act
+    sitemap_xml = renderer.render_sitemap(site, (collection,))
+
+    # Assert
+    assert "x=1&amp;y=2" in sitemap_xml
+    assert "x=1&y=2" not in sitemap_xml
+
+
+def test_render_robots_txt_allows_all_and_points_at_sitemap(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    renderer = JinjaPageRenderer()
+    site, _collection, _page = _site_with_collection(tmp_path, url=True)
+
+    # Act
+    robots_txt = renderer.render_robots_txt(site)
+
+    # Assert
+    assert "User-agent: *" in robots_txt
+    assert "Allow: /" in robots_txt
+    assert "Sitemap: https://example.com/docs/sitemap.xml" in robots_txt
+
+
+def test_render_robots_txt_points_at_locale_sitemap_for_variant(
+    tmp_path: Path,
+) -> None:
+    # Arrange — each locale root carries its own sitemap.xml, so the
+    # variant's robots.txt points inside its locale prefix.
+    renderer = JinjaPageRenderer()
+    site, _collection, _page = _site_with_collection(tmp_path)
+    localized_site = Site(
+        title=site.title,
+        description=site.description,
+        collections=site.collections,
+        locale="pt-BR",
+        url="https://example.com/docs",
+    )
+
+    # Act
+    robots_txt = renderer.render_robots_txt(localized_site)
+
+    # Assert
+    assert "Sitemap: https://example.com/docs/pt-BR/sitemap.xml" in robots_txt
+
+
+def test_render_robots_txt_omits_sitemap_line_without_site_url(
+    tmp_path: Path,
+) -> None:
+    # Arrange — no deployment URL means no sitemap.xml is emitted, so the
+    # Sitemap pointer would be a dead link.
+    renderer = JinjaPageRenderer()
+    site, _collection, _page = _site_with_collection(tmp_path)
+
+    # Act
+    robots_txt = renderer.render_robots_txt(site)
+
+    # Assert
+    assert "User-agent: *" in robots_txt
+    assert "Allow: /" in robots_txt
+    assert "Sitemap:" not in robots_txt
+
+
 def _site_with_collection(
     tmp_path: Path, url: bool = False
 ) -> tuple[Site, ContentCollection, Page]:

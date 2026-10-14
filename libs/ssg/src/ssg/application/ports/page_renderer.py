@@ -1,11 +1,22 @@
 from typing import Protocol
 
-from ssg.domain import RenderedIndex, RenderedPage
+from ssg.domain import (
+    ContentCollection,
+    RenderedIndex,
+    RenderedPage,
+    Site,
+)
 
 
 class PageRenderer(Protocol):
     def render_page(self, rendered_page: RenderedPage) -> str: ...
 
     def render_index(self, rendered_index: RenderedIndex) -> str: ...
+
+    def render_sitemap(
+        self, site: Site, collections: tuple[ContentCollection, ...]
+    ) -> str: ...
+
+    def render_robots_txt(self, site: Site) -> str: ...
 
     def assets(self) -> dict[str, str]: ...

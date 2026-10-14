@@ -61,6 +61,7 @@ def test_static_site_generation_from_configured_content_collection(
     _assert_notebook_content_rendered(rendered_html)
     _assert_syntax_highlighting_rendered(rendered_html, overview_html)
     _assert_site_files_written(output_path, page_path)
+    _assert_seo_files_written(output_path)
 
 
 def _assert_head_metadata(rendered_html: str, output_path: Path) -> None:
@@ -143,6 +144,22 @@ def _assert_site_files_written(output_path: Path, page_path: Path) -> None:
         / "images"
         / "feature-engineering-cell-1-output-1.png"
     ).exists()
+
+
+def _assert_seo_files_written(output_path: Path) -> None:
+    sitemap_xml = (output_path / "sitemap.xml").read_text(encoding="utf-8")
+    assert "<loc>https://example.com/learning/</loc>" in sitemap_xml
+    assert (
+        "<loc>https://example.com/learning/"
+        "sample-collection/feature-engineering.html</loc>"
+    ) in sitemap_xml
+    assert (
+        "<loc>https://example.com/learning/second-collection/overview.html</loc>"
+        in sitemap_xml
+    )
+    robots_txt = (output_path / "robots.txt").read_text(encoding="utf-8")
+    assert "User-agent: *" in robots_txt
+    assert "Sitemap: https://example.com/learning/sitemap.xml" in robots_txt
 
 
 def _create_site_with_notebook_collection(tmp_path: Path) -> Path:

@@ -1,0 +1,4 @@
+{% autoescape false %}User-agent: *
+Allow: /
+{% if site.url %}Sitemap: {{ site.absolute_url('sitemap.xml') }}
+{% endif %}{% endautoescape %}

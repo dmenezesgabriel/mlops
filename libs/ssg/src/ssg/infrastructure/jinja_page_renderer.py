@@ -1,5 +1,10 @@
 from ssg.application.ports import PageRenderer
-from ssg.domain import RenderedIndex, RenderedPage
+from ssg.domain import (
+    ContentCollection,
+    RenderedIndex,
+    RenderedPage,
+    Site,
+)
 from ssg.infrastructure.frontend.jinja_environment import (
     create_frontend_environment,
 )
@@ -15,12 +20,26 @@ class JinjaPageRenderer(PageRenderer):
         self._environment = create_frontend_environment()
         self._page_template = self._environment.get_template("page.html")
         self._index_template = self._environment.get_template("index.html")
+        self._sitemap_template = self._environment.get_template("sitemap.xml")
+        self._robots_txt_template = self._environment.get_template(
+            "robots.txt"
+        )
 
     def render_page(self, rendered_page: RenderedPage) -> str:
         return self._page_template.render(rendered_page=rendered_page)
 
     def render_index(self, rendered_index: RenderedIndex) -> str:
         return self._index_template.render(rendered_index=rendered_index)
+
+    def render_sitemap(
+        self, site: Site, collections: tuple[ContentCollection, ...]
+    ) -> str:
+        return self._sitemap_template.render(
+            site=site, collections=collections
+        )
+
+    def render_robots_txt(self, site: Site) -> str:
+        return self._robots_txt_template.render(site=site)
 
     def assets(self) -> dict[str, str]:
         return {

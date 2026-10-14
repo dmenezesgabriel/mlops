@@ -53,6 +53,10 @@ class SpyPageRenderer:
     def __init__(self) -> None:
         self.render_page_calls: list[RenderedPage] = []
         self.render_index_calls: list[RenderedIndex] = []
+        self.render_sitemap_calls: list[
+            tuple[Site, tuple[ContentCollection, ...]]
+        ] = []
+        self.render_robots_txt_calls: list[Site] = []
 
     def render_page(self, rendered_page: RenderedPage) -> str:
         self.render_page_calls.append(rendered_page)
@@ -61,6 +65,16 @@ class SpyPageRenderer:
     def render_index(self, rendered_index: RenderedIndex) -> str:
         self.render_index_calls.append(rendered_index)
         return "<html>Index</html>"
+
+    def render_sitemap(
+        self, site: Site, collections: tuple[ContentCollection, ...]
+    ) -> str:
+        self.render_sitemap_calls.append((site, collections))
+        return "<sitemap/>"
+
+    def render_robots_txt(self, site: Site) -> str:
+        self.render_robots_txt_calls.append(site)
+        return "robots"
 
     def assets(self) -> dict[str, str]:
         return {"site.css": "body {}", "site.js": ""}
@@ -131,6 +145,7 @@ class LocalizedSiteVariantProvider:
             locale="pt-BR",
             default_locale=site.default_locale,
             extensions=site.extensions,
+            url=site.url,
         )
         return (
             SiteVariant(site=site, output_path=context.output_path),
@@ -837,3 +852,155 @@ class TestStaticSiteBuilder:
             "sample/page1.html",
             "sample/page1.html#overview",
         ]
+
+    def test_build_writes_sitemap_and_robots_per_site_variant(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        site = Site(
+            title="Learning Site",
+            description="",
+            collections=(collection,),
+            url="https://example.com/docs",
+        )
+        page_renderer = SpyPageRenderer()
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=page_renderer,
+            site_variant_provider=LocalizedSiteVariantProvider(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+        )
+
+        # Act
+        builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+        # Assert — each variant root gets both files, default locale at the
+        # build root and pt-BR under its own directory.
+        for variant_path in (tmp_path / "build", tmp_path / "build" / "pt-BR"):
+            assert (variant_path / "sitemap.xml").read_text(
+                encoding="utf-8"
+            ) == "<sitemap/>"
+            assert (variant_path / "robots.txt").read_text(
+                encoding="utf-8"
+            ) == "robots"
+        assert [
+            call_site.locale
+            for call_site, _collections in page_renderer.render_sitemap_calls
+        ] == ["en", "pt-BR"]
+        assert [
+            call_collections
+            for _site, call_collections in page_renderer.render_sitemap_calls
+        ] == [(collection,), (collection,)]
+        assert [
+            call_site.locale
+            for call_site in page_renderer.render_robots_txt_calls
+        ] == ["en", "pt-BR"]
+
+    def test_build_writes_robots_but_skips_sitemap_without_site_url(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — sitemap <loc> entries must be absolute URLs; without a
+        # configured deployment base there is nothing valid to emit, while
+        # robots.txt is still useful (matching the head canonical gate).
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        site = Site(
+            title="Learning Site", description="", collections=(collection,)
+        )
+        page_renderer = SpyPageRenderer()
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=page_renderer,
+            site_variant_provider=SingleSiteVariantProvider(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+        )
+        output_path = tmp_path / "build"
+
+        # Act
+        builder.build(tmp_path / "site.yaml", output_path)
+
+        # Assert
+        assert not (output_path / "sitemap.xml").exists()
+        assert page_renderer.render_sitemap_calls == []
+        assert (output_path / "robots.txt").read_text(
+            encoding="utf-8"
+        ) == "robots"
+
+    def test_incremental_build_sitemap_lists_skipped_pages(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — an incremental rebuild rewrites only affected pages, but
+        # the skipped pages still exist in the output and must stay listed.
+        config_path = tmp_path / "site.yaml"
+        output_path = tmp_path / "build"
+        page1 = Page(
+            slug="page1", title="Page 1", source_path=tmp_path / "page1.md"
+        )
+        page2 = Page(
+            slug="page2", title="Page 2", source_path=tmp_path / "page2.md"
+        )
+        collection = ContentCollection(
+            name="sample",
+            title="Sample",
+            source_root=tmp_path,
+            output_slug="sample",
+            pages=(page1, page2),
+            videos={},
+        )
+        site = Site(
+            title="Site",
+            description="",
+            collections=(collection,),
+            url="https://example.com/docs",
+        )
+        page_renderer = SpyPageRenderer()
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=page_renderer,
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+            site_variant_provider=SingleSiteVariantProvider(),
+        )
+        builder.build(config_path, output_path)
+
+        # Act
+        builder.build(
+            config_path, output_path, changed_paths={page2.source_path}
+        )
+
+        # Assert
+        _site, collections = page_renderer.render_sitemap_calls[-1]
+        assert collections == (collection,)
+        assert collections[0].pages == (page1, page2)

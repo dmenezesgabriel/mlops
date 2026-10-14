@@ -148,6 +148,8 @@ class StaticSiteBuilder:
                 affected_pages,
             )
         self._search_index.write(site_variant.output_path)
+        self._write_sitemap(site_variant, selected_collections)
+        self._write_robots_txt(site_variant)
 
     def _build_collection(
         self,
@@ -241,6 +243,28 @@ class StaticSiteBuilder:
         LOGGER.info(
             "site_index_rendered",
             extra={"context": {"output_path": str(index_path)}},
+        )
+
+    def _write_sitemap(
+        self,
+        site_variant: SiteVariant,
+        selected_collections: tuple[ContentCollection, ...],
+    ) -> None:
+        site = site_variant.site
+        if not site.url:
+            return
+
+        sitemap_path = site_variant.output_path / "sitemap.xml"
+        sitemap_path.write_text(
+            self._page_renderer.render_sitemap(site, selected_collections),
+            encoding="utf-8",
+        )
+
+    def _write_robots_txt(self, site_variant: SiteVariant) -> None:
+        robots_path = site_variant.output_path / "robots.txt"
+        robots_path.write_text(
+            self._page_renderer.render_robots_txt(site_variant.site),
+            encoding="utf-8",
         )
 
     def _rendered_page(
