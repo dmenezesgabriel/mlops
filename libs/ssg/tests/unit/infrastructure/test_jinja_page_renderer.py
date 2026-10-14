@@ -60,7 +60,7 @@ def test_render_page_includes_semantic_accessible_landmarks(
     )
     toc_link = '<a class="article-toc__link--level-2" href="#problem-framing">Problem Framing</a>'
     assert toc_link in rendered_html
-    assert 'body data-theme="editorial-lab"' in rendered_html
+    assert "<body>" in rendered_html
     assert 'aria-current="page"' in rendered_html
     assert "<p>Rendered content.</p>" in rendered_html
 
@@ -251,6 +251,91 @@ def test_render_page_declares_color_scheme_meta(tmp_path: Path) -> None:
 
     # Assert
     assert '<meta name="color-scheme" content="light dark">' in rendered_html
+
+
+def test_render_page_includes_theme_select_and_fouc_guard(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path)
+    rendered_page = RenderedPage(
+        site=site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Overview", body="<p>Rendered content.</p>", headings=()
+        ),
+        navigation=site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert 'class="theme-select"' in rendered_html
+    assert 'aria-label="Theme"' in rendered_html
+    assert '<option value="auto">Auto</option>' in rendered_html
+    assert '<option value="light">Light</option>' in rendered_html
+    assert '<option value="dark">Dark</option>' in rendered_html
+    # The guard restores a stored pick ahead of first paint, so it must sit
+    # before the first rendered element in <body>.
+    assert rendered_html.index("localStorage.getItem('ssg-theme')") < (
+        rendered_html.index("skip-link")
+    )
+    assert 'data-theme="editorial-lab"' not in rendered_html
+
+
+def test_render_page_localizes_theme_select_labels(tmp_path: Path) -> None:
+    # Arrange
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path)
+    localized_site = Site(
+        title=site.title,
+        description=site.description,
+        collections=site.collections,
+        locale="pt-BR",
+        extensions={
+            "i18n": {
+                "label_theme": "Tema",
+                "label_theme_auto": "Automático",
+                "label_theme_light": "Claro",
+                "label_theme_dark": "Escuro",
+            }
+        },
+    )
+    rendered_page = RenderedPage(
+        site=localized_site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Visao Geral", body="<p>Conteudo.</p>", headings=()
+        ),
+        navigation=localized_site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert 'aria-label="Tema"' in rendered_html
+    assert '<option value="auto">Automático</option>' in rendered_html
+    assert '<option value="light">Claro</option>' in rendered_html
+    assert '<option value="dark">Escuro</option>' in rendered_html
+
+
+def test_assets_include_theme_select_wiring() -> None:
+    # Arrange / Act
+    assets = JinjaPageRenderer().assets()
+
+    # Assert
+    assert "ssg-theme" in assets["site.js"]
+    assert "has-theme-select" in assets["site.js"]
+    assert ".theme-select" in assets["site.css"]
 
 
 def test_frontend_templates_and_static_assets_are_package_files() -> None:

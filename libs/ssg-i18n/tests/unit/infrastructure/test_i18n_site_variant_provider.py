@@ -415,6 +415,33 @@ def test_variants_keeps_author_i18n_label_overrides(tmp_path: Path) -> None:
     assert "Language" not in called_texts
 
 
+def test_variants_translates_theme_select_labels(tmp_path: Path) -> None:
+    # Arrange
+    collection = _write_collection(
+        tmp_path / "content", "coll0", (("a", "First words.\n"),)
+    )
+    translator = RecordingTextTranslator(
+        {
+            "Theme": "Tema",
+            "Auto": "Automático",
+            "Light": "Claro",
+            "Dark": "Escuro",
+        }
+    )
+    provider = I18nSiteVariantProvider(translator)
+    site = _make_site(collection)
+
+    # Act
+    variants = provider.variants(site, _make_context(tmp_path))
+
+    # Assert
+    portuguese_i18n = variants[1].site.extensions["i18n"]
+    assert portuguese_i18n["label_theme"] == "Tema"
+    assert portuguese_i18n["label_theme_auto"] == "Automático"
+    assert portuguese_i18n["label_theme_light"] == "Claro"
+    assert portuguese_i18n["label_theme_dark"] == "Escuro"
+
+
 def test_variants_falls_back_to_injected_translator_in_machine_mode_without_factory(
     tmp_path: Path,
 ) -> None:

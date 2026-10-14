@@ -54,6 +54,26 @@ class TestBuiltSiteSmoke:
             _assert_data_theme_overrides_media(page, base_url)
             _assert_dark_scheme_without_js(page, base_url)
 
+    def test_built_site_theme_toggle_persists(
+        self,
+        page: Page,
+    ) -> None:
+        # Arrange
+        site_build_path = Path("site/build")
+        if not site_build_path.exists():
+            site_build_path = Path("../../site/build")
+        assert site_build_path.exists(), (
+            "Missing site/build: expected `make build-site` before e2e"
+        )
+
+        # Act & Assert
+        with _serve_directory(site_build_path) as base_url:
+            _assert_theme_select_flips(page, base_url)
+            _assert_theme_persists_across_reload(page, base_url)
+            _assert_theme_auto_follows_system(page, base_url)
+            _assert_theme_select_i18n(page, base_url)
+            _assert_theme_select_hidden_without_js(page, base_url)
+
 
 def _assert_home_page(page: Page, base_url: str) -> None:
     page.goto(f"{base_url}/", wait_until="networkidle")
@@ -262,6 +282,58 @@ def _assert_dark_scheme_without_js(page: Page, base_url: str) -> None:
     page.goto(f"{base_url}/", wait_until="networkidle")
     page.unroute("**/assets/site.js")
     assert _body_colors(page) == _DARK_BODY
+
+
+def _assert_theme_select_flips(page: Page, base_url: str) -> None:
+    page.emulate_media(color_scheme="light")
+    page.goto(f"{base_url}/", wait_until="networkidle")
+    theme_select = page.locator(".theme-select")
+    expect(theme_select).to_be_visible()
+    expect(theme_select).to_have_value("auto")
+    theme_select.select_option("dark")
+    # The explicit pick must beat the media query (still emulated light).
+    expect(page.locator("body")).to_have_attribute("data-theme", "dark")
+    assert _body_colors(page) == _DARK_BODY
+
+
+def _assert_theme_persists_across_reload(page: Page, base_url: str) -> None:
+    # The inline guard re-applies the stored pick before site.js runs, so
+    # the select value is restored too once the wiring loads.
+    page.reload(wait_until="networkidle")
+    expect(page.locator("body")).to_have_attribute("data-theme", "dark")
+    expect(page.locator(".theme-select")).to_have_value("dark")
+    page.goto(
+        f"{base_url}/nyc-taxi-demand-forecasting/overview.html",
+        wait_until="networkidle",
+    )
+    expect(page.locator("body")).to_have_attribute("data-theme", "dark")
+
+
+def _assert_theme_auto_follows_system(page: Page, base_url: str) -> None:
+    # auto drops the override entirely; the stylesheet then tracks the
+    # media query live with no JS involved.
+    page.locator(".theme-select").select_option("auto")
+    assert page.locator("body").get_attribute("data-theme") is None
+    page.emulate_media(color_scheme="dark")
+    assert _body_colors(page) == _DARK_BODY
+    page.emulate_media(color_scheme="light")
+    assert _body_colors(page) == _LIGHT_BODY
+
+
+def _assert_theme_select_i18n(page: Page, base_url: str) -> None:
+    page.goto(f"{base_url}/pt-BR/", wait_until="networkidle")
+    theme_select = page.locator(".theme-select")
+    expect(theme_select).to_have_attribute("aria-label", "Tema")
+    expect(theme_select.locator('option[value="dark"]')).to_have_text("Escuro")
+
+
+def _assert_theme_select_hidden_without_js(page: Page, base_url: str) -> None:
+    # Without site.js the select would be a dead control; the
+    # has-theme-select gate keeps it hidden.
+    page.route("**/assets/site.js", lambda route: route.abort())
+    page.goto(f"{base_url}/", wait_until="networkidle")
+    page.unroute("**/assets/site.js")
+    expect(page.locator(".theme-select")).not_to_be_visible()
 
 
 def _configured_paths() -> tuple[str, ...]:

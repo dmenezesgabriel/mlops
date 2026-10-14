@@ -222,6 +222,19 @@ a:focus-visible, button:focus-visible { outline: 4px solid var(--focus); outline
   padding: 0.65rem 0.95rem;
   text-transform: uppercase;
 }
+.theme-select {
+  align-self: center;
+  background: var(--surface);
+  border: 3px solid var(--ink);
+  color: var(--ink);
+  cursor: pointer;
+  display: none;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  padding: 0.55rem 0.5rem;
+  text-transform: uppercase;
+}
+html.has-theme-select .theme-select { display: block; }
 
 .site-shell {
   display: grid;
@@ -693,4 +706,5 @@ pre::-webkit-scrollbar-thumb:hover {
 @media print {
   .article-body .headerlink { display: none; }
   .code-copy-button { display: none; }
+  .theme-select { display: none; }
 }

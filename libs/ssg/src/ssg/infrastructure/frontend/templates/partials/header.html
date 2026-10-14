@@ -5,6 +5,14 @@
     <p class="site-description">{{ site.description }}</p>
   </div>
   <div class="header-actions">
+    <select
+      class="theme-select"
+      aria-label="{{ site.extension_setting('i18n', 'label_theme', 'Theme') }}"
+    >
+      <option value="auto">{{ site.extension_setting('i18n', 'label_theme_auto', 'Auto') }}</option>
+      <option value="light">{{ site.extension_setting('i18n', 'label_theme_light', 'Light') }}</option>
+      <option value="dark">{{ site.extension_setting('i18n', 'label_theme_dark', 'Dark') }}</option>
+    </select>
     {% if language_links %}
       <details class="language-switcher">
         <summary aria-label="Choose language">

@@ -3,7 +3,23 @@
   <head>
     {% block head %}{% endblock %}
   </head>
-  <body data-theme="editorial-lab">
+  <body>
+    <script>
+      // Parser-blocking by design: restores the stored theme before first
+      // paint so an explicit pick never flashes the wrong palette. Absent
+      // data-theme means "follow prefers-color-scheme" (site.css :root).
+      (function () {
+        var theme = null;
+        try {
+          theme = window.localStorage.getItem('ssg-theme');
+        } catch (error) {
+          return;
+        }
+        if (theme === 'light' || theme === 'dark') {
+          document.body.dataset.theme = theme;
+        }
+      })();
+    </script>
     <a class="skip-link" href="#main-content">Skip to content</a>
     {% block body %}{% endblock %}
   </body>
