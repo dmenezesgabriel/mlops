@@ -9,6 +9,7 @@
 - `ssg.infrastructure`: filesystem manifests, Markdown rendering, semantic Jinja HTML rendering, local preview server, watchdog reload, and SSG-local logging.
 - `ssg_i18n`: optional site-variant plugin for locale-aware builds and translated generated sources.
 - `ssg_notebook_render`: optional `.ipynb` content renderer plugin installed separately.
+- `ssg_mermaid`: optional plugin that renders `mermaid` fenced blocks to inline SVG at build time.
 - `projects/*`: project-specific notebooks, markdown, scripts, charts, and data science code.
 - `site/site.yaml`: publishing configuration that maps project content to rendered pages and assets.
 
@@ -51,6 +52,29 @@ The title localizes through the variant's `i18n` extension settings
 (`label_alert_note` … `label_alert_caution`); the `[!kind]` marker itself is
 fixed English syntax that document translation preserves verbatim, while the
 alert body translates normally.
+
+When the `ssg-mermaid` plugin is installed, markdown pages and notebook
+markdown cells may use `mermaid` fenced blocks:
+
+````markdown
+```mermaid
+flowchart LR
+    A[Collect] --> B[Preprocess]
+```
+````
+
+The plugin renders the diagram to inline SVG at build time through a vendored
+Node.js renderer (`npm ci` provisions it on first use, so `node`/`npm` must be
+on the PATH at build time). The SVG embeds `var(--surface)`/`--ink` theme
+references, so it follows the site palette — including the light/dark switch —
+with no JavaScript; without JS the diagram is simply already drawn. Claiming
+`language-mermaid` blocks happens in the `ssg.early_html_post_processors`
+entry-point group, which runs before `ssg.html_post_processors` transformers
+such as syntax highlighting — `entry_points()` order within a group is
+unspecified, so plugins that must win a block race register there instead.
+Layout-capable rendering covers flowchart, sequence, state, class, ER, pie,
+and git graph diagrams; browser-layout-dependent types (notably gantt) fail
+the build with a `MermaidRenderingError` rather than shipping a broken figure.
 
 ## Output
 
@@ -97,6 +121,12 @@ uv pip install "ssg[i18n-transformers]"
 ```
 
 The i18n plugin translates generated Markdown and notebook markdown cells while preserving fenced code, inline code, asset directives, wikilink targets, URLs, and notebook code cells.
+
+Mermaid diagram rendering stays outside core as well:
+
+```bash
+uv pip install ssg-mermaid
+```
 
 ## Commands
 

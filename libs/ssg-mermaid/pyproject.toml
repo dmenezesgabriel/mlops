@@ -1,0 +1,55 @@
+[project]
+name = "ssg-mermaid"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "ssg",
+]
+
+[project.entry-points."ssg.early_html_post_processors"]
+mermaid = "ssg_mermaid.infrastructure.plugin:create_mermaid_html_post_processor"
+
+[tool.uv.sources]
+ssg = { workspace = true }
+
+[tool.deptry]
+exclude = ["node_modules", "src/ssg_mermaid/node_modules"]
+
+[tool.coverage.run]
+# bare `--cov` traces the editable `ssg` workspace dependency; those modules
+# are covered by ssg's own suite, so measure only this package's code.
+source = ["src", "tests"]
+
+[tool.deptry.package_module_name_map]
+ssg = "ssg"
+ssg-mermaid = "ssg_mermaid"
+
+[tool.deptry.per_rule_ignores]
+DEP003 = ["ssg_mermaid", "pytest"]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -rfEs --tb=short --import-mode=importlib"
+console_output_style = "classic"
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "strict"
+reportMissingParameterType = true
+reportMissingReturnType = true
+reportUnnecessaryCast = true
+reportUnusedIgnoreComment = true
+reportMissingImports = false
+
+[tool.vulture]
+min_confidence = 80
+# src/ssg_mermaid/node_modules is vendored upstream tooling, not ours.
+# handle_starttag's `attrs` keeps the stdlib HTMLParser callback signature;
+# `site` is the HtmlPostProcessor port's unused second parameter.
+exclude = ["*/node_modules/*"]
+ignore_names = ["attrs", "site"]
+sort_by_size = true

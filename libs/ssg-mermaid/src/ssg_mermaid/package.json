@@ -1,0 +1,12 @@
+{
+  "name": "ssg-mermaid",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "dependencies": {
+    "dompurify": "3.4.16",
+    "jsdom": "30.1.2",
+    "mermaid": "11.17.2",
+    "svgdom": "0.1.29"
+  }
+}

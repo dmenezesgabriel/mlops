@@ -43,6 +43,7 @@ members = [
     "ssg-i18n",
     "ssg-i18n-machine-translation",
     "ssg-latex",
+    "ssg-mermaid",
     "ssg-notebook-render",
     "ssg-syntax-highlighting",
     "videos",
@@ -7420,6 +7421,7 @@ all = [
     { name = "ssg-i18n" },
     { name = "ssg-i18n-machine-translation", extra = ["transformers"] },
     { name = "ssg-latex" },
+    { name = "ssg-mermaid" },
     { name = "ssg-syntax-highlighting" },
 ]
 i18n = [
@@ -7431,6 +7433,9 @@ i18n-transformers = [
 ]
 latex = [
     { name = "ssg-latex" },
+]
+mermaid = [
+    { name = "ssg-mermaid" },
 ]
 syntax-highlighting = [
     { name = "ssg-syntax-highlighting" },
@@ -7451,11 +7456,13 @@ requires-dist = [
     { name = "ssg-i18n-machine-translation", extras = ["transformers"], marker = "extra == 'i18n-transformers'", editable = "libs/ssg-i18n-machine-translation" },
     { name = "ssg-latex", marker = "extra == 'all'", editable = "libs/ssg-latex" },
     { name = "ssg-latex", marker = "extra == 'latex'", editable = "libs/ssg-latex" },
+    { name = "ssg-mermaid", marker = "extra == 'all'", editable = "libs/ssg-mermaid" },
+    { name = "ssg-mermaid", marker = "extra == 'mermaid'", editable = "libs/ssg-mermaid" },
     { name = "ssg-syntax-highlighting", marker = "extra == 'all'", editable = "libs/ssg-syntax-highlighting" },
     { name = "ssg-syntax-highlighting", marker = "extra == 'syntax-highlighting'", editable = "libs/ssg-syntax-highlighting" },
     { name = "watchdog", specifier = "==6.0.0" },
 ]
-provides-extras = ["i18n", "i18n-transformers", "syntax-highlighting", "latex", "all"]
+provides-extras = ["i18n", "i18n-transformers", "syntax-highlighting", "latex", "mermaid", "all"]
 
 [[package]]
 name = "ssg-i18n"
@@ -7510,6 +7517,17 @@ provides-extras = ["transformers", "evaluation"]
 name = "ssg-latex"
 version = "0.1.0"
 source = { editable = "libs/ssg-latex" }
+dependencies = [
+    { name = "ssg" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "ssg", editable = "libs/ssg" }]
+
+[[package]]
+name = "ssg-mermaid"
+version = "0.1.0"
+source = { editable = "libs/ssg-mermaid" }
 dependencies = [
     { name = "ssg" },
 ]

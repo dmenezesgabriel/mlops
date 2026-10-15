@@ -46,3 +46,16 @@ By shifting historical transaction logs backwards by one hour, we frame this as 
 ## 3. Project Goal & Pipeline Architecture
 
 This project implements a production-grade, end-to-end MLOps pipeline to serve this model with strict validation. The workflow is split into a local developer setup (relying on **DuckDB** for analytics and **SQLite** for metadata store) and standard cloud adapters, showcasing the CD4ML (Continuous Delivery for Machine Learning) lifecycle including feature store serving, experiment tracking, and automated quality gates.
+
+```mermaid
+flowchart LR
+    A[Collect] --> B[Preprocess]
+    B --> C[Feature engineering]
+    C --> D[Train]
+    D --> E[Tune]
+    E --> F[Evaluate]
+    F --> G[Deploy]
+    G --> H[Monitor]
+    H -. drift .-> B
+```
+

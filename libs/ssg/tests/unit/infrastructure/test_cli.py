@@ -30,6 +30,18 @@ class FakeEntryPoint:
         return FakeHtmlPostProcessor
 
 
+class FakeEarlyHtmlPostProcessor:
+    def process(self, rendered_html: str, _site: object) -> str:
+        return rendered_html
+
+
+class FakeEarlyEntryPoint:
+    name = "fake-early-processor"
+
+    def load(self) -> type[FakeEarlyHtmlPostProcessor]:
+        return FakeEarlyHtmlPostProcessor
+
+
 class FakeContentRenderer:
     def can_render(self, _source_path: Path) -> bool:
         return True
@@ -260,8 +272,10 @@ def test_load_html_post_processors_uses_html_processor_entry_points(
     # Arrange
     requested_groups: list[str] = []
 
-    def fake_entry_points(group: str) -> tuple[FakeEntryPoint, ...]:
+    def fake_entry_points(group: str) -> tuple[object, ...]:
         requested_groups.append(group)
+        if group == "ssg.early_html_post_processors":
+            return (FakeEarlyEntryPoint(),)
         return (FakeEntryPoint(),)
 
     monkeypatch.setattr(cli, "entry_points", fake_entry_points)
@@ -271,9 +285,16 @@ def test_load_html_post_processors_uses_html_processor_entry_points(
 
     # Assert — the built-in alert-title processor ships inside ssg and runs
     # ahead of entry-point plugins, like MarkdownContentRenderer does.
-    assert requested_groups == ["ssg.html_post_processors"]
+    # Early-group plugins (raw-output claimers like the mermaid renderer)
+    # must run before regular transformers or the highlighter would
+    # consume language-mermaid fences first.
+    assert requested_groups == [
+        "ssg.early_html_post_processors",
+        "ssg.html_post_processors",
+    ]
     assert isinstance(processors[0], MarkdownAlertTitlePostProcessor)
-    assert isinstance(processors[1], FakeHtmlPostProcessor)
+    assert isinstance(processors[1], FakeEarlyHtmlPostProcessor)
+    assert isinstance(processors[2], FakeHtmlPostProcessor)
 
 
 def test_load_site_variant_provider_uses_site_variant_entry_point(
@@ -351,8 +372,11 @@ def test_loader_wraps_entry_point_load_failure(
     loader: Callable[[], object],
     group: str,
 ) -> None:
-    # Arrange
-    def fake_entry_points(group: str) -> tuple[FailingEntryPoint, ...]:
+    # Arrange — fail only inside the group under test; other queried
+    # groups stay empty so the assertion names the expected group.
+    def fake_entry_points(**kwargs: object) -> tuple[FailingEntryPoint, ...]:
+        if kwargs.get("group") != group:
+            return ()
         return (FailingEntryPoint(),)
 
     monkeypatch.setattr(cli, "entry_points", fake_entry_points)
@@ -387,8 +411,12 @@ def test_loader_rejects_non_conforming_plugin(
     group: str,
     contract: str,
 ) -> None:
-    # Arrange
-    def fake_entry_points(group: str) -> tuple[NonConformingEntryPoint, ...]:
+    # Arrange — same group filtering as the load-failure test above.
+    def fake_entry_points(
+        **kwargs: object,
+    ) -> tuple[NonConformingEntryPoint, ...]:
+        if kwargs.get("group") != group:
+            return ()
         return (NonConformingEntryPoint(),)
 
     monkeypatch.setattr(cli, "entry_points", fake_entry_points)

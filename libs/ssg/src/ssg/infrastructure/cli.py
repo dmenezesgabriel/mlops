@@ -186,18 +186,29 @@ def load_content_renderers() -> tuple[ContentRenderer, ...]:
 
 
 def load_html_post_processors() -> tuple[HtmlPostProcessor, ...]:
+    # Two phases: `ssg.early_html_post_processors` claim raw renderer
+    # output (e.g. language-mermaid fences) before transformers in
+    # `ssg.html_post_processors` (e.g. syntax highlighting) rewrite it —
+    # entry_points() order within a group is unspecified, so the ordering
+    # guarantee has to live in the group split itself.
+    html_post_processors = _load_html_post_processor_plugins(
+        "ssg.early_html_post_processors"
+    ) + _load_html_post_processor_plugins("ssg.html_post_processors")
+    return (MarkdownAlertTitlePostProcessor(), *html_post_processors)
+
+
+def _load_html_post_processor_plugins(group: str) -> list[HtmlPostProcessor]:
     html_post_processors: list[HtmlPostProcessor] = []
-    for entry_point in entry_points(group="ssg.html_post_processors"):
+    for entry_point in entry_points(group=group):
         html_post_processor = _load_plugin(
-            entry_point, "ssg.html_post_processors", HtmlPostProcessor
+            entry_point, group, HtmlPostProcessor
         )
         LOGGER.info(
             "html_post_processor_loaded",
-            extra={"context": {"processor": entry_point.name}},
+            extra={"context": {"processor": entry_point.name, "group": group}},
         )
         html_post_processors.append(html_post_processor)
-
-    return (MarkdownAlertTitlePostProcessor(), *html_post_processors)
+    return html_post_processors
 
 
 def load_site_variant_provider() -> SiteVariantProvider | None:

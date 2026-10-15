@@ -530,12 +530,15 @@ html.has-search .site-search { display: block; }
 }
 .not-found a { font-family: var(--font-mono); font-weight: 600; }
 
-.source-panel, .media-frame, .notebook-cell, .data-callout, .chart-frame, .diagram-frame {
+.source-panel, .media-frame, .notebook-cell, .data-callout, .chart-frame, .diagram-frame, .mermaid-diagram {
   background: var(--surface);
   border: 3px solid var(--ink);
   box-shadow: var(--shadow-hard);
   max-width: var(--wide-measure) !important;
 }
+/* The rendered svg carries a fixed height attribute; auto lets
+   max-width scale it proportionally inside narrow viewports. */
+.mermaid-diagram svg { height: auto; margin: 0 auto; }
 .source-panel figcaption, .media-frame figcaption {
   align-items: center;
   border-bottom: 3px solid var(--ink);

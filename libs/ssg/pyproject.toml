@@ -17,13 +17,15 @@ i18n = ["ssg-i18n"]
 i18n-transformers = ["ssg-i18n", "ssg-i18n-machine-translation[transformers]"]
 syntax-highlighting = ["ssg-syntax-highlighting"]
 latex = ["ssg-latex"]
-all = ["ssg-i18n", "ssg-i18n-machine-translation[transformers]", "ssg-syntax-highlighting", "ssg-latex"]
+mermaid = ["ssg-mermaid"]
+all = ["ssg-i18n", "ssg-i18n-machine-translation[transformers]", "ssg-syntax-highlighting", "ssg-latex", "ssg-mermaid"]
 
 [tool.uv.sources]
 ssg-i18n = { workspace = true }
 ssg-i18n-machine-translation = { workspace = true }
 ssg-syntax-highlighting = { workspace = true }
 ssg-latex = { workspace = true }
+ssg-mermaid = { workspace = true }
 
 [tool.deptry.package_module_name_map]
 ssg = "ssg"
@@ -31,10 +33,11 @@ ssg-i18n = "ssg_i18n"
 ssg-i18n-machine-translation = "ssg_i18n_machine_translation"
 ssg-syntax-highlighting = "ssg_syntax_highlighting"
 ssg-latex = "ssg_latex"
+ssg-mermaid = "ssg_mermaid"
 mdit-py-plugins = "mdit_py_plugins"
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["ssg-i18n", "ssg-i18n-machine-translation", "ssg-syntax-highlighting", "ssg-latex"]
+DEP002 = ["ssg-i18n", "ssg-i18n-machine-translation", "ssg-syntax-highlighting", "ssg-latex", "ssg-mermaid"]
 DEP003 = ["ssg"]
 
 [tool.coverage.run]
