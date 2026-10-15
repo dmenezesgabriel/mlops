@@ -30,12 +30,13 @@ widgets. Requirements `prd.md` FR-25…32; ordering + exit gate
 | SX-21 | [ ] Versioning: versioned output layout + header switcher + `latest` alias; canonical/sitemap/hreflang per version; FR-31 | L | material `docs/setup/setting-up-versioning.md:18-25` (mike — external tool, not vendored; ours reimplements the layout); ours `use_cases/static_site_builder.py` output layout + `partials/header.html` | SX-16 |
 | SX-22 | [ ] Blog: dated-posts collection type + index + RSS feed + author/readtime; FR-32 | L | material `src/plugins/blog/` (`plugin.py`, `author.py`, `structure/`, `readtime/`); ours `collections` config `site/site.yaml` + index templates | — |
 
-## B. Fix items (AF-176…177)
+## B. Fix items (AF-176…178)
 
 | ID | Item | Work | Evidence | Depends |
 |---|---|---|---|---|
 | AF-176 | [x] done 2026-10-15 — `children` walk now guards present-`None` (`getattr(...) or []` into a `list[object]` binding, strict-pyright-clean); +2 parametrized regression tests (ThematicBreak/CodeFence verified RED with the production traceback); G-329 | S | traceback measured on real docs 2026-10-15 (`TypeError: 'NoneType' object is not iterable` at `application/use_cases/machine_translation_evaluator.py:71`); translator's guard `document_translator.py:337-338`; own `render_node` guard `:83` | — |
 | AF-177 | [x] done 2026-10-15 — `is_fallback` now requires letters after stripping `_PROTECTED_SPAN_PATTERN` (mirror of `_PROTECTED_PATTERN` minus the MATHEXPR arm); real `make evaluate-translation` re-run: fallback 19→11 (12.34%→7.14% < 8% gate), BLEU 43.74 > 40 — PASSED; +2 regression tests (math-only/directive-only RED-verified); G-330 | S | real eval 2026-10-15: 12.34% flagged vs true ≈7.1%; protected set `document_translator.py:97-101` (`_PROTECTED_PATTERN`) + `:280-291` math placeholders; flag site `machine_translation_evaluator.py:97-101` | AF-176 |
+| AF-178 | [x] done 2026-10-15 — `hashicorp/setup-terraform@v4.0.1` step added before the compose stack in the quality job (`terraform_wrapper: false` — the test harness shells out to the real binary); G-331 | S | CI run 38726215232 Quality Gates Test log; env exports `ci.yml:56-57`; constraint `libs/athena-local/tests/terraform/apply/versions.tf` `>= 1.5`; green-run skip evidence 36899266699 | — |
 
 Closed sections (archived 2026-10-14):
 A. Athena emulator showcase notebooks (NB-7…16) →
