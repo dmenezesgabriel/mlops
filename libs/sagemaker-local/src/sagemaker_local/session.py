@@ -3,10 +3,10 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Protocol, cast
 
 import boto3
-import botocore.client
+from botocore.exceptions import ClientError
 from sagemaker.local.local_session import LocalSession
 from sagemaker.workflow.pipeline_context import LocalPipelineSession
 
@@ -21,6 +21,25 @@ _TELEMETRY_OPT_OUT_CONFIG = {
     "SchemaVersion": "1.0",
     "SageMaker": {"PythonSDK": {"Modules": {"TelemetryOptOut": True}}},
 }
+
+
+class _S3Client(Protocol):
+    """The S3 operations ``_ensure_bucket`` uses (thin interface).
+
+    ``Session.client()`` returns the service-agnostic ``BaseClient``, whose
+    per-service operations are attached dynamically and invisible to strict
+    pyright — this is the designated boundary, same pattern as
+    ``athena_local.s3_writer.ObjectStoreClient``. Parameter names mirror the
+    botocore S3 client keyword arguments, hence the PascalCase.
+    """
+
+    def head_bucket(self, Bucket: str) -> object: ...  # noqa: N803
+
+    def create_bucket(  # noqa: N803
+        self,
+        Bucket: str,  # noqa: N803
+        CreateBucketConfiguration: dict[str, str] | None = None,  # noqa: N803
+    ) -> object: ...
 
 
 def make_local_session(
@@ -95,15 +114,14 @@ def _boto_session(cfg: LocalModeConfig) -> boto3.Session:
     )
 
 
-def _s3_client(
-    boto_session: boto3.Session, cfg: LocalModeConfig
-) -> botocore.client.BaseClient:
-    return boto_session.client("s3", endpoint_url=cfg.s3_endpoint_url)
+def _s3_client(boto_session: boto3.Session, cfg: LocalModeConfig) -> _S3Client:
+    return cast(
+        _S3Client,
+        boto_session.client("s3", endpoint_url=cfg.s3_endpoint_url),
+    )
 
 
-def _ensure_bucket(
-    s3_client: botocore.client.BaseClient, cfg: LocalModeConfig
-) -> None:
+def _ensure_bucket(s3_client: _S3Client, cfg: LocalModeConfig) -> None:
     """Create ``cfg.bucket`` on the S3 endpoint if it does not yet exist.
 
     Local mode never provisions buckets, so the SDK's downstream upload of
@@ -116,17 +134,23 @@ def _ensure_bucket(
     try:
         s3_client.head_bucket(Bucket=cfg.bucket)
         return
-    except s3_client.exceptions.ClientError as exc:
-        if exc.response["Error"]["Code"] == "403":
+    except ClientError as exc:
+        # response is a total=False TypedDict: Error/Code may be absent on
+        # malformed replies, so read with .get rather than [] (strict pyright
+        # enforces this once botocore-stubs resolves the type — a4d3d7a).
+        code = exc.response.get("Error", {}).get("Code")
+        if code == "403":
             return
-        if exc.response["Error"]["Code"] != "404":
+        if code != "404":
             raise
-    kwargs: dict[str, Any] = {}
-    if cfg.region != "us-east-1":
-        kwargs["CreateBucketConfiguration"] = {
-            "LocationConstraint": cfg.region,
-        }
-    s3_client.create_bucket(Bucket=cfg.bucket, **kwargs)
+    if cfg.region == "us-east-1":
+        # AWS rejects LocationConstraint="us-east-1"; omit the payload.
+        s3_client.create_bucket(Bucket=cfg.bucket)
+        return
+    s3_client.create_bucket(
+        Bucket=cfg.bucket,
+        CreateBucketConfiguration={"LocationConstraint": cfg.region},
+    )
 
 
 def _apply_local_mode_config(

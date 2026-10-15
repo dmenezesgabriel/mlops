@@ -1,6 +1,7 @@
 """Unit tests for sagemaker_local.session (fast, no docker, no network)."""
 
 import pytest
+from botocore.exceptions import ClientError
 from sagemaker.config.config_schema import TELEMETRY_OPT_OUT_PATH
 from sagemaker.local.local_session import LocalSession
 from sagemaker.utils import resolve_value_from_config
@@ -16,12 +17,9 @@ from sagemaker_local.session import (
 )
 
 
-class ClientError(Exception):
-    """Minimal stand-in for botocore's ClientError used to shape responses."""
-
-    def __init__(self, code: str) -> None:
-        self.response = {"Error": {"Code": code}}
-        super().__init__(code)
+def _client_error(code: str) -> ClientError:
+    """A botocore ``ClientError`` carrying the given ``Error.Code``."""
+    return ClientError({"Error": {"Code": code}}, "HeadBucket")
 
 
 class _FakeS3Client:
@@ -31,10 +29,6 @@ class _FakeS3Client:
     head_bucket_calls = 0
     create_bucket_calls = 0
 
-    # Mirrors boto3's s3.exceptions.ClientError so _ensure_bucket is unchanged.
-    class exceptions:  # noqa: N801
-        ClientError = ClientError
-
     def __init__(self) -> None:
         self.head_bucket_calls = 0
         self.create_bucket_calls = 0
@@ -42,7 +36,7 @@ class _FakeS3Client:
 
     def head_bucket(self, **_kwargs):
         self.head_bucket_calls += 1
-        raise ClientError("404")
+        raise _client_error("404")
 
     def create_bucket(self, **kwargs):
         self.create_bucket_calls += 1
@@ -230,7 +224,7 @@ class TestEnsureBucket:
     def test_forbidden_bucket_is_left_untouched(self):
         fake = _FakeS3Client()
         fake.head_bucket = lambda **_: (_ for _ in ()).throw(
-            ClientError("403")
+            _client_error("403")
         )
 
         _ensure_bucket(fake, make_config())
@@ -240,11 +234,25 @@ class TestEnsureBucket:
     def test_unexpected_client_error_propagates(self):
         fake = _FakeS3Client()
         fake.head_bucket = lambda **_: (_ for _ in ()).throw(
-            ClientError("500")
+            _client_error("500")
         )
 
         with pytest.raises(ClientError, match="500"):
             _ensure_bucket(fake, make_config())
+
+    def test_error_without_error_code_propagates(self):
+        # exc.response is a total=False TypedDict upstream: Error and Code are
+        # optional keys, so a response missing them must re-raise rather than
+        # KeyError out of the error-code lookup.
+        fake = _FakeS3Client()
+        fake.head_bucket = lambda **_: (_ for _ in ()).throw(
+            ClientError({"ResponseMetadata": {}}, "HeadBucket")
+        )
+
+        with pytest.raises(ClientError):
+            _ensure_bucket(fake, make_config())
+
+        assert fake.create_bucket_calls == 0
 
     def test_default_region_sends_no_location_constraint(self):
         # AWS rejects LocationConstraint="us-east-1"; the default region

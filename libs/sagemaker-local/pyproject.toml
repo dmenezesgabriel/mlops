@@ -61,4 +61,7 @@ reportMissingImports = false
 
 [tool.vulture]
 min_confidence = 80
+# _S3Client (session.py) mirrors the botocore client keyword names exactly so
+# pyright checks call sites; protocol stubs never reference them.
+ignore_names = ["Bucket", "CreateBucketConfiguration"]
 sort_by_size = true
