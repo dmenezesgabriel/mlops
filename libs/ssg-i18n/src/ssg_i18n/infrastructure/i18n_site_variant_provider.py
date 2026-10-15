@@ -1,5 +1,6 @@
 import functools
 import hashlib
+import importlib.util
 import secrets
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
@@ -44,6 +45,17 @@ def _catalog_fingerprint(catalog: TranslationCatalog) -> str:
         *sorted(catalog.glossary_terms.items()),
     )
     return hashlib.sha256(repr(items).encode("utf-8")).hexdigest()
+
+
+def _fingerprint_sidecar(output_path: Path) -> Path:
+    return output_path.with_name(output_path.name + ".translate-fingerprint")
+
+
+def _read_fingerprint(fingerprint_path: Path) -> str | None:
+    try:
+        return fingerprint_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
 
 
 _DEFAULT_MARKER_TOKEN_FACTORY = functools.partial(secrets.token_hex, 8)
@@ -114,7 +126,10 @@ class I18nSiteVariantProvider(SiteVariantProvider):
         # pages skip re-translation and keep generated-file mtimes stable,
         # so their rewrites stop retriggering the watcher on every rebuild.
         self._string_caches: dict[str, tuple[str, dict[str, str]]] = {}
-        self._translated_files: dict[tuple[Path, str], tuple[str, str]] = {}
+        self._translated_files: dict[
+            tuple[Path, str], tuple[str, str, str]
+        ] = {}
+        self._code_fingerprint: str | None = None
         # A created machine translator can hold a loaded model; sharing one
         # across locales and rebuilds avoids N-1 co-resident copies plus a
         # reload on every rebuild that re-translates.
@@ -308,18 +323,69 @@ class I18nSiteVariantProvider(SiteVariantProvider):
         output_path: Path,
         session: _TranslationSession,
     ) -> None:
-        source_hash = hashlib.sha256(source_path.read_bytes()).hexdigest()
+        fingerprint = self._file_fingerprint(source_path, session)
         cache_key = (source_path, session.locale.tag)
-        fingerprint = (session.catalog_fingerprint, source_hash)
-        if (
-            self._translated_files.get(cache_key) == fingerprint
-            and output_path.exists()
-        ):
+        if self._is_translated(cache_key, fingerprint, output_path):
             return
         session.document_translator().translate_file(
             source_path, output_path, session.locale
         )
+        _fingerprint_sidecar(output_path).write_text(
+            ":".join(fingerprint), encoding="utf-8"
+        )
         self._translated_files[cache_key] = fingerprint
+
+    def _file_fingerprint(
+        self, source_path: Path, session: _TranslationSession
+    ) -> tuple[str, str, str]:
+        source_hash = hashlib.sha256(source_path.read_bytes()).hexdigest()
+        return (
+            session.catalog_fingerprint,
+            source_hash,
+            self._translator_code_fingerprint(),
+        )
+
+    def _is_translated(
+        self,
+        cache_key: tuple[Path, str],
+        fingerprint: tuple[str, str, str],
+        output_path: Path,
+    ) -> bool:
+        if not output_path.exists():
+            return False
+        if self._translated_files.get(cache_key) == fingerprint:
+            return True
+        # Cold processes (CI, fresh checkouts) keep an empty in-memory
+        # map; the sidecar beside each generated file carries the same
+        # fingerprint across runs, so a hit skips the model work while a
+        # missing or stale sidecar always falls toward re-translation.
+        if _read_fingerprint(_fingerprint_sidecar(output_path)) != ":".join(
+            fingerprint
+        ):
+            return False
+        self._translated_files[cache_key] = fingerprint
+        return True
+
+    def _translator_code_fingerprint(self) -> str:
+        # Translation output depends on the translator code as much as on
+        # the inputs, so the fingerprint must move when either package's
+        # implementation changes — otherwise a quality fix (marker healing,
+        # span protection) would reuse stale generated files forever.
+        if self._code_fingerprint is not None:
+            return self._code_fingerprint
+        package_dirs = [Path(__file__).parents[1]]
+        spec = importlib.util.find_spec("ssg_i18n_machine_translation")
+        if spec is not None and spec.origin is not None:
+            package_dirs.append(Path(spec.origin).parent)
+        digest = hashlib.sha256()
+        for package_dir in package_dirs:
+            for source_file in sorted(package_dir.rglob("*.py")):
+                digest.update(
+                    source_file.relative_to(package_dir).as_posix().encode()
+                )
+                digest.update(source_file.read_bytes())
+        self._code_fingerprint = digest.hexdigest()
+        return self._code_fingerprint
 
     def _translated_source_path(
         self,

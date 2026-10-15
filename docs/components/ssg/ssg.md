@@ -122,6 +122,8 @@ uv pip install "ssg[i18n-transformers]"
 
 The i18n plugin translates generated Markdown and notebook markdown cells while preserving fenced code, inline code, asset directives, wikilink targets, URLs, and notebook code cells.
 
+Translation reuse is incremental across processes: each generated file carries a `<name>.translate-fingerprint` sidecar recording the catalog fingerprint, the source SHA-256, and a hash of the translator package code. A cold build (CI, fresh checkout) skips the model work only when all three match and the output file exists, so caching `site/.ssg` between runs is safe — a stale or missing sidecar always falls back to re-translation.
+
 Mermaid diagram rendering stays outside core as well:
 
 ```bash

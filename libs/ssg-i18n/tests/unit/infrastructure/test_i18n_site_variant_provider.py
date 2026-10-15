@@ -195,6 +195,120 @@ def test_variants_retranslates_only_the_changed_source(
     assert unchanged_generated.stat().st_mtime_ns == unchanged_mtime
 
 
+def _fingerprint_sidecar(generated: Path) -> Path:
+    return generated.with_name(generated.name + ".translate-fingerprint")
+
+
+def test_variants_reuses_disk_cached_output_on_a_fresh_provider(
+    tmp_path: Path,
+) -> None:
+    # Arrange — a fresh provider instance simulates a cold CI process: its
+    # in-memory cache is empty, so reuse must come from the fingerprint
+    # sidecar written beside each generated file.
+    collection = _write_collection(
+        tmp_path / "content",
+        "coll0",
+        (("a", "First words.\n"), ("b", "Second words.\n")),
+    )
+    site = _make_site(collection)
+    context = _make_context(tmp_path)
+    first_translator = RecordingTextTranslator({})
+    I18nSiteVariantProvider(first_translator).variants(site, context)
+    generated = _generated_page(tmp_path, "coll0", "a")
+    first_bytes = generated.read_bytes()
+    second_translator = RecordingTextTranslator({})
+
+    # Act
+    I18nSiteVariantProvider(second_translator).variants(site, context)
+
+    # Assert — chrome strings legitimately re-translate on a cold
+    # provider; the page bodies must not.
+    called_texts = {text for text, _ in second_translator.calls}
+    assert "First words." not in called_texts
+    assert "Second words." not in called_texts
+    assert generated.read_bytes() == first_bytes
+
+
+def test_variants_retranslates_on_fresh_provider_when_source_changed(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    collection = _write_collection(
+        tmp_path / "content",
+        "coll0",
+        (("a", "Alpha words.\n"),),
+    )
+    site = _make_site(collection)
+    context = _make_context(tmp_path)
+    I18nSiteVariantProvider(RecordingTextTranslator({})).variants(
+        site, context
+    )
+    _write(collection.source_root, "a", "Alpha words changed.\n")
+    second_translator = RecordingTextTranslator({})
+
+    # Act
+    I18nSiteVariantProvider(second_translator).variants(site, context)
+
+    # Assert — the stored fingerprint no longer matches the source bytes.
+    called_texts = {text for text, _ in second_translator.calls}
+    assert "Alpha words changed." in called_texts
+
+
+def test_variants_retranslates_on_fresh_provider_when_sidecar_corrupt(
+    tmp_path: Path,
+) -> None:
+    # Arrange — a torn or tampered fingerprint must rebuild, never serve
+    # output whose provenance cannot be verified.
+    collection = _write_collection(
+        tmp_path / "content",
+        "coll0",
+        (("a", "Alpha words.\n"),),
+    )
+    site = _make_site(collection)
+    context = _make_context(tmp_path)
+    I18nSiteVariantProvider(RecordingTextTranslator({})).variants(
+        site, context
+    )
+    generated = _generated_page(tmp_path, "coll0", "a")
+    _fingerprint_sidecar(generated).write_text("bogus\n", encoding="utf-8")
+    second_translator = RecordingTextTranslator({})
+
+    # Act
+    I18nSiteVariantProvider(second_translator).variants(site, context)
+
+    # Assert
+    called_texts = {text for text, _ in second_translator.calls}
+    assert "Alpha words." in called_texts
+
+
+def test_variants_retranslates_on_fresh_provider_when_output_missing(
+    tmp_path: Path,
+) -> None:
+    # Arrange — a surviving fingerprint without its output file still
+    # triggers a fresh translation (partial-cache direction is rebuild).
+    collection = _write_collection(
+        tmp_path / "content",
+        "coll0",
+        (("a", "Alpha words.\n"),),
+    )
+    site = _make_site(collection)
+    context = _make_context(tmp_path)
+    I18nSiteVariantProvider(RecordingTextTranslator({})).variants(
+        site, context
+    )
+    generated = _generated_page(tmp_path, "coll0", "a")
+    generated.unlink()
+    second_translator = RecordingTextTranslator({})
+
+    # Act
+    I18nSiteVariantProvider(second_translator).variants(site, context)
+
+    # Assert
+    called_texts = {text for text, _ in second_translator.calls}
+    assert "Alpha words." in called_texts
+    assert generated.exists()
+
+
 def test_variants_does_not_recreate_the_translator_on_a_warm_rebuild(
     tmp_path: Path,
 ) -> None:
