@@ -40,6 +40,14 @@ jobs:
       - name: Type check
         run: make type-check
 
+      # athena-local's contract suites mark Go and terraform required below;
+      # Go rides the runner image, terraform does not — provision it or
+      # ATHENA_TERRAFORM_REQUIRED turns a skip into a failure.
+      - name: Set up terraform
+        uses: hashicorp/setup-terraform@v4.0.1
+        with:
+          terraform_wrapper: false
+
       # athena-local's integration suite skips when the compose stack is down;
       # a bring-up failure fails this job before the skips can hide it.
       - name: Start compose stack
