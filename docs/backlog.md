@@ -7,7 +7,30 @@
 > AU/AF/AX, SX) live in `docs/archive/` — reuse a prefix only for the same
 > domain. Work sizes: S ≤ 1 day · M = 1–3 days · L = 3–5 days.
 
-No open items. Closed sections (archived 2026-10-14):
+## A. SSG site phase 2 — deferred census features + mobile responsiveness (SX-15…22)
+
+Same domain as the archived M9 workstream
+(`docs/archive/ssg-site/backlog.md`), so the `SX-*` prefix continues per
+the header rule. Rows reinstate the M9 out-of-scope cut where the user
+picked it up — that intro listed instant navigation, versioning, blog,
+comments, analytics, feedback widgets, offline mode, generated
+social-card images, Mermaid; still out: comments, analytics, feedback
+widgets. Requirements `prd.md` FR-25…32; ordering + exit gate
+`milestones.md` M10. One item = one session, end-to-end slice
+(config → build → template/asset → tests).
+
+| ID | Item | Work | Evidence | Depends |
+|---|---|---|---|---|
+| SX-15 | [ ] Mobile responsiveness measure-then-fix: playwright sweep 320/390/768px × page types (index/article-with-table/code/notebook/404) asserting zero horizontal overflow, ≥44px tap targets, inputs ≥16px; each new measured defect gets a `gaps.md` row, then the fix; FR-25; clears G-326…328 | M | breakpoints `libs/ssg/src/ssg/infrastructure/frontend/static/css/site.css:773,784`; suspects `:247-255` (`.search-input` 0.8rem), `:215-226` (`.menu-toggle`), `:227-238` (`.theme-select`); coverage `tests/playwright/test_built_site_smoke.py:222,554` pins 390px only; viewport meta `templates/partials/head.html:2` | — |
+| SX-16 | [ ] SEO extras: `twitter:card`/`twitter:title`/`twitter:description`/`twitter:image` + `rel="alternate"` hreflang per locale + `x-default` + `site.image` → static `og:image`; FR-26 | S | starlight `src/utils/head.ts:70,80-101,116-122` + `head` config `src/utils/user-config.ts:100-119,241`; material `src/plugins/social/templates/default.yml:178-181`; measured absent `partials/head.html:1-25`; `site.url` set `site/site.yaml:4`; config lands `infrastructure/site_config_repository.py:33-44` | — |
+| SX-17 | [ ] Mermaid: ` ```mermaid ` fenced blocks render as diagrams; FR-27 | M | material `docs/reference/diagrams.md:20-28` (superfences `name: mermaid` fence + mermaid.js runtime); ours `markdown_content_renderer.py:65-82` — no mermaid today; runtime-JS vs build-time render is the row's decision (site degrades without JS) | — |
+| SX-18 | [ ] Instant navigation: internal-link prefetch + content swap, re-init search/theme/scrollspy post-swap; FR-30 | M | material `docs/setup/setting-up-navigation.md:26-68` (`navigation.instant`, `.prefetch`, needs `site_url` — set at `site/site.yaml:4`), impl `src/templates/assets/javascripts/integrations/instant/index.ts`; ours `static/js/site.js` | — |
+| SX-19 | [ ] Offline mode: build-id-versioned service worker precaches pages + assets per locale; playwright offline smoke; FR-29 | M | material `src/plugins/offline/plugin.py` (offline build + SW); ours emit `sw.js` + register from `static/js/site.js`, emitted by `use_cases/static_site_builder.py` | SX-18 |
+| SX-20 | [ ] Generated social cards: per-page `og:image` rendered at build (page title + site chrome); FR-28 | L | material `src/plugins/social/` (`plugin.py`, `layout.py`, `templates/default.yml:171-181` og:image/twitter:image); needs SX-16's `og:image` emission | SX-16 |
+| SX-21 | [ ] Versioning: versioned output layout + header switcher + `latest` alias; canonical/sitemap/hreflang per version; FR-31 | L | material `docs/setup/setting-up-versioning.md:18-25` (mike — external tool, not vendored; ours reimplements the layout); ours `use_cases/static_site_builder.py` output layout + `partials/header.html` | SX-16 |
+| SX-22 | [ ] Blog: dated-posts collection type + index + RSS feed + author/readtime; FR-32 | L | material `src/plugins/blog/` (`plugin.py`, `author.py`, `structure/`, `readtime/`); ours `collections` config `site/site.yaml` + index templates | — |
+
+Closed sections (archived 2026-10-14):
 A. Athena emulator showcase notebooks (NB-7…16) →
 `docs/archive/athena-emulator/backlog.md` §L · B. SSG site experience
 (SX-1…14) → `docs/archive/ssg-site/backlog.md` · C. Fix items (AF-175) →
