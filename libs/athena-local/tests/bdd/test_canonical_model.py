@@ -40,6 +40,14 @@ REFERENCE_MODEL = (
     / "service-2.json"
 )
 
+# The frozen checkouts under research_repos/ are gitignored dev artifacts,
+# so CI runners never have the reference model — the same "dependency absent,
+# skip" posture as the live-stack integration tests.
+pytestmark = pytest.mark.skipif(
+    not REFERENCE_MODEL.exists(),
+    reason="frozen research_repos/aws-cli checkout not present on this host",
+)
+
 
 @lru_cache(maxsize=1)
 def _parse_reference_model() -> dict[str, object]:
