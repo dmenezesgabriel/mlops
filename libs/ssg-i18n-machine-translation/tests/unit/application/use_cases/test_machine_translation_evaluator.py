@@ -154,6 +154,56 @@ class TestMachineTranslationEvaluator:
         assert report.english_fallback_lines == expected_nodes
         assert report.passed is False
 
+    @pytest.mark.parametrize(
+        "markdown",
+        [
+            "Intro text\n\n---\n\nMore text",
+            "Intro text\n\n```python\nx = 1\n```\n\nMore text",
+        ],
+        ids=["thematic-break", "code-fence"],
+    )
+    def test_children_none_blocks_do_not_crash_extraction(
+        self, tmp_path: Path, markdown: str
+    ) -> None:
+        # mistletoe's ThematicBreak and CodeFence's RawText child carry
+        # `children = None` — getattr's `[]` default only fires when the
+        # attribute is absent, so the walk must guard a present-None.
+        source_dir, translated_dir = _doc_pair(tmp_path, markdown, markdown)
+
+        evaluator = MachineTranslationEvaluator(
+            translator=InMemoryTextTranslator({}),
+        )
+        report = evaluator.evaluate(source_dir, translated_dir)
+
+        assert report.total_lines_evaluated == 2
+
+    @pytest.mark.parametrize(
+        "markdown",
+        [
+            "$$R^2 = 1 - \\frac{a}{b}$$",
+            '{{ include_source("src/x.py") }}',
+        ],
+        ids=["math-only", "directive-only"],
+    )
+    def test_identical_protected_spans_not_fallback(
+        self, tmp_path: Path, markdown: str
+    ) -> None:
+        # A node made only of protected spans is identical by contract —
+        # the translator protects these verbatim
+        # (document_translator._PROTECTED_PATTERN), so equality is the
+        # correct output, not untranslated prose.
+        source_dir, translated_dir = _doc_pair(tmp_path, markdown, markdown)
+
+        evaluator = MachineTranslationEvaluator(
+            translator=InMemoryTextTranslator({}),
+            max_fallback_rate_pct=0.0,
+        )
+        report = evaluator.evaluate(source_dir, translated_dir)
+
+        assert report.total_lines_evaluated == 1
+        assert report.english_fallback_lines == 0
+        assert report.passed is True
+
     def test_translated_quote_is_evaluated(self, tmp_path: Path) -> None:
         source_dir, translated_dir = _doc_pair(
             tmp_path, "> A quoted sentence", "> Uma frase citada"

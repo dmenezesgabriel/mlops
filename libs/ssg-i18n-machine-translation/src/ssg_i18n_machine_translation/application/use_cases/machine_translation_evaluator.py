@@ -37,6 +37,16 @@ _LEAF_BLOCK_NAMES = (
 # they survive verbatim.
 _DIRECTIVE_SPAN_PATTERN = re.compile(r"\{\{.*?\}\}|\{\%.*?\%\}", re.DOTALL)
 
+# The full protected set — same alternation as
+# document_translator._PROTECTED_PATTERN minus the MATHEXPR arm (eval input
+# is authored markdown; those placeholders cannot appear in it). A node
+# made only of these spans is identical-by-contract, never a fallback.
+_PROTECTED_SPAN_PATTERN = re.compile(
+    r"(\{\{.*?\}\}|\{\%.*?\%\}|\$\$.*?\$\$|(?<!\$)\$[^\$\s](?:[^\$]*?[^\$\s])?\$(?!\d)|https?://\S+|"
+    r"\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\])",
+    re.DOTALL,
+)
+
 
 def _require_directory(path: Path, name: str) -> None:
     if not path.is_dir():
@@ -68,7 +78,11 @@ def extract_text_nodes(node: object) -> list[object]:
     header = getattr(node, "header", None)
     if header:
         nodes.extend(extract_text_nodes(header))
-    for child in getattr(node, "children", []):
+    # `or []` is load-bearing: mistletoe's ThematicBreak and CodeFence's
+    # RawText carry `children = None` — getattr's default only fires when
+    # the attribute is absent, so a present-None would be iterated.
+    children: list[object] = getattr(node, "children", None) or []
+    for child in children:
         nodes.extend(extract_text_nodes(child))
     return nodes
 
@@ -91,6 +105,10 @@ def render_node(node: object, renderer: MarkdownRenderer) -> str:
     return renderer.render(wrapper).strip()
 
 
+def _has_translatable_prose(text: str) -> bool:
+    return bool(re.search(r"[a-zA-Z]", _PROTECTED_SPAN_PATTERN.sub("", text)))
+
+
 def evaluate_node_pair(src: str, trans: str) -> LineResult:
     src_clean = clean_line_for_comparison(src)
     trans_clean = clean_line_for_comparison(trans)
@@ -98,6 +116,7 @@ def evaluate_node_pair(src: str, trans: str) -> LineResult:
         src_clean == trans_clean
         and len(src_clean) > 3
         and not re.fullmatch(r"[^a-zA-Z]+", src_clean)
+        and _has_translatable_prose(src_clean)
     )
     is_directive_mismatch = _directive_spans(src) != _directive_spans(trans)
     src_pipes, trans_pipes = src.count("|"), trans.count("|")
