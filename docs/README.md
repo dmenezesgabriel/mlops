@@ -18,7 +18,7 @@ archive of closed workstreams.
 | [milestones.md](milestones.md) | **Ephemeral** — ordered phases and steps | Must NOT be cited from code |
 | [gaps.md](gaps.md) | **Ephemeral** — measured finding register | Must NOT be cited from code |
 | `audits/` | **Ephemeral** — evidence reports backing `gaps.md` rows | Created when an audit item runs |
-| [archive/](archive/) | **Closed** — completed workstream doc sets (athena-emulator, repo-quality gate parity + deep audit) | History; read-only |
+| [archive/](archive/) | **Closed** — completed workstream doc sets (athena-emulator M0–M8, ssg site experience M9, repo-quality gate parity + deep audit) | History; read-only |
 
 Rule enforced repo-wide: **PRD, backlog, milestones, gaps, and audit reports
 are ephemeral working documents; never quote their IDs or content in code,
@@ -85,7 +85,7 @@ operations, same exceptions/enums) to the botocore 1.42.97 model installed in
 
 Historical measured indexes (closed workstreams):
 `archive/repo-quality/README.md` — gate-parity audit table;
-`archive/repo-quality/deep-audit/gaps.md` — 324 dispositioned findings.
+`archive/repo-quality/deep-audit/gaps.md` — 325 dispositioned findings.
 
 ## Implementer starting point
 

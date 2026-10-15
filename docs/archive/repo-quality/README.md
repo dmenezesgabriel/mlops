@@ -14,7 +14,9 @@ Two workstreams live here:
    walked every package's callstack and measured asymptotics, type honesty,
    design fit, correctness, memory, races, security, and test depth —
    324 measured gaps dispositioned (323 shipped as small fix items, 1 waived
-   with reason). Start at [deep-audit/README.md](deep-audit/README.md).
+   with reason); a post-run finding (G-325) later joined the register —
+   shipped 2026-10-14 via AF-175. Start at
+   [deep-audit/README.md](deep-audit/README.md).
 
 ## Documentation map
 

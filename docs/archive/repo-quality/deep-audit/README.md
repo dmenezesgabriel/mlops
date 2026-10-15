@@ -19,7 +19,8 @@ makes every package *verified*.
 
 **Status: complete 2026-10-12** — 27 package audits + 2 cross-cutting sweeps;
 324 measured gaps dispositioned (323 shipped via `AF-*` items, 1 waived with
-written reason); all known risk seeds below resolved.
+written reason); all known risk seeds below resolved. Post-run finding
+G-325 appended to the register 2026-10-14 — shipped via AF-175.
 
 ## Documentation map
 

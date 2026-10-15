@@ -1,8 +1,11 @@
 # Athena Local Emulator — documentation index
 
-> **ARCHIVED 2026-10-12 — closed workstream (M0–M7 shipped).** The live doc
-> set is `docs/` (`README.md` for the index); permanent files moved to
-> `docs/architecture/athena-local.md` and `docs/adr/`.
+> **ARCHIVED — closed workstream (M0–M7 shipped 2026-10-12; M8 showcase
+> notebooks shipped 2026-10-14).** The live doc set is `docs/`
+> (`README.md` for the index); permanent files moved to
+> `docs/architecture/athena-local.md`, `docs/adr/`, and
+> `docs/components/athena_emulator_showcases.md`. M8's rows were appended
+> to this set: `backlog.md` §L, `milestones.md` M8, `prd.md` §7.
 
 Build an AWS Athena emulator backed by **Apache Trino**, co-located with **moto**
 (S3/Glue/STS), fully compatible with boto3, awswrangler (aws-sdk-pandas), the
