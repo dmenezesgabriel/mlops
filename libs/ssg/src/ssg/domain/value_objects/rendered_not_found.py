@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from ssg.domain.value_objects.alternate_link import AlternateLink
 from ssg.domain.value_objects.language_link import LanguageLink
 from ssg.domain.value_objects.site_navigation import SiteNavigation
 
@@ -13,3 +14,4 @@ class RenderedNotFound:
     site: "Site"
     navigation: SiteNavigation
     language_links: tuple[LanguageLink, ...] = ()
+    alternate_links: tuple[AlternateLink, ...] = ()

@@ -172,6 +172,7 @@ class I18nSiteVariantProvider(SiteVariantProvider):
             extensions=self._localized_extensions(site, session),
             url=site.url,
             repo_url=site.repo_url,
+            image=site.image,
             edit_base_url=site.edit_base_url,
             last_updated=site.last_updated,
         )

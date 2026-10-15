@@ -1,9 +1,11 @@
+from dataclasses import replace
 from datetime import date
 from importlib.resources import files
 from pathlib import Path
 
 import pytest
 from ssg.domain import (
+    AlternateLink,
     Article,
     ArticleHeading,
     ContentCollection,
@@ -684,6 +686,228 @@ def test_render_page_prefixes_canonical_with_non_default_locale(
         'sample-collection/overview.html"' in rendered_html
     )
     assert '<meta property="og:locale" content="pt-BR">' in rendered_html
+
+
+def test_render_page_emits_twitter_card_block(tmp_path: Path) -> None:
+    # Arrange — twitter:* mirrors the og:title/og:description pair;
+    # summary_large_image degrades to a summary card when no image is set.
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path)
+    rendered_page = RenderedPage(
+        site=site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Overview", body="<p>Rendered content.</p>", headings=()
+        ),
+        navigation=site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert (
+        '<meta name="twitter:card" content="summary_large_image">'
+        in rendered_html
+    )
+    assert (
+        '<meta name="twitter:title" '
+        'content="Overview - Sample Collection">' in rendered_html
+    )
+    assert (
+        '<meta name="twitter:description" '
+        'content="Rendered content collections.">' in rendered_html
+    )
+    assert 'property="og:image"' not in rendered_html
+    assert 'name="twitter:image"' not in rendered_html
+
+
+def test_render_page_emits_absolute_og_and_twitter_image(
+    tmp_path: Path,
+) -> None:
+    # Arrange — both crawlers require absolute image URLs, so emission needs
+    # site.url for the base and site.image for the asset basename.
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path, url=True)
+    imaged_site = replace(site, image=tmp_path / "card.png")
+    rendered_page = RenderedPage(
+        site=imaged_site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Overview", body="<p>Rendered content.</p>", headings=()
+        ),
+        navigation=imaged_site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert (
+        '<meta property="og:image" '
+        'content="https://example.com/docs/assets/card.png">' in rendered_html
+    )
+    assert (
+        '<meta name="twitter:image" '
+        'content="https://example.com/docs/assets/card.png">' in rendered_html
+    )
+
+
+def test_render_page_omits_image_tags_when_image_or_url_missing(
+    tmp_path: Path,
+) -> None:
+    # Arrange — an image without a deployment URL cannot resolve absolute;
+    # a URL without an image has nothing to point at.
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path, url=True)
+    url_only_page = RenderedPage(
+        site=site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Overview", body="<p>Rendered content.</p>", headings=()
+        ),
+        navigation=site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+    )
+    bare_site, _c, _p = _site_with_collection(tmp_path)
+    image_only_page = RenderedPage(
+        site=replace(bare_site, image=tmp_path / "card.png"),
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Overview", body="<p>Rendered content.</p>", headings=()
+        ),
+        navigation=site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+    )
+
+    # Act
+    url_only_html = renderer.render_page(url_only_page)
+    image_only_html = renderer.render_page(image_only_page)
+
+    # Assert
+    for rendered_html in (url_only_html, image_only_html):
+        assert 'property="og:image"' not in rendered_html
+        assert 'name="twitter:image"' not in rendered_html
+        assert 'name="twitter:card"' in rendered_html
+
+
+def test_render_page_emits_hreflang_alternate_links(tmp_path: Path) -> None:
+    # Arrange — the builder ships absolute per-locale URLs ending with the
+    # x-default fallback; the template renders them in order.
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path, url=True)
+    rendered_page = RenderedPage(
+        site=site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Overview", body="<p>Rendered content.</p>", headings=()
+        ),
+        navigation=site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+        alternate_links=(
+            AlternateLink(
+                hreflang="en",
+                href="https://example.com/docs/"
+                "sample-collection/overview.html",
+            ),
+            AlternateLink(
+                hreflang="pt-BR",
+                href="https://example.com/docs/pt-BR/"
+                "sample-collection/overview.html",
+            ),
+            AlternateLink(
+                hreflang="x-default",
+                href="https://example.com/docs/"
+                "sample-collection/overview.html",
+            ),
+        ),
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert (
+        '<link rel="alternate" hreflang="en" '
+        'href="https://example.com/docs/sample-collection/overview.html">'
+        in rendered_html
+    )
+    assert (
+        '<link rel="alternate" hreflang="pt-BR" '
+        'href="https://example.com/docs/pt-BR/'
+        'sample-collection/overview.html">' in rendered_html
+    )
+    assert (
+        '<link rel="alternate" hreflang="x-default" '
+        'href="https://example.com/docs/sample-collection/overview.html">'
+        in rendered_html
+    )
+
+
+def test_render_index_emits_alternate_links(tmp_path: Path) -> None:
+    # Arrange
+    renderer = JinjaPageRenderer()
+    site, collection, _page = _site_with_collection(tmp_path, url=True)
+    rendered_index = RenderedIndex(
+        site=site,
+        collections=(collection,),
+        navigation=site.navigation_for(None, None),
+        alternate_links=(
+            AlternateLink(hreflang="en", href="https://example.com/docs/"),
+            AlternateLink(
+                hreflang="x-default", href="https://example.com/docs/"
+            ),
+        ),
+    )
+
+    # Act
+    rendered_html = renderer.render_index(rendered_index)
+
+    # Assert
+    assert (
+        '<link rel="alternate" hreflang="en" '
+        'href="https://example.com/docs/">' in rendered_html
+    )
+    assert (
+        '<link rel="alternate" hreflang="x-default" '
+        'href="https://example.com/docs/">' in rendered_html
+    )
+
+
+def test_render_not_found_emits_alternate_links(tmp_path: Path) -> None:
+    # Arrange
+    renderer = JinjaPageRenderer()
+    site, _collection, _page = _site_with_collection(tmp_path, url=True)
+    rendered_not_found = RenderedNotFound(
+        site=site,
+        navigation=site.navigation_for(None, None),
+        alternate_links=(
+            AlternateLink(
+                hreflang="en", href="https://example.com/docs/404.html"
+            ),
+        ),
+    )
+
+    # Act
+    rendered_html = renderer.render_not_found(rendered_not_found)
+
+    # Assert
+    assert (
+        '<link rel="alternate" hreflang="en" '
+        'href="https://example.com/docs/404.html">' in rendered_html
+    )
 
 
 def test_assets_include_favicon() -> None:

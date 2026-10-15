@@ -889,3 +889,51 @@ def test_load_rejects_non_boolean_last_updated(
     # Act / Assert
     with pytest.raises(ValueError, match="expected last_updated boolean"):
         SiteConfigRepository().load(config_path)
+
+
+def test_load_resolves_site_image_relative_to_config(tmp_path: Path) -> None:
+    # Arrange — the image ships as a static og:image/twitter:image, so the
+    # configured path resolves against the config dir like collection assets.
+    site_path = tmp_path / "site"
+    site_path.mkdir()
+    (site_path / "card.png").write_bytes(b"png bytes")
+    config_path = site_path / "site.yaml"
+    config_path.write_text(
+        "site:\n  title: Learning Site\n  image: card.png\ncollections: []\n",
+        encoding="utf-8",
+    )
+
+    # Act
+    site = SiteConfigRepository().load(config_path)
+
+    # Assert
+    assert site.image == (site_path / "card.png").resolve()
+
+
+def test_load_defaults_site_image_to_none(tmp_path: Path) -> None:
+    # Arrange — og:image/twitter:image stay unemitted until a static site
+    # image is configured.
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n  title: Learning Site\ncollections: []\n",
+        encoding="utf-8",
+    )
+
+    # Act
+    site = SiteConfigRepository().load(config_path)
+
+    # Assert
+    assert site.image is None
+
+
+def test_load_rejects_non_string_site_image(tmp_path: Path) -> None:
+    # Arrange
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n  title: Learning Site\n  image: 42\ncollections: []\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="expected image string"):
+        SiteConfigRepository().load(config_path)

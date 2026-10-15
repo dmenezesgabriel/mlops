@@ -673,6 +673,27 @@ def test_variants_preserves_edit_meta_settings_in_non_default_locale(
         assert variant.site.last_updated is True
 
 
+def test_variants_preserves_site_image_in_non_default_locale(
+    tmp_path: Path,
+) -> None:
+    # Arrange — site.image is a shared build asset: every variant copies it
+    # into its own assets/ so og:image resolves under each locale root.
+    collection = _write_collection(
+        tmp_path / "content", "coll0", (("a", "First words.\n"),)
+    )
+    provider = I18nSiteVariantProvider(RecordingTextTranslator({}))
+    image_path = tmp_path / "card.png"
+    image_path.write_bytes(b"png bytes")
+    site = replace(_make_site(collection), image=image_path)
+
+    # Act
+    variants = provider.variants(site, _make_context(tmp_path))
+
+    # Assert
+    for variant in variants:
+        assert variant.site.image == image_path
+
+
 def test_variants_localized_page_keeps_original_source_path(
     tmp_path: Path,
 ) -> None:

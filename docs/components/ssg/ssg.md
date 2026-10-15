@@ -68,7 +68,7 @@ site/build/assets/favicon.svg
 site/build/<collection>/<page>.html
 ```
 
-Every page `<head>` carries Open Graph tags and the packaged favicon. When the optional `site.url` config sets the absolute http(s) deployment base (e.g. `https://example.github.io/site`), pages also emit `<link rel="canonical">` + `og:url` resolved per locale root — a `pt-BR` variant canonicals under `<url>/pt-BR/`. `site.repo_url` records the source repository URL for repo-link affordances.
+Every page `<head>` carries Open Graph tags, a `twitter:card`/`twitter:title`/`twitter:description` block, and the packaged favicon. When the optional `site.url` config sets the absolute http(s) deployment base (e.g. `https://example.github.io/site`), pages also emit `<link rel="canonical">` + `og:url` resolved per locale root — a `pt-BR` variant canonicals under `<url>/pt-BR/` — plus one `<link rel="alternate" hreflang>` per configured locale and an `x-default` pointing at the default-locale URL. When `site.url` and the optional `site.image` config are both set, the image is copied into each variant's `assets/` and emitted as `og:image` + `twitter:image` under that variant's locale root. `site.repo_url` records the source repository URL for repo-link affordances.
 
 Each variant root also carries `robots.txt` (`User-agent: *`/`Allow: /` plus a `Sitemap:` pointer) and — only when `site.url` is set, since `<loc>` entries must be absolute — `sitemap.xml` listing the index and every page's canonical URL, so a `pt-BR` variant publishes its own sitemap under `<url>/pt-BR/`.
 

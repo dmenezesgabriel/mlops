@@ -37,6 +37,7 @@ class SiteConfigRepository(SiteRepository):
             collections=collections,
             url=self._optional_url(site_config, "url", config_path),
             repo_url=self._optional_url(site_config, "repo_url", config_path),
+            image=self._optional_path(site_config, "image", config_path),
             edit_base_url=self._optional_url(
                 site_config, "edit_base_url", config_path
             ),
@@ -374,6 +375,17 @@ class SiteConfigRepository(SiteRepository):
             f"Invalid site {key} {value!r} in {config_path}: "
             "expected absolute http(s) URL"
         )
+
+    def _optional_path(
+        self,
+        config: Mapping[object, object],
+        key: str,
+        config_path: Path,
+    ) -> Path | None:
+        value = self._optional_string(config, key, "", config_path)
+        if not value:
+            return None
+        return self._path_from_config(config_path, value)
 
     def _optional_bool(
         self,

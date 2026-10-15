@@ -64,6 +64,7 @@ def test_static_site_generation_from_configured_content_collection(
     ).read_text(encoding="utf-8")
     _assert_navigation_rendered(rendered_html)
     _assert_head_metadata(rendered_html, output_path)
+    _assert_social_metadata(rendered_html)
     _assert_notebook_content_rendered(rendered_html)
     _assert_syntax_highlighting_rendered(rendered_html, overview_html)
     _assert_alert_rendered(overview_html)
@@ -94,6 +95,29 @@ def _assert_head_metadata(rendered_html: str, output_path: Path) -> None:
         in index_html
     )
     assert '<meta property="og:type" content="website">' in index_html
+
+
+def _assert_social_metadata(rendered_html: str) -> None:
+    assert (
+        '<meta property="og:image" '
+        'content="https://example.com/learning/assets/card.png">'
+        in rendered_html
+    )
+    assert (
+        '<meta name="twitter:card" content="summary_large_image">'
+        in rendered_html
+    )
+    assert (
+        '<meta name="twitter:title" '
+        'content="Feature Engineering - Sample Collection">' in rendered_html
+    )
+    assert (
+        '<meta name="twitter:image" '
+        'content="https://example.com/learning/assets/card.png">'
+        in rendered_html
+    )
+    # Single-variant build: no other locale exists to alternate to.
+    assert 'rel="alternate"' not in rendered_html
 
 
 def _assert_navigation_rendered(rendered_html: str) -> None:
@@ -175,6 +199,10 @@ def _assert_seo_files_written(output_path: Path) -> None:
     robots_txt = (output_path / "robots.txt").read_text(encoding="utf-8")
     assert "User-agent: *" in robots_txt
     assert "Sitemap: https://example.com/learning/sitemap.xml" in robots_txt
+    # The configured site.image ships per variant for og:image/twitter:image.
+    assert (output_path / "assets" / "card.png").read_bytes() == (
+        _one_pixel_png()
+    )
 
 
 def _assert_not_found_written(output_path: Path) -> None:
@@ -196,6 +224,7 @@ def _create_site_with_notebook_collection(tmp_path: Path) -> Path:
     site_path.mkdir()
     source_root.mkdir(parents=True)
     second_source_root.mkdir(parents=True)
+    (site_path / "card.png").write_bytes(_one_pixel_png())
     _write_config(site_path, tmp_path)
     _write_markdown(source_root)
     _write_second_markdown(second_source_root)
@@ -210,6 +239,7 @@ def _write_config(site_path: Path, tmp_path: Path) -> None:
         "site:\n"
         "  title: Learning Site\n"
         "  url: https://example.com/learning\n"
+        "  image: card.png\n"
         "collections:\n"
         "  - name: sample_collection\n"
         "    title: Sample Collection\n"
@@ -297,8 +327,11 @@ def _write_notebook(source_root: Path) -> None:
     nbformat.write(notebook, notebook_path)
 
 
-def _one_pixel_png_base64() -> str:
-    png_bytes = base64.b64decode(
+def _one_pixel_png() -> bytes:
+    return base64.b64decode(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
     )
-    return base64.b64encode(png_bytes).decode("ascii")
+
+
+def _one_pixel_png_base64() -> str:
+    return base64.b64encode(_one_pixel_png()).decode("ascii")

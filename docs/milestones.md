@@ -20,8 +20,8 @@ feedback widgets stay out.
 Steps:
 1. [x] Mobile responsiveness measure-then-fix (SX-15)
    - Evidence: `libs/ssg/tests/playwright/test_built_site_responsive.py` (13 tests); `site.css:236,254` (1rem controls), `:783` (44px floor), `:795-802` (320px compaction), `:644-648` (widget font)
-2. [ ] SEO extras: twitter:* + hreflang + `x-default` + static `og:image` (SX-16)
-   - Evidence: starlight `src/utils/head.ts:70,80-101,116-122`; measured absent `partials/head.html:1-25`
+2. [x] SEO extras: twitter:* + hreflang + `x-default` + static `og:image` (SX-16)
+   - Evidence: `libs/ssg/tests/playwright/test_built_site_seo.py` (en+pt-BR heads); `domain/value_objects/alternate_link.py`; `partials/head.html`; `site.image` → per-variant `assets/` copy in `use_cases/static_site_builder.py`
 3. [ ] Mermaid fenced blocks (SX-17)
    - Evidence: material `docs/reference/diagrams.md:20-28`; `markdown_content_renderer.py:65-82`
 4. [ ] Instant navigation (SX-18)

@@ -8,6 +8,11 @@
 {% if site.url %}
 <link rel="canonical" href="{{ site.absolute_url(canonical_path) }}">
 {% endif %}
+{# alternate_links arrives empty without site.url or a second variant — the
+   builder gates it, since hreflang hrefs must be absolute. #}
+{% for link in alternate_links %}
+<link rel="alternate" hreflang="{{ link.hreflang }}" href="{{ link.href }}">
+{% endfor %}
 <meta property="og:title" content="{{ title }}">
 <meta property="og:type" content="{{ og_type }}">
 {% if site.url %}
@@ -16,6 +21,15 @@
 <meta property="og:locale" content="{{ site.locale }}">
 <meta property="og:description" content="{{ description }}">
 <meta property="og:site_name" content="{{ site.title }}">
+{% if site.url and site.image %}
+<meta property="og:image" content="{{ site.absolute_url('assets/' ~ site.image.name) }}">
+{% endif %}
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ title }}">
+<meta name="twitter:description" content="{{ description }}">
+{% if site.url and site.image %}
+<meta name="twitter:image" content="{{ site.absolute_url('assets/' ~ site.image.name) }}">
+{% endif %}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="{{ asset_prefix }}assets/site.css">

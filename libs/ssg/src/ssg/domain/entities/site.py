@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 
 from ssg.domain.entities.content_collection import ContentCollection
 from ssg.domain.entities.page import Page
@@ -17,6 +18,10 @@ class Site:
     extensions: dict[str, dict[str, str]] | None = None
     url: str = ""
     repo_url: str = ""
+    # Static social image: copied to each variant's assets/ and emitted as
+    # absolute og:image/twitter:image (crawlers require absolute URLs, so
+    # emission additionally gates on `url`).
+    image: Path | None = None
     # edit_base_url joins the repo-relative source path into a "edit this
     # page" href (e.g. https://github.com/org/repo/edit/master); last_updated
     # opts pages into a git-derived "last updated" date.

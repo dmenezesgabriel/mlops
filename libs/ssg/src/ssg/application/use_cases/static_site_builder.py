@@ -1,4 +1,5 @@
 import os
+import shutil
 from dataclasses import replace
 from datetime import date
 from logging import getLogger
@@ -29,6 +30,7 @@ from ssg.domain import (
     Site,
     SiteNavigation,
     SiteVariant,
+    alternate_links_for,
 )
 
 LOGGER = getLogger(__name__)
@@ -142,7 +144,7 @@ class StaticSiteBuilder:
                 },
             },
         )
-        self._write_assets(site_variant.output_path)
+        self._write_assets(site_variant)
         self._write_index(site_variant, site_variants, selected_collections)
         variant_context = replace(
             context, output_path=site_variant.output_path
@@ -224,11 +226,24 @@ class StaticSiteBuilder:
                 },
             )
 
-    def _write_assets(self, output_path: Path) -> None:
-        asset_path = output_path / "assets"
+    def _write_assets(self, site_variant: SiteVariant) -> None:
+        asset_path = site_variant.output_path / "assets"
         asset_path.mkdir(parents=True, exist_ok=True)
         for file_name, source in self._page_renderer.assets().items():
             (asset_path / file_name).write_text(source, encoding="utf-8")
+        image = site_variant.site.image
+        if image is None:
+            return
+        if image.name in self._page_renderer.assets():
+            raise ValueError(
+                f"Invalid site image {image}: basename collides with a "
+                "packaged asset"
+            )
+        if not image.exists():
+            raise FileNotFoundError(
+                f"Missing site image {image}: expected existing image asset"
+            )
+        shutil.copy2(image, asset_path / image.name)
 
     def _write_index(
         self,
@@ -246,6 +261,7 @@ class StaticSiteBuilder:
             language_links=self._index_language_links(
                 site_variant, site_variants
             ),
+            alternate_links=alternate_links_for(site_variants, ""),
         )
         index_path = site_variant.output_path / "index.html"
         index_path.write_text(
@@ -296,6 +312,7 @@ class StaticSiteBuilder:
             language_links=self._not_found_language_links(
                 site_variant, site_variants
             ),
+            alternate_links=alternate_links_for(site_variants, "404.html"),
         )
         not_found_path = site_variant.output_path / "404.html"
         not_found_path.write_text(
@@ -396,6 +413,10 @@ class StaticSiteBuilder:
             else None,
             language_links=self._page_language_links(
                 site_variant, site_variants, collection, page
+            ),
+            alternate_links=alternate_links_for(
+                site_variants,
+                f"{collection.output_slug}/{page.file_name()}",
             ),
             edit_url=self._edit_url(site, revision_source),
             last_updated=self._last_updated(site, revision_source),

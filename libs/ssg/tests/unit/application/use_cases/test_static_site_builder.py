@@ -153,6 +153,7 @@ class LocalizedSiteVariantProvider:
             default_locale=site.default_locale,
             extensions=site.extensions,
             url=site.url,
+            image=site.image,
         )
         return (
             SiteVariant(site=site, output_path=context.output_path),
@@ -473,6 +474,283 @@ class TestStaticSiteBuilder:
             ("en", "../../sample-collection/overview.html", False),
             ("pt-BR", "overview.html", True),
         ]
+
+    def test_build_adds_absolute_alternate_links_per_locale_and_x_default(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — hreflang hrefs must be absolute (they cross origins when
+        # crawlers follow them), so they resolve through each variant's
+        # absolute_url, unlike the relative header switcher links.
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        site = Site(
+            title="Learning Site",
+            description="",
+            collections=(collection,),
+            url="https://example.com/docs",
+        )
+        page_renderer = SpyPageRenderer()
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=page_renderer,
+            site_variant_provider=LocalizedSiteVariantProvider(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+        )
+
+        # Act
+        builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+        # Assert
+        index_links = page_renderer.render_index_calls[0].alternate_links
+        page_links = page_renderer.render_page_calls[0].alternate_links
+        not_found_links = page_renderer.render_not_found_calls[
+            0
+        ].alternate_links
+        assert [(link.hreflang, link.href) for link in index_links] == [
+            ("en", "https://example.com/docs/"),
+            ("pt-BR", "https://example.com/docs/pt-BR/"),
+            ("x-default", "https://example.com/docs/"),
+        ]
+        assert [(link.hreflang, link.href) for link in page_links] == [
+            ("en", "https://example.com/docs/sample-collection/overview.html"),
+            (
+                "pt-BR",
+                "https://example.com/docs/pt-BR/"
+                "sample-collection/overview.html",
+            ),
+            (
+                "x-default",
+                "https://example.com/docs/sample-collection/overview.html",
+            ),
+        ]
+        assert [(link.hreflang, link.href) for link in not_found_links] == [
+            ("en", "https://example.com/docs/404.html"),
+            ("pt-BR", "https://example.com/docs/pt-BR/404.html"),
+            ("x-default", "https://example.com/docs/404.html"),
+        ]
+
+    def test_build_emits_no_alternate_links_without_site_url(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — multiple variants but no deployment URL: hreflang hrefs
+        # require an absolute base, so nothing is emitted.
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        site = Site(
+            title="Learning Site", description="", collections=(collection,)
+        )
+        page_renderer = SpyPageRenderer()
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=page_renderer,
+            site_variant_provider=LocalizedSiteVariantProvider(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+        )
+
+        # Act
+        builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+        # Assert
+        assert page_renderer.render_index_calls[0].alternate_links == ()
+        assert page_renderer.render_page_calls[0].alternate_links == ()
+        assert page_renderer.render_not_found_calls[0].alternate_links == ()
+
+    def test_build_emits_no_alternate_links_for_a_single_variant(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — a monolingual site has nothing to alternate to even with
+        # a deployment URL configured.
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        site = Site(
+            title="Learning Site",
+            description="",
+            collections=(collection,),
+            url="https://example.com/docs",
+        )
+        page_renderer = SpyPageRenderer()
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=page_renderer,
+            site_variant_provider=SingleSiteVariantProvider(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+        )
+
+        # Act
+        builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+        # Assert
+        assert page_renderer.render_index_calls[0].alternate_links == ()
+        assert page_renderer.render_page_calls[0].alternate_links == ()
+
+    def test_build_copies_site_image_into_every_variant_assets(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — og:image/twitter:image resolve to
+        # <variant>/assets/<image name>, so each locale root needs its own
+        # copy of the configured file.
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        image_path = tmp_path / "card.png"
+        image_path.write_bytes(b"png bytes")
+        site = Site(
+            title="Learning Site",
+            description="",
+            collections=(collection,),
+            url="https://example.com/docs",
+            image=image_path,
+        )
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=SpyPageRenderer(),
+            site_variant_provider=LocalizedSiteVariantProvider(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+        )
+        output_path = tmp_path / "build"
+
+        # Act
+        builder.build(tmp_path / "site.yaml", output_path)
+
+        # Assert
+        assert (output_path / "assets" / "card.png").read_bytes() == (
+            b"png bytes"
+        )
+        assert (
+            output_path / "pt-BR" / "assets" / "card.png"
+        ).read_bytes() == b"png bytes"
+
+    def test_build_raises_for_missing_site_image(self, tmp_path: Path) -> None:
+        # Arrange — the image lands in every variant's assets, so a missing
+        # file fails the build loudly instead of emitting a dead og:image.
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        missing_image = tmp_path / "absent.png"
+        site = Site(
+            title="Learning Site",
+            description="",
+            collections=(collection,),
+            image=missing_image,
+        )
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=SpyPageRenderer(),
+            site_variant_provider=SingleSiteVariantProvider(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+        )
+
+        # Act / Assert
+        with pytest.raises(FileNotFoundError, match="absent.png"):
+            builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+    def test_build_rejects_site_image_shadowing_a_packaged_asset(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — the image copies into assets/ beside the packaged
+        # site.css/site.js; a colliding basename would silently clobber them.
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        image_path = tmp_path / "site.css"
+        image_path.write_bytes(b"not css")
+        site = Site(
+            title="Learning Site",
+            description="",
+            collections=(collection,),
+            image=image_path,
+        )
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=SpyPageRenderer(),
+            site_variant_provider=SingleSiteVariantProvider(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+        )
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="collides"):
+            builder.build(tmp_path / "site.yaml", tmp_path / "build")
 
     def test_build_scopes_index_navigation_to_selected_collection(
         self, tmp_path: Path
