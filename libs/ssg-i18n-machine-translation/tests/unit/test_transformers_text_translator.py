@@ -182,7 +182,23 @@ def test_translate_scales_max_new_tokens_with_input_length() -> None:
     translator.translate(source_text, Locale("pt-BR"))
 
     # Assert
-    assert pipeline_mock.calls[0][1]["max_new_tokens"] == 200
+    assert pipeline_mock.calls[0][1]["max_new_tokens"] == len(source_text)
+
+
+def test_translate_budgets_marker_dense_input_by_chars() -> None:
+    # A 21-char protection marker is one whitespace-word but ~12 subword
+    # tokens: a word-count budget truncates the copy mid-marker at output
+    # end, which the caller then reverts to English wholesale.
+    translator = TransformersTextTranslator()
+    pipeline_mock = CaptureOptionsFakeTranslationPipeline()
+    translator._translation_pipeline = pipeline_mock
+    source_text = "Promote:TR0X" + "a" * 16 + "TR1X" + "b" * 16
+
+    # Act
+    translator.translate(source_text, Locale("pt-BR"))
+
+    # Assert
+    assert pipeline_mock.calls[0][1]["max_new_tokens"] == len(source_text)
 
 
 @pytest.mark.parametrize(

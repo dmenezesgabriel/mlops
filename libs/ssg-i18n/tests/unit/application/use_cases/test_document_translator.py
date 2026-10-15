@@ -70,6 +70,35 @@ class _MarkerDroppingTranslator:
         return "cauda traduzida"
 
 
+class _MarkerTailTruncatingTranslator:
+    """MT fake: truncates the trailing marker's hex tail and 'translates'
+    prose — mirrors Marian output cut at the max_new_tokens boundary."""
+
+    def translate(self, source_text: str, target_locale: Locale) -> str:
+        truncated = re.sub(
+            r"(TR\d+X[0-9a-f]{6})[0-9a-f]+(\W|$)", r"\1\2", source_text
+        )
+        return truncated.replace("Now", "Agora").replace(
+            "The code:", "O código:"
+        )
+
+
+class _MarkerCharInsertingTranslator:
+    """MT fake: inserts an extra hex char inside each marker's tail."""
+
+    def translate(self, source_text: str, target_locale: Locale) -> str:
+        mangled = re.sub(r"(TR\d+X[0-9a-f]{8})", r"\1a", source_text)
+        return mangled.replace("Now", "Agora")
+
+
+class _MarkerToBarePrefixTranslator:
+    """MT fake: reduces every marker to a bare 'TR' — an unidentifiable
+    remnant that no heal may resurrect."""
+
+    def translate(self, source_text: str, target_locale: Locale) -> str:
+        return re.sub(r"TR\d+X[0-9a-f]+", "TR", source_text)
+
+
 class _AlertKeywordLocalizingTranslator:
     """MT fake that translates the alert keyword itself ("NOTE" -> "NOTA").
 
@@ -239,6 +268,65 @@ class TestDocumentTranslator:
             "**bold** tail\n", Locale("pt-BR")
         )
         assert result == "**cauda traduzida** tail\n"
+
+    def test_truncated_marker_tail_heals_and_keeps_translation(self) -> None:
+        # Marian hits max_new_tokens mid-marker: "TR0X<16hex>" -> "TR0X<6>"
+        # The TR{n} index alone names the marker, so the remnant rebinds.
+        translator = DocumentTranslator(
+            text_translator=_MarkerTailTruncatingTranslator(),
+            marker_token_factory=_fixed_marker_token,
+        )
+        result = translator.translate_markdown_source(
+            "Now use `code`.\n", Locale("pt-BR")
+        )
+        assert result == "Agora use `code`.\n"
+
+    def test_truncated_glued_marker_heals_against_its_index(self) -> None:
+        # Marker glued to a hex tail has no \b before it ("...acc5TR1X..")
+        # yet still identifies itself by the TR{n} anchor.
+        translator = DocumentTranslator(
+            text_translator=_MarkerTailTruncatingTranslator(),
+            marker_token_factory=_fixed_marker_token,
+        )
+        result = translator.translate_markdown_source(
+            'The code:\n{{ include_source("a.py") }}\n', Locale("pt-BR")
+        )
+        assert result == 'O código:\n{{ include_source("a.py") }}\n'
+
+    def test_marker_with_inserted_char_heals(self) -> None:
+        translator = DocumentTranslator(
+            text_translator=_MarkerCharInsertingTranslator(),
+            marker_token_factory=_fixed_marker_token,
+        )
+        result = translator.translate_markdown_source(
+            "Now use `code`.\n", Locale("pt-BR")
+        )
+        assert result == "Agora use `code`.\n"
+
+    def test_marker_reduced_to_unidentifiable_remnant_still_reverts(
+        self,
+    ) -> None:
+        translator = DocumentTranslator(
+            text_translator=_MarkerToBarePrefixTranslator()
+        )
+        result = translator.translate_markdown_source(
+            "Now use `code`.\n", Locale("pt-BR")
+        )
+        assert result == "Now use `code`.\n"
+
+    def test_non_hex_marker_token_skips_remnant_heal_and_reverts(
+        self,
+    ) -> None:
+        # The remnant pass anchors on an X + hex tail; an injected token
+        # outside that shape must fall through to the revert, not crash.
+        translator = DocumentTranslator(
+            text_translator=_MarkerDroppingTranslator(),
+            marker_token_factory=lambda: "not-hex",
+        )
+        result = translator.translate_markdown_source(
+            "Now use `code`.\n", Locale("pt-BR")
+        )
+        assert result == "Now use `code`.\n"
 
     def test_catalog_lookup_uses_source_sentence_not_marker_text(
         self,

@@ -130,7 +130,27 @@ def _heal_mangled_marker(translated: str, marker: str) -> str:
         r"\b" + r"\s*".join(re.escape(char) for char in marker) + r"\b",
         re.IGNORECASE,
     )
-    return tolerant.sub(marker, translated)
+    healed = tolerant.sub(marker, translated)
+    if healed != translated:
+        return healed
+    return _heal_marker_remnant(translated, marker)
+
+
+def _heal_marker_remnant(translated: str, marker: str) -> str:
+    # The model corrupts the hex tail far more often than the TR{n} /
+    # MATHEXPR{n} anchor — and the index alone already names the marker
+    # within this sentence, so a remnant keeps healing value down to a
+    # 2-char hex stub ("TR1X66"). No leading \b: truncated markers glue
+    # to hex tails ("...acc5TR1X..") where no boundary exists.
+    prefix = re.fullmatch(r"((?:TR|MATHEXPR)\d+)X[0-9a-fA-F]+", marker)
+    if prefix is None:
+        return translated
+    remnant = re.compile(
+        r"\s*".join(re.escape(char) for char in prefix.group(1))
+        + r"\s*X\s*[0-9a-fA-F]{2,}\b",
+        re.IGNORECASE,
+    )
+    return remnant.sub(marker, translated)
 
 
 def _reference_definition_lines(

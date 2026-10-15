@@ -43,11 +43,17 @@ class TransformersTextTranslator(TextTranslator):
         target_lang_code = self._target_lang_code(target_locale)
         translation_pipeline = self._pipeline()
         generation_options: dict[str, object] = {
+            # Budget by chars, not words: a protection marker is one
+            # whitespace-word but ~12 subword tokens, so a word-count
+            # budget truncates the copy mid-marker at output end — the
+            # caller then reverts the whole sentence to English. ~1 token
+            # per input char over-provisions every servable input; EOS
+            # remains the binding stop for normal generations.
             "max_new_tokens": max(
                 16,
                 min(
                     self._max_new_tokens_cap,
-                    len(source_text.split()) * 4,
+                    len(source_text),
                 ),
             ),
             "no_repeat_ngram_size": 3,
