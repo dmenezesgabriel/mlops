@@ -424,6 +424,111 @@ def test_render_index_search_index_meta_is_root_relative(
     )
 
 
+def test_render_page_sitemap_meta_is_page_relative_when_url_set(
+    tmp_path: Path,
+) -> None:
+    # Arrange — instant navigation resolves internal links against the
+    # locale sitemap; the pointer carries the same ../ prefix as the
+    # search-index meta so any page depth reaches the locale root.
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path, url=True)
+    rendered_page = RenderedPage(
+        site=site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Overview", body="<p>Rendered content.</p>", headings=()
+        ),
+        navigation=site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert (
+        '<meta name="ssg:sitemap" content="../sitemap.xml">' in rendered_html
+    )
+
+
+def test_render_index_sitemap_meta_is_root_relative_when_url_set(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    renderer = JinjaPageRenderer()
+    site, collection, _page = _site_with_collection(tmp_path, url=True)
+    rendered_index = RenderedIndex(
+        site=site,
+        collections=(collection,),
+        navigation=site.navigation_for(None, None),
+    )
+
+    # Act
+    rendered_html = renderer.render_index(rendered_index)
+
+    # Assert
+    assert '<meta name="ssg:sitemap" content="sitemap.xml">' in rendered_html
+
+
+def test_render_page_omits_sitemap_meta_without_site_url(
+    tmp_path: Path,
+) -> None:
+    # Arrange — no deployment URL means no sitemap.xml is emitted, so the
+    # pointer would be a dead link and instant navigation must stay off.
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path)
+    rendered_page = RenderedPage(
+        site=site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Overview", body="<p>Rendered content.</p>", headings=()
+        ),
+        navigation=site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert 'name="ssg:sitemap"' not in rendered_html
+
+
+def test_render_page_loads_instant_script_after_site_js(
+    tmp_path: Path,
+) -> None:
+    # Arrange — the controller dispatches ssg:navigated for the feature
+    # mounts to re-run, so it must execute after site.js registered them.
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path)
+    rendered_page = RenderedPage(
+        site=site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Overview", body="<p>Rendered content.</p>", headings=()
+        ),
+        navigation=site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    assert (
+        '<script src="../assets/instant.js" defer></script>' in rendered_html
+    )
+    assert rendered_html.index(
+        'src="../assets/site.js"'
+    ) < rendered_html.index('src="../assets/instant.js"')
+
+
 def test_render_page_localizes_search_labels(tmp_path: Path) -> None:
     # Arrange
     renderer = JinjaPageRenderer()
@@ -471,6 +576,20 @@ def test_assets_include_search_wiring() -> None:
     assert "ssg:search-index" in assets["site.js"]
     assert ".site-search" in assets["site.css"]
     assert ".search-results" in assets["site.css"]
+
+
+def test_assets_include_instant_navigation_wiring() -> None:
+    # Arrange / Act
+    assets = JinjaPageRenderer().assets()
+
+    # Assert — the controller reads the sitemap pointer, intercepts
+    # history-aware navigation, and prefetches; site.js re-mounts its
+    # features when the controller announces a swap.
+    assert "instant.js" in assets
+    assert "ssg:sitemap" in assets["instant.js"]
+    assert "popstate" in assets["instant.js"]
+    assert "prefetch" in assets["instant.js"]
+    assert "ssg:navigated" in assets["site.js"]
 
 
 def test_render_page_localizes_theme_select_labels(tmp_path: Path) -> None:
@@ -531,16 +650,19 @@ def test_frontend_templates_and_static_assets_are_package_files() -> None:
     template_path = frontend_files.joinpath("templates", "page.html")
     style_path = frontend_files.joinpath("static", "css", "site.css")
     script_path = frontend_files.joinpath("static", "js", "site.js")
+    instant_path = frontend_files.joinpath("static", "js", "instant.js")
 
     # Assert
     assert template_path.is_file()
     assert style_path.is_file()
     assert script_path.is_file()
+    assert instant_path.is_file()
     assert "{% extends 'base.html' %}" in template_path.read_text(
         encoding="utf-8"
     )
     assert "Newsreader" in style_path.read_text(encoding="utf-8")
     assert "IntersectionObserver" in script_path.read_text(encoding="utf-8")
+    assert "popstate" in instant_path.read_text(encoding="utf-8")
 
 
 def test_render_page_emits_canonical_og_and_favicon(tmp_path: Path) -> None:
@@ -1096,6 +1218,7 @@ def test_render_not_found_absolutizes_assets_when_site_url_set(
         'href="https://example.com/docs/assets/favicon.svg"' in rendered_html
     )
     assert 'src="https://example.com/docs/assets/site.js"' in rendered_html
+    assert 'content="https://example.com/docs/sitemap.xml"' in rendered_html
 
 
 def test_render_not_found_prefixes_assets_per_locale(

@@ -1,18 +1,9 @@
-const menuButton = document.querySelector('.menu-toggle');
-const navigation = document.querySelector('#site-navigation');
+// Per-page feature mounts. instant.js swaps page regions in place and
+// announces 'ssg:navigated'; every mount below re-runs on that event, and
+// listeners living on document/window take the per-page AbortSignal so a
+// swap retires the previous page's handlers with it.
+
 const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-
-if (menuButton instanceof HTMLButtonElement && navigation instanceof HTMLElement) {
-  menuButton.addEventListener('click', () => {
-    const expanded = menuButton.getAttribute('aria-expanded') === 'true';
-    menuButton.setAttribute('aria-expanded', String(!expanded));
-    navigation.classList.toggle('is-open', !expanded);
-  });
-}
-
-// An absent data-theme means "auto": the CSS then tracks
-// prefers-color-scheme on its own, so no media-query listener lives here.
-const themeSelect = document.querySelector('.theme-select');
 
 const readStoredTheme = () => {
   try {
@@ -43,7 +34,27 @@ const applyTheme = (value) => {
   document.body.dataset.theme = value;
 };
 
-if (themeSelect instanceof HTMLSelectElement) {
+const mountMenuToggle = () => {
+  const menuButton = document.querySelector('.menu-toggle');
+  const navigation = document.querySelector('#site-navigation');
+  if (
+    !(menuButton instanceof HTMLButtonElement) ||
+    !(navigation instanceof HTMLElement)
+  ) {
+    return;
+  }
+  menuButton.addEventListener('click', () => {
+    const expanded = menuButton.getAttribute('aria-expanded') === 'true';
+    menuButton.setAttribute('aria-expanded', String(!expanded));
+    navigation.classList.toggle('is-open', !expanded);
+  });
+};
+
+// An absent data-theme means "auto": the CSS then tracks
+// prefers-color-scheme on its own, so no media-query listener lives here.
+const mountThemeSelect = () => {
+  const themeSelect = document.querySelector('.theme-select');
+  if (!(themeSelect instanceof HTMLSelectElement)) return;
   document.documentElement.classList.add('has-theme-select');
   const storedTheme = readStoredTheme();
   themeSelect.value =
@@ -52,9 +63,10 @@ if (themeSelect instanceof HTMLSelectElement) {
     applyTheme(themeSelect.value);
     writeStoredTheme(themeSelect.value);
   });
-}
+};
 
-if (!motionQuery.matches && 'IntersectionObserver' in window) {
+const mountRevealAnimation = () => {
+  if (motionQuery.matches || !('IntersectionObserver' in window)) return;
   document.documentElement.classList.add('has-reveal');
 
   const observer = new IntersectionObserver((entries) => {
@@ -68,179 +80,218 @@ if (!motionQuery.matches && 'IntersectionObserver' in window) {
   document
     .querySelectorAll('.story-step, .media-frame, .notebook-cell')
     .forEach((element) => observer.observe(element));
-}
+};
 
-const copyButtons = document.querySelectorAll('.code-copy-button');
+const wireCodeCopyButton = (button) => {
+  let revertTimer = 0;
+  button.addEventListener('click', () => {
+    const source = button.closest('.code-frame')?.querySelector('pre > code');
+    const text = source?.textContent?.trimEnd() ?? '';
+    if (!text) return;
 
-if ('clipboard' in navigator && copyButtons.length) {
-  document.documentElement.classList.add('has-code-copy');
-
-  copyButtons.forEach((button) => {
-    if (!(button instanceof HTMLButtonElement)) return;
-    let revertTimer = 0;
-    button.addEventListener('click', () => {
-      const source = button.closest('.code-frame')?.querySelector('pre > code');
-      const text = source?.textContent?.trimEnd() ?? '';
-      if (!text) return;
-
-      navigator.clipboard.writeText(text).then(() => {
-        button.textContent = button.dataset.copiedLabel ?? '';
-        button.classList.add('is-copied');
-        clearTimeout(revertTimer);
-        revertTimer = setTimeout(() => {
-          button.textContent = '';
-          button.classList.remove('is-copied');
-        }, 2000);
-      }, () => {});
-    });
+    navigator.clipboard.writeText(text).then(() => {
+      button.textContent = button.dataset.copiedLabel ?? '';
+      button.classList.add('is-copied');
+      clearTimeout(revertTimer);
+      revertTimer = setTimeout(() => {
+        button.textContent = '';
+        button.classList.remove('is-copied');
+      }, 2000);
+    }, () => {});
   });
-}
+};
 
-// The ssg:search-index meta carries the locale-root-relative index URL (same
-// asset_prefix mechanism as site.css), so fetches and result hrefs stay
-// inside the current locale from any page depth.
-const searchRoot = document.querySelector('.site-search');
-const searchInput = searchRoot?.querySelector('.search-input');
-const searchResults = searchRoot?.querySelector('.search-results');
-const searchNoResults = searchRoot?.querySelector('.search-no-results');
-const searchIndexMeta = document.querySelector('meta[name="ssg:search-index"]');
+const mountCodeCopyButtons = () => {
+  const copyButtons = document.querySelectorAll('.code-copy-button');
+  if (!('clipboard' in navigator) || !copyButtons.length) return;
+  document.documentElement.classList.add('has-code-copy');
+  copyButtons.forEach((button) => {
+    if (button instanceof HTMLButtonElement) wireCodeCopyButton(button);
+  });
+};
 
-if (
-  searchRoot instanceof HTMLElement &&
-  searchInput instanceof HTMLInputElement &&
-  searchResults instanceof HTMLElement &&
-  searchIndexMeta instanceof HTMLMetaElement &&
-  'fetch' in window
-) {
-  document.documentElement.classList.add('has-search');
+// The locale search index is identical from any page depth; the fetch
+// promise lives in this script-scope cache so instant-navigation swaps
+// reuse it. A failed fetch evicts its entry so a later mount retries
+// instead of caching the failure forever.
+const searchIndexCache = new Map();
 
-  const searchIndexUrl = new URL(searchIndexMeta.content, document.baseURI);
-  let searchIndexPromise = null;
-
-  const loadSearchIndex = () => {
-    if (searchIndexPromise === null) {
-      searchIndexPromise = fetch(searchIndexUrl)
-        .then((response) => (response.ok ? response.json() : { docs: [] }))
-        .then((index) => index.docs ?? [])
-        .catch(() => []);
-    }
-    return searchIndexPromise;
-  };
-
-  const normalizeSearchText = (value) =>
-    value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
-
-  // AND-match: every query term must hit title or text; a title hit weighs
-  // ten text hits so a page named after the term outranks mere mentions.
-  const scoreSearchEntry = (entry, terms) => {
-    const title = normalizeSearchText(entry.title ?? '');
-    const text = normalizeSearchText(entry.text ?? '');
-    let score = 0;
-    for (const term of terms) {
-      const titleHits = title.split(term).length - 1;
-      const textHits = text.split(term).length - 1;
-      if (titleHits + textHits === 0) return -1;
-      score += titleHits * 10 + textHits;
-    }
-    return score;
-  };
-
-  const rankSearchEntries = (docs, terms) =>
-    docs
-      .map((entry) => ({ entry, score: scoreSearchEntry(entry, terms) }))
-      .filter((result) => result.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 10)
-      .map((result) => result.entry);
-
-  const closeSearchResults = () => {
-    searchResults.hidden = true;
-    searchInput.setAttribute('aria-expanded', 'false');
-  };
-
-  const renderSearchResults = (entries) => {
-    searchResults
-      .querySelectorAll('li:not(.search-no-results)')
-      .forEach((item) => item.remove());
-    entries.forEach((entry) => {
-      const item = document.createElement('li');
-      item.setAttribute('role', 'option');
-      const link = document.createElement('a');
-      link.className = 'search-result-link';
-      link.href = new URL(entry.location, searchIndexUrl).href;
-      link.textContent = entry.title;
-      item.appendChild(link);
-      searchResults.appendChild(item);
+const loadSearchIndex = (indexUrl) => {
+  const cachedPromise = searchIndexCache.get(indexUrl.href);
+  if (cachedPromise) return cachedPromise;
+  const indexPromise = fetch(indexUrl)
+    .then((response) => (response.ok ? response.json() : { docs: [] }))
+    .then((index) => index.docs ?? [])
+    .catch(() => {
+      searchIndexCache.delete(indexUrl.href);
+      return [];
     });
-    if (searchNoResults instanceof HTMLElement) {
-      searchNoResults.hidden = entries.length > 0;
-    }
-    searchResults.hidden = false;
-    searchInput.setAttribute('aria-expanded', 'true');
-  };
+  searchIndexCache.set(indexUrl.href, indexPromise);
+  return indexPromise;
+};
 
-  const runSearch = () => {
-    if (!searchInput.value.trim()) {
-      closeSearchResults();
+const normalizeSearchText = (value) =>
+  value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+
+// AND-match: every query term must hit title or text; a title hit weighs
+// ten text hits so a page named after the term outranks mere mentions.
+const scoreSearchEntry = (entry, terms) => {
+  const title = normalizeSearchText(entry.title ?? '');
+  const text = normalizeSearchText(entry.text ?? '');
+  let score = 0;
+  for (const term of terms) {
+    const titleHits = title.split(term).length - 1;
+    const textHits = text.split(term).length - 1;
+    if (titleHits + textHits === 0) return -1;
+    score += titleHits * 10 + textHits;
+  }
+  return score;
+};
+
+const rankSearchEntries = (docs, terms) =>
+  docs
+    .map((entry) => ({ entry, score: scoreSearchEntry(entry, terms) }))
+    .filter((result) => result.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10)
+    .map((result) => result.entry);
+
+const closeSearchResults = (searchInput, searchResults) => {
+  searchResults.hidden = true;
+  searchInput.setAttribute('aria-expanded', 'false');
+};
+
+const renderSearchResults = (context, entries) => {
+  const { searchInput, searchResults, searchNoResults, searchIndexUrl } =
+    context;
+  searchResults
+    .querySelectorAll('li:not(.search-no-results)')
+    .forEach((item) => item.remove());
+  entries.forEach((entry) => {
+    const item = document.createElement('li');
+    item.setAttribute('role', 'option');
+    const link = document.createElement('a');
+    link.className = 'search-result-link';
+    link.href = new URL(entry.location, searchIndexUrl).href;
+    link.textContent = entry.title;
+    item.appendChild(link);
+    searchResults.appendChild(item);
+  });
+  if (searchNoResults instanceof HTMLElement) {
+    searchNoResults.hidden = entries.length > 0;
+  }
+  searchResults.hidden = false;
+  searchInput.setAttribute('aria-expanded', 'true');
+};
+
+const runSearch = (context) => {
+  const { searchInput, searchResults } = context;
+  if (!searchInput.value.trim()) {
+    closeSearchResults(searchInput, searchResults);
+    return;
+  }
+  loadSearchIndex(context.searchIndexUrl).then((docs) => {
+    // Re-read the value inside .then: the index resolves async, so the
+    // query may have advanced since this handler fired.
+    const terms = normalizeSearchText(searchInput.value)
+      .split(/\s+/)
+      .filter(Boolean);
+    if (!terms.length) {
+      closeSearchResults(searchInput, searchResults);
       return;
     }
-    loadSearchIndex().then((docs) => {
-      // Re-read the value inside .then: the index resolves async, so the
-      // query may have advanced since this handler fired.
-      const terms = normalizeSearchText(searchInput.value)
-        .split(/\s+/)
-        .filter(Boolean);
-      if (!terms.length) {
-        closeSearchResults();
-        return;
-      }
-      renderSearchResults(rankSearchEntries(docs, terms));
-    });
-  };
+    renderSearchResults(context, rankSearchEntries(docs, terms));
+  });
+};
 
+const handleSearchKeydown = (event, searchResults) => {
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+  const links = Array.from(
+    searchResults.querySelectorAll('a.search-result-link')
+  );
+  if (searchResults.hidden || !links.length) return;
+  event.preventDefault();
+  const current = links.indexOf(document.activeElement);
+  const next =
+    event.key === 'ArrowDown'
+      ? (current + 1) % links.length
+      : (current <= 0 ? links.length : current) - 1;
+  links[next].focus();
+};
+
+const handleSearchEscape = (searchInput, searchResults, consumeNextFocus) => {
+  closeSearchResults(searchInput, searchResults);
+  consumeNextFocus();
+  searchInput.focus();
+};
+
+const findSearchElements = () => {
+  const searchRoot = document.querySelector('.site-search');
+  return {
+    searchRoot,
+    searchInput: searchRoot?.querySelector('.search-input'),
+    searchResults: searchRoot?.querySelector('.search-results'),
+    searchNoResults: searchRoot?.querySelector('.search-no-results'),
+    searchIndexMeta: document.querySelector('meta[name="ssg:search-index"]'),
+  };
+};
+
+const wireSearchInputAndKeys = (context) => {
+  const { searchRoot, searchInput, searchResults } = context;
+  const run = () => runSearch(context);
   // Escape refocuses the input; that synthetic focus must not reopen the
   // dropdown the key just closed — hence the one-shot flag.
   let skipFocusSearch = false;
   searchInput.addEventListener('focus', () => {
-    loadSearchIndex();
+    loadSearchIndex(context.searchIndexUrl);
     if (skipFocusSearch) {
       skipFocusSearch = false;
       return;
     }
-    runSearch();
+    run();
   });
-  searchInput.addEventListener('input', runSearch);
-
+  searchInput.addEventListener('input', run);
   searchRoot.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
-      closeSearchResults();
-      skipFocusSearch = true;
-      searchInput.focus();
+      handleSearchEscape(searchInput, searchResults, () => {
+        skipFocusSearch = true;
+      });
       return;
     }
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-    const links = Array.from(
-      searchResults.querySelectorAll('a.search-result-link')
-    );
-    if (searchResults.hidden || !links.length) return;
-    event.preventDefault();
-    const current = links.indexOf(document.activeElement);
-    const next =
-      event.key === 'ArrowDown'
-        ? (current + 1) % links.length
-        : (current <= 0 ? links.length : current) - 1;
-    links[next].focus();
+    handleSearchKeydown(event, searchResults);
   });
+};
 
-  document.addEventListener('click', (event) => {
-    if (
-      event.target instanceof Node &&
-      !searchRoot.contains(event.target)
-    ) {
-      closeSearchResults();
-    }
-  });
-}
+const wireSearchOutsideClose = (signal, context) => {
+  const { searchRoot, searchInput, searchResults } = context;
+  document.addEventListener(
+    'click',
+    (event) => {
+      if (event.target instanceof Node && !searchRoot.contains(event.target)) {
+        closeSearchResults(searchInput, searchResults);
+      }
+    },
+    { signal }
+  );
+};
+
+const mountSearch = (signal) => {
+  const context = findSearchElements();
+  const ready =
+    context.searchRoot instanceof HTMLElement &&
+    context.searchInput instanceof HTMLInputElement &&
+    context.searchResults instanceof HTMLElement &&
+    context.searchIndexMeta instanceof HTMLMetaElement &&
+    'fetch' in window;
+  if (!ready) return;
+  document.documentElement.classList.add('has-search');
+  context.searchIndexUrl = new URL(
+    context.searchIndexMeta.content,
+    document.baseURI
+  );
+  wireSearchInputAndKeys(context);
+  wireSearchOutsideClose(signal, context);
+};
 
 // TOC scrollspy: a heading crossing the pick band just under the sticky
 // header marks its TOC link aria-current="true" (starlight
@@ -248,13 +299,7 @@ if (
 // Starlight's 53px strip can be skipped by a fast scroll — it compensates
 // by also observing every section sibling; observing only TOC headings
 // needs a taller band (~top third of the viewport) instead.
-const articleToc = document.querySelector('.article-toc');
-const tocAnchors = articleToc
-  ? Array.from(articleToc.querySelectorAll('a[href^="#"]'))
-  : [];
-
-if (articleToc && tocAnchors.length && 'IntersectionObserver' in window) {
-  const siteHeader = document.querySelector('.site-header');
+const collectTocHeadings = (tocAnchors) => {
   const linkByHeading = new Map();
   const tocHeadings = [];
   tocAnchors.forEach((anchor) => {
@@ -266,83 +311,111 @@ if (articleToc && tocAnchors.length && 'IntersectionObserver' in window) {
       tocHeadings.push(heading);
     }
   });
+  return { linkByHeading, tocHeadings };
+};
 
-  const visibleHeadings = new Set();
-  let currentTocLink = null;
+const markCurrentTocLink = (articleToc, spyState, link) => {
+  if (link === spyState.currentLink) return;
+  if (spyState.currentLink) spyState.currentLink.removeAttribute('aria-current');
+  link.setAttribute('aria-current', 'true');
+  spyState.currentLink = link;
+  // toc.follow parity: keep the active anchor visible inside the
+  // self-scrolling aside — scrollTop touches the aside only, so the page
+  // position never moves.
+  if (
+    link.offsetTop < articleToc.scrollTop ||
+    link.offsetTop + link.offsetHeight >
+      articleToc.scrollTop + articleToc.clientHeight
+  ) {
+    articleToc.scrollTop = link.offsetTop - articleToc.clientHeight / 2;
+  }
+};
 
-  const setCurrentTocLink = (link) => {
-    if (link === currentTocLink) return;
-    if (currentTocLink) currentTocLink.removeAttribute('aria-current');
-    link.setAttribute('aria-current', 'true');
-    currentTocLink = link;
-    // toc.follow parity: keep the active anchor visible inside the
-    // self-scrolling aside — scrollTop touches the aside only, so the page
-    // position never moves.
-    if (
-      link.offsetTop < articleToc.scrollTop ||
-      link.offsetTop + link.offsetHeight >
-        articleToc.scrollTop + articleToc.clientHeight
-    ) {
-      articleToc.scrollTop = link.offsetTop - articleToc.clientHeight / 2;
+const updateTocSpy = (articleToc, spyState, linkByHeading, tocHeadings, entries) => {
+  entries.forEach((entry) => {
+    if (!entry.isIntersecting) {
+      spyState.visibleHeadings.delete(entry.target);
+      return;
     }
-  };
+    spyState.visibleHeadings.add(entry.target);
+  });
+  // Document-order-last among visible headings is the section the
+  // reader is in; when none is in the band the last mark stands.
+  const current = tocHeadings
+    .filter((heading) => spyState.visibleHeadings.has(heading))
+    .pop();
+  if (current) markCurrentTocLink(articleToc, spyState, linkByHeading.get(current));
+};
 
+const observeTocHeadings = (articleToc, siteHeader, linkByHeading, tocHeadings) => {
+  const spyState = { visibleHeadings: new Set(), currentLink: null };
   const pickBandTop =
-    Math.round(
-      siteHeader ? siteHeader.getBoundingClientRect().height : 0
-    ) + 16;
+    Math.round(siteHeader ? siteHeader.getBoundingClientRect().height : 0) + 16;
   const tocObserver = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) {
-          visibleHeadings.delete(entry.target);
-          return;
-        }
-        visibleHeadings.add(entry.target);
-      });
-      // Document-order-last among visible headings is the section the
-      // reader is in; when none is in the band the last mark stands.
-      const current = tocHeadings
-        .filter((heading) => visibleHeadings.has(heading))
-        .pop();
-      if (current) setCurrentTocLink(linkByHeading.get(current));
-    },
+    (entries) =>
+      updateTocSpy(articleToc, spyState, linkByHeading, tocHeadings, entries),
     { rootMargin: `-${pickBandTop}px 0px -70% 0px` }
   );
   tocHeadings.forEach((heading) => tocObserver.observe(heading));
-}
+};
+
+const mountArticleScrollSpy = () => {
+  const articleToc = document.querySelector('.article-toc');
+  const tocAnchors = articleToc
+    ? Array.from(articleToc.querySelectorAll('a[href^="#"]'))
+    : [];
+  if (!articleToc || !tocAnchors.length || !('IntersectionObserver' in window)) {
+    return;
+  }
+  const { linkByHeading, tocHeadings } = collectTocHeadings(tocAnchors);
+  if (!tocHeadings.length) return;
+  observeTocHeadings(
+    articleToc,
+    document.querySelector('.site-header'),
+    linkByHeading,
+    tocHeadings
+  );
+};
 
 // Mobile TOC disclosure (starlight
 // components/MobileTableOfContents.astro semantics): the <details> toggles
 // natively without JS; these only close it again — after a link pick, on an
 // outside click, and on Escape with focus handed back to the summary.
-const mobileToc = document.querySelector('details.mobile-toc');
-
-if (mobileToc instanceof HTMLDetailsElement) {
+const mountMobileToc = (signal) => {
+  const mobileToc = document.querySelector('details.mobile-toc');
+  if (!(mobileToc instanceof HTMLDetailsElement)) return;
   mobileToc.querySelectorAll('a').forEach((anchor) => {
     anchor.addEventListener('click', () => {
       mobileToc.open = false;
     });
   });
-  document.addEventListener('click', (event) => {
-    if (event.target instanceof Node && !mobileToc.contains(event.target)) {
+  document.addEventListener(
+    'click',
+    (event) => {
+      if (event.target instanceof Node && !mobileToc.contains(event.target)) {
+        mobileToc.open = false;
+      }
+    },
+    { signal }
+  );
+  document.addEventListener(
+    'keydown',
+    (event) => {
+      if (event.key !== 'Escape' || !mobileToc.open) return;
+      const hadFocus = mobileToc.contains(document.activeElement);
       mobileToc.open = false;
-    }
-  });
-  document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape' || !mobileToc.open) return;
-    const hadFocus = mobileToc.contains(document.activeElement);
-    mobileToc.open = false;
-    if (hadFocus) mobileToc.querySelector('summary')?.focus();
-  });
-}
+      if (hadFocus) mobileToc.querySelector('summary')?.focus();
+    },
+    { signal }
+  );
+};
 
 // navigation.top parity (material components/top/index.ts): the button
 // appears only when the reader scrolls up while below the top. It ships
 // hidden in markup, so no-JS readers never see a dead control.
-const backToTopButton = document.querySelector('.back-to-top');
-
-if (backToTopButton instanceof HTMLButtonElement) {
+const mountBackToTop = (signal) => {
+  const backToTopButton = document.querySelector('.back-to-top');
+  if (!(backToTopButton instanceof HTMLButtonElement)) return;
   const siteHeader = document.querySelector('.site-header');
   let lastScrollY = window.scrollY;
   const updateBackToTop = () => {
@@ -355,17 +428,51 @@ if (backToTopButton instanceof HTMLButtonElement) {
     }
     lastScrollY = scrollY;
   };
-  window.addEventListener('scroll', updateBackToTop, { passive: true });
+  window.addEventListener('scroll', updateBackToTop, {
+    passive: true,
+    signal,
+  });
   backToTopButton.addEventListener('click', () => {
     window.scrollTo({ top: 0 });
   });
-}
+};
 
-if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+const mountLiveReload = () => {
+  if (
+    window.location.hostname !== 'localhost' &&
+    window.location.hostname !== '127.0.0.1'
+  ) {
+    return;
+  }
   const source = new EventSource('/__live_reload__');
   source.onmessage = (event) => {
     if (event.data === 'reload') {
       window.location.reload();
     }
   };
-}
+};
+
+const mountPageFeatures = (signal) => {
+  mountMenuToggle();
+  mountThemeSelect();
+  mountRevealAnimation();
+  mountCodeCopyButtons();
+  mountSearch(signal);
+  mountArticleScrollSpy();
+  mountMobileToc(signal);
+  mountBackToTop(signal);
+};
+
+let pageListenerController = new AbortController();
+
+const remountPageFeatures = () => {
+  pageListenerController.abort();
+  pageListenerController = new AbortController();
+  mountPageFeatures(pageListenerController.signal);
+};
+
+remountPageFeatures();
+mountLiveReload();
+// instant.js announces every content swap; the mounts re-run so search,
+// theme and scrollspy bind to the freshly swapped regions.
+document.addEventListener('ssg:navigated', remountPageFeatures);

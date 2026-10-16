@@ -12,6 +12,7 @@ from ssg.infrastructure.frontend.jinja_environment import (
 from ssg.infrastructure.frontend.site_assets import (
     SITE_CSS,
     SITE_FAVICON,
+    SITE_INSTANT_JS,
     SITE_JS,
 )
 
@@ -52,5 +53,6 @@ class JinjaPageRenderer(PageRenderer):
         return {
             "site.css": SITE_CSS,
             "site.js": SITE_JS,
+            "instant.js": SITE_INSTANT_JS,
             "favicon.svg": SITE_FAVICON,
         }

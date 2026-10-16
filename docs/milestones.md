@@ -24,8 +24,8 @@ Steps:
    - Evidence: `libs/ssg/tests/playwright/test_built_site_seo.py` (en+pt-BR heads); `domain/value_objects/alternate_link.py`; `partials/head.html`; `site.image` → per-variant `assets/` copy in `use_cases/static_site_builder.py`
 3. [x] Mermaid fenced blocks (SX-17)
    - Evidence: material `docs/reference/diagrams.md:20-28`; `markdown_content_renderer.py:65-82`
-4. [ ] Instant navigation (SX-18)
-   - Evidence: material `docs/setup/setting-up-navigation.md:26-68`; `static/js/site.js`
+4. [x] Instant navigation (SX-18)
+   - Evidence: material `docs/setup/setting-up-navigation.md:26-68`; `static/js/instant.js` + `static/js/site.js` (`ssg:navigated` remounts); `tests/playwright/test_built_site_instant.py` (6 tests)
 5. [ ] Offline service worker (SX-19)
    - Evidence: material `src/plugins/offline/plugin.py`; `use_cases/static_site_builder.py`
 6. [ ] Generated social cards (SX-20)

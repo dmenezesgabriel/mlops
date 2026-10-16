@@ -106,8 +106,10 @@ def _assert_home_page(page: Page, base_url: str) -> None:
     expect(page.locator(".collection-card")).to_contain_text(
         "NYC Taxi Demand Forecasting"
     )
-    expect(page.locator("link[href='assets/site.css']")).to_have_count(1)
-    expect(page.locator("script[src='assets/site.js']")).to_have_count(1)
+    # instant.js absolutizes relative hrefs/srcs on activation (material
+    # resolve() parity), so attribute selectors match on the suffix.
+    expect(page.locator("link[href$='assets/site.css']")).to_have_count(1)
+    expect(page.locator("script[src$='assets/site.js']")).to_have_count(1)
 
 
 def _assert_language_switcher(page: Page, base_url: str) -> None:
@@ -146,7 +148,7 @@ def _assert_page_chrome(page: Page, path: str) -> None:
         # Assert: verify that the embedded MLOps diagram is visible
         expect(
             page.locator(
-                "figure.image-frame img[src='assets/images/mlops_lifecycle.png']"
+                "figure.image-frame img[src$='assets/images/mlops_lifecycle.png']"
             )
         ).to_be_visible()
 

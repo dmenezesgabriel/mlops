@@ -88,6 +88,7 @@ site/build/robots.txt
 site/build/404.html
 site/build/assets/site.css
 site/build/assets/site.js
+site/build/assets/instant.js
 site/build/assets/favicon.svg
 site/build/<collection>/<page>.html
 ```
@@ -95,6 +96,8 @@ site/build/<collection>/<page>.html
 Every page `<head>` carries Open Graph tags, a `twitter:card`/`twitter:title`/`twitter:description` block, and the packaged favicon. When the optional `site.url` config sets the absolute http(s) deployment base (e.g. `https://example.github.io/site`), pages also emit `<link rel="canonical">` + `og:url` resolved per locale root — a `pt-BR` variant canonicals under `<url>/pt-BR/` — plus one `<link rel="alternate" hreflang>` per configured locale and an `x-default` pointing at the default-locale URL. When `site.url` and the optional `site.image` config are both set, the image is copied into each variant's `assets/` and emitted as `og:image` + `twitter:image` under that variant's locale root. `site.repo_url` records the source repository URL for repo-link affordances.
 
 Each variant root also carries `robots.txt` (`User-agent: *`/`Allow: /` plus a `Sitemap:` pointer) and — only when `site.url` is set, since `<loc>` entries must be absolute — `sitemap.xml` listing the index and every page's canonical URL, so a `pt-BR` variant publishes its own sitemap under `<url>/pt-BR/`.
+
+The same `site.url` gate activates instant navigation: every page head then carries an `ssg:sitemap` meta pointing at its variant sitemap plus a deferred `assets/instant.js` script. The script whitelists in-sitemap same-origin links, prefetches them on hover/focus, and on click fetches the page and swaps the header/shell/footer regions in place, announcing `ssg:navigated` so `site.js` re-mounts its per-page features (search, theme, scrollspy, …) on the new markup; off-sitemap links (cross-locale, external, modified clicks), anchors, and any fetch failure fall back to native navigation.
 
 Each variant root also emits `404.html` with the full site chrome (head/header/sidebar/footer). Hosts like GitHub Pages serve it for missing paths at any depth, so when `site.url` is set every on-page URL — assets, navigation, language links, the search-index pointer — is emitted absolute under the locale root; without `site.url` they stay relative. The preview server answers missing paths with it (mkdocs `serve.py` parity).
 

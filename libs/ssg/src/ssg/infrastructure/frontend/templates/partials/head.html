@@ -3,6 +3,11 @@
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="{{ description }}">
 <meta name="ssg:search-index" content="{{ asset_prefix }}search-index.json">
+{% if site.url %}
+{# Instant navigation resolves internal links against the locale sitemap;
+   like the sitemap.xml file itself, the pointer needs site.url. #}
+<meta name="ssg:sitemap" content="{{ asset_prefix }}sitemap.xml">
+{% endif %}
 <title>{{ title }}</title>
 <link rel="icon" href="{{ asset_prefix }}assets/favicon.svg" type="image/svg+xml">
 {% if site.url %}
@@ -34,6 +39,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="{{ asset_prefix }}assets/site.css">
 <script src="{{ asset_prefix }}assets/site.js" defer></script>
+<script src="{{ asset_prefix }}assets/instant.js" defer></script>
 <!-- Jupyter Widgets Embedder -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@jupyter-widgets/html-manager@1.0.15/dist/embed-amd.js" integrity="sha384-/x/n24gdFNkRW3aFeWPOJ5tgVI0ZmBOBu6UKswtJLAm6SIAzWBZUdrLEr5A9yXvL" crossorigin="anonymous"></script>
