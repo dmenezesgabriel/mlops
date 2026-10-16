@@ -15,6 +15,7 @@
   {% set asset_prefix = site.absolute_url('') %}
   {% set canonical_path = '404.html' %}
   {% set og_type = 'website' %}
+  {% set social_image = rendered_not_found.social_image %}
   {% include 'partials/head.html' %}
 {% endblock %}
 {% block body %}

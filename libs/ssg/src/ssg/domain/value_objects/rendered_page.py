@@ -27,3 +27,7 @@ class RenderedPage:
     alternate_links: tuple[AlternateLink, ...] = ()
     edit_url: str | None = None
     last_updated: date | None = None
+    # Root-relative path of this page's generated og:image card (present
+    # when a SocialCardRenderer plugin is installed); falls back to
+    # site.image in head.html when unset.
+    social_image: str | None = None

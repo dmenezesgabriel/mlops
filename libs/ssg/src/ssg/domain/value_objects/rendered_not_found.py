@@ -15,3 +15,6 @@ class RenderedNotFound:
     navigation: SiteNavigation
     language_links: tuple[LanguageLink, ...] = ()
     alternate_links: tuple[AlternateLink, ...] = ()
+    # Always None: 404 is never carded, so head.html falls back to
+    # site.image. The field exists so the template reads one uniform name.
+    social_image: str | None = None

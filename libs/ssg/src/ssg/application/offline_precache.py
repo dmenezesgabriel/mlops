@@ -36,10 +36,11 @@ def _is_precacheable(
         return False
     # embed_video output is the only unbounded-size artifact; a quota
     # rejection in cache.addAll aborts the worker install, so videos fall
-    # back to network-only.
-    return (
-        "assets/videos" not in path.relative_to(output_path).parent.as_posix()
-    )
+    # back to network-only. assets/social/ holds crawler-only og:image
+    # cards — precaching them would inflate the install set a browser
+    # never fetches.
+    parent = path.relative_to(output_path).parent.as_posix()
+    return "assets/videos" not in parent and "assets/social" not in parent
 
 
 def _manifest_entries(

@@ -46,6 +46,7 @@ members = [
   "libs/ssg-syntax-highlighting",
   "libs/ssg-latex",
   "libs/ssg-mermaid",
+  "libs/ssg-social",
   "projects/nyc_taxi_demand_forecasting",
   "projects/sagemaker_catboost",
   "projects/sagemaker_lightgbm",
@@ -120,6 +121,7 @@ known_first_party = [
   "ssg_syntax_highlighting",
   "ssg_latex",
   "ssg_mermaid",
+  "ssg_social",
   "videos",
   "diagrams_generation",
   "videos_linter",
@@ -145,6 +147,7 @@ root_packages = [
   "ssg_syntax_highlighting",
   "ssg_latex",
   "ssg_mermaid",
+  "ssg_social",
   "videos",
   "diagrams_generation",
   "videos_linter",
@@ -155,7 +158,7 @@ root_packages = [
 [[tool.importlinter.contracts]]
 name = "Shared libraries do not import projects"
 type = "forbidden"
-source_modules = ["mlops_shared", "data_science_scaffold", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "ssg_mermaid", "diagrams_generation"]
+source_modules = ["mlops_shared", "data_science_scaffold", "ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "ssg_mermaid", "ssg_social", "diagrams_generation"]
 forbidden_modules = ["nyc_taxi_demand_forecasting", "ml_specialization", "sagemaker_scikit_learn", "sagemaker_xgboost", "sagemaker_lightgbm", "sagemaker_catboost", "glue_overlay"]
 
 [[tool.importlinter.contracts]]
@@ -179,7 +182,7 @@ forbidden_modules = ["ssg.infrastructure"]
 [[tool.importlinter.contracts]]
 name = "Static site generator stays MLOps agnostic"
 type = "forbidden"
-source_modules = ["ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "ssg_mermaid"]
+source_modules = ["ssg", "ssg_i18n", "ssg_i18n_machine_translation", "ssg_notebook_render", "ssg_syntax_highlighting", "ssg_latex", "ssg_mermaid", "ssg_social"]
 forbidden_modules = ["mlops_shared", "nyc_taxi_demand_forecasting", "ml_specialization", "sagemaker_scikit_learn", "sagemaker_xgboost", "sagemaker_lightgbm", "sagemaker_catboost", "glue_overlay"]
 
 [[tool.importlinter.contracts]]
@@ -217,6 +220,12 @@ forbidden_modules = ["ssg.infrastructure"]
 name = "Mermaid stays an SSG extension"
 type = "forbidden"
 source_modules = ["ssg_mermaid"]
+forbidden_modules = ["ssg.infrastructure"]
+
+[[tool.importlinter.contracts]]
+name = "Social stays an SSG extension"
+type = "forbidden"
+source_modules = ["ssg_social"]
 forbidden_modules = ["ssg.infrastructure"]
 
 [[tool.importlinter.contracts]]

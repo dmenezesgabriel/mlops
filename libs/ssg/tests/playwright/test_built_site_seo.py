@@ -16,7 +16,7 @@ class TestBuiltSiteSeo:
             built_site_url,
             site_url,
             page_path="",
-            image_url=f"{site_url}/assets/mlops_lifecycle.png",
+            image_url=f"{site_url}/assets/social/index.png",
             title=site_title,
             description=site_description,
         )
@@ -25,7 +25,10 @@ class TestBuiltSiteSeo:
             built_site_url,
             site_url,
             page_path="nyc-taxi-demand-forecasting/overview.html",
-            image_url=f"{site_url}/assets/mlops_lifecycle.png",
+            image_url=(
+                f"{site_url}/assets/social/"
+                "nyc-taxi-demand-forecasting/overview.png"
+            ),
             title=None,
             description=site_description,
         )
@@ -34,7 +37,10 @@ class TestBuiltSiteSeo:
             built_site_url,
             site_url,
             page_path="pt-BR/nyc-taxi-demand-forecasting/overview.html",
-            image_url=f"{site_url}/pt-BR/assets/mlops_lifecycle.png",
+            image_url=(
+                f"{site_url}/pt-BR/assets/social/"
+                "nyc-taxi-demand-forecasting/overview.png"
+            ),
             title=None,
             description=None,
         )
@@ -45,6 +51,10 @@ class TestBuiltSiteSeo:
         for image_path in (
             "assets/mlops_lifecycle.png",
             "pt-BR/assets/mlops_lifecycle.png",
+            "assets/social/index.png",
+            "pt-BR/assets/social/index.png",
+            ("assets/social/nyc-taxi-demand-forecasting/overview.png"),
+            ("pt-BR/assets/social/nyc-taxi-demand-forecasting/overview.png"),
         ):
             response = page.request.get(f"{built_site_url}/{image_path}")
             assert response.ok, (
@@ -91,6 +101,17 @@ def _assert_head_block(
     expect(page.locator('meta[name="twitter:image"]')).to_have_attribute(
         "content", image_url
     )
+    if image_url.endswith(".png") and "/social/" in image_url:
+        # Generated cards carry the fixed Open Graph image geometry.
+        expect(
+            page.locator('meta[property="og:image:width"]')
+        ).to_have_attribute("content", "1200")
+        expect(
+            page.locator('meta[property="og:image:height"]')
+        ).to_have_attribute("content", "630")
+        expect(
+            page.locator('meta[property="og:image:type"]')
+        ).to_have_attribute("content", "image/png")
 
 
 def _assert_alternates(page: Page, site_url: str, page_path: str) -> None:

@@ -8,6 +8,7 @@ from ssg.infrastructure.cli import (
     load_content_renderers,
     load_html_post_processors,
     load_site_variant_provider,
+    load_social_card_renderer,
     validate_reload_interval,
 )
 from ssg.infrastructure.markdown_alert_title_post_processor import (
@@ -71,6 +72,25 @@ class NonConformingEntryPoint:
 
     def load(self) -> type[object]:
         return object
+
+
+class FakeSocialCardRenderer:
+    def render_social_card(self, _card: object) -> bytes:
+        return b"png"
+
+
+class FakeSocialCardEntryPoint:
+    name = "fake-social-card-renderer"
+
+    def load(self) -> type[FakeSocialCardRenderer]:
+        return FakeSocialCardRenderer
+
+
+class AnotherSocialCardEntryPoint:
+    name = "another-social-card-renderer"
+
+    def load(self) -> type[FakeSocialCardRenderer]:
+        return FakeSocialCardRenderer
 
 
 class FakeSiteVariantProvider:
@@ -297,6 +317,56 @@ def test_load_html_post_processors_uses_html_processor_entry_points(
     assert isinstance(processors[2], FakeHtmlPostProcessor)
 
 
+def test_load_social_card_renderer_uses_social_card_entry_point(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    requested_groups: list[str] = []
+
+    def fake_entry_points(group: str) -> tuple[FakeSocialCardEntryPoint, ...]:
+        requested_groups.append(group)
+        return (FakeSocialCardEntryPoint(),)
+
+    monkeypatch.setattr(cli, "entry_points", fake_entry_points)
+
+    # Act
+    renderer = load_social_card_renderer()
+
+    # Assert
+    assert requested_groups == ["ssg.social_card_renderers"]
+    assert isinstance(renderer, FakeSocialCardRenderer)
+
+
+def test_load_social_card_renderer_returns_none_when_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange — the plugin is optional: no entry point means no cards.
+    monkeypatch.setattr(cli, "entry_points", lambda **_kwargs: ())
+
+    # Act / Assert
+    assert load_social_card_renderer() is None
+
+
+def test_load_social_card_renderer_rejects_multiple_providers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange — one renderer per build, same contract as variant providers:
+    # two installed plugins would silently pick a winner, so fail loudly.
+    def fake_entry_points(
+        group: str,
+    ) -> tuple[FakeSocialCardEntryPoint, AnotherSocialCardEntryPoint]:
+        return (
+            FakeSocialCardEntryPoint(),
+            AnotherSocialCardEntryPoint(),
+        )
+
+    monkeypatch.setattr(cli, "entry_points", fake_entry_points)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="Multiple social card renderers"):
+        load_social_card_renderer()
+
+
 def test_load_site_variant_provider_uses_site_variant_entry_point(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -364,8 +434,14 @@ def test_load_content_renderers_returns_markdown_plus_plugins(
         (load_content_renderers, "ssg.renderers"),
         (load_html_post_processors, "ssg.html_post_processors"),
         (load_site_variant_provider, "ssg.site_variant_providers"),
+        (load_social_card_renderer, "ssg.social_card_renderers"),
     ],
-    ids=["renderers", "post_processors", "variant_providers"],
+    ids=[
+        "renderers",
+        "post_processors",
+        "variant_providers",
+        "social_card_renderers",
+    ],
 )
 def test_loader_wraps_entry_point_load_failure(
     monkeypatch: pytest.MonkeyPatch,
@@ -402,8 +478,18 @@ def test_loader_wraps_entry_point_load_failure(
             "ssg.site_variant_providers",
             "SiteVariantProvider",
         ),
+        (
+            load_social_card_renderer,
+            "ssg.social_card_renderers",
+            "SocialCardRenderer",
+        ),
     ],
-    ids=["renderers", "post_processors", "variant_providers"],
+    ids=[
+        "renderers",
+        "post_processors",
+        "variant_providers",
+        "social_card_renderers",
+    ],
 )
 def test_loader_rejects_non_conforming_plugin(
     monkeypatch: pytest.MonkeyPatch,

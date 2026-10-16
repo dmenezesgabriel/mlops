@@ -28,7 +28,7 @@ Steps:
    - Evidence: material `docs/setup/setting-up-navigation.md:26-68`; `static/js/instant.js` + `static/js/site.js` (`ssg:navigated` remounts); `tests/playwright/test_built_site_instant.py` (6 tests)
 5. [x] Offline service worker (SX-19)
    - Evidence: material `src/plugins/offline/plugin.py` (read — ships no worker; SW design is ours); `application/offline_precache.py` + `templates/sw.js` + `static/js/site.js` `mountServiceWorker`; `tests/playwright/test_built_site_offline.py` (3 tests, `context.set_offline` en+pt-BR)
-6. [ ] Generated social cards (SX-20)
+6. [x] Generated social cards (SX-20)
    - Evidence: material `src/plugins/social/`; consumes SX-16's `og:image` emission
 7. [ ] Versioning (SX-21)
    - Evidence: material `docs/setup/setting-up-versioning.md:18-25` (mike)

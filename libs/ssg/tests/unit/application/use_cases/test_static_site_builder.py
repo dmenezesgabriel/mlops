@@ -16,6 +16,7 @@ from ssg.domain import (
     RenderedPage,
     Site,
     SiteVariant,
+    SocialCard,
 )
 from ssg.infrastructure.in_memory_dependency_tracker import (
     InMemoryDependencyTracker,
@@ -112,6 +113,17 @@ class SpyArticleOutlineBuilder:
             ),
             plain_text="Plain text",
         )
+
+
+class SpySocialCardRenderer:
+    """Captures the card VOs it was asked to paint; returns marked bytes."""
+
+    def __init__(self) -> None:
+        self.render_calls: list[SocialCard] = []
+
+    def render_social_card(self, card: SocialCard) -> bytes:
+        self.render_calls.append(card)
+        return f"png:{card.locale}:{card.title}".encode()
 
 
 class SpyHtmlPostProcessor:
@@ -757,6 +769,234 @@ class TestStaticSiteBuilder:
         # Act / Assert
         with pytest.raises(ValueError, match="collides"):
             builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+    def test_build_writes_social_card_per_page_and_index(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — per-page og:image cards emit under assets/social/ and
+        # the rendered VOs carry the root-relative path for head.html.
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        site = Site(
+            title="Learning Site",
+            description="Rendered content collections.",
+            collections=(collection,),
+            url="https://example.com/docs",
+        )
+        card_renderer = SpySocialCardRenderer()
+        page_renderer = SpyPageRenderer()
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=page_renderer,
+            site_variant_provider=SingleSiteVariantProvider(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+            social_card_renderer=card_renderer,
+        )
+        output_path = tmp_path / "build"
+
+        # Act
+        builder.build(tmp_path / "site.yaml", output_path)
+
+        # Assert
+        assert card_renderer.render_calls == [
+            SocialCard(
+                site_title="Learning Site",
+                eyebrow="",
+                title="Learning Site",
+                description="Rendered content collections.",
+                locale="en",
+            ),
+            SocialCard(
+                site_title="Learning Site",
+                eyebrow="Sample Collection",
+                title="Overview",
+                description="Rendered content collections.",
+                locale="en",
+            ),
+        ]
+        assert (output_path / "assets/social/index.png").read_bytes() == (
+            b"png:en:Learning Site"
+        )
+        assert (
+            output_path / "assets/social/sample-collection/overview.png"
+        ).read_bytes() == b"png:en:Overview"
+        assert (
+            page_renderer.render_index_calls[0].social_image
+            == "assets/social/index.png"
+        )
+        assert (
+            page_renderer.render_page_calls[0].social_image
+            == "assets/social/sample-collection/overview.png"
+        )
+        assert page_renderer.render_not_found_calls[0].social_image is None
+
+    def test_build_writes_social_cards_per_variant_locale(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — cards carry the variant's own titles and land under each
+        # locale root so <variant>/assets/social/… resolves per locale.
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        site = Site(
+            title="Learning Site",
+            description="",
+            collections=(collection,),
+            url="https://example.com/docs",
+        )
+        card_renderer = SpySocialCardRenderer()
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=SpyPageRenderer(),
+            site_variant_provider=LocalizedSiteVariantProvider(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+            social_card_renderer=card_renderer,
+        )
+        output_path = tmp_path / "build"
+
+        # Act
+        builder.build(tmp_path / "site.yaml", output_path)
+
+        # Assert
+        assert [card.locale for card in card_renderer.render_calls] == [
+            "en",
+            "en",
+            "pt-BR",
+            "pt-BR",
+        ]
+        assert card_renderer.render_calls[2].site_title == (
+            "Site em Portugues"
+        )
+        assert (
+            output_path / "pt-BR/assets/social/sample-collection/overview.png"
+        ).read_bytes() == b"png:pt-BR:Overview"
+
+    def test_build_without_social_card_renderer_emits_no_cards(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — the plugin is optional: without it the build stays
+        # byte-identical to pre-card output and pages fall back to
+        # site.image for og:image.
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        site = Site(
+            title="Learning Site",
+            description="",
+            collections=(collection,),
+        )
+        page_renderer = SpyPageRenderer()
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=page_renderer,
+            site_variant_provider=SingleSiteVariantProvider(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+        )
+        output_path = tmp_path / "build"
+
+        # Act
+        builder.build(tmp_path / "site.yaml", output_path)
+
+        # Assert
+        assert not (output_path / "assets/social").exists()
+        assert page_renderer.render_index_calls[0].social_image is None
+        assert page_renderer.render_page_calls[0].social_image is None
+
+    def test_incremental_build_skips_cards_for_unaffected_pages(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — a skipped page keeps its already-emitted card: the path
+        # is deterministic, so only the rebuilt page's card re-renders.
+        config_path = tmp_path / "site.yaml"
+        output_path = tmp_path / "build"
+        page1 = Page(
+            slug="page1", title="Page 1", source_path=tmp_path / "page1.md"
+        )
+        page2 = Page(
+            slug="page2", title="Page 2", source_path=tmp_path / "page2.md"
+        )
+        collection = ContentCollection(
+            name="sample",
+            title="Sample",
+            source_root=tmp_path,
+            output_slug="sample",
+            pages=(page1, page2),
+            videos={},
+        )
+        site = Site(title="Site", description="", collections=(collection,))
+        dependency_tracker = InMemoryDependencyTracker()
+        card_renderer = SpySocialCardRenderer()
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=SpyPageRenderer(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=dependency_tracker,
+            search_index=InMemorySearchIndex(),
+            site_variant_provider=SingleSiteVariantProvider(),
+            social_card_renderer=card_renderer,
+        )
+        builder.build(config_path, output_path)
+        card_renderer.render_calls.clear()
+        # A full build clears the tracker; register page2's dependency so
+        # the incremental run treats it as affected and page1 as skipped.
+        dependency_tracker.register_dependency(page2, page2.source_path)
+
+        # Act
+        builder.build(
+            config_path, output_path, changed_paths={page2.source_path}
+        )
+
+        # Assert — index re-renders (it is always rewritten); only the
+        # affected page's card regenerates, page1's file stays on disk.
+        assert [card.title for card in card_renderer.render_calls] == [
+            "Site",
+            "Page 2",
+        ]
+        assert (output_path / "assets/social/sample/page1.png").exists()
+        assert (
+            output_path / "assets/social/sample/page2.png"
+        ).read_bytes() == b"png:en:Page 2"
 
     def test_build_scopes_index_navigation_to_selected_collection(
         self, tmp_path: Path

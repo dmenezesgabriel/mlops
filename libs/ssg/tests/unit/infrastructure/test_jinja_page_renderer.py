@@ -924,6 +924,85 @@ def test_render_page_omits_image_tags_when_image_or_url_missing(
         assert 'name="twitter:card"' in rendered_html
 
 
+def test_render_page_prefers_social_card_over_site_image(
+    tmp_path: Path,
+) -> None:
+    # Arrange — a generated per-page card supersedes the static site.image:
+    # crawlers get page-specific art plus the card's fixed dimensions.
+    renderer = JinjaPageRenderer()
+    site, collection, page = _site_with_collection(tmp_path, url=True)
+    imaged_site = replace(site, image=tmp_path / "card.png")
+    rendered_page = RenderedPage(
+        site=imaged_site,
+        collection=collection,
+        page=page,
+        article=Article(
+            title="Overview", body="<p>Rendered content.</p>", headings=()
+        ),
+        navigation=imaged_site.navigation_for(collection, page),
+        previous_link=None,
+        next_link=None,
+        social_image="assets/social/sample-collection/overview.png",
+    )
+
+    # Act
+    rendered_html = renderer.render_page(rendered_page)
+
+    # Assert
+    card_url = (
+        "https://example.com/docs/assets/social/sample-collection/overview.png"
+    )
+    assert f'<meta property="og:image" content="{card_url}">' in rendered_html
+    assert f'<meta name="twitter:image" content="{card_url}">' in rendered_html
+    assert "assets/card.png" not in rendered_html
+    assert (
+        '<meta property="og:image:type" content="image/png">' in rendered_html
+    )
+    assert '<meta property="og:image:width" content="1200">' in rendered_html
+    assert '<meta property="og:image:height" content="630">' in rendered_html
+
+
+def test_render_index_emits_social_card_image(tmp_path: Path) -> None:
+    # Arrange — the index gets its own card so the site root resolves a
+    # rendered og:image rather than the generic site.image.
+    renderer = JinjaPageRenderer()
+    site, collection, _page = _site_with_collection(tmp_path, url=True)
+    imaged_site = replace(site, image=tmp_path / "card.png")
+    rendered_index = RenderedIndex(
+        site=imaged_site,
+        collections=(collection,),
+        navigation=imaged_site.navigation_for(None, None),
+        social_image="assets/social/index.png",
+    )
+
+    # Act
+    rendered_html = renderer.render_index(rendered_index)
+
+    # Assert
+    card_url = "https://example.com/docs/assets/social/index.png"
+    assert f'<meta property="og:image" content="{card_url}">' in rendered_html
+    assert f'<meta name="twitter:image" content="{card_url}">' in rendered_html
+    assert "assets/card.png" not in rendered_html
+
+
+def test_render_not_found_omits_social_card_tags(tmp_path: Path) -> None:
+    # Arrange — 404 is never carded (no social share value); with site.image
+    # configured it keeps the static fallback, without it no image tags emit.
+    renderer = JinjaPageRenderer()
+    site, collection, _page = _site_with_collection(tmp_path, url=True)
+    rendered_not_found = RenderedNotFound(
+        site=site,
+        navigation=site.navigation_for(None, None),
+    )
+
+    # Act
+    rendered_html = renderer.render_not_found(rendered_not_found)
+
+    # Assert
+    assert 'property="og:image"' not in rendered_html
+    assert 'name="twitter:image"' not in rendered_html
+
+
 def test_render_page_emits_hreflang_alternate_links(tmp_path: Path) -> None:
     # Arrange — the builder ships absolute per-locale URLs ending with the
     # x-default fallback; the template renders them in order.

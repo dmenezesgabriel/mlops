@@ -4,6 +4,7 @@ from pathlib import Path
 
 import nbformat
 import pytest
+from PIL import Image
 from ssg.application import StaticSiteBuilder
 from ssg.infrastructure.jinja_page_renderer import JinjaPageRenderer
 from ssg.infrastructure.markdown_alert_title_post_processor import (
@@ -16,6 +17,7 @@ from ssg.infrastructure.site_config_repository import SiteConfigRepository
 from ssg_notebook_render.notebook_content_renderer import (
     NotebookContentRenderer,
 )
+from ssg_social.infrastructure.plugin import create_social_card_renderer
 from ssg_syntax_highlighting.infrastructure.plugin import (
     create_pygments_html_post_processor,
 )
@@ -53,6 +55,7 @@ def test_static_site_generation_from_configured_content_collection(
         article_outline_builder=HtmlArticleOutlineBuilder(),
         dependency_tracker=InMemoryDependencyTracker(),
         search_index=InMemorySearchIndex(),
+        social_card_renderer=create_social_card_renderer(),
     )
 
     builder.build(config_path, output_path)
@@ -70,6 +73,7 @@ def test_static_site_generation_from_configured_content_collection(
     _assert_alert_rendered(overview_html)
     _assert_site_files_written(output_path, page_path)
     _assert_seo_files_written(output_path)
+    _assert_social_cards_written(output_path)
     _assert_not_found_written(output_path)
     _assert_service_worker_written(output_path)
 
@@ -102,11 +106,18 @@ def _assert_head_metadata(rendered_html: str, output_path: Path) -> None:
 
 
 def _assert_social_metadata(rendered_html: str) -> None:
-    assert (
-        '<meta property="og:image" '
-        'content="https://example.com/learning/assets/card.png">'
-        in rendered_html
+    # The generated per-page card wins over the configured static
+    # site.image; both stay absolute under site.url.
+    card_url = (
+        "https://example.com/learning/assets/social/"
+        "sample-collection/feature-engineering.png"
     )
+    assert f'<meta property="og:image" content="{card_url}">' in rendered_html
+    assert (
+        '<meta property="og:image:type" content="image/png">' in rendered_html
+    )
+    assert '<meta property="og:image:width" content="1200">' in rendered_html
+    assert '<meta property="og:image:height" content="630">' in rendered_html
     assert (
         '<meta name="twitter:card" content="summary_large_image">'
         in rendered_html
@@ -115,11 +126,7 @@ def _assert_social_metadata(rendered_html: str) -> None:
         '<meta name="twitter:title" '
         'content="Feature Engineering - Sample Collection">' in rendered_html
     )
-    assert (
-        '<meta name="twitter:image" '
-        'content="https://example.com/learning/assets/card.png">'
-        in rendered_html
-    )
+    assert f'<meta name="twitter:image" content="{card_url}">' in rendered_html
     # Single-variant build: no other locale exists to alternate to.
     assert 'rel="alternate"' not in rendered_html
 
@@ -209,6 +216,19 @@ def _assert_seo_files_written(output_path: Path) -> None:
     )
 
 
+def _assert_social_cards_written(output_path: Path) -> None:
+    social_dir = output_path / "assets" / "social"
+    for relative in (
+        "index.png",
+        "sample-collection/overview.png",
+        "sample-collection/feature-engineering.png",
+        "second-collection/overview.png",
+    ):
+        card_path = social_dir / relative
+        assert card_path.exists(), f"missing generated card {relative}"
+        assert Image.open(card_path).size == (1200, 630)
+
+
 def _assert_service_worker_written(output_path: Path) -> None:
     service_worker = (output_path / "sw.js").read_text(encoding="utf-8")
     # The precache mirrors the emitted tree — including the scope root —
@@ -228,6 +248,9 @@ def _assert_service_worker_written(output_path: Path) -> None:
     ):
         assert expected in service_worker
     assert "assets/videos/demo.mp4" not in service_worker
+    # Social cards are crawler-only payloads; precaching them would inflate
+    # every visitor's install.
+    assert "assets/social/" not in service_worker
     assert 'addEventListener("fetch"' in service_worker
 
 
@@ -241,6 +264,12 @@ def _assert_not_found_written(output_path: Path) -> None:
         'href="https://example.com/learning/assets/site.css"' in not_found_html
     )
     assert 'href="https://example.com/learning/index.html"' in not_found_html
+    # No card is generated for the 404 page — it keeps the static image.
+    assert (
+        '<meta property="og:image" '
+        'content="https://example.com/learning/assets/card.png">'
+        in not_found_html
+    )
 
 
 def _create_site_with_notebook_collection(tmp_path: Path) -> Path:

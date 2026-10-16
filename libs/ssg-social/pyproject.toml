@@ -1,0 +1,47 @@
+[project]
+name = "ssg-social"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "ssg",
+  "Pillow==12.2.0",
+]
+
+[project.entry-points."ssg.social_card_renderers"]
+social = "ssg_social.infrastructure.plugin:create_social_card_renderer"
+
+[tool.uv.sources]
+ssg = { workspace = true }
+
+[tool.deptry]
+package_module_name_map = {ssg-social = "ssg_social", Pillow = "PIL"}
+
+[tool.deptry.per_rule_ignores]
+DEP003 = ["ssg_social", "pytest"]
+
+[tool.coverage.run]
+# bare `--cov` traces the editable `ssg` workspace dependency; those modules
+# are covered by ssg's own suite, so measure only this package's code.
+source = ["src", "tests"]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -rfEs --tb=short --import-mode=importlib"
+console_output_style = "classic"
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "strict"
+reportMissingParameterType = true
+reportMissingReturnType = true
+reportUnnecessaryCast = true
+reportUnusedIgnoreComment = true
+reportMissingImports = false
+
+[tool.vulture]
+min_confidence = 80
+sort_by_size = true

@@ -45,6 +45,7 @@ members = [
     "ssg-latex",
     "ssg-mermaid",
     "ssg-notebook-render",
+    "ssg-social",
     "ssg-syntax-highlighting",
     "videos",
     "videos-linter",
@@ -7422,6 +7423,7 @@ all = [
     { name = "ssg-i18n-machine-translation", extra = ["transformers"] },
     { name = "ssg-latex" },
     { name = "ssg-mermaid" },
+    { name = "ssg-social" },
     { name = "ssg-syntax-highlighting" },
 ]
 i18n = [
@@ -7436,6 +7438,9 @@ latex = [
 ]
 mermaid = [
     { name = "ssg-mermaid" },
+]
+social = [
+    { name = "ssg-social" },
 ]
 syntax-highlighting = [
     { name = "ssg-syntax-highlighting" },
@@ -7458,11 +7463,13 @@ requires-dist = [
     { name = "ssg-latex", marker = "extra == 'latex'", editable = "libs/ssg-latex" },
     { name = "ssg-mermaid", marker = "extra == 'all'", editable = "libs/ssg-mermaid" },
     { name = "ssg-mermaid", marker = "extra == 'mermaid'", editable = "libs/ssg-mermaid" },
+    { name = "ssg-social", marker = "extra == 'all'", editable = "libs/ssg-social" },
+    { name = "ssg-social", marker = "extra == 'social'", editable = "libs/ssg-social" },
     { name = "ssg-syntax-highlighting", marker = "extra == 'all'", editable = "libs/ssg-syntax-highlighting" },
     { name = "ssg-syntax-highlighting", marker = "extra == 'syntax-highlighting'", editable = "libs/ssg-syntax-highlighting" },
     { name = "watchdog", specifier = "==6.0.0" },
 ]
-provides-extras = ["i18n", "i18n-transformers", "syntax-highlighting", "latex", "mermaid", "all"]
+provides-extras = ["i18n", "i18n-transformers", "syntax-highlighting", "latex", "mermaid", "social", "all"]
 
 [[package]]
 name = "ssg-i18n"
@@ -7555,6 +7562,21 @@ requires-dist = [
     { name = "markupsafe", specifier = "==3.0.3" },
     { name = "mdit-py-plugins", specifier = ">=0.3.3" },
     { name = "nbformat", specifier = "==5.10.4" },
+    { name = "ssg", editable = "libs/ssg" },
+]
+
+[[package]]
+name = "ssg-social"
+version = "0.1.0"
+source = { editable = "libs/ssg-social" }
+dependencies = [
+    { name = "pillow" },
+    { name = "ssg" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pillow", specifier = "==12.2.0" },
     { name = "ssg", editable = "libs/ssg" },
 ]
 

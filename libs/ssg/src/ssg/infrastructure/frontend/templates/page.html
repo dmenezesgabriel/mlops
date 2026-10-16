@@ -12,6 +12,7 @@
   {% set asset_prefix = '../' %}
   {% set canonical_path = rendered_page.collection.output_slug ~ '/' ~ rendered_page.page.file_name() %}
   {% set og_type = 'article' %}
+  {% set social_image = rendered_page.social_image %}
   {% include 'partials/head.html' %}
 {% endblock %}
 {% block body %}

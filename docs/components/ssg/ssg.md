@@ -10,6 +10,7 @@
 - `ssg_i18n`: optional site-variant plugin for locale-aware builds and translated generated sources.
 - `ssg_notebook_render`: optional `.ipynb` content renderer plugin installed separately.
 - `ssg_mermaid`: optional plugin that renders `mermaid` fenced blocks to inline SVG at build time.
+- `ssg_social`: optional plugin that renders per-page social-card PNGs at build time.
 - `projects/*`: project-specific notebooks, markdown, scripts, charts, and data science code.
 - `site/site.yaml`: publishing configuration that maps project content to rendered pages and assets.
 
@@ -76,6 +77,21 @@ Layout-capable rendering covers flowchart, sequence, state, class, ER, pie,
 and git graph diagrams; browser-layout-dependent types (notably gantt) fail
 the build with a `MermaidRenderingError` rather than shipping a broken figure.
 
+When the `ssg-social` plugin is installed, the builder renders one
+1200×630 PNG social card per page and per variant root at build time
+(`assets/social/index.png`, `assets/social/<collection>/<page>.png`). Cards
+compose the site title, collection title, page title, and site description
+over the light theme palette with the vendored IBM Plex Sans / Newsreader
+variable fonts — fully offline, no font downloads or remote renders. The
+generated card takes over `og:image`/`twitter:image` on that page, emitted
+absolute under the variant's locale root together with
+`og:image:type=image/png`, `og:image:width=1200`, and
+`og:image:height=630`; `404.html` is not carded and keeps the static
+`site.image`. Cards are crawler-only payloads, so the service-worker
+precache manifest excludes `assets/social/` the same way it excludes
+`assets/videos/` — a shared cache otherwise inflates every visitor's
+install with images no browser ever requests.
+
 ## Output
 
 The default build renders all configured collections into one navigable static site:
@@ -134,6 +150,12 @@ Mermaid diagram rendering stays outside core as well:
 
 ```bash
 uv pip install ssg-mermaid
+```
+
+Generated social cards are likewise an optional plugin:
+
+```bash
+uv pip install "ssg[social]"
 ```
 
 ## Commands

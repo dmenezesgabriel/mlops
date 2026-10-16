@@ -17,3 +17,6 @@ class RenderedIndex:
     navigation: SiteNavigation
     language_links: tuple[LanguageLink, ...] = ()
     alternate_links: tuple[AlternateLink, ...] = ()
+    # Root-relative path of the generated index og:image card; falls back
+    # to site.image in head.html when unset.
+    social_image: str | None = None

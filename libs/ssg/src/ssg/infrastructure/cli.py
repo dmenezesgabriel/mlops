@@ -9,6 +9,7 @@ from ssg.application.ports import (
     ContentRenderer,
     HtmlPostProcessor,
     SiteVariantProvider,
+    SocialCardRenderer,
 )
 from ssg.infrastructure.jinja_page_renderer import JinjaPageRenderer
 from ssg.infrastructure.local_preview_server import LocalPreviewServer
@@ -102,6 +103,7 @@ def create_site_builder() -> StaticSiteBuilder:
         dependency_tracker=InMemoryDependencyTracker(),
         search_index=InMemorySearchIndex(),
         source_revision_provider=GitSourceRevisionProvider(),
+        social_card_renderer=load_social_card_renderer(),
     )
 
 
@@ -209,6 +211,30 @@ def _load_html_post_processor_plugins(group: str) -> list[HtmlPostProcessor]:
         )
         html_post_processors.append(html_post_processor)
     return html_post_processors
+
+
+def load_social_card_renderer() -> SocialCardRenderer | None:
+    renderers: list[SocialCardRenderer] = []
+    renderer_names: list[str] = []
+    for entry_point in entry_points(group="ssg.social_card_renderers"):
+        renderers.append(
+            _load_plugin(
+                entry_point, "ssg.social_card_renderers", SocialCardRenderer
+            )
+        )
+        renderer_names.append(entry_point.name)
+        LOGGER.info(
+            "social_card_renderer_loaded",
+            extra={"context": {"renderer": entry_point.name}},
+        )
+
+    if len(renderers) <= 1:
+        return renderers[0] if renderers else None
+
+    raise ValueError(
+        f"Multiple social card renderers {renderer_names}: "
+        "expected at most one renderer",
+    )
 
 
 def load_site_variant_provider() -> SiteVariantProvider | None:

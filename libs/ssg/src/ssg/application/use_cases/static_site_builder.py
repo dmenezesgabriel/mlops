@@ -14,6 +14,7 @@ from ssg.application.ports.page_renderer import PageRenderer
 from ssg.application.ports.search_index import SearchIndex
 from ssg.application.ports.site_repository import SiteRepository
 from ssg.application.ports.site_variant_provider import SiteVariantProvider
+from ssg.application.ports.social_card_renderer import SocialCardRenderer
 from ssg.application.ports.source_revision_provider import (
     SourceRevisionProvider,
 )
@@ -33,6 +34,7 @@ from ssg.domain import (
     RenderedPage,
     Site,
     SiteVariant,
+    SocialCard,
     alternate_links_for,
 )
 
@@ -53,6 +55,7 @@ class StaticSiteBuilder:
         search_index: SearchIndex,
         html_post_processors: tuple[HtmlPostProcessor, ...] = (),
         source_revision_provider: SourceRevisionProvider | None = None,
+        social_card_renderer: SocialCardRenderer | None = None,
     ) -> None:
         self._site_repository = site_repository
         self._page_renderer = page_renderer
@@ -63,6 +66,7 @@ class StaticSiteBuilder:
         self._dependency_tracker = dependency_tracker
         self._search_index = search_index
         self._source_revision_provider = source_revision_provider
+        self._social_card_renderer = social_card_renderer
 
     def build(
         self,
@@ -206,8 +210,24 @@ class StaticSiteBuilder:
 
             self._dependency_tracker.clear_page_dependencies(page)
             body = self._render_body(site, collection, page, context)
+            social_image = self._write_social_card(
+                site_variant,
+                SocialCard(
+                    site_title=site.title,
+                    eyebrow=collection.title,
+                    title=page.title,
+                    description=site.description,
+                    locale=site.locale,
+                ),
+                f"assets/social/{collection.output_slug}/{page.slug}.png",
+            )
             rendered_page = self._rendered_page(
-                site_variant, site_variants, collection, page, body
+                site_variant,
+                site_variants,
+                collection,
+                page,
+                body,
+                social_image,
             )
             location = f"{collection.output_slug}/{page.file_name()}"
             self._search_index.update_page(
@@ -264,6 +284,17 @@ class StaticSiteBuilder:
             ),
             language_links=index_language_links(site_variant, site_variants),
             alternate_links=alternate_links_for(site_variants, ""),
+            social_image=self._write_social_card(
+                site_variant,
+                SocialCard(
+                    site_title=site.title,
+                    eyebrow="",
+                    title=site.title,
+                    description=site.description,
+                    locale=site.locale,
+                ),
+                "assets/social/index.png",
+            ),
         )
         index_path = site_variant.output_path / "index.html"
         index_path.write_text(
@@ -344,6 +375,22 @@ class StaticSiteBuilder:
             encoding="utf-8",
         )
 
+    def _write_social_card(
+        self,
+        site_variant: SiteVariant,
+        card: SocialCard,
+        relative_path: str,
+    ) -> str | None:
+        """Render one card into the variant tree; return its root-relative
+        path for the head meta tags, or None when no plugin is installed."""
+        renderer = self._social_card_renderer
+        if renderer is None:
+            return None
+        card_path = site_variant.output_path / relative_path
+        card_path.parent.mkdir(parents=True, exist_ok=True)
+        card_path.write_bytes(renderer.render_social_card(card))
+        return relative_path
+
     def _rendered_page(
         self,
         site_variant: SiteVariant,
@@ -351,6 +398,7 @@ class StaticSiteBuilder:
         collection: ContentCollection,
         page: Page,
         body: str,
+        social_image: str | None,
     ) -> RenderedPage:
         site = site_variant.site
         previous_page = collection.previous_page(page)
@@ -393,6 +441,7 @@ class StaticSiteBuilder:
             ),
             edit_url=self._edit_url(site, revision_source),
             last_updated=self._last_updated(site, revision_source),
+            social_image=social_image,
         )
 
     def _edit_url(self, site: Site, source_path: Path) -> str | None:

@@ -74,6 +74,23 @@ def test_precache_manifest_excludes_video_payloads(tmp_path: Path) -> None:
     )
 
 
+def test_precache_manifest_excludes_social_cards(tmp_path: Path) -> None:
+    # Arrange — generated og:image cards ship under assets/social/ for
+    # crawlers only; precaching tens of PNGs a browser never fetches would
+    # inflate the install set for zero offline value.
+    output = tmp_path / "out"
+    _emit(output, "index.html")
+    _emit(output, "assets/social/index.png")
+    _emit(output, "assets/social/sample-collection/overview.png")
+    _emit(output, "assets/site.css")
+
+    # Act
+    manifest = precache_manifest(output, ())
+
+    # Assert
+    assert manifest.urls == ("./", "assets/site.css", "index.html")
+
+
 def test_precache_manifest_version_is_content_addressed(
     tmp_path: Path,
 ) -> None:
