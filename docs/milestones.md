@@ -30,7 +30,8 @@ Steps:
    - Evidence: material `src/plugins/offline/plugin.py` (read — ships no worker; SW design is ours); `application/offline_precache.py` + `templates/sw.js` + `static/js/site.js` `mountServiceWorker`; `tests/playwright/test_built_site_offline.py` (3 tests, `context.set_offline` en+pt-BR)
 6. [x] Generated social cards (SX-20)
    - Evidence: material `src/plugins/social/`; consumes SX-16's `og:image` emission
-7. [ ] Versioning (SX-21)
+7. [x] Versioning (SX-21)
+   - Evidence: material `docs/setup/setting-up-versioning.md:18-25` (mike layout, reimplemented); `domain/value_objects/site_versioning.py` + `application/versioned_output.py` (per-version emit, alias byte-copies, `versions.json` registry, root redirect + mirrored 404) + `application/version_links.py`; `partials/header.html` + `static/js/site.js` (`mountVersionSwitcher` same-page switch); `Site.absolute_url` version-prefixes canonical/hreflang/sitemap; `site/site.yaml` versioning enabled (`current: 0.1`, `default: latest`); `tests/playwright/test_built_site_versioning.py` (5 tests)
    - Evidence: material `docs/setup/setting-up-versioning.md:18-25` (mike)
 8. [ ] Blog (SX-22)
    - Evidence: material `src/plugins/blog/` (`plugin.py`, `structure/`, `readtime/`)

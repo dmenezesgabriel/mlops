@@ -7,13 +7,22 @@ from urllib.parse import urlparse
 import yaml
 
 from ssg.application.ports import SiteRepository
-from ssg.domain import ContentCollection, Page, Site
+from ssg.domain import (
+    ContentCollection,
+    Page,
+    Site,
+    SiteVersion,
+    SiteVersioning,
+)
 
 # Slugs land verbatim in output paths (`output_path / slug.html`) and hrefs,
 # so path characters and case are both rejected — on case-insensitive
 # filesystems `Foo`/`foo` would pass a caseful uniqueness check yet collide
 # on the written file.
 _SLUG_PATTERN = re.compile(r"[a-z0-9_-]+")
+# Version ids/aliases are output dir names too but need dots (mike-style
+# `0.1`); the leading-alnum rule still rejects `.`, `..`, separators.
+_VERSION_SEGMENT_PATTERN = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9._-]*")
 
 
 class SiteConfigRepository(SiteRepository):
@@ -44,7 +53,155 @@ class SiteConfigRepository(SiteRepository):
             last_updated=self._optional_bool(
                 site_config, "last_updated", False, config_path
             ),
+            versioning=self._read_versioning(site_config, config_path),
         )
+
+    def _read_versioning(
+        self,
+        site_config: Mapping[object, object],
+        config_path: Path,
+    ) -> SiteVersioning | None:
+        value = site_config.get("versioning")
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            raise ValueError(
+                f"Invalid site versioning in {config_path}: expected mapping"
+            )
+        versioning_map = cast(dict[object, object], value)
+        entries = versioning_map.get("versions")
+        if not isinstance(entries, list) or not entries:
+            raise ValueError(
+                f"Invalid site versioning in {config_path}: "
+                "expected non-empty versions list"
+            )
+        versions = tuple(
+            self._read_version_entry(entry, config_path)
+            for entry in cast(list[object], entries)
+        )
+        current = self._versioning_segment(
+            versioning_map.get("current"), config_path, "current"
+        )
+        default = versioning_map.get("default", current)
+        if not isinstance(default, str):
+            raise ValueError(
+                f"Invalid site versioning in {config_path}: "
+                "expected default string"
+            )
+        self._validate_versioning(current, default, versions, config_path)
+        return SiteVersioning(
+            current=current, default=default, versions=versions
+        )
+
+    def _read_version_entry(
+        self, entry: object, config_path: Path
+    ) -> SiteVersion:
+        if not isinstance(entry, dict):
+            raise ValueError(
+                f"Invalid site versioning in {config_path}: "
+                f"expected version mapping, got {entry!r}"
+            )
+        entry_map = cast(dict[object, object], entry)
+        version_id = self._versioning_segment(
+            entry_map.get("id"), config_path, "version id"
+        )
+        title = entry_map.get("title", version_id)
+        aliases = entry_map.get("aliases", [])
+        hidden = entry_map.get("hidden", False)
+        if not isinstance(title, str):
+            raise ValueError(
+                f"Invalid site versioning in {config_path}: "
+                "expected title string"
+            )
+        if not isinstance(aliases, list) or not isinstance(hidden, bool):
+            raise ValueError(
+                f"Invalid site versioning in {config_path}: "
+                "expected aliases list and hidden boolean"
+            )
+        return SiteVersion(
+            id=version_id,
+            title=title,
+            aliases=tuple(
+                self._versioning_segment(alias, config_path, "alias")
+                for alias in cast(list[object], aliases)
+            ),
+            hidden=hidden,
+        )
+
+    def _versioning_segment(
+        self, segment: object, config_path: Path, label: str
+    ) -> str:
+        if isinstance(segment, str) and _VERSION_SEGMENT_PATTERN.fullmatch(
+            segment
+        ):
+            return segment
+        raise ValueError(
+            f"Invalid site versioning in {config_path}: {label} {segment!r} "
+            f"expected {_VERSION_SEGMENT_PATTERN.pattern}"
+        )
+
+    def _validate_versioning(
+        self,
+        current: str,
+        default: str,
+        versions: tuple[SiteVersion, ...],
+        config_path: Path,
+    ) -> None:
+        ids = [version.id for version in versions]
+        aliases = [alias for version in versions for alias in version.aliases]
+        self._validate_version_segments(ids, aliases, config_path)
+        self._validate_version_references(
+            current, default, ids, aliases, config_path
+        )
+
+    def _validate_version_segments(
+        self,
+        ids: list[str],
+        aliases: list[str],
+        config_path: Path,
+    ) -> None:
+        # A version id and an alias are both output dir names; a repeat
+        # would silently overwrite a sibling tree on the next emit.
+        duplicate = self._first_duplicate(ids)
+        if duplicate is not None:
+            raise ValueError(
+                f"Invalid site versioning in {config_path}: "
+                f"duplicate version id {duplicate!r}"
+            )
+        duplicate_alias = self._first_duplicate(aliases)
+        if duplicate_alias is not None:
+            raise ValueError(
+                f"Invalid site versioning in {config_path}: "
+                f"duplicate version alias {duplicate_alias!r}"
+            )
+        colliding = next((alias for alias in aliases if alias in ids), None)
+        if colliding is not None:
+            raise ValueError(
+                f"Invalid site versioning in {config_path}: "
+                f"alias {colliding!r} collides with a version id"
+            )
+
+    def _validate_version_references(
+        self,
+        current: str,
+        default: str,
+        ids: list[str],
+        aliases: list[str],
+        config_path: Path,
+    ) -> None:
+        # `current` names the tree this build emits; `default` (id or
+        # alias) names the tree the site root redirects to — both must
+        # resolve, or the layout would emit or link a missing dir.
+        if current not in ids:
+            raise ValueError(
+                f"Invalid site versioning in {config_path}: "
+                f"current {current!r} expected one of {sorted(ids)}"
+            )
+        if default not in {*ids, *aliases}:
+            raise ValueError(
+                f"Invalid site versioning in {config_path}: "
+                f"default {default!r} expected one of {sorted({*ids, *aliases})}"
+            )
 
     def _reject_duplicate_collections(
         self,

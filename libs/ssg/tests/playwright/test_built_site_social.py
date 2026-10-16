@@ -38,11 +38,11 @@ class TestBuiltSiteSocialCards:
         assert len({bytes(body) for body in bodies}) == len(bodies)
 
     def test_not_found_keeps_static_image_fallback(
-        self, page: Page, built_site_url: str
+        self, page: Page, built_site_url: str, site_version: str
     ) -> None:
         page.goto(f"{built_site_url}/404.html", wait_until="networkidle")
         expect(page.locator('meta[property="og:image"]')).to_have_attribute(
             "content",
             "https://dmenezesgabriel.github.io/mlops/"
-            "assets/mlops_lifecycle.png",
+            f"{site_version}/assets/mlops_lifecycle.png",
         )

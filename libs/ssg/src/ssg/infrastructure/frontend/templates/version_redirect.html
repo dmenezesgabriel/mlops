@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="{{ site.html_language() }}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ site.title }}</title>
+    {# The stub itself is the redirect — the default version's canonical
+       identity lives on its own pages; mike's redirect template uses the
+       same meta-refresh + link pair. #}
+    {% if site.url %}
+      <link rel="canonical" href="{{ site.absolute_url(target ~ '/') }}">
+    {% endif %}
+    <meta http-equiv="refresh" content="0; url=./{{ target }}/">
+  </head>
+  <body>
+    <p>
+      <a href="./{{ target }}/">{{ site.title }} — {{ target }}</a>
+    </p>
+  </body>
+</html>

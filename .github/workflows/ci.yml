@@ -209,10 +209,12 @@ jobs:
       - name: Verify site files
         run: |
           test -f site/build/index.html
-          test -f site/build/assets/site.css
-          test -f site/build/assets/site.js
-          test -f site/build/pt-BR/index.html
-          test -f site/build/nyc-taxi-demand-forecasting/overview.html
+          test -f site/build/404.html
+          test -f site/build/versions.json
+          test -f site/build/latest/assets/site.css
+          test -f site/build/latest/assets/site.js
+          test -f site/build/latest/pt-BR/index.html
+          test -f site/build/latest/nyc-taxi-demand-forecasting/overview.html
 
       - name: Upload built site
         uses: actions/upload-artifact@v7

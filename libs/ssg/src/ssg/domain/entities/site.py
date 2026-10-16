@@ -6,6 +6,7 @@ from ssg.domain.entities.page import Page
 from ssg.domain.value_objects.navigation_link import NavigationLink
 from ssg.domain.value_objects.navigation_section import NavigationSection
 from ssg.domain.value_objects.site_navigation import SiteNavigation
+from ssg.domain.value_objects.site_versioning import SiteVersioning
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,10 @@ class Site:
     # opts pages into a git-derived "last updated" date.
     edit_base_url: str = ""
     last_updated: bool = False
+    # version is this variant's outer output segment in a versioned build
+    # ("" when unversioned); versioning carries the configured registry.
+    version: str = ""
+    versioning: "SiteVersioning | None" = None
 
     def html_language(self) -> str:
         return self.locale
@@ -43,10 +48,11 @@ class Site:
         """
         if not self.url:
             return ""
+        version = f"{self.version}/" if self.version else ""
         prefix = (
             "" if self.locale == self.default_locale else f"{self.locale}/"
         )
-        return f"{self.url.rstrip('/')}/{prefix}{path}"
+        return f"{self.url.rstrip('/')}/{version}{prefix}{path}"
 
     def extension_setting(
         self, extension_name: str, setting_name: str, default: str

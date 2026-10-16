@@ -20,7 +20,7 @@ def index_language_links(
     return tuple(
         LanguageLink(
             label=site_variant.site.locale,
-            href=_relative_href(
+            href=relative_href(
                 current_variant.output_path,
                 site_variant.output_path / "index.html",
             ),
@@ -95,7 +95,7 @@ def _not_found_href(
 ) -> str:
     if target_variant.site.url:
         return target_variant.site.absolute_url("404.html")
-    return _relative_href(
+    return relative_href(
         current_variant.output_path,
         target_variant.output_path / "404.html",
     )
@@ -113,10 +113,10 @@ def _page_language_link(
     )
     return LanguageLink(
         label=target_variant.site.locale,
-        href=_relative_href(current_directory, target_path),
+        href=relative_href(current_directory, target_path),
         current=target_variant.site.locale == current_variant.site.locale,
     )
 
 
-def _relative_href(current_directory: Path, target_path: Path) -> str:
+def relative_href(current_directory: Path, target_path: Path) -> str:
     return Path(os.path.relpath(target_path, current_directory)).as_posix()

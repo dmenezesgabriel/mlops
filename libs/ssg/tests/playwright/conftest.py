@@ -6,19 +6,65 @@ from threading import Thread
 from typing import Any
 
 import pytest
+import yaml
 
 
 @pytest.fixture
 def built_site_url() -> Iterator[str]:
-    site_build_path = Path("site/build")
-    if not site_build_path.exists():
-        site_build_path = Path("../../site/build")
-    assert site_build_path.exists(), (
-        "Missing site/build: expected `make build-site` before e2e"
+    # Content lives under the current version tree; serve that tree at the
+    # artifact root so relative page paths and assets resolve unchanged.
+    # Root-level layout (redirect stub, 404, versions.json) is site_root_url.
+    content_root = _built_site_root() / _current_site_version()
+    assert content_root.exists(), (
+        f"Missing versioned build tree {content_root}: "
+        "expected `make build-site` before e2e"
     )
 
-    with _serve_directory(site_build_path) as base_url:
+    with _serve_directory(content_root) as base_url:
         yield base_url
+
+
+@pytest.fixture
+def site_root_url() -> Iterator[str]:
+    with _serve_directory(_built_site_root()) as base_url:
+        yield base_url
+
+
+@pytest.fixture
+def site_version() -> str:
+    return _current_site_version()
+
+
+def _repo_path(relative: str) -> Path:
+    for candidate in (Path(relative), Path("../..") / relative):
+        if candidate.exists():
+            return candidate
+    raise AssertionError(
+        f"Missing {relative}: expected the repository root as cwd or its "
+        "package directory"
+    )
+
+
+def _built_site_root() -> Path:
+    return _repo_path("site/build")
+
+
+def _current_site_version() -> str:
+    config = yaml.safe_load(_repo_path("site/site.yaml").read_text())
+    return _version_from_config(config)
+
+
+def _version_from_config(config: object) -> str:
+    if not isinstance(config, dict):
+        return ""
+    site = config.get("site")
+    if not isinstance(site, dict):
+        return ""
+    versioning = site.get("versioning")
+    if not isinstance(versioning, dict):
+        return ""
+    current = versioning.get("current")
+    return current if isinstance(current, str) else ""
 
 
 @contextmanager

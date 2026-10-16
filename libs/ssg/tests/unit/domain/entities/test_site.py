@@ -215,6 +215,43 @@ def test_absolute_url_prefixes_non_default_locale() -> None:
     assert site.absolute_url() == "https://example.com/docs/pt-BR/"
 
 
+def test_absolute_url_prefixes_version_before_locale() -> None:
+    # Arrange — versions are the outer URL segment: <url>/<version>/<locale>.
+    site = Site(
+        title="Learning Site",
+        description="",
+        collections=(),
+        url="https://example.com/docs",
+        locale="pt-BR",
+        default_locale="en",
+        version="0.1",
+    )
+
+    # Act / Assert
+    assert (
+        site.absolute_url("sample-collection/overview.html")
+        == "https://example.com/docs/0.1/pt-BR/sample-collection/overview.html"
+    )
+    assert site.absolute_url() == "https://example.com/docs/0.1/pt-BR/"
+
+
+def test_absolute_url_versioned_default_locale_omits_locale() -> None:
+    # Arrange
+    site = Site(
+        title="Learning Site",
+        description="",
+        collections=(),
+        url="https://example.com/docs",
+        version="0.1",
+    )
+
+    # Act / Assert
+    assert (
+        site.absolute_url("sample-collection/overview.html")
+        == "https://example.com/docs/0.1/sample-collection/overview.html"
+    )
+
+
 def _collection_with_pages(
     tmp_path: Path,
     name: str,

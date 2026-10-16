@@ -29,6 +29,9 @@ class JinjaPageRenderer(PageRenderer):
         )
         self._not_found_template = self._environment.get_template("404.html")
         self._service_worker_template = self._environment.get_template("sw.js")
+        self._version_redirect_template = self._environment.get_template(
+            "version_redirect.html"
+        )
 
     def render_page(self, rendered_page: RenderedPage) -> str:
         return self._page_template.render(rendered_page=rendered_page)
@@ -53,6 +56,9 @@ class JinjaPageRenderer(PageRenderer):
 
     def render_service_worker(self, manifest: PrecacheManifest) -> str:
         return self._service_worker_template.render(manifest=manifest)
+
+    def render_version_redirect(self, site: Site, target: str) -> str:
+        return self._version_redirect_template.render(site=site, target=target)
 
     def assets(self) -> dict[str, str]:
         return {

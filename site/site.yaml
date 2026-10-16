@@ -6,6 +6,13 @@ site:
   image: ../diagrams/output/mlops_lifecycle.png
   edit_base_url: https://github.com/dmenezesgabriel/mlops/edit/master
   last_updated: true
+  versioning:
+    current: "0.1"
+    default: latest
+    versions:
+      - id: "0.1"
+        title: "0.1"
+        aliases: [latest]
 extensions:
   i18n:
     default_locale: en

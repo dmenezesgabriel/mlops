@@ -437,6 +437,112 @@ const mountBackToTop = (signal) => {
   });
 };
 
+// Version switcher (mike/material version-selector parity): the static
+// hrefs already reach every version's same-locale root without JS; this
+// adds (a) a versions.json refresh so pages from older builds list newer
+// versions, and (b) same-page switching — the current path inside the
+// version tree (query + hash kept) is probed on the target version and
+// used when it exists, falling back to the version root like material's
+// selectedVersionCorrespondingURL.
+const mountVersionSwitcher = () => {
+  const switcher = document.querySelector('[data-version-switcher]');
+  const currentAnchor = switcher?.querySelector('a[aria-current]');
+  if (
+    !(switcher instanceof HTMLDetailsElement) ||
+    !(currentAnchor instanceof HTMLAnchorElement) ||
+    !('fetch' in window)
+  ) {
+    return;
+  }
+  const localePrefix = switcher.dataset.localePrefix ?? '';
+  // The current link's dir part is this page's locale root; the version
+  // root sits one level higher when the locale is nested.
+  const linkDir = (currentAnchor.getAttribute('href') ?? '').replace(
+    /index\.html$/,
+    ''
+  );
+  const versionRoot = new URL(
+    `${linkDir}${localePrefix ? '../' : ''}`,
+    window.location.href
+  );
+  const restWithinVersion = () =>
+    window.location.pathname.slice(versionRoot.pathname.length);
+  switcher.addEventListener('click', (event) => {
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
+    const anchor =
+      event.target instanceof Element
+        ? event.target.closest('a[data-version-segment]')
+        : null;
+    if (!(anchor instanceof HTMLAnchorElement)) return;
+    const target = anchor.dataset.versionSegment;
+    if (!target) return;
+    event.preventDefault();
+    const candidate = new URL(
+      `../${target}/${restWithinVersion()}${window.location.search}${window.location.hash}`,
+      versionRoot
+    );
+    fetch(candidate.href)
+      .then((response) => {
+        window.location.assign(response.ok ? candidate.href : anchor.href);
+      })
+      .catch(() => window.location.assign(anchor.href));
+  });
+  fetch(new URL('../versions.json', versionRoot))
+    .then((response) => (response.ok ? response.json() : null))
+    .then((entries) => {
+      if (!Array.isArray(entries)) return;
+      const list = switcher.querySelector('ul');
+      if (!list) return;
+      const currentSegment = decodeURIComponent(
+        versionRoot.pathname.replace(/\/$/, '').split('/').pop() ?? ''
+      );
+      list.textContent = '';
+      entries
+        .filter(
+          (entry) =>
+            entry &&
+            typeof entry.version === 'string' &&
+            !entry.properties?.hidden
+        )
+        .forEach((entry) => {
+          const anchor = document.createElement('a');
+          anchor.href = new URL(
+            `../${entry.version}/${localePrefix}index.html`,
+            versionRoot
+          ).href;
+          anchor.dataset.versionSegment = entry.version;
+          if (
+            entry.version === currentSegment ||
+            (entry.aliases ?? []).includes(currentSegment)
+          ) {
+            anchor.setAttribute('aria-current', 'page');
+          }
+          anchor.textContent = entry.title ?? entry.version;
+          const firstAlias = (entry.aliases ?? [])[0];
+          if (firstAlias) {
+            const badge = document.createElement('span');
+            badge.className = 'version-switcher__alias';
+            badge.textContent = firstAlias;
+            anchor.append(' ', badge);
+          }
+          const item = document.createElement('li');
+          item.appendChild(anchor);
+          list.appendChild(item);
+        });
+    })
+    .catch(() => {
+      // No registry or a network hiccup — the static list stays usable.
+    });
+};
+
 const mountLiveReload = () => {
   if (
     window.location.hostname !== 'localhost' &&
@@ -478,6 +584,7 @@ const mountPageFeatures = (signal) => {
   mountSearch(signal);
   mountArticleScrollSpy();
   mountMobileToc(signal);
+  mountVersionSwitcher();
   mountBackToTop(signal);
 };
 

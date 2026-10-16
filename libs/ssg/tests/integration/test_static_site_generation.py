@@ -23,12 +23,7 @@ from ssg_syntax_highlighting.infrastructure.plugin import (
 )
 
 
-@pytest.mark.integration
-def test_static_site_generation_from_configured_content_collection(
-    tmp_path: Path,
-) -> None:
-    config_path = _create_site_with_notebook_collection(tmp_path)
-    output_path = tmp_path / "site" / "build"
+def _build_site(config_path: Path, output_path: Path) -> None:
     from ssg.infrastructure.html_article_outline_builder import (
         HtmlArticleOutlineBuilder,
     )
@@ -40,7 +35,7 @@ def test_static_site_generation_from_configured_content_collection(
         SingleSiteVariantProvider,
     )
 
-    builder = StaticSiteBuilder(
+    StaticSiteBuilder(
         site_repository=SiteConfigRepository(),
         content_renderers=(
             MarkdownContentRenderer(),
@@ -56,9 +51,16 @@ def test_static_site_generation_from_configured_content_collection(
         dependency_tracker=InMemoryDependencyTracker(),
         search_index=InMemorySearchIndex(),
         social_card_renderer=create_social_card_renderer(),
-    )
+    ).build(config_path, output_path)
 
-    builder.build(config_path, output_path)
+
+@pytest.mark.integration
+def test_static_site_generation_from_configured_content_collection(
+    tmp_path: Path,
+) -> None:
+    config_path = _create_site_with_notebook_collection(tmp_path)
+    output_path = tmp_path / "site" / "build"
+    _build_site(config_path, output_path)
 
     page_path = output_path / "sample-collection" / "feature-engineering.html"
     rendered_html = page_path.read_text(encoding="utf-8")
@@ -272,7 +274,103 @@ def _assert_not_found_written(output_path: Path) -> None:
     )
 
 
-def _create_site_with_notebook_collection(tmp_path: Path) -> Path:
+_VERSIONING_CONFIG = (
+    "  versioning:\n"
+    '    current: "0.1"\n'
+    "    default: latest\n"
+    "    versions:\n"
+    '      - id: "0.1"\n'
+    "        aliases: [latest]\n"
+    '      - id: "0.0"\n'
+)
+
+
+@pytest.mark.integration
+def test_versioned_site_generation_emits_layout_switcher_and_registry(
+    tmp_path: Path,
+) -> None:
+    # Arrange — same fixture as the unversioned build plus the versioning
+    # block; 0.0 is declared but undeployed so it must stay out of the
+    # static switcher links.
+    config_path = _create_site_with_notebook_collection(
+        tmp_path, site_extra=_VERSIONING_CONFIG
+    )
+    output_path = tmp_path / "site" / "build"
+
+    # Act
+    _build_site(config_path, output_path)
+
+    # Assert — the mike-style layout: one real tree per version, aliases
+    # as copies, a redirect + 404 + registry at the artifact root.
+    _assert_versioned_layout(output_path)
+    _assert_version_registry(output_path)
+    version_root = output_path / "0.1"
+    rendered_html = (
+        version_root / "sample-collection" / "feature-engineering.html"
+    ).read_text(encoding="utf-8")
+    _assert_versioned_urls(rendered_html, version_root)
+    _assert_version_switcher(rendered_html)
+
+
+def _assert_versioned_layout(output_path: Path) -> None:
+    # Content lives under the version dir, never at the artifact root; the
+    # declared-but-undeployed 0.0 must not produce a tree.
+    version_root = output_path / "0.1"
+    assert (version_root / "index.html").exists()
+    assert (
+        version_root / "sample-collection" / "feature-engineering.html"
+    ).exists()
+    assert not (version_root / "pt-BR" / "index.html").exists()
+    assert not (output_path / "sample-collection").exists()
+    assert not (output_path / "0.0").exists()
+
+
+def _assert_version_registry(output_path: Path) -> None:
+    # `latest` is a byte-copy permalink namespace; the root carries the
+    # redirect stub, the host-served 404 and the accumulated registry.
+    assert (output_path / "latest" / "index.html").exists()
+    assert (
+        output_path / "latest" / "sample-collection" / "overview.html"
+    ).exists()
+    assert (output_path / "404.html").exists()
+    root_index = (output_path / "index.html").read_text(encoding="utf-8")
+    assert 'http-equiv="refresh" content="0; url=./0.1/"' in root_index
+    versions = json.loads(
+        (output_path / "versions.json").read_text(encoding="utf-8")
+    )
+    assert versions == [
+        {"version": "0.1", "title": "0.1", "aliases": ["latest"]}
+    ]
+
+
+def _assert_versioned_urls(rendered_html: str, version_root: Path) -> None:
+    # canonical/og:url/sitemap all carry the version segment (absolute_url
+    # prefixes it), giving each version its own identity.
+    assert (
+        '<link rel="canonical" '
+        'href="https://example.com/learning/0.1/'
+        'sample-collection/feature-engineering.html">' in rendered_html
+    )
+    sitemap_xml = (version_root / "sitemap.xml").read_text(encoding="utf-8")
+    assert "<loc>https://example.com/learning/0.1/</loc>" in sitemap_xml
+    assert (
+        "<loc>https://example.com/learning/0.1/"
+        "sample-collection/feature-engineering.html</loc>" in sitemap_xml
+    )
+
+
+def _assert_version_switcher(rendered_html: str) -> None:
+    assert 'class="version-switcher"' in rendered_html
+    assert "data-version-switcher" in rendered_html
+    # The page sits one dir under the version root: the static self link
+    # and the data-version-segment hook the JS same-page resolver uses.
+    assert 'data-version-segment="0.1"' in rendered_html
+    assert 'data-version-segment="0.0"' not in rendered_html
+
+
+def _create_site_with_notebook_collection(
+    tmp_path: Path, site_extra: str = ""
+) -> Path:
     site_path = tmp_path / "site"
     source_root = tmp_path / "content" / "sample_collection"
     second_source_root = tmp_path / "content" / "second_collection"
@@ -280,7 +378,7 @@ def _create_site_with_notebook_collection(tmp_path: Path) -> Path:
     source_root.mkdir(parents=True)
     second_source_root.mkdir(parents=True)
     (site_path / "card.png").write_bytes(_one_pixel_png())
-    _write_config(site_path, tmp_path)
+    _write_config(site_path, tmp_path, site_extra)
     _write_markdown(source_root)
     _write_second_markdown(second_source_root)
     _write_source_file(source_root)
@@ -289,12 +387,15 @@ def _create_site_with_notebook_collection(tmp_path: Path) -> Path:
     return site_path / "site.yaml"
 
 
-def _write_config(site_path: Path, tmp_path: Path) -> None:
+def _write_config(
+    site_path: Path, tmp_path: Path, site_extra: str = ""
+) -> None:
     (site_path / "site.yaml").write_text(
         "site:\n"
         "  title: Learning Site\n"
         "  url: https://example.com/learning\n"
         "  image: card.png\n"
+        f"{site_extra}"
         "collections:\n"
         "  - name: sample_collection\n"
         "    title: Sample Collection\n"

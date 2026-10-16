@@ -190,6 +190,8 @@ class I18nSiteVariantProvider(SiteVariantProvider):
             image=site.image,
             edit_base_url=site.edit_base_url,
             last_updated=site.last_updated,
+            version=site.version,
+            versioning=site.versioning,
         )
 
     def _translation_session(
@@ -238,6 +240,7 @@ class I18nSiteVariantProvider(SiteVariantProvider):
     def _ui_label_sources(self) -> dict[str, str]:
         return {
             "label_language": "Language",
+            "label_version": "Version",
             "label_menu": "Menu",
             "label_field_index": "Field Index",
             "label_on_this_page": "On this page",

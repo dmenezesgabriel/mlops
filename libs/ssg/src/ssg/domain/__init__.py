@@ -22,7 +22,10 @@ from ssg.domain.value_objects.rendered_page import RenderedPage
 from ssg.domain.value_objects.search_index_entry import SearchIndexEntry
 from ssg.domain.value_objects.site_navigation import SiteNavigation
 from ssg.domain.value_objects.site_variant import SiteVariant
+from ssg.domain.value_objects.site_version import SiteVersion
+from ssg.domain.value_objects.site_versioning import SiteVersioning
 from ssg.domain.value_objects.social_card import SocialCard
+from ssg.domain.value_objects.version_link import VersionLink
 
 __all__ = [
     "Article",
@@ -45,5 +48,8 @@ __all__ = [
     "SearchIndexEntry",
     "SiteNavigation",
     "SiteVariant",
+    "SiteVersion",
+    "SiteVersioning",
     "SocialCard",
+    "VersionLink",
 ]

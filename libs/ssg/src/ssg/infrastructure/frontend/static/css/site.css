@@ -166,11 +166,13 @@ a:focus-visible, button:focus-visible { outline: 4px solid var(--focus); outline
   gap: 0.75rem;
   justify-content: flex-end;
 }
-.language-switcher {
+.language-switcher,
+.version-switcher {
   align-self: center;
   position: relative;
 }
-.language-switcher summary {
+.language-switcher summary,
+.version-switcher summary {
   align-items: center;
   background: var(--surface);
   border: 3px solid var(--ink);
@@ -182,17 +184,22 @@ a:focus-visible, button:focus-visible { outline: 4px solid var(--focus); outline
   padding: 0.55rem 0.75rem;
   text-transform: uppercase;
 }
-.language-switcher summary::-webkit-details-marker { display: none; }
-.language-switcher summary::after { content: "▾"; font-size: 0.72rem; }
-.language-switcher__label { font-size: 0.68rem; letter-spacing: 0.1em; }
-.language-switcher__current {
+.language-switcher summary::-webkit-details-marker,
+.version-switcher summary::-webkit-details-marker { display: none; }
+.language-switcher summary::after,
+.version-switcher summary::after { content: "▾"; font-size: 0.72rem; }
+.language-switcher__label,
+.version-switcher__label { font-size: 0.68rem; letter-spacing: 0.1em; }
+.language-switcher__current,
+.version-switcher__current {
   background: var(--taxi);
   border: 2px solid var(--ink);
   color: var(--on-accent);
   font-size: 0.75rem;
   padding: 0.05rem 0.32rem;
 }
-.language-switcher ul {
+.language-switcher ul,
+.version-switcher ul {
   background: var(--surface);
   border: 3px solid var(--ink);
   box-shadow: var(--shadow-hard);
@@ -204,14 +211,23 @@ a:focus-visible, button:focus-visible { outline: 4px solid var(--focus); outline
   right: 0;
   z-index: 22;
 }
-.language-switcher a {
+.language-switcher a,
+.version-switcher a {
   display: block;
   font-family: var(--font-mono);
   font-size: 0.8rem;
   padding: 0.35rem 0.5rem;
   text-decoration: none;
 }
-.language-switcher a[aria-current="page"] { background: var(--taxi); font-weight: 700; }
+.language-switcher a[aria-current="page"],
+.version-switcher a[aria-current="page"] { background: var(--taxi); font-weight: 700; }
+.version-switcher__alias {
+  border: 2px solid var(--ink);
+  font-size: 0.62rem;
+  margin-left: 0.35rem;
+  padding: 0 0.25rem;
+  text-transform: uppercase;
+}
 .menu-toggle {
   align-self: center;
   background: var(--ink);
@@ -797,7 +813,8 @@ html.has-code-copy .code-copy-button { display: block; }
   .site-header { gap: 0.65rem; padding: 0.7rem 0.85rem; }
   /* The locale badge + caret alone keep the switcher readable; dropping the
      word label frees ~2.5rem the pt-BR header needed at 320px. */
-  .language-switcher__label { display: none; }
+  .language-switcher__label,
+  .version-switcher__label { display: none; }
   /* The actions track floors at its widest child; both caps keep the pt-BR
      header inside 320px. The select's closed label truncates — the opened
      option list still renders full text. */

@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from ssg.domain.value_objects.alternate_link import AlternateLink
 from ssg.domain.value_objects.language_link import LanguageLink
 from ssg.domain.value_objects.site_navigation import SiteNavigation
+from ssg.domain.value_objects.version_link import VersionLink
 
 if TYPE_CHECKING:
     from ssg.domain.entities.content_collection import ContentCollection
@@ -16,6 +17,7 @@ class RenderedIndex:
     collections: "tuple[ContentCollection, ...]"
     navigation: SiteNavigation
     language_links: tuple[LanguageLink, ...] = ()
+    version_links: tuple[VersionLink, ...] = ()
     alternate_links: tuple[AlternateLink, ...] = ()
     # Root-relative path of the generated index og:image card; falls back
     # to site.image in head.html when unset.

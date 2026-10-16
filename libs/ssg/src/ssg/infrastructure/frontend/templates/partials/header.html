@@ -36,6 +36,36 @@
       <option value="light">{{ site.extension_setting('i18n', 'label_theme_light', 'Light') }}</option>
       <option value="dark">{{ site.extension_setting('i18n', 'label_theme_dark', 'Dark') }}</option>
     </select>
+    {% if version_links %}
+      <details
+        class="version-switcher"
+        data-version-switcher
+        data-locale-prefix="{{ '' if site.locale == site.default_locale else site.locale ~ '/' }}"
+      >
+        <summary aria-label="{{ site.extension_setting('i18n', 'label_version', 'Version') }}">
+          <span class="version-switcher__label">
+            {{ site.extension_setting('i18n', 'label_version', 'Version') }}
+          </span>
+          <span class="version-switcher__current">{{ site.version }}</span>
+        </summary>
+        <ul>
+          {% for link in version_links %}
+            <li>
+              <a
+                href="{{ link.href }}"
+                data-version-segment="{{ link.version_id }}"
+                {% if link.current %}aria-current="page"{% endif %}
+              >
+                {{ link.label }}
+                {% if link.alias %}
+                  <span class="version-switcher__alias">{{ link.alias }}</span>
+                {% endif %}
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      </details>
+    {% endif %}
     {% if language_links %}
       <details class="language-switcher">
         <summary aria-label="Choose language">

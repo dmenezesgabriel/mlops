@@ -68,7 +68,13 @@ def _site_config_values() -> tuple[str, str, str]:
         site_config_path = Path("../../site/site.yaml")
     site_config = yaml.safe_load(site_config_path.read_text())
     site = site_config["site"]
-    return site["url"].rstrip("/"), site["title"], site["description"]
+    # Canonical, hreflang and card URLs move with the version tree, so fold
+    # the current version into the base the head assertions build against.
+    site_url = site["url"].rstrip("/")
+    current = site.get("versioning", {}).get("current")
+    if current:
+        site_url = f"{site_url}/{current}"
+    return site_url, site["title"], site["description"]
 
 
 def _assert_head_block(

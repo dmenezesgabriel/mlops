@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from ssg.domain import SiteVersion, SiteVersioning
 from ssg.infrastructure.site_config_repository import SiteConfigRepository
 
 
@@ -936,4 +937,172 @@ def test_load_rejects_non_string_site_image(tmp_path: Path) -> None:
 
     # Act / Assert
     with pytest.raises(ValueError, match="expected image string"):
+        SiteConfigRepository().load(config_path)
+
+
+def test_load_reads_versioning(tmp_path: Path) -> None:
+    # Arrange — mike-shaped registry: a current version, a default alias,
+    # and the switcher list (docs/setup/setting-up-versioning.md).
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "  versioning:\n"
+        "    current: '0.2'\n"
+        "    default: latest\n"
+        "    versions:\n"
+        "      - id: '0.2'\n"
+        "        title: '0.2'\n"
+        "        aliases: [latest, stable]\n"
+        "      - id: '0.1'\n"
+        "        title: '0.1'\n"
+        "        hidden: true\n"
+        "collections: []\n",
+        encoding="utf-8",
+    )
+
+    # Act
+    site = SiteConfigRepository().load(config_path)
+
+    # Assert
+    assert site.versioning == SiteVersioning(
+        current="0.2",
+        default="latest",
+        versions=(
+            SiteVersion(id="0.2", title="0.2", aliases=("latest", "stable")),
+            SiteVersion(id="0.1", title="0.1", hidden=True),
+        ),
+    )
+
+
+def test_load_versioning_defaults_title_and_default(tmp_path: Path) -> None:
+    # Arrange — title falls back to the id; an unset default redirect
+    # targets the current version.
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "  versioning:\n"
+        "    current: '0.1'\n"
+        "    versions:\n"
+        "      - id: '0.1'\n"
+        "collections: []\n",
+        encoding="utf-8",
+    )
+
+    # Act
+    site = SiteConfigRepository().load(config_path)
+
+    # Assert
+    assert site.versioning == SiteVersioning(
+        current="0.1",
+        default="0.1",
+        versions=(SiteVersion(id="0.1", title="0.1"),),
+    )
+
+
+def test_load_without_versioning_leaves_site_unversioned(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n  title: Learning Site\ncollections: []\n",
+        encoding="utf-8",
+    )
+
+    # Act
+    site = SiteConfigRepository().load(config_path)
+
+    # Assert
+    assert site.versioning is None
+
+
+@pytest.mark.parametrize(
+    "versioning",
+    [
+        "current: '0.1'\nversions:\n  - id: '0.2'",
+        "current: '0.1'\ndefault: '9.9'\nversions:\n  - id: '0.1'",
+        "current: '0.1'\nversions:\n  - id: '0.1'\n  - id: '0.1'",
+        "current: '0.1'\nversions:\n  - id: '0.1'\n    aliases: [latest]\n  - id: '0.2'\n    aliases: [latest]",
+        "current: '0.1'\nversions:\n  - id: '0.1'\n    aliases: ['0.1']",
+        "current: 'latest'\nversions:\n  - id: '0.1'\n    aliases: [latest]",
+    ],
+)
+def test_load_rejects_invalid_versioning(
+    tmp_path: Path, versioning: str
+) -> None:
+    # Arrange — undeclared current, unresolvable default, duplicate ids,
+    # alias collisions, and a current that is an alias are all rejected.
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "  versioning:\n"
+        f"    {versioning.replace(chr(10), chr(10) + '    ')}\n"
+        "collections: []\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="versioning"):
+        SiteConfigRepository().load(config_path)
+
+
+@pytest.mark.parametrize(
+    "versioning",
+    [
+        "invalid",
+        "current: '0.1'",
+        "current: '0.1'\nversions: []",
+        "current: '0.1'\ndefault: [1]\nversions:\n  - id: '0.1'",
+        "current: '0.1'\nversions:\n  - not-a-mapping",
+        "current: '0.1'\nversions:\n  - id: '0.1'\n    title: [1]",
+        "current: '0.1'\nversions:\n  - id: '0.1'\n    aliases: nope",
+        "current: '0.1'\nversions:\n  - id: '0.1'\n    hidden: 'yes'",
+    ],
+)
+def test_load_rejects_malformed_versioning_shape(
+    tmp_path: Path, versioning: str
+) -> None:
+    # Arrange — a non-mapping block, a missing/empty versions list, a
+    # non-string default or title, a non-mapping entry, and non-list
+    # aliases / non-bool hidden are each rejected with the offending shape
+    # named.
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "  versioning:\n"
+        f"    {versioning.replace(chr(10), chr(10) + '    ')}\n"
+        "collections: []\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="versioning"):
+        SiteConfigRepository().load(config_path)
+
+
+@pytest.mark.parametrize("version_id", ["../escaped", "..", "a/b", ""])
+def test_load_rejects_version_ids_outside_charset(
+    tmp_path: Path, version_id: str
+) -> None:
+    # Arrange — ids land verbatim in output paths, so path separators and
+    # traversal are rejected (the page-slug rule, minus the dots mike-style
+    # ids like 0.1 need).
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "  versioning:\n"
+        "    current: '0.1'\n"
+        "    versions:\n"
+        f'      - id: "{version_id}"\n'
+        "collections: []\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="versioning"):
         SiteConfigRepository().load(config_path)

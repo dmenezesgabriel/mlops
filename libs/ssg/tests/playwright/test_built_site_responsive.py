@@ -35,20 +35,27 @@ _MIN_INPUT_FONT_PX = 16
 class TestBuiltSiteResponsive:
     @pytest.mark.parametrize("width", _SWEEP_WIDTHS)
     def test_pages_have_no_horizontal_overflow(
-        self, page: Page, built_site_url: str, width: int
+        self, page: Page, built_site_url: str, site_version: str, width: int
     ) -> None:
         # Act
-        failures = _sweep(page, built_site_url, width, _overflow_failures)
+        failures = _sweep(
+            page, built_site_url, site_version, width, _overflow_failures
+        )
 
         # Assert
         assert not failures, "\n".join(failures)
 
     def test_pages_have_no_horizontal_overflow_without_js(
-        self, page: Page, built_site_url: str
+        self, page: Page, built_site_url: str, site_version: str
     ) -> None:
         # Act
         failures = _sweep(
-            page, built_site_url, 320, _overflow_failures, block_js=True
+            page,
+            built_site_url,
+            site_version,
+            320,
+            _overflow_failures,
+            block_js=True,
         )
 
         # Assert
@@ -56,20 +63,24 @@ class TestBuiltSiteResponsive:
 
     @pytest.mark.parametrize("width", _SWEEP_WIDTHS)
     def test_chrome_tap_targets_are_at_least_44px(
-        self, page: Page, built_site_url: str, width: int
+        self, page: Page, built_site_url: str, site_version: str, width: int
     ) -> None:
         # Act
-        failures = _sweep(page, built_site_url, width, _tap_target_failures)
+        failures = _sweep(
+            page, built_site_url, site_version, width, _tap_target_failures
+        )
 
         # Assert
         assert not failures, "\n".join(failures)
 
     @pytest.mark.parametrize("width", _SWEEP_WIDTHS)
     def test_form_controls_are_at_least_16px(
-        self, page: Page, built_site_url: str, width: int
+        self, page: Page, built_site_url: str, site_version: str, width: int
     ) -> None:
         # Act
-        failures = _sweep(page, built_site_url, width, _input_font_failures)
+        failures = _sweep(
+            page, built_site_url, site_version, width, _input_font_failures
+        )
 
         # Assert
         assert not failures, "\n".join(failures)
@@ -87,6 +98,7 @@ class TestBuiltSiteResponsive:
 def _sweep(
     page: Page,
     base_url: str,
+    site_version: str,
     width: int,
     measure: Callable[[Page], list[str]],
     *,
@@ -96,15 +108,24 @@ def _sweep(
     if block_js:
         page.route("**/assets/site.js", lambda route: route.abort())
 
+    # Published 404 assets are absolute under site.url + the version tree
+    # (e.g. .../mlops/0.1/assets/...); the local server mounts that tree at
+    # its root, so the rewrite drops the version segment too.
+    production_prefix = (
+        f"{_PRODUCTION_SITE_URL}/{site_version}"
+        if site_version
+        else _PRODUCTION_SITE_URL
+    )
+
     def rewrite_production_assets(route: Route) -> None:
         url = route.request.url
         if block_js and url.endswith("/assets/site.js"):
             route.abort()
             return
-        response = route.fetch(url=url.replace(_PRODUCTION_SITE_URL, base_url))
+        response = route.fetch(url=url.replace(production_prefix, base_url))
         route.fulfill(response=response)
 
-    page.route(f"{_PRODUCTION_SITE_URL}/**", rewrite_production_assets)
+    page.route(f"{production_prefix}/**", rewrite_production_assets)
     failures: list[str] = []
     for path in _SWEEP_PATHS:
         page.goto(f"{base_url}{path}", wait_until="networkidle")

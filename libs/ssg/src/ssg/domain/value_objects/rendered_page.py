@@ -6,6 +6,7 @@ from ssg.domain.value_objects.alternate_link import AlternateLink
 from ssg.domain.value_objects.language_link import LanguageLink
 from ssg.domain.value_objects.pager_link import PagerLink
 from ssg.domain.value_objects.site_navigation import SiteNavigation
+from ssg.domain.value_objects.version_link import VersionLink
 
 if TYPE_CHECKING:
     from ssg.domain.entities.article import Article
@@ -24,6 +25,7 @@ class RenderedPage:
     previous_link: PagerLink | None
     next_link: PagerLink | None
     language_links: tuple[LanguageLink, ...] = ()
+    version_links: tuple[VersionLink, ...] = ()
     alternate_links: tuple[AlternateLink, ...] = ()
     edit_url: str | None = None
     last_updated: date | None = None

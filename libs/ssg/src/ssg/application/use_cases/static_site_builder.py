@@ -24,6 +24,15 @@ from ssg.application.variant_links import (
     not_found_language_links,
     page_language_links,
 )
+from ssg.application.version_links import (
+    not_found_version_links,
+    version_links_for,
+)
+from ssg.application.versioned_output import (
+    emission_segments,
+    finalize_versioned_output,
+    prepare_versioned_output,
+)
 from ssg.domain import (
     BuildContext,
     ContentCollection,
@@ -95,26 +104,37 @@ class StaticSiteBuilder:
             correlation_id=uuid4().hex,
             dependency_tracker=self._dependency_tracker,
         )
-        site_variants = self._site_variant_provider.variants(site, context)
+        segments = emission_segments(site)
         LOGGER.info(
             "site_build_started",
             extra={
                 "context": {
                     "output_path": str(output_path),
                     "collections": len(base_selected_collections),
-                    "variants": len(site_variants),
+                    "version_segments": len(segments),
                     "correlation_id": context.correlation_id,
                     "incremental": affected_pages is not None,
                 },
             },
         )
-        for site_variant in site_variants:
-            self._build_variant(
-                site_variant,
-                site_variants,
+        if site.versioning is not None:
+            prepare_versioned_output(output_path, site.versioning)
+        for segment in segments:
+            self._build_segment(
+                site,
+                segment,
+                output_path,
                 collection_name,
                 context,
                 affected_pages,
+            )
+        if site.versioning is not None:
+            finalize_versioned_output(
+                output_path,
+                site.versioning,
+                self._page_renderer.render_version_redirect(
+                    site, site.versioning.default_version_id()
+                ),
             )
 
         LOGGER.info(
@@ -123,11 +143,37 @@ class StaticSiteBuilder:
                 "context": {
                     "output_path": str(output_path),
                     "collections": len(base_selected_collections),
-                    "variants": len(site_variants),
+                    "version_segments": len(segments),
                     "correlation_id": context.correlation_id,
                 },
             },
         )
+
+    def _build_segment(
+        self,
+        site: Site,
+        segment: str,
+        output_path: Path,
+        collection_name: str | None,
+        context: BuildContext,
+        affected_pages: set[Page] | None,
+    ) -> None:
+        # One segment = one output dir: "" resolves to the build root for
+        # the unversioned layout, the version id otherwise. Locale
+        # variants nest inside it.
+        segment_site = replace(site, version=segment)
+        segment_context = replace(context, output_path=output_path / segment)
+        site_variants = self._site_variant_provider.variants(
+            segment_site, segment_context
+        )
+        for site_variant in site_variants:
+            self._build_variant(
+                site_variant,
+                site_variants,
+                collection_name,
+                segment_context,
+                affected_pages,
+            )
 
     def _build_variant(
         self,
@@ -283,6 +329,9 @@ class StaticSiteBuilder:
                 None, None, collections=selected_collections
             ),
             language_links=index_language_links(site_variant, site_variants),
+            version_links=version_links_for(
+                site_variant, site_variant.output_path
+            ),
             alternate_links=alternate_links_for(site_variants, ""),
             social_image=self._write_social_card(
                 site_variant,
@@ -345,6 +394,7 @@ class StaticSiteBuilder:
             language_links=not_found_language_links(
                 site_variant, site_variants
             ),
+            version_links=not_found_version_links(site_variant),
             alternate_links=alternate_links_for(site_variants, "404.html"),
         )
         not_found_path = site_variant.output_path / "404.html"
@@ -434,6 +484,10 @@ class StaticSiteBuilder:
             else None,
             language_links=page_language_links(
                 site_variant, site_variants, collection, page
+            ),
+            version_links=version_links_for(
+                site_variant,
+                site_variant.output_path / collection.output_slug,
             ),
             alternate_links=alternate_links_for(
                 site_variants,

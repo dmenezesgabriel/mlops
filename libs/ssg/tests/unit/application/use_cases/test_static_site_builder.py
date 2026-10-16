@@ -3,6 +3,7 @@ from datetime import date
 from pathlib import Path
 
 import pytest
+from ssg.application.ports.site_variant_provider import SiteVariantProvider
 from ssg.application.use_cases.static_site_builder import StaticSiteBuilder
 from ssg.domain import (
     Article,
@@ -16,6 +17,8 @@ from ssg.domain import (
     RenderedPage,
     Site,
     SiteVariant,
+    SiteVersion,
+    SiteVersioning,
     SocialCard,
 )
 from ssg.infrastructure.in_memory_dependency_tracker import (
@@ -63,6 +66,7 @@ class SpyPageRenderer:
         self.render_robots_txt_calls: list[Site] = []
         self.render_not_found_calls: list[RenderedNotFound] = []
         self.render_service_worker_calls: list[PrecacheManifest] = []
+        self.render_version_redirect_calls: list[tuple[Site, str]] = []
 
     def render_page(self, rendered_page: RenderedPage) -> str:
         self.render_page_calls.append(rendered_page)
@@ -89,6 +93,10 @@ class SpyPageRenderer:
     def render_service_worker(self, manifest: PrecacheManifest) -> str:
         self.render_service_worker_calls.append(manifest)
         return "// sw"
+
+    def render_version_redirect(self, site: Site, target: str) -> str:
+        self.render_version_redirect_calls.append((site, target))
+        return f"<html>redirect:{target}</html>"
 
     def assets(self) -> dict[str, str]:
         return {"site.css": "body {}", "site.js": ""}
@@ -172,6 +180,8 @@ class LocalizedSiteVariantProvider:
             extensions=site.extensions,
             url=site.url,
             image=site.image,
+            version=site.version,
+            versioning=site.versioning,
         )
         return (
             SiteVariant(site=site, output_path=context.output_path),
@@ -2011,3 +2021,242 @@ class TestStaticSiteBuilder:
         assert "404.html" in english.urls
         assert not any(url.startswith("pt-BR/") for url in english.urls)
         assert "sample-collection/overview.html" in portuguese.urls
+
+    def test_versioned_build_emits_current_tree_under_version_dir_and_alias(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange
+        site = _versioned_site(tmp_path)
+        page_renderer = SpyPageRenderer()
+        builder = _builder_for(site, page_renderer)
+        output_path = tmp_path / "build"
+
+        # Act
+        builder.build(tmp_path / "site.yaml", output_path)
+
+        # Assert — the real tree lives under the version dir; `latest` is
+        # a byte-copy permalink namespace; the root carries only the
+        # redirect, the host-served 404 and the version registry.
+        assert (output_path / "0.1" / "index.html").exists()
+        assert (
+            output_path / "0.1" / "sample-collection" / "overview.html"
+        ).exists()
+        assert (output_path / "0.1" / "assets" / "site.css").exists()
+        assert (output_path / "latest" / "index.html").exists()
+        assert (
+            output_path / "latest" / "sample-collection" / "overview.html"
+        ).exists()
+        assert (output_path / "404.html").exists()
+        assert not (output_path / "sample-collection").exists()
+        versions = json.loads(
+            (output_path / "versions.json").read_text(encoding="utf-8")
+        )
+        assert versions == [
+            {
+                "version": "0.1",
+                "title": "0.1",
+                "aliases": ["latest"],
+            }
+        ]
+
+    def test_versioned_build_redirects_root_to_the_default_version(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange
+        site = _versioned_site(tmp_path)
+        page_renderer = SpyPageRenderer()
+        builder = _builder_for(site, page_renderer)
+        output_path = tmp_path / "build"
+
+        # Act
+        builder.build(tmp_path / "site.yaml", output_path)
+
+        # Assert — default="latest" resolves to its owning version id.
+        assert page_renderer.render_version_redirect_calls == [(site, "0.1")]
+        assert (output_path / "index.html").read_text(
+            encoding="utf-8"
+        ) == "<html>redirect:0.1</html>"
+
+    def test_versioned_build_passes_version_links_to_templates(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange
+        versioning = SiteVersioning(
+            current="0.1",
+            default="latest",
+            versions=(
+                SiteVersion(id="0.1", title="0.1", aliases=("latest",)),
+                SiteVersion(id="0.0", title="0.0"),
+            ),
+        )
+        site = _versioned_site(tmp_path, versioning=versioning)
+        page_renderer = SpyPageRenderer()
+        builder = _builder_for(site, page_renderer)
+        output_path = tmp_path / "build"
+        # 0.0 was deployed by an earlier build — only deployed versions
+        # get switcher links.
+        (output_path / "0.0").mkdir(parents=True)
+
+        # Act
+        builder.build(tmp_path / "site.yaml", output_path)
+
+        # Assert — the index sits at the version root, the page one dir
+        # deeper; hrefs are relative to each emitter.
+        index_links = page_renderer.render_index_calls[0].version_links
+        page_links = page_renderer.render_page_calls[0].version_links
+        not_found_links = page_renderer.render_not_found_calls[0].version_links
+        assert [
+            (link.label, link.href, link.current, link.alias)
+            for link in index_links
+        ] == [
+            ("0.1", "index.html", True, "latest"),
+            ("0.0", "../0.0/index.html", False, None),
+        ]
+        assert [(link.label, link.href) for link in page_links] == [
+            ("0.1", "../index.html"),
+            ("0.0", "../../0.0/index.html"),
+        ]
+        # The 404's links are absolute (site.url is set): hosts serve it
+        # at the missing path's depth, and the file is also copied to the
+        # output root where relative hrefs would resolve one level off.
+        assert [(link.label, link.href) for link in not_found_links] == [
+            ("0.1", "https://example.test/docs/0.1/index.html"),
+            ("0.0", "https://example.test/docs/0.0/index.html"),
+        ]
+
+    def test_versioned_build_sets_site_version_for_rendered_variants(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange
+        site = _versioned_site(tmp_path)
+        page_renderer = SpyPageRenderer()
+        builder = _builder_for(site, page_renderer)
+
+        # Act
+        builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+        # Assert — absolute_url() picks up the version segment, so
+        # canonical/sitemap/hreflang all scope to /0.1/.
+        rendered_site = page_renderer.render_index_calls[0].site
+        sitemap_site = page_renderer.render_sitemap_calls[0][0]
+        assert rendered_site.version == "0.1"
+        assert sitemap_site.version == "0.1"
+        assert rendered_site.absolute_url("x.html").endswith("/0.1/x.html")
+
+    def test_versioned_build_nests_locales_inside_the_version_dir(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange
+        site = _versioned_site(tmp_path)
+        builder = _builder_for(
+            site, SpyPageRenderer(), LocalizedSiteVariantProvider()
+        )
+        output_path = tmp_path / "build"
+
+        # Act
+        builder.build(tmp_path / "site.yaml", output_path)
+
+        # Assert — version dir wraps the locale layout; the alias copy
+        # mirrors it wholesale.
+        assert (output_path / "0.1" / "index.html").exists()
+        assert (output_path / "0.1" / "pt-BR" / "index.html").exists()
+        assert (output_path / "latest" / "pt-BR" / "index.html").exists()
+
+    def test_versioned_rebuild_accumulates_sibling_version_dirs(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — 0.1 is already deployed (mike parity: rebuilding a new
+        # current version must keep the previous one's tree + registry
+        # entry even though this build only emits 0.2).
+        output_path = tmp_path / "build"
+        builder = _builder_for(_versioned_site(tmp_path), SpyPageRenderer())
+        builder.build(tmp_path / "site.yaml", output_path)
+        newer = _versioned_site(
+            tmp_path,
+            versioning=SiteVersioning(
+                current="0.2",
+                default="latest",
+                versions=(
+                    SiteVersion(id="0.2", title="0.2", aliases=("latest",)),
+                    SiteVersion(id="0.1", title="0.1"),
+                ),
+            ),
+        )
+
+        # Act
+        _builder_for(newer, SpyPageRenderer()).build(
+            tmp_path / "site.yaml", output_path
+        )
+
+        # Assert
+        assert (output_path / "0.1" / "index.html").exists()
+        assert (output_path / "0.2" / "index.html").exists()
+        versions = json.loads(
+            (output_path / "versions.json").read_text(encoding="utf-8")
+        )
+        assert [entry["version"] for entry in versions] == ["0.2", "0.1"]
+
+    def test_unversioned_build_writes_no_version_layout(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange
+        site = _versioned_site(tmp_path, versioning=None)
+        builder = _builder_for(site, SpyPageRenderer())
+        output_path = tmp_path / "build"
+
+        # Act
+        builder.build(tmp_path / "site.yaml", output_path)
+
+        # Assert
+        assert (output_path / "index.html").exists()
+        assert not (output_path / "versions.json").exists()
+
+
+_DEFAULT_VERSIONING = SiteVersioning(
+    current="0.1",
+    default="latest",
+    versions=(SiteVersion(id="0.1", title="0.1", aliases=("latest",)),),
+)
+
+
+def _versioned_site(
+    tmp_path: Path, versioning: SiteVersioning | None = _DEFAULT_VERSIONING
+) -> Site:
+    page = Page(
+        slug="overview",
+        title="Overview",
+        source_path=tmp_path / "README.md",
+    )
+    collection = ContentCollection(
+        name="sample_collection",
+        title="Sample Collection",
+        source_root=tmp_path,
+        output_slug="sample-collection",
+        pages=(page,),
+        videos={},
+    )
+    return Site(
+        title="Learning Site",
+        description="",
+        collections=(collection,),
+        url="https://example.test/docs",
+        versioning=versioning,
+    )
+
+
+def _builder_for(
+    site: Site,
+    page_renderer: SpyPageRenderer,
+    site_variant_provider: SiteVariantProvider | None = None,
+) -> StaticSiteBuilder:
+    return StaticSiteBuilder(
+        site_repository=SpySiteRepository(site),
+        content_renderers=(SpyContentRenderer(),),
+        page_renderer=page_renderer,
+        article_outline_builder=SpyArticleOutlineBuilder(),
+        site_variant_provider=site_variant_provider
+        if site_variant_provider is not None
+        else SingleSiteVariantProvider(),
+        dependency_tracker=InMemoryDependencyTracker(),
+        search_index=InMemorySearchIndex(),
+    )
