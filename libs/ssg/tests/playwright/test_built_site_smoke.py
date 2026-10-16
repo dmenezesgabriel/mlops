@@ -6,6 +6,27 @@ import pytest
 from playwright.sync_api import Locator, Page, expect
 
 
+def _clear_service_worker_state(page: Page) -> None:
+    # site.js registers an offline precache worker on every load; cached
+    # responses bypass network routing, so a "site.js never arrived" phase
+    # must drop the worker and its caches before routes reach the server.
+    page.evaluate(
+        """async () => {
+            const registrations =
+                await navigator.serviceWorker.getRegistrations();
+            await Promise.all(
+                registrations.map(
+                    (registration) => registration.unregister()
+                )
+            );
+            const cacheNames = await caches.keys();
+            await Promise.all(
+                cacheNames.map((name) => caches.delete(name))
+            );
+        }"""
+    )
+
+
 @pytest.mark.playwright
 class TestBuiltSiteSmoke:
     def test_built_site_supports_navigation_i18n_and_mobile_menu(
@@ -261,6 +282,7 @@ def _assert_code_copy_degrades_without_js(page: Page, base_url: str) -> None:
     # The button renders only under the `has-code-copy` class that site.js
     # adds when the clipboard API exists; blocking the script must leave no
     # dead button in the page.
+    _clear_service_worker_state(page)
     page.route("**/assets/site.js", lambda route: route.abort())
     page.goto(
         f"{base_url}/nyc-taxi-demand-forecasting/model-evaluation.html",
@@ -313,6 +335,7 @@ def _assert_data_theme_overrides_media(page: Page, base_url: str) -> None:
 def _assert_dark_scheme_without_js(page: Page, base_url: str) -> None:
     # site.js aborted: the palette still resolves dark at first paint, so a
     # no-JS reader gets the dark scheme with no light flash.
+    _clear_service_worker_state(page)
     page.route("**/assets/site.js", lambda route: route.abort())
     page.emulate_media(color_scheme="dark")
     page.goto(f"{base_url}/", wait_until="networkidle")
@@ -366,6 +389,7 @@ def _assert_theme_select_i18n(page: Page, base_url: str) -> None:
 def _assert_theme_select_hidden_without_js(page: Page, base_url: str) -> None:
     # Without site.js the select would be a dead control; the
     # has-theme-select gate keeps it hidden.
+    _clear_service_worker_state(page)
     page.route("**/assets/site.js", lambda route: route.abort())
     page.goto(f"{base_url}/", wait_until="networkidle")
     page.unroute("**/assets/site.js")
@@ -451,6 +475,7 @@ def _assert_search_scopes_to_locale(page: Page, base_url: str) -> None:
 def _assert_search_hidden_without_js(page: Page, base_url: str) -> None:
     # Without site.js the input would be a dead control; the has-search gate
     # keeps the whole widget hidden.
+    _clear_service_worker_state(page)
     page.route("**/assets/site.js", lambda route: route.abort())
     page.goto(f"{base_url}/", wait_until="networkidle")
     page.unroute("**/assets/site.js")
@@ -539,6 +564,7 @@ def _assert_back_to_top_localizes(page: Page, base_url: str) -> None:
 def _assert_back_to_top_hidden_without_js(page: Page, base_url: str) -> None:
     # The button ships hidden in markup; without site.js it must never
     # surface — a no-JS reader gets no dead control.
+    _clear_service_worker_state(page)
     page.route("**/assets/site.js", lambda route: route.abort())
     page.goto(
         f"{base_url}/nyc-taxi-demand-forecasting/model-evaluation.html",
@@ -619,6 +645,7 @@ def _assert_mobile_toc_works_without_js(page: Page, base_url: str) -> None:
     # <details> toggles natively, so a no-JS reader still reaches the TOC;
     # only the close conveniences (link pick, outside click, Escape) go away.
     page.set_viewport_size(_MOBILE_VIEWPORT)
+    _clear_service_worker_state(page)
     page.route("**/assets/site.js", lambda route: route.abort())
     page.goto(f"{base_url}{_MOBILE_TOC_PAGE}", wait_until="networkidle")
     page.unroute("**/assets/site.js")
@@ -674,6 +701,7 @@ def _assert_page_meta_sits_above_pager(page: Page, base_url: str) -> None:
 
 def _assert_page_meta_visible_without_js(page: Page, base_url: str) -> None:
     # The meta row is static markup: a no-JS reader still gets both fields.
+    _clear_service_worker_state(page)
     page.route("**/assets/site.js", lambda route: route.abort())
     page.goto(f"{base_url}{_ARTICLE_PAGE}", wait_until="networkidle")
     page.unroute("**/assets/site.js")

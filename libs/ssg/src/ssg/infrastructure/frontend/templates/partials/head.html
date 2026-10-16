@@ -3,6 +3,9 @@
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="{{ description }}">
 <meta name="ssg:search-index" content="{{ asset_prefix }}search-index.json">
+{# The worker sits at the variant root so its scope covers only this
+   locale; asset_prefix already resolves there from any page depth. #}
+<meta name="ssg:service-worker" content="{{ asset_prefix }}sw.js">
 {% if site.url %}
 {# Instant navigation resolves internal links against the locale sitemap;
    like the sitemap.xml file itself, the pointer needs site.url. #}

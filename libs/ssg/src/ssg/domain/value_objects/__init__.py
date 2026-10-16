@@ -4,6 +4,7 @@ from ssg.domain.value_objects.language_link import LanguageLink
 from ssg.domain.value_objects.navigation_link import NavigationLink
 from ssg.domain.value_objects.navigation_section import NavigationSection
 from ssg.domain.value_objects.pager_link import PagerLink
+from ssg.domain.value_objects.precache_manifest import PrecacheManifest
 from ssg.domain.value_objects.rendered_index import RenderedIndex
 from ssg.domain.value_objects.rendered_page import RenderedPage
 from ssg.domain.value_objects.site_navigation import SiteNavigation
@@ -16,6 +17,7 @@ __all__ = [
     "NavigationLink",
     "NavigationSection",
     "PagerLink",
+    "PrecacheManifest",
     "RenderedIndex",
     "RenderedPage",
     "SiteNavigation",

@@ -11,6 +11,7 @@ from ssg.domain import (
     ContentCollection,
     LanguageLink,
     Page,
+    PrecacheManifest,
     RenderedIndex,
     RenderedNotFound,
     RenderedPage,
@@ -1479,6 +1480,38 @@ def test_render_page_meta_renders_each_field_independently(
     assert '<div class="page-meta">' in rendered_html
     assert expected_present in rendered_html
     assert expected_absent not in rendered_html
+
+
+def test_render_service_worker_embeds_manifest_urls_and_version() -> None:
+    # Arrange — the worker script is a rendered asset: the manifest URLs and
+    # the content-hash version are baked in at build time so changed output
+    # mints a differently named cache on the next deploy.
+    renderer = JinjaPageRenderer()
+    manifest = PrecacheManifest(
+        urls=("./", "index.html", "sample-collection/overview.html"),
+        version="a1b2c3d4e5f6a7b8",
+    )
+
+    # Act
+    rendered = renderer.render_service_worker(manifest)
+
+    # Assert
+    assert '"a1b2c3d4e5f6a7b8"' in rendered
+    assert '"./"' in rendered
+    assert '"index.html"' in rendered
+    assert '"sample-collection/overview.html"' in rendered
+    assert 'addEventListener("install"' in rendered
+    assert 'addEventListener("activate"' in rendered
+    assert 'addEventListener("fetch"' in rendered
+
+
+def test_assets_exclude_the_variant_scoped_service_worker() -> None:
+    # Arrange — assets() is variant-agnostic; sw.js is rendered per variant
+    # and sits at the variant root (its scope), never under assets/.
+    assets = JinjaPageRenderer().assets()
+
+    # Assert
+    assert "sw.js" not in assets
 
 
 def _site_with_collection(

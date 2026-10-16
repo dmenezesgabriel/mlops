@@ -1,5 +1,5 @@
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Browser, Page, expect
 
 _ARTICLE_PATH = "/nyc-taxi-demand-forecasting/overview.html"
 # Sidebar hrefs are page-relative (no leading slash); URL assertions use
@@ -32,10 +32,18 @@ class TestBuiltSiteInstantNavigation:
         _assert_hover_prefetches(page, built_site_url)
 
     def test_out_of_sitemap_and_failed_fetches_navigate_normally(
-        self, page: Page, built_site_url: str
+        self, browser: Browser, built_site_url: str
     ) -> None:
-        _assert_cross_locale_link_reloads(page, built_site_url)
-        _assert_failed_fetch_falls_back(page, built_site_url)
+        # Route-based failure injection must reach the network: a live
+        # precache worker serves the link from cache before the route ever
+        # sees it, so this test runs with service workers blocked.
+        context = browser.new_context(service_workers="block")
+        try:
+            page = context.new_page()
+            _assert_cross_locale_link_reloads(page, built_site_url)
+            _assert_failed_fetch_falls_back(page, built_site_url)
+        finally:
+            context.close()
 
     def test_navigation_degrades_without_js(
         self, page: Page, built_site_url: str

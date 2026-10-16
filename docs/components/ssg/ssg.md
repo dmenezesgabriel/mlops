@@ -86,6 +86,7 @@ site/build/search-index.json
 site/build/sitemap.xml
 site/build/robots.txt
 site/build/404.html
+site/build/sw.js
 site/build/assets/site.css
 site/build/assets/site.js
 site/build/assets/instant.js
@@ -100,6 +101,8 @@ Each variant root also carries `robots.txt` (`User-agent: *`/`Allow: /` plus a `
 The same `site.url` gate activates instant navigation: every page head then carries an `ssg:sitemap` meta pointing at its variant sitemap plus a deferred `assets/instant.js` script. The script whitelists in-sitemap same-origin links, prefetches them on hover/focus, and on click fetches the page and swaps the header/shell/footer regions in place, announcing `ssg:navigated` so `site.js` re-mounts its per-page features (search, theme, scrollspy, …) on the new markup; off-sitemap links (cross-locale, external, modified clicks), anchors, and any fetch failure fall back to native navigation.
 
 Each variant root also emits `404.html` with the full site chrome (head/header/sidebar/footer). Hosts like GitHub Pages serve it for missing paths at any depth, so when `site.url` is set every on-page URL — assets, navigation, language links, the search-index pointer — is emitted absolute under the locale root; without `site.url` they stay relative. The preview server answers missing paths with it (mkdocs `serve.py` parity).
+
+Each variant root also emits `sw.js`, a service worker scoped to its locale tree. Its precache manifest walks the emitted variant output on disk — `sw.js` itself, nested variant roots (e.g. `pt-BR/` inside the default tree), and `*/assets/videos/` payloads are excluded — and the file paths plus bytes hash into the worker's `VERSION`, so changed output mints a fresh cache while identical rebuilds keep it. Caches are named `ssg-offline:<scope>:<version>`; the scope prefix keeps sibling-locale workers on one origin from deleting each other's caches on activation. The worker precaches on install, serves cache-first, falls back to the network on misses, and answers failed navigations with the cached 404. `site.js` registers it once per load via the `ssg:service-worker` head meta — a relative `sw.js` pointer, so unlike the sitemap gate it needs no `site.url` — and skips cleanly where the API is absent (`file://`, insecure origins) or the resolved worker URL is cross-origin.
 
 Use `--collection <name>` only for focused local builds. Projects do not own separate sites.
 

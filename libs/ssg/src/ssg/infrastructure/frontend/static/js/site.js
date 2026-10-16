@@ -452,6 +452,24 @@ const mountLiveReload = () => {
   };
 };
 
+// Offline precache: every variant root ships a sw.js scoped to its locale
+// tree. Registration is once per page load (identical re-registrations are
+// no-ops); the API is absent on file:// and insecure origins, and the
+// origin guard skips it when an absolute meta points at the deployed
+// origin while previewing locally — the same posture instant.js takes.
+const mountServiceWorker = () => {
+  const meta = document.querySelector('meta[name="ssg:service-worker"]');
+  if (
+    !('serviceWorker' in navigator) ||
+    !(meta instanceof HTMLMetaElement)
+  ) {
+    return;
+  }
+  const workerUrl = new URL(meta.content, document.baseURI);
+  if (workerUrl.origin !== window.location.origin) return;
+  navigator.serviceWorker.register(workerUrl).catch(() => {});
+};
+
 const mountPageFeatures = (signal) => {
   mountMenuToggle();
   mountThemeSelect();
@@ -473,6 +491,7 @@ const remountPageFeatures = () => {
 
 remountPageFeatures();
 mountLiveReload();
+mountServiceWorker();
 // instant.js announces every content swap; the mounts re-run so search,
 // theme and scrollspy bind to the freshly swapped regions.
 document.addEventListener('ssg:navigated', remountPageFeatures);

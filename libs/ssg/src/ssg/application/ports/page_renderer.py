@@ -2,6 +2,7 @@ from typing import Protocol
 
 from ssg.domain import (
     ContentCollection,
+    PrecacheManifest,
     RenderedIndex,
     RenderedNotFound,
     RenderedPage,
@@ -23,5 +24,7 @@ class PageRenderer(Protocol):
     def render_not_found(
         self, rendered_not_found: RenderedNotFound
     ) -> str: ...
+
+    def render_service_worker(self, manifest: PrecacheManifest) -> str: ...
 
     def assets(self) -> dict[str, str]: ...

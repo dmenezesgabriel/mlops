@@ -1,4 +1,3 @@
-import os
 import shutil
 from dataclasses import replace
 from datetime import date
@@ -6,6 +5,7 @@ from logging import getLogger
 from pathlib import Path
 from uuid import uuid4
 
+from ssg.application.offline_precache import precache_manifest
 from ssg.application.ports.article_outline_builder import ArticleOutlineBuilder
 from ssg.application.ports.content_renderer import ContentRenderer
 from ssg.application.ports.dependency_tracker import DependencyTracker
@@ -17,18 +17,21 @@ from ssg.application.ports.site_variant_provider import SiteVariantProvider
 from ssg.application.ports.source_revision_provider import (
     SourceRevisionProvider,
 )
+from ssg.application.variant_links import (
+    absolute_navigation,
+    index_language_links,
+    not_found_language_links,
+    page_language_links,
+)
 from ssg.domain import (
     BuildContext,
     ContentCollection,
-    LanguageLink,
-    NavigationSection,
     Page,
     PagerLink,
     RenderedIndex,
     RenderedNotFound,
     RenderedPage,
     Site,
-    SiteNavigation,
     SiteVariant,
     alternate_links_for,
 )
@@ -163,6 +166,7 @@ class StaticSiteBuilder:
         self._write_not_found(
             site_variant, site_variants, selected_collections
         )
+        self._write_service_worker(site_variant, site_variants)
 
     def _build_collection(
         self,
@@ -258,9 +262,7 @@ class StaticSiteBuilder:
             navigation=site.navigation_for(
                 None, None, collections=selected_collections
             ),
-            language_links=self._index_language_links(
-                site_variant, site_variants
-            ),
+            language_links=index_language_links(site_variant, site_variants),
             alternate_links=alternate_links_for(site_variants, ""),
         )
         index_path = site_variant.output_path / "index.html"
@@ -303,13 +305,13 @@ class StaticSiteBuilder:
         site = site_variant.site
         rendered_not_found = RenderedNotFound(
             site=site,
-            navigation=self._absolute_navigation(
+            navigation=absolute_navigation(
                 site.navigation_for(
                     None, None, collections=selected_collections
                 ),
                 site,
             ),
-            language_links=self._not_found_language_links(
+            language_links=not_found_language_links(
                 site_variant, site_variants
             ),
             alternate_links=alternate_links_for(site_variants, "404.html"),
@@ -320,55 +322,26 @@ class StaticSiteBuilder:
             encoding="utf-8",
         )
 
-    def _absolute_navigation(
-        self, navigation: SiteNavigation, site: Site
-    ) -> SiteNavigation:
-        # Hosts serve the root 404.html for missing paths at any depth
-        # (e.g. GitHub Pages answers /docs/a/b/c with it), so hrefs must not
-        # resolve relative to the missing path's directory — with site.url
-        # set they are emitted absolute, matching starlight's site-absolute
-        # links; without one they stay relative, like mkdocs' 404.
-        if not site.url:
-            return navigation
-        return SiteNavigation(
-            home_href=site.absolute_url(navigation.home_href),
-            sections=tuple(
-                self._absolute_section(section, site)
-                for section in navigation.sections
-            ),
-        )
-
-    def _absolute_section(
-        self, section: NavigationSection, site: Site
-    ) -> NavigationSection:
-        # navigation_for(None, None, ...) leaves section.links empty — page
-        # links only exist in a current-collection context — so only the
-        # section href needs rewriting.
-        return replace(section, href=site.absolute_url(section.href))
-
-    def _not_found_language_links(
+    def _write_service_worker(
         self,
-        current_variant: SiteVariant,
+        site_variant: SiteVariant,
         site_variants: tuple[SiteVariant, ...],
-    ) -> tuple[LanguageLink, ...]:
-        return tuple(
-            LanguageLink(
-                label=site_variant.site.locale,
-                href=self._not_found_href(current_variant, site_variant),
-                current=site_variant.site.locale
-                == current_variant.site.locale,
-            )
-            for site_variant in site_variants
+    ) -> None:
+        # Last in the variant build: the disk walk must see every emitted
+        # file (pages, index, search index, sitemap, 404, assets). Only
+        # variants nested *inside* this root are another worker's tree —
+        # the outer root would otherwise swallow this variant's own files.
+        output_path = site_variant.output_path
+        nested_output_paths = tuple(
+            variant.output_path
+            for variant in site_variants
+            if variant.output_path != output_path
+            and variant.output_path.is_relative_to(output_path)
         )
-
-    def _not_found_href(
-        self, current_variant: SiteVariant, target_variant: SiteVariant
-    ) -> str:
-        if target_variant.site.url:
-            return target_variant.site.absolute_url("404.html")
-        return self._relative_href(
-            current_variant.output_path,
-            target_variant.output_path / "404.html",
+        manifest = precache_manifest(output_path, nested_output_paths)
+        (output_path / "sw.js").write_text(
+            self._page_renderer.render_service_worker(manifest),
+            encoding="utf-8",
         )
 
     def _rendered_page(
@@ -411,7 +384,7 @@ class StaticSiteBuilder:
             )
             if next_page
             else None,
-            language_links=self._page_language_links(
+            language_links=page_language_links(
                 site_variant, site_variants, collection, page
             ),
             alternate_links=alternate_links_for(
@@ -466,66 +439,3 @@ class StaticSiteBuilder:
             processed_html = post_processor.process(processed_html, site)
 
         return processed_html
-
-    def _index_language_links(
-        self,
-        current_variant: SiteVariant,
-        site_variants: tuple[SiteVariant, ...],
-    ) -> tuple[LanguageLink, ...]:
-        return tuple(
-            LanguageLink(
-                label=site_variant.site.locale,
-                href=self._relative_href(
-                    current_variant.output_path,
-                    site_variant.output_path / "index.html",
-                ),
-                current=site_variant.site.locale
-                == current_variant.site.locale,
-            )
-            for site_variant in site_variants
-        )
-
-    def _page_language_links(
-        self,
-        current_variant: SiteVariant,
-        site_variants: tuple[SiteVariant, ...],
-        collection: ContentCollection,
-        page: Page,
-    ) -> tuple[LanguageLink, ...]:
-        current_directory = (
-            current_variant.output_path / collection.output_slug
-        )
-        return tuple(
-            self._page_language_link(
-                current_variant,
-                site_variant,
-                current_directory,
-                collection,
-                page,
-            )
-            for site_variant in site_variants
-        )
-
-    def _page_language_link(
-        self,
-        current_variant: SiteVariant,
-        target_variant: SiteVariant,
-        current_directory: Path,
-        collection: ContentCollection,
-        page: Page,
-    ) -> LanguageLink:
-        target_path = (
-            target_variant.output_path
-            / collection.output_slug
-            / page.file_name()
-        )
-        return LanguageLink(
-            label=target_variant.site.locale,
-            href=self._relative_href(current_directory, target_path),
-            current=target_variant.site.locale == current_variant.site.locale,
-        )
-
-    def _relative_href(
-        self, current_directory: Path, target_path: Path
-    ) -> str:
-        return Path(os.path.relpath(target_path, current_directory)).as_posix()

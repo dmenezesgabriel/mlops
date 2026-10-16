@@ -1,6 +1,7 @@
 from ssg.application.ports import PageRenderer
 from ssg.domain import (
     ContentCollection,
+    PrecacheManifest,
     RenderedIndex,
     RenderedNotFound,
     RenderedPage,
@@ -27,6 +28,7 @@ class JinjaPageRenderer(PageRenderer):
             "robots.txt"
         )
         self._not_found_template = self._environment.get_template("404.html")
+        self._service_worker_template = self._environment.get_template("sw.js")
 
     def render_page(self, rendered_page: RenderedPage) -> str:
         return self._page_template.render(rendered_page=rendered_page)
@@ -48,6 +50,9 @@ class JinjaPageRenderer(PageRenderer):
         return self._not_found_template.render(
             rendered_not_found=rendered_not_found
         )
+
+    def render_service_worker(self, manifest: PrecacheManifest) -> str:
+        return self._service_worker_template.render(manifest=manifest)
 
     def assets(self) -> dict[str, str]:
         return {

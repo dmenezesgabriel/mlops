@@ -10,6 +10,7 @@ from ssg.domain import (
     BuildContext,
     ContentCollection,
     Page,
+    PrecacheManifest,
     RenderedIndex,
     RenderedNotFound,
     RenderedPage,
@@ -60,6 +61,7 @@ class SpyPageRenderer:
         ] = []
         self.render_robots_txt_calls: list[Site] = []
         self.render_not_found_calls: list[RenderedNotFound] = []
+        self.render_service_worker_calls: list[PrecacheManifest] = []
 
     def render_page(self, rendered_page: RenderedPage) -> str:
         self.render_page_calls.append(rendered_page)
@@ -82,6 +84,10 @@ class SpyPageRenderer:
     def render_not_found(self, rendered_not_found: RenderedNotFound) -> str:
         self.render_not_found_calls.append(rendered_not_found)
         return "<html>404</html>"
+
+    def render_service_worker(self, manifest: PrecacheManifest) -> str:
+        self.render_service_worker_calls.append(manifest)
+        return "// sw"
 
     def assets(self) -> dict[str, str]:
         return {"site.css": "body {}", "site.js": ""}
@@ -1714,3 +1720,54 @@ class TestStaticSiteBuilder:
             "../404.html",
             "404.html",
         ]
+
+    def test_build_writes_a_service_worker_per_variant_root(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — offline precaching is per locale: each variant root
+        # ships its own sw.js so its scope covers only its own tree (the
+        # pt-BR output nests inside the default root).
+        page = Page(
+            slug="overview",
+            title="Overview",
+            source_path=tmp_path / "README.md",
+        )
+        collection = ContentCollection(
+            name="sample_collection",
+            title="Sample Collection",
+            source_root=tmp_path,
+            output_slug="sample-collection",
+            pages=(page,),
+            videos={},
+        )
+        site = Site(
+            title="Learning Site",
+            description="",
+            collections=(collection,),
+        )
+        page_renderer = SpyPageRenderer()
+        builder = StaticSiteBuilder(
+            site_repository=SpySiteRepository(site),
+            content_renderers=(SpyContentRenderer(),),
+            page_renderer=page_renderer,
+            site_variant_provider=LocalizedSiteVariantProvider(),
+            article_outline_builder=SpyArticleOutlineBuilder(),
+            dependency_tracker=InMemoryDependencyTracker(),
+            search_index=InMemorySearchIndex(),
+        )
+        output_path = tmp_path / "build"
+
+        # Act
+        builder.build(tmp_path / "site.yaml", output_path)
+
+        # Assert
+        english, portuguese = page_renderer.render_service_worker_calls
+        assert (output_path / "sw.js").read_text(encoding="utf-8") == "// sw"
+        assert (output_path / "pt-BR" / "sw.js").read_text(
+            encoding="utf-8"
+        ) == "// sw"
+        assert "sample-collection/overview.html" in english.urls
+        assert "index.html" in english.urls
+        assert "404.html" in english.urls
+        assert not any(url.startswith("pt-BR/") for url in english.urls)
+        assert "sample-collection/overview.html" in portuguese.urls

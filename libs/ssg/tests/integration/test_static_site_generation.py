@@ -71,6 +71,7 @@ def test_static_site_generation_from_configured_content_collection(
     _assert_site_files_written(output_path, page_path)
     _assert_seo_files_written(output_path)
     _assert_not_found_written(output_path)
+    _assert_service_worker_written(output_path)
 
 
 def _assert_head_metadata(rendered_html: str, output_path: Path) -> None:
@@ -88,6 +89,9 @@ def _assert_head_metadata(rendered_html: str, output_path: Path) -> None:
     assert (
         '<link rel="icon" href="../assets/favicon.svg" '
         'type="image/svg+xml">' in rendered_html
+    )
+    assert (
+        '<meta name="ssg:service-worker" content="../sw.js">' in rendered_html
     )
     index_html = (output_path / "index.html").read_text(encoding="utf-8")
     assert (
@@ -203,6 +207,28 @@ def _assert_seo_files_written(output_path: Path) -> None:
     assert (output_path / "assets" / "card.png").read_bytes() == (
         _one_pixel_png()
     )
+
+
+def _assert_service_worker_written(output_path: Path) -> None:
+    service_worker = (output_path / "sw.js").read_text(encoding="utf-8")
+    # The precache mirrors the emitted tree — including the scope root —
+    # while video payloads stay network-only (a quota-rejected addAll would
+    # abort the worker install).
+    for expected in (
+        '"./"',
+        '"index.html"',
+        '"404.html"',
+        '"sitemap.xml"',
+        '"search-index.json"',
+        '"assets/site.css"',
+        '"assets/card.png"',
+        '"sample-collection/overview.html"',
+        '"sample-collection/assets/images/'
+        'feature-engineering-cell-1-output-1.png"',
+    ):
+        assert expected in service_worker
+    assert "assets/videos/demo.mp4" not in service_worker
+    assert 'addEventListener("fetch"' in service_worker
 
 
 def _assert_not_found_written(output_path: Path) -> None:
