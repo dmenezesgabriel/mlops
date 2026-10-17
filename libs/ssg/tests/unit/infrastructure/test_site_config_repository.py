@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -1105,4 +1106,106 @@ def test_load_rejects_version_ids_outside_charset(
 
     # Act / Assert
     with pytest.raises(ValueError, match="versioning"):
+        SiteConfigRepository().load(config_path)
+
+
+def test_load_reads_post_metadata(tmp_path: Path) -> None:
+    # Arrange
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "collections:\n"
+        "  - name: blog\n"
+        "    title: Blog\n"
+        "    source_root: content/blog\n"
+        "    kind: posts\n"
+        "    output_slug: blog\n"
+        "    pages:\n"
+        "      - slug: first-post\n"
+        "        title: First Post\n"
+        "        source: first.md\n"
+        "        date: 2026-01-15\n"
+        "        authors: [Alice]\n"
+        "      - slug: second-post\n"
+        "        title: Second Post\n"
+        "        source: second.md\n"
+        "        date: 2026-02-20T09:30:00Z\n"
+        "        authors:\n"
+        "          - name: Bob\n"
+        "            url: https://example.com/bob\n"
+        "        draft: true\n",
+        encoding="utf-8",
+    )
+
+    # Act
+    site = SiteConfigRepository().load(config_path)
+
+    # Assert
+    collection = site.collections[0]
+    assert collection.kind == "posts"
+    first_page = collection.pages[0]
+    assert first_page.date == datetime(2026, 1, 15, tzinfo=UTC)
+    assert first_page.authors == ({"name": "Alice", "url": ""},)
+    assert first_page.draft is False
+    assert first_page.pin is False
+    second_page = collection.pages[1]
+    assert second_page.date == datetime(2026, 2, 20, 9, 30, tzinfo=UTC)
+    assert second_page.authors == (
+        {"name": "Bob", "url": "https://example.com/bob"},
+    )
+    assert second_page.draft is True
+
+
+def test_load_defaults_post_metadata(tmp_path: Path) -> None:
+    # Arrange — the default collection kind and optional page fields.
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "collections:\n"
+        "  - name: sample_collection\n"
+        "    title: Sample Collection\n"
+        "    source_root: content\n"
+        "    pages:\n"
+        "      - slug: overview\n"
+        "        title: Overview\n"
+        "        source: README.md\n",
+        encoding="utf-8",
+    )
+
+    # Act
+    site = SiteConfigRepository().load(config_path)
+
+    # Assert
+    collection = site.collections[0]
+    assert collection.kind == "default"
+    page = collection.pages[0]
+    assert page.date is None
+    assert page.authors == ()
+    assert page.draft is False
+    assert page.pin is False
+    assert page.readtime_minutes is None
+
+
+def test_load_rejects_unknown_collection_kind(tmp_path: Path) -> None:
+    # Arrange
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        "site:\n"
+        "  title: Learning Site\n"
+        "collections:\n"
+        "  - name: blog\n"
+        "    title: Blog\n"
+        "    source_root: content/blog\n"
+        "    kind: newsletter\n"
+        "    pages:\n"
+        "      - slug: post\n"
+        "        title: Post\n"
+        "        source: post.md\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="Invalid site config"):
         SiteConfigRepository().load(config_path)

@@ -1,5 +1,5 @@
 import json
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
@@ -60,6 +60,9 @@ class SpyPageRenderer:
     def __init__(self) -> None:
         self.render_page_calls: list[RenderedPage] = []
         self.render_index_calls: list[RenderedIndex] = []
+        self.render_feed_calls: list[
+            tuple[Site, ContentCollection, tuple[RenderedPage, ...]]
+        ] = []
         self.render_sitemap_calls: list[
             tuple[Site, tuple[ContentCollection, ...]]
         ] = []
@@ -75,6 +78,16 @@ class SpyPageRenderer:
     def render_index(self, rendered_index: RenderedIndex) -> str:
         self.render_index_calls.append(rendered_index)
         return "<html>Index</html>"
+
+    def render_feed(
+        self,
+        site: Site,
+        collection: ContentCollection,
+        posts: tuple[RenderedPage, ...],
+        variant=None,
+    ) -> str:
+        self.render_feed_calls.append((site, collection, posts))
+        return "<rss/>"
 
     def render_sitemap(
         self, site: Site, collections: tuple[ContentCollection, ...]
@@ -2260,3 +2273,56 @@ def _builder_for(
         dependency_tracker=InMemoryDependencyTracker(),
         search_index=InMemorySearchIndex(),
     )
+
+
+def test_build_emits_posts_index_and_feed_for_dated_posts_collection(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    config_path = tmp_path / "site" / "site.yaml"
+    output_path = tmp_path / "site" / "build"
+    page = Page(
+        slug="post-1",
+        title="Post 1",
+        source_path=tmp_path / "post-1.md",
+        date=datetime(2026, 2, 1, tzinfo=UTC),
+    )
+    collection = ContentCollection(
+        name="blog",
+        title="Blog",
+        source_root=tmp_path,
+        output_slug="blog",
+        pages=(page,),
+        videos={},
+        kind="posts",
+    )
+    site = Site(
+        title="Learning Site",
+        description="",
+        collections=(collection,),
+        url="https://example.com/docs",
+    )
+    site_repository = SpySiteRepository(site)
+    content_renderer = SpyContentRenderer()
+    page_renderer = SpyPageRenderer()
+    article_outline_builder = SpyArticleOutlineBuilder()
+    builder = StaticSiteBuilder(
+        site_repository=site_repository,
+        content_renderers=(content_renderer,),
+        page_renderer=page_renderer,
+        article_outline_builder=article_outline_builder,
+        site_variant_provider=SingleSiteVariantProvider(),
+        dependency_tracker=InMemoryDependencyTracker(),
+        search_index=InMemorySearchIndex(),
+    )
+
+    # Act
+    builder.build(config_path, output_path)
+
+    # Assert
+    collection_output_path = output_path / "blog"
+    assert (collection_output_path / "index.html").exists()
+    assert (collection_output_path / "feed.xml").exists()
+    assert page_renderer.render_feed_calls[0][0] == site
+    assert page_renderer.render_feed_calls[0][1] == collection
+    assert len(page_renderer.render_feed_calls[0][2]) == 1

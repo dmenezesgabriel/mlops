@@ -6,6 +6,7 @@ from ssg.domain import (
     RenderedNotFound,
     RenderedPage,
     Site,
+    SiteVariant,
 )
 from ssg.infrastructure.frontend.jinja_environment import (
     create_frontend_environment,
@@ -32,6 +33,10 @@ class JinjaPageRenderer(PageRenderer):
         self._version_redirect_template = self._environment.get_template(
             "version_redirect.html"
         )
+        self._posts_index_template = self._environment.get_template(
+            "posts_index.html"
+        )
+        self._feed_template = self._environment.get_template("feed.xml")
 
     def render_page(self, rendered_page: RenderedPage) -> str:
         return self._page_template.render(rendered_page=rendered_page)
@@ -59,6 +64,17 @@ class JinjaPageRenderer(PageRenderer):
 
     def render_version_redirect(self, site: Site, target: str) -> str:
         return self._version_redirect_template.render(site=site, target=target)
+
+    def render_feed(
+        self,
+        site: Site,
+        collection: ContentCollection,
+        posts: tuple[RenderedPage, ...],
+        variant: SiteVariant | None = None,
+    ) -> str:
+        return self._feed_template.render(
+            site=site, collection=collection, posts=posts, variant=variant
+        )
 
     def assets(self) -> dict[str, str]:
         return {

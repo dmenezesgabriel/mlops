@@ -1,6 +1,6 @@
 import shutil
 from dataclasses import replace
-from datetime import date
+from datetime import UTC, date, datetime
 from logging import getLogger
 from pathlib import Path
 from uuid import uuid4
@@ -46,6 +46,7 @@ from ssg.domain import (
     SocialCard,
     alternate_links_for,
 )
+from ssg.domain.readtime import calculate_readtime_minutes
 
 LOGGER = getLogger(__name__)
 
@@ -295,6 +296,126 @@ class StaticSiteBuilder:
                     },
                 },
             )
+        if collection.is_dated_posts:
+            self._emit_posts_artifacts(
+                site_variant,
+                site_variants,
+                collection,
+                affected_pages,
+                context,
+            )
+
+    def _emit_posts_artifacts(
+        self,
+        site_variant: SiteVariant,
+        site_variants: tuple[SiteVariant, ...],
+        collection: ContentCollection,
+        affected_pages: set[Page] | None,
+        context: BuildContext,
+    ) -> None:
+        posts = self._prepare_posts(
+            collection, site_variant, site_variants, context
+        )
+        collection_output_path = (
+            site_variant.output_path / collection.output_slug
+        )
+        collection_output_path.mkdir(parents=True, exist_ok=True)
+        site = site_variant.site
+        rendered_index = RenderedIndex(
+            site=site,
+            collections=(
+                ContentCollection(
+                    name=collection.name,
+                    title=collection.title,
+                    source_root=collection.source_root,
+                    output_slug=collection.output_slug,
+                    pages=tuple(post.page for post in posts),
+                    videos=collection.videos,
+                    images=collection.images,
+                    kind=collection.kind,
+                ),
+            ),
+            navigation=site.navigation_for(
+                None, None, collections=(collection,)
+            ),
+            language_links=index_language_links(site_variant, site_variants),
+            version_links=version_links_for(
+                site_variant, site_variant.output_path / collection.output_slug
+            ),
+            alternate_links=alternate_links_for(
+                site_variants, f"{collection.output_slug}/"
+            ),
+        )
+        index_path = collection_output_path / "index.html"
+        index_path.write_text(
+            self._page_renderer.render_index(rendered_index), encoding="utf-8"
+        )
+        feed_path = collection_output_path / "feed.xml"
+        feed_path.write_text(
+            self._page_renderer.render_feed(site, collection, posts),
+            encoding="utf-8",
+        )
+
+    def _prepare_posts(
+        self,
+        collection: ContentCollection,
+        site_variant: SiteVariant,
+        site_variants: tuple[SiteVariant, ...],
+        context: BuildContext,
+    ) -> tuple[RenderedPage, ...]:
+        site = site_variant.site
+        now = datetime.now(UTC)
+        posts_list: list[RenderedPage] = []
+        for page in collection.pages:
+            if page.draft:
+                continue
+            if page.date is not None and page.date > now:
+                continue
+            body = self._render_body(site, collection, page, context)
+            social_image = self._write_social_card(
+                site_variant,
+                SocialCard(
+                    site_title=site.title,
+                    eyebrow=collection.title,
+                    title=page.title,
+                    description=site.description,
+                    locale=site.locale,
+                ),
+                f"assets/social/{collection.output_slug}/{page.slug}.png",
+            )
+            readtime = None
+            try:
+                readtime = calculate_readtime_minutes(body)
+            except Exception:
+                readtime = None
+            page_with_readtime = Page(
+                slug=page.slug,
+                title=page.title,
+                source_path=page.source_path,
+                original_source_path=page.original_source_path,
+                date=page.date,
+                authors=page.authors,
+                draft=page.draft,
+                pin=page.pin,
+                readtime_minutes=readtime,
+            )
+            rendered_page = self._rendered_page(
+                site_variant,
+                site_variants,
+                collection,
+                page_with_readtime,
+                body,
+                social_image,
+            )
+            posts_list.append(rendered_page)
+        posts_list.sort(
+            key=lambda p: (
+                0 if p.page.pin else 1,
+                -p.page.date.timestamp() if p.page.date else 0,
+                p.page.slug,
+            )
+        )
+        return tuple(posts_list)
 
     def _write_assets(self, site_variant: SiteVariant) -> None:
         asset_path = site_variant.output_path / "assets"
@@ -496,6 +617,8 @@ class StaticSiteBuilder:
             edit_url=self._edit_url(site, revision_source),
             last_updated=self._last_updated(site, revision_source),
             social_image=social_image,
+            authors=page.authors,
+            readtime_minutes=page.readtime_minutes,
         )
 
     def _edit_url(self, site: Site, source_path: Path) -> str | None:

@@ -14,6 +14,7 @@ class ContentCollection:
     pages: tuple[Page, ...]
     videos: dict[str, Path]
     images: dict[str, Path] = field(default_factory=dict)
+    kind: str = "default"
     _slug_to_index: dict[str, int] = field(
         init=False, repr=False, compare=False
     )
@@ -91,6 +92,10 @@ class ContentCollection:
         raise ValueError(
             f"Empty collection {self.name}: expected at least one page"
         )
+
+    @property
+    def is_dated_posts(self) -> bool:
+        return self.kind in ("posts", "dated-posts")
 
     def root_href(self) -> str:
         return f"{self.output_slug}/{self.first_page().file_name()}"

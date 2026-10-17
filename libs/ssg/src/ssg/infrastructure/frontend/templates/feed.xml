@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>{{ site.title }}</title>
+    <link>{{ site.absolute_url(collection.output_slug + '/') if collection.output_slug else site.absolute_url('') }}</link>
+    <description>{{ site.description }}</description>
+    <language>{{ site.locale }}</language>
+    <generator>ssg</generator>
+    {% for post in posts %}
+    <item>
+      <title>{{ post.page.title }}</title>
+      <link>{{ site.absolute_url(collection.output_slug + '/' + post.page.file_name()) }}</link>
+      <guid>{{ site.absolute_url(collection.output_slug + '/' + post.page.file_name()) }}</guid>
+      {% if post.page.date %}
+      <pubDate>{{ post.page.date.strftime('%a, %d %b %Y %H:%M:%S GMT') }}</pubDate>
+      {% endif %}
+      {% if post.authors %}
+        {% for author in post.authors %}
+          {% if author.name %}
+      <dc:creator>{{ author.name }}</dc:creator>
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+    </item>
+    {% endfor %}
+  </channel>
+</rss>

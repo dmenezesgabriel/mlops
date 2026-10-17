@@ -1,5 +1,19 @@
-{% if rendered_page.edit_url or rendered_page.last_updated %}
+{% if rendered_page.edit_url or rendered_page.last_updated or rendered_page.authors or rendered_page.readtime_minutes %}
 <div class="page-meta">
+  {% if rendered_page.authors %}
+    <p class="page-authors">
+      {% for author in rendered_page.authors %}
+        {% if author.url %}
+          <a class="page-author" href="{{ author.url }}">{{ author.name or author.url }}</a>{% if not loop.last %}, {% endif %}
+        {% elif author.name %}
+          <span class="page-author">{{ author.name }}</span>{% if not loop.last %}, {% endif %}
+        {% endif %}
+      {% endfor %}
+    </p>
+  {% endif %}
+  {% if rendered_page.readtime_minutes %}
+    <p class="page-readtime">{{ rendered_page.readtime_minutes }} min read</p>
+  {% endif %}
   {% if rendered_page.edit_url %}
     <a class="edit-link" href="{{ rendered_page.edit_url }}">
       {{- site.extension_setting('i18n', 'label_edit_page', 'Edit page') -}}

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -12,6 +13,15 @@ class Page:
     # gitignored translations under site/.ssg/). Provenance for revision
     # lookups and edit links, which must never target generated output.
     original_source_path: Path | None = None
+    date: datetime | None = None
+    authors: tuple[dict[str, str], ...] = ()
+    draft: bool = False
+    pin: bool = False
+    readtime_minutes: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.date is not None and self.date.tzinfo is None:
+            object.__setattr__(self, "date", self.date.replace(tzinfo=UTC))
 
     def file_name(self) -> str:
         return f"{self.slug}.html"

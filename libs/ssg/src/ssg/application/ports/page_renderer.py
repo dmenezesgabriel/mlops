@@ -7,6 +7,7 @@ from ssg.domain import (
     RenderedNotFound,
     RenderedPage,
     Site,
+    SiteVariant,
 )
 
 
@@ -28,5 +29,13 @@ class PageRenderer(Protocol):
     def render_service_worker(self, manifest: PrecacheManifest) -> str: ...
 
     def render_version_redirect(self, site: Site, target: str) -> str: ...
+
+    def render_feed(
+        self,
+        site: Site,
+        collection: ContentCollection,
+        posts: tuple[RenderedPage, ...],
+        variant: SiteVariant | None = None,
+    ) -> str: ...
 
     def assets(self) -> dict[str, str]: ...

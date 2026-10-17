@@ -33,3 +33,5 @@ class RenderedPage:
     # when a SocialCardRenderer plugin is installed); falls back to
     # site.image in head.html when unset.
     social_image: str | None = None
+    authors: tuple[dict[str, str], ...] = ()
+    readtime_minutes: int | None = None

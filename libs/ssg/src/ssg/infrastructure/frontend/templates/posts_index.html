@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block content %}
+<main class="site-main">
+  <article class="post-index">
+    <header class="post-index__header">
+      <h1 class="post-index__title">{{ rendered_index.collections[0].title if rendered_index.collections else '' }}</h1>
+    </header>
+    <ul class="post-list">
+      {% for collection in rendered_index.collections %}
+        {% for page in collection.pages %}
+      <li class="post-list__item">
+        <a class="post-list__link" href="{{ collection.output_slug }}/{{ page.file_name() }}">
+          <span class="post-list__title">{{ page.title }}</span>
+        </a>
+        <div class="post-list__meta">
+          {% if page.date %}
+          <time class="post-list__date" datetime="{{ page.date.isoformat() }}">{{ page.date.strftime('%Y-%m-%d') }}</time>
+          {% endif %}
+          {% if page.readtime_minutes %}
+          <span class="post-list__readtime">{{ page.readtime_minutes }} min</span>
+          {% endif %}
+        </div>
+      </li>
+        {% endfor %}
+      {% endfor %}
+    </ul>
+  </article>
+</main>
+{% endblock %}

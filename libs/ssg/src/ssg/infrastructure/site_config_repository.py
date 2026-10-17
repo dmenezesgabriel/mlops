@@ -1,5 +1,6 @@
 import re
 from collections.abc import Iterable, Mapping
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import cast
 from urllib.parse import urlparse
@@ -266,6 +267,13 @@ class SiteConfigRepository(SiteRepository):
             for page in page_entries
         )
         self._reject_duplicate_page_slugs(pages, name, config_path)
+        kind = self._optional_string(
+            collection_map, "kind", "default", config_path
+        )
+        if kind not in ("default", "posts", "dated-posts"):
+            raise ValueError(
+                f"Invalid site config {config_path}: expected collection kind to be default, posts or dated-posts"
+            )
 
         return ContentCollection(
             name=name,
@@ -275,6 +283,7 @@ class SiteConfigRepository(SiteRepository):
             pages=pages,
             videos=self._read_asset_map(collection_map, "videos", config_path),
             images=self._read_asset_map(collection_map, "images", config_path),
+            kind=kind,
         )
 
     def _reject_duplicate_page_slugs(
@@ -300,13 +309,75 @@ class SiteConfigRepository(SiteRepository):
 
         slug = self._required_string(page_map, "slug", config_path)
         self._require_slug(slug, "page slug", config_path)
+
         return Page(
             slug=slug,
             title=self._required_string(page_map, "title", config_path),
             source_path=self._page_source_path(
                 page_map, source_root, config_path
             ),
+            date=self._parse_page_date(page_map, config_path),
+            authors=self._parse_page_authors(page_map, config_path),
+            draft=self._optional_bool(page_map, "draft", False, config_path),
+            pin=self._optional_bool(page_map, "pin", False, config_path),
         )
+
+    def _parse_page_date(
+        self, page_map: Mapping[object, object], config_path: Path
+    ) -> datetime | None:
+        date_value = page_map.get("date")
+        if date_value is None:
+            return None
+        if isinstance(date_value, datetime):
+            if date_value.tzinfo is None:
+                return date_value.replace(tzinfo=UTC)
+            return date_value.astimezone(UTC)
+        if isinstance(date_value, str):
+            return self._parse_date(date_value, config_path)
+        if isinstance(date_value, date):
+            return datetime(
+                date_value.year,
+                date_value.month,
+                date_value.day,
+                tzinfo=UTC,
+            )
+        raise ValueError(
+            f"Invalid site config {config_path}: expected date string"
+        )
+
+    def _parse_page_authors(
+        self, page_map: Mapping[object, object], config_path: Path
+    ) -> tuple[dict[str, str], ...]:
+        authors_value = page_map.get("authors")
+        if authors_value is None:
+            return ()
+        if not isinstance(authors_value, list):
+            raise ValueError(
+                f"Invalid site config {config_path}: expected authors list"
+            )
+        parsed_authors: list[dict[str, str]] = []
+        for author in cast(list[object], authors_value):
+            if isinstance(author, str):
+                parsed_authors.append({"name": author, "url": ""})
+                continue
+            if isinstance(author, dict):
+                author_map = cast(dict[object, object], author)
+                parsed_authors.append(
+                    {
+                        "name": self._optional_string(
+                            author_map, "name", "", config_path
+                        ),
+                        "url": self._optional_string(
+                            author_map, "url", "", config_path
+                        ),
+                    }
+                )
+                continue
+            raise ValueError(
+                f"Invalid site config {config_path}: "
+                "expected author mapping or string"
+            )
+        return tuple(parsed_authors)
 
     def _page_source_path(
         self,
@@ -543,6 +614,34 @@ class SiteConfigRepository(SiteRepository):
         if not value:
             return None
         return self._path_from_config(config_path, value)
+
+    def _parse_date(self, date_str: str, config_path: Path) -> datetime:
+        date_str = date_str.strip()
+        for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z"):
+            try:
+                dt = datetime.strptime(date_str, fmt)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=UTC)
+                else:
+                    dt = dt.astimezone(UTC)
+                return dt
+            except ValueError:
+                continue
+        try:
+            if date_str.endswith("Z"):
+                dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            else:
+                dt = datetime.fromisoformat(date_str)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=UTC)
+            else:
+                dt = dt.astimezone(UTC)
+            return dt
+        except ValueError:
+            pass
+        raise ValueError(
+            f"Invalid site config {config_path}: expected date string"
+        )
 
     def _optional_bool(
         self,
