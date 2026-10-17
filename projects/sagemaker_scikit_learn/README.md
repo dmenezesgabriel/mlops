@@ -1,6 +1,6 @@
 # sagemaker-scikit-learn
 
-Fully offline SageMaker local mode example using scikit-learn.
+Offline SageMaker local mode example using scikit-learn.
 
 Run it inside the repo's JupyterLab container, where `SAGEMAKER_LOCAL_*`
 environment variables point at the moto service.

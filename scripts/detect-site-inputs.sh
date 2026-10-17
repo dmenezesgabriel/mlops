@@ -8,7 +8,9 @@
 # this script does not classify all resolve to site=true — doubt rebuilds.
 #
 # Keep the ignore list in sync with the site inputs: site/**, the
-# collections referenced by site/site.yaml (projects/nyc_taxi_demand_forecasting),
+# collections referenced by site/site.yaml (projects/nyc_taxi_demand_forecasting,
+# projects/sagemaker_catboost, projects/sagemaker_lightgbm,
+# projects/sagemaker_scikit_learn, projects/sagemaker_xgboost),
 # libs/** (ssg + plugins + anything they import), Makefile, scripts/**,
 # pyproject.toml, uv.lock, .github/**.
 set -euo pipefail
@@ -65,7 +67,11 @@ while IFS= read -r file; do
             # Only the collections wired in site/site.yaml feed the site;
             # the other projects are gated code but not site inputs.
             case "$file" in
-                projects/nyc_taxi_demand_forecasting/*) emit true; exit 0 ;;
+                projects/nyc_taxi_demand_forecasting/* | \
+                projects/sagemaker_catboost/* | \
+                projects/sagemaker_lightgbm/* | \
+                projects/sagemaker_scikit_learn/* | \
+                projects/sagemaker_xgboost/*) emit true; exit 0 ;;
                 *) ;;
             esac
             ;;

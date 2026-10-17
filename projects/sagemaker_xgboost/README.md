@@ -1,6 +1,6 @@
 # sagemaker-xgboost
 
-Fully offline SageMaker local mode example using XGBoost via the generic
+Offline SageMaker local mode example using XGBoost through the generic
 bring-your-own-container `Estimator`.
 
 Run it inside the repo's JupyterLab container, where `SAGEMAKER_LOCAL_*`

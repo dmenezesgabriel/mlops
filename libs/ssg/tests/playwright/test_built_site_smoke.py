@@ -124,9 +124,11 @@ def _assert_home_page(page: Page, base_url: str) -> None:
     expect(page.locator("h1")).to_contain_text(expected_title)
     expect(page.locator(".site-header")).to_be_visible()
     expect(page.locator("#site-navigation")).to_be_visible()
-    expect(page.locator(".collection-card")).to_contain_text(
-        "NYC Taxi Demand Forecasting"
-    )
+    expect(
+        page.locator(
+            ".collection-card", has_text="NYC Taxi Demand Forecasting"
+        )
+    ).to_be_visible()
     # instant.js absolutizes relative hrefs/srcs on activation (material
     # resolve() parity), so attribute selectors match on the suffix.
     expect(page.locator("link[href$='assets/site.css']")).to_have_count(1)
@@ -165,7 +167,7 @@ def _assert_page_chrome(page: Page, path: str) -> None:
     expect(page.locator(".site-header")).to_be_visible()
     expect(page.locator("#site-navigation")).to_be_visible()
 
-    if "overview.html" in path:
+    if "nyc-taxi-demand-forecasting/overview.html" in path:
         # Assert: verify that the embedded MLOps diagram is visible
         expect(
             page.locator(
@@ -711,6 +713,11 @@ def _assert_page_meta_visible_without_js(page: Page, base_url: str) -> None:
 
 def _configured_paths() -> tuple[str, ...]:
     # Keep in sync with slugs listed in site/site.yaml → pages[].slug
+    sagemaker_pages = tuple(
+        f"/sagemaker-{framework}/{slug}.html"
+        for framework in ("xgboost", "catboost", "lightgbm", "scikit-learn")
+        for slug in ("overview", "train", "batch-transform", "pipeline")
+    )
     return (
         "/",
         "/nyc-taxi-demand-forecasting/overview.html",
@@ -720,6 +727,8 @@ def _configured_paths() -> tuple[str, ...]:
         "/nyc-taxi-demand-forecasting/data-preprocessing.html",
         "/nyc-taxi-demand-forecasting/feature-engineering.html",
         "/nyc-taxi-demand-forecasting/model-training.html",
+        *sagemaker_pages,
         "/pt-BR/",
         "/pt-BR/nyc-taxi-demand-forecasting/overview.html",
+        "/pt-BR/sagemaker-xgboost/overview.html",
     )

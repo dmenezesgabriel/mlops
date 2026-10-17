@@ -61,6 +61,73 @@ translations:
   Selected: Selecionado
   Rejected: Rejeitado
   Pros & Cons: Prós & Contras
+  SageMaker XGBoost: SageMaker XGBoost
+  SageMaker CatBoost: SageMaker CatBoost
+  SageMaker LightGBM: SageMaker LightGBM
+  SageMaker scikit-learn: SageMaker scikit-learn
+  Batch Transform: Transformacao em Lote
+  Pipeline: Pipeline
+  sagemaker-xgboost: sagemaker-xgboost
+  sagemaker-catboost: sagemaker-catboost
+  sagemaker-lightgbm: sagemaker-lightgbm
+  sagemaker-scikit-learn: sagemaker-scikit-learn
+  "Offline SageMaker local mode — XGBoost training": "Modo local offline do SageMaker — treinamento com XGBoost"
+  "Offline SageMaker local mode — CatBoost training": "Modo local offline do SageMaker — treinamento com CatBoost"
+  "Offline SageMaker local mode — LightGBM training": "Modo local offline do SageMaker — treinamento com LightGBM"
+  "Offline SageMaker local mode — scikit-learn training": "Modo local offline do SageMaker — treinamento com scikit-learn"
+  "Offline SageMaker local mode — XGBoost batch transform": "Modo local offline do SageMaker — transformação em lote com XGBoost"
+  "Offline SageMaker local mode — CatBoost batch transform": "Modo local offline do SageMaker — transformação em lote com CatBoost"
+  "Offline SageMaker local mode — LightGBM batch transform": "Modo local offline do SageMaker — transformação em lote com LightGBM"
+  "Offline SageMaker local mode — scikit-learn batch transform": "Modo local offline do SageMaker — transformação em lote com scikit-learn"
+  "Offline SageMaker local mode — XGBoost pipeline": "Modo local offline do SageMaker — pipeline com XGBoost"
+  "Offline SageMaker local mode — CatBoost pipeline": "Modo local offline do SageMaker — pipeline com CatBoost"
+  "Offline SageMaker local mode — LightGBM pipeline": "Modo local offline do SageMaker — pipeline com LightGBM"
+  "Offline SageMaker local mode — scikit-learn pipeline": "Modo local offline do SageMaker — pipeline com scikit-learn"
+  "Offline SageMaker local mode example using XGBoost through the generic\nbring-your-own-container `Estimator`.": "Exemplo de modo local offline do SageMaker usando XGBoost através do\n`Estimator` genérico (bring-your-own-container)."
+  "Offline SageMaker local mode example using CatBoost through the generic\nbring-your-own-container `Estimator`.": "Exemplo de modo local offline do SageMaker usando CatBoost através do\n`Estimator` genérico (bring-your-own-container)."
+  "Offline SageMaker local mode example using LightGBM.": "Exemplo de modo local offline do SageMaker usando LightGBM."
+  "Offline SageMaker local mode example using scikit-learn.": "Exemplo de modo local offline do SageMaker usando scikit-learn."
+  "Run it inside the repo's JupyterLab container, where `SAGEMAKER_LOCAL_*`\nenvironment variables point at the moto service.": "Execute dentro do contêiner JupyterLab do repositório, onde as variáveis\nde ambiente `SAGEMAKER_LOCAL_*` apontam para o serviço moto."
+  "Two images are used (both built from `libs/sagemaker-local/docker` assets):": "Duas imagens são usadas (ambas construídas a partir dos assets de `libs/sagemaker-local/docker`):"
+  "`sagemaker-xgboost:train` — training (`Dockerfile`); also serves online\nendpoints, so it carries the full serving stack plus `sagemaker-training`.": "`sagemaker-xgboost:train` — treinamento (`Dockerfile`); também serve endpoints\nonline, então carrega a pilha completa de serviço junto com `sagemaker-training`."
+  "`sagemaker-catboost:train` — training (`Dockerfile`); also serves online\nendpoints, so it carries the full serving stack plus `sagemaker-training`.": "`sagemaker-catboost:train` — treinamento (`Dockerfile`); também serve endpoints\nonline, então carrega a pilha completa de serviço junto com `sagemaker-training`."
+  "`sagemaker-lightgbm:train` — training (`Dockerfile`); also serves online\nendpoints, so it carries the full serving stack plus `sagemaker-training`.": "`sagemaker-lightgbm:train` — treinamento (`Dockerfile`); também serve endpoints\nonline, então carrega a pilha completa de serviço junto com `sagemaker-training`."
+  "`sagemaker-scikit-learn:train` — training (`Dockerfile`); also serves online\nendpoints, so it carries the full serving stack plus `sagemaker-training`.": "`sagemaker-scikit-learn:train` — treinamento (`Dockerfile`); também serve endpoints\nonline, então carrega a pilha completa de serviço junto com `sagemaker-training`."
+  "`sagemaker-xgboost:inference` — leaner inference-only image\n(`Dockerfile.inference`), used by offline batch transform.": "`sagemaker-xgboost:inference` — imagem mais enxuta, somente de inferência\n(`Dockerfile.inference`), usada pela transformação em lote offline."
+  "`sagemaker-catboost:inference` — leaner inference-only image\n(`Dockerfile.inference`), used by offline batch transform.": "`sagemaker-catboost:inference` — imagem mais enxuta, somente de inferência\n(`Dockerfile.inference`), usada pela transformação em lote offline."
+  "`sagemaker-lightgbm:inference` — leaner inference-only image\n(`Dockerfile.inference`), used by offline batch transform.": "`sagemaker-lightgbm:inference` — imagem mais enxuta, somente de inferência\n(`Dockerfile.inference`), usada pela transformação em lote offline."
+  "`sagemaker-scikit-learn:inference` — leaner inference-only image\n(`Dockerfile.inference`), used by offline batch transform.": "`sagemaker-scikit-learn:inference` — imagem mais enxuta, somente de inferência\n(`Dockerfile.inference`), usada pela transformação em lote offline."
+  "Build them with `make build-images`.": "Construa-as com `make build-images`."
+  "`notebooks/training.ipynb` — fit + deploy + predict on the `diabetes`\nregression dataset.": "`notebooks/training.ipynb` — ajuste + implantação + previsão no conjunto\nde dados de regressão `diabetes`."
+  "`notebooks/training.ipynb` — fit + deploy + predict on the\n`california_housing` regression dataset.": "`notebooks/training.ipynb` — ajuste + implantação + previsão no conjunto\nde dados de regressão `california_housing`."
+  "`notebooks/batch_transform.ipynb` — offline batch inference through the\ninference-only image on the first 20 rows of `diabetes`.": "`notebooks/batch_transform.ipynb` — inferência em lote offline através da\nimagem somente de inferência nas primeiras 20 linhas de `diabetes`."
+  "`notebooks/batch_transform.ipynb` — offline batch inference through the\ninference-only image on the first 20 rows of `california_housing`.": "`notebooks/batch_transform.ipynb` — inferência em lote offline através da\nimagem somente de inferência nas primeiras 20 linhas de `california_housing`."
+  "`notebooks/pipeline.ipynb` — a local `TrainingStep` pipeline on the `wine`\nmulticlass dataset.": "`notebooks/pipeline.ipynb` — um pipeline local com `TrainingStep` no\nconjunto de dados multiclasse `wine`."
+  "`notebooks/pipeline.ipynb` — a local `TrainingStep` pipeline on the\n`breast_cancer` binary classification dataset.": "`notebooks/pipeline.ipynb` — um pipeline local com `TrainingStep` no\nconjunto de dados de classificação binária `breast_cancer`."
+  "`notebooks/pipeline.ipynb` — a local `TrainingStep` pipeline on the\n`iris` classification dataset.": "`notebooks/pipeline.ipynb` — um pipeline local com `TrainingStep` no\nconjunto de dados de classificação `iris`."
+  "`notebooks/pipeline.ipynb` — a local `TrainingStep` pipeline on the\n`breast_cancer` classification dataset.": "`notebooks/pipeline.ipynb` — um pipeline local com `TrainingStep` no\nconjunto de dados de classificação `breast_cancer`."
+  "Tests: `make test` runs the fast wiring checks; `make test-notebooks` executes\nevery notebook end to end (docker + moto + a Jupyter kernel, run inside the\noffline stack).": "Testes: `make test` executa as verificações rápidas de integração; `make test-notebooks` roda\ncada notebook de ponta a ponta (docker + moto + um kernel Jupyter, dentro da\npilha offline)."
+  "1. Train": "1. Treine"
+  "3. Transform": "3. Transforme"
+  "Define the pipeline": "Defina o pipeline"
+  "Deploy & predict": "Implantar e prever"
+  "Cleanup": "Limpeza"
+  "Start the pipeline": "Inicie o pipeline"
+  "Batch inference against moto through `sagemaker-local` (no AWS). Same training flow as `training.ipynb`, scored offline instead of through an endpoint:": "Inferência em lote contra o moto através de `sagemaker-local` (sem AWS). Mesmo fluxo de treinamento de `training.ipynb`, mas a pontuação é feita offline em vez de através de um endpoint:"
+  "Train: `image_uri=sagemaker-xgboost:train` (generic `Estimator`) on `diabetes`.": "Treinamento: `image_uri=sagemaker-xgboost:train` (`Estimator` genérico) em `diabetes`."
+  "Train: `image_uri=sagemaker-catboost:train` (generic `Estimator`) on `diabetes`.": "Treinamento: `image_uri=sagemaker-catboost:train` (`Estimator` genérico) em `diabetes`."
+  "Train: `image_uri=sagemaker-lightgbm:train` (generic `Estimator`) on `california_housing`.": "Treinamento: `image_uri=sagemaker-lightgbm:train` (`Estimator` genérico) em `california_housing`."
+  "Train: `image_uri=sagemaker-scikit-learn:train` (generic `Estimator`) on `california_housing`.": "Treinamento: `image_uri=sagemaker-scikit-learn:train` (`Estimator` genérico) em `california_housing`."
+  "Serve: the inference-only image `sagemaker-xgboost:inference` runs the same serving entry point as an online endpoint, but the local batch-transform job calls it.": "Serviço: a imagem somente de inferência `sagemaker-xgboost:inference` executa o mesmo ponto de entrada de serviço que um endpoint online, mas o trabalho local de transformação em lote a invoca."
+  "Serve: the inference-only image `sagemaker-catboost:inference` runs the same serving entry point as an online endpoint, but the local batch-transform job calls it.": "Serviço: a imagem somente de inferência `sagemaker-catboost:inference` executa o mesmo ponto de entrada de serviço que um endpoint online, mas o trabalho local de transformação em lote a invoca."
+  "Serve: the inference-only image `sagemaker-lightgbm:inference` runs the same serving entry point as an online endpoint, but the local batch-transform job calls it.": "Serviço: a imagem somente de inferência `sagemaker-lightgbm:inference` executa o mesmo ponto de entrada de serviço que um endpoint online, mas o trabalho local de transformação em lote a invoca."
+  "Serve: the inference-only image `sagemaker-scikit-learn:inference` runs the same serving entry point as an online endpoint, but the local batch-transform job calls it.": "Serviço: a imagem somente de inferência `sagemaker-scikit-learn:inference` executa o mesmo ponto de entrada de serviço que um endpoint online, mas o trabalho local de transformação em lote a invoca."
+  "`train.py` fits a model on the scikit-learn dataset named by the `dataset` hyperparameter and writes `model.joblib` to `/opt/ml/model`, which the SDK uploads to moto S3.": "O `train.py` ajusta um modelo no conjunto de dados do scikit-learn indicado pelo hiperparâmetro `dataset` e grava `model.joblib` em `/opt/ml/model`, que o SDK envia ao S3 do moto."
+  "A `Model` pointed at the inference-only image and the trained artifacts is wrapped in a transformer. The transform job starts a serving container, asks it to publish its batch contract via `/execution-parameters`, then writes `x_test.csv.out` next to `x_test.csv`. The serving container produces the output file, one row per input record.": "Um `Model` apontado para a imagem somente de inferência e os artefatos treinados é encapsulado em um transformer. O trabalho de transformação inicia um contêiner de serviço, pede que ele publique seu contrato de lote via `/execution-parameters` e depois grava `x_test.csv.out` ao lado de `x_test.csv`. O contêiner de serviço produz o arquivo de saída com uma linha por registro de entrada."
+  "A single-`TrainingStep` SageMaker pipeline running locally against moto through `sagemaker-local`. Steps execute synchronously in local containers.": "Um pipeline SageMaker com um único `TrainingStep` executado localmente contra o moto através de `sagemaker-local`. As etapas rodam de forma síncrona em contêineres locais."
+  "The estimator's `fit()` is captured as a `TrainingStep` request; nothing runs until the pipeline is started.": "A chamada `fit()` do estimador é capturada como uma requisição `TrainingStep`; nada é executado até que o pipeline seja iniciado."
+  "Trains against a moto-backed S3/STS endpoint through the `sagemaker-local` library (no AWS). The job runs in a local Docker container.": "Treina contra um endpoint S3/STS suportado pelo moto através da biblioteca `sagemaker-local` (sem AWS). O trabalho é executado em um contêiner Docker local."
+  "Deploy starts a local serving container. Inputs are 2-D JSON arrays so the default serving input handler parses them correctly.": "A implantação inicia um contêiner de serviço local. As entradas são matrizes JSON 2-D, então o manipulador de entrada de serviço padrão as interpreta corretamente."
 glossary:
   Feast: Feast
   Feature Store: Feature Store
@@ -98,6 +165,17 @@ glossary:
   SQLite: SQLite
   DuckDB: DuckDB
   MLflow: MLflow
+  SageMaker: SageMaker
+  sagemaker-xgboost: sagemaker-xgboost
+  sagemaker-catboost: sagemaker-catboost
+  sagemaker-lightgbm: sagemaker-lightgbm
+  sagemaker-scikit-learn: sagemaker-scikit-learn
+  sagemaker-local: sagemaker-local
+  scikit-learn: scikit-learn
+  CatBoost: CatBoost
+  moto: moto
+  MultiRecord: MultiRecord
+  SingleRecord: SingleRecord
 
 
 

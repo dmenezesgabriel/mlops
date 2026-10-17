@@ -1,6 +1,6 @@
 # sagemaker-catboost
 
-Fully offline SageMaker local mode example using CatBoost via the generic
+Offline SageMaker local mode example using CatBoost through the generic
 bring-your-own-container `Estimator`.
 
 Run it inside the repo's JupyterLab container, where `SAGEMAKER_LOCAL_*`

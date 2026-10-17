@@ -1,6 +1,6 @@
 # sagemaker-lightgbm
 
-Fully offline SageMaker local mode example using LightGBM.
+Offline SageMaker local mode example using LightGBM.
 
 Run it inside the repo's JupyterLab container, where `SAGEMAKER_LOCAL_*`
 environment variables point at the moto service.

@@ -61,3 +61,71 @@ collections:
         mlops_lifecycle: ../videos/output/previews/mlops_lifecycle.mp4
       images:
         mlops_lifecycle: ../diagrams/output/mlops_lifecycle.png
+  - name: sagemaker_xgboost
+    title: SageMaker XGBoost
+    source_root: ../projects/sagemaker_xgboost
+    output_slug: sagemaker-xgboost
+    pages:
+      - slug: overview
+        title: Overview
+        source: README.md
+      - slug: train
+        title: Train
+        source: notebooks/training.ipynb
+      - slug: batch-transform
+        title: Batch Transform
+        source: notebooks/batch_transform.ipynb
+      - slug: pipeline
+        title: Pipeline
+        source: notebooks/pipeline.ipynb
+  - name: sagemaker_catboost
+    title: SageMaker CatBoost
+    source_root: ../projects/sagemaker_catboost
+    output_slug: sagemaker-catboost
+    pages:
+      - slug: overview
+        title: Overview
+        source: README.md
+      - slug: train
+        title: Train
+        source: notebooks/training.ipynb
+      - slug: batch-transform
+        title: Batch Transform
+        source: notebooks/batch_transform.ipynb
+      - slug: pipeline
+        title: Pipeline
+        source: notebooks/pipeline.ipynb
+  - name: sagemaker_lightgbm
+    title: SageMaker LightGBM
+    source_root: ../projects/sagemaker_lightgbm
+    output_slug: sagemaker-lightgbm
+    pages:
+      - slug: overview
+        title: Overview
+        source: README.md
+      - slug: train
+        title: Train
+        source: notebooks/training.ipynb
+      - slug: batch-transform
+        title: Batch Transform
+        source: notebooks/batch_transform.ipynb
+      - slug: pipeline
+        title: Pipeline
+        source: notebooks/pipeline.ipynb
+  - name: sagemaker_scikit_learn
+    title: SageMaker scikit-learn
+    source_root: ../projects/sagemaker_scikit_learn
+    output_slug: sagemaker-scikit-learn
+    pages:
+      - slug: overview
+        title: Overview
+        source: README.md
+      - slug: train
+        title: Train
+        source: notebooks/training.ipynb
+      - slug: batch-transform
+        title: Batch Transform
+        source: notebooks/batch_transform.ipynb
+      - slug: pipeline
+        title: Pipeline
+        source: notebooks/pipeline.ipynb
