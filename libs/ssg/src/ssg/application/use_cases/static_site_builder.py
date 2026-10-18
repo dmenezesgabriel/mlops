@@ -51,6 +51,23 @@ from ssg.domain.readtime import calculate_readtime_minutes
 LOGGER = getLogger(__name__)
 
 
+def is_published_post(page: Page, now: datetime) -> bool:
+    """A post is published unless it is a draft or dated in the future."""
+    if page.draft:
+        return False
+    return page.date is None or page.date <= now
+
+
+def post_sort_key(rendered: RenderedPage) -> tuple[int, float, str]:
+    """Pinned posts lead; the rest sort newest first, then by slug."""
+    published = rendered.page.date
+    return (
+        0 if rendered.page.pin else 1,
+        -published.timestamp() if published else 0.0,
+        rendered.page.slug,
+    )
+
+
 class StaticSiteBuilder:
     """Use Case for compiling configured content collections into static pages."""
 
@@ -272,7 +289,7 @@ class StaticSiteBuilder:
                 site_variant,
                 site_variants,
                 collection,
-                page,
+                self._with_readtime(collection, page, body),
                 body,
                 social_image,
             )
@@ -298,11 +315,7 @@ class StaticSiteBuilder:
             )
         if collection.is_dated_posts:
             self._emit_posts_artifacts(
-                site_variant,
-                site_variants,
-                collection,
-                affected_pages,
-                context,
+                site_variant, site_variants, collection, context
             )
 
     def _emit_posts_artifacts(
@@ -310,7 +323,6 @@ class StaticSiteBuilder:
         site_variant: SiteVariant,
         site_variants: tuple[SiteVariant, ...],
         collection: ContentCollection,
-        affected_pages: set[Page] | None,
         context: BuildContext,
     ) -> None:
         posts = self._prepare_posts(
@@ -320,8 +332,29 @@ class StaticSiteBuilder:
             site_variant.output_path / collection.output_slug
         )
         collection_output_path.mkdir(parents=True, exist_ok=True)
+        rendered_index = self._rendered_posts_index(
+            site_variant, site_variants, collection, posts
+        )
+        (collection_output_path / "index.html").write_text(
+            self._page_renderer.render_posts_index(rendered_index),
+            encoding="utf-8",
+        )
+        (collection_output_path / "feed.xml").write_text(
+            self._page_renderer.render_feed(
+                site_variant.site, collection, posts
+            ),
+            encoding="utf-8",
+        )
+
+    def _rendered_posts_index(
+        self,
+        site_variant: SiteVariant,
+        site_variants: tuple[SiteVariant, ...],
+        collection: ContentCollection,
+        posts: tuple[RenderedPage, ...],
+    ) -> RenderedIndex:
         site = site_variant.site
-        rendered_index = RenderedIndex(
+        return RenderedIndex(
             site=site,
             collections=(
                 ContentCollection(
@@ -346,15 +379,6 @@ class StaticSiteBuilder:
                 site_variants, f"{collection.output_slug}/"
             ),
         )
-        index_path = collection_output_path / "index.html"
-        index_path.write_text(
-            self._page_renderer.render_index(rendered_index), encoding="utf-8"
-        )
-        feed_path = collection_output_path / "feed.xml"
-        feed_path.write_text(
-            self._page_renderer.render_feed(site, collection, posts),
-            encoding="utf-8",
-        )
 
     def _prepare_posts(
         self,
@@ -363,59 +387,56 @@ class StaticSiteBuilder:
         site_variants: tuple[SiteVariant, ...],
         context: BuildContext,
     ) -> tuple[RenderedPage, ...]:
-        site = site_variant.site
         now = datetime.now(UTC)
-        posts_list: list[RenderedPage] = []
-        for page in collection.pages:
-            if page.draft:
-                continue
-            if page.date is not None and page.date > now:
-                continue
-            body = self._render_body(site, collection, page, context)
-            social_image = self._write_social_card(
-                site_variant,
-                SocialCard(
-                    site_title=site.title,
-                    eyebrow=collection.title,
-                    title=page.title,
-                    description=site.description,
-                    locale=site.locale,
-                ),
-                f"assets/social/{collection.output_slug}/{page.slug}.png",
+        posts = [
+            self._render_post(
+                site_variant, site_variants, collection, page, context
             )
-            readtime = None
-            try:
-                readtime = calculate_readtime_minutes(body)
-            except Exception:
-                readtime = None
-            page_with_readtime = Page(
-                slug=page.slug,
+            for page in collection.pages
+            if is_published_post(page, now)
+        ]
+        posts.sort(key=post_sort_key)
+        return tuple(posts)
+
+    def _render_post(
+        self,
+        site_variant: SiteVariant,
+        site_variants: tuple[SiteVariant, ...],
+        collection: ContentCollection,
+        page: Page,
+        context: BuildContext,
+    ) -> RenderedPage:
+        site = site_variant.site
+        body = self._render_body(site, collection, page, context)
+        social_image = self._write_social_card(
+            site_variant,
+            SocialCard(
+                site_title=site.title,
+                eyebrow=collection.title,
                 title=page.title,
-                source_path=page.source_path,
-                original_source_path=page.original_source_path,
-                date=page.date,
-                authors=page.authors,
-                draft=page.draft,
-                pin=page.pin,
-                readtime_minutes=readtime,
-            )
-            rendered_page = self._rendered_page(
-                site_variant,
-                site_variants,
-                collection,
-                page_with_readtime,
-                body,
-                social_image,
-            )
-            posts_list.append(rendered_page)
-        posts_list.sort(
-            key=lambda p: (
-                0 if p.page.pin else 1,
-                -p.page.date.timestamp() if p.page.date else 0,
-                p.page.slug,
-            )
+                description=site.description,
+                locale=site.locale,
+            ),
+            f"assets/social/{collection.output_slug}/{page.slug}.png",
         )
-        return tuple(posts_list)
+        published = self._with_readtime(collection, page, body)
+        return self._rendered_page(
+            site_variant,
+            site_variants,
+            collection,
+            published,
+            body,
+            social_image,
+        )
+
+    def _with_readtime(
+        self, collection: ContentCollection, page: Page, body: str
+    ) -> Page:
+        # Dated posts show a reading-time estimate on the post page and the
+        # collection index; other page kinds show none.
+        if not collection.is_dated_posts:
+            return page
+        return replace(page, readtime_minutes=calculate_readtime_minutes(body))
 
     def _write_assets(self, site_variant: SiteVariant) -> None:
         asset_path = site_variant.output_path / "assets"

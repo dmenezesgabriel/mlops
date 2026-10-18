@@ -33,8 +33,8 @@ Steps:
 7. [x] Versioning (SX-21)
    - Evidence: material `docs/setup/setting-up-versioning.md:18-25` (mike layout, reimplemented); `domain/value_objects/site_versioning.py` + `application/versioned_output.py` (per-version emit, alias byte-copies, `versions.json` registry, root redirect + mirrored 404) + `application/version_links.py`; `partials/header.html` + `static/js/site.js` (`mountVersionSwitcher` same-page switch); `Site.absolute_url` version-prefixes canonical/hreflang/sitemap; `site/site.yaml` versioning enabled (`current: 0.1`, `default: latest`); `tests/playwright/test_built_site_versioning.py` (5 tests)
    - Evidence: material `docs/setup/setting-up-versioning.md:18-25` (mike)
-8. [ ] Blog (SX-22)
-   - Evidence: material `src/plugins/blog/` (`plugin.py`, `structure/`, `readtime/`)
+8. [x] Blog (SX-22)
+   - Evidence: `templates/posts_index.html` + `jinja_page_renderer.render_posts_index` + `use_cases/static_site_builder.py` (`_with_readtime`, `_emit_posts_artifacts`, `is_published_post`/`post_sort_key`) + `domain/value_objects/author.py`; `libs/ssg-i18n/src/ssg_i18n/infrastructure/i18n_site_variant_provider.py` (localizes `kind` + page metadata + `label_min_read`); tests `libs/ssg/tests/integration/test_static_site_posts.py` + `libs/ssg-i18n/tests/integration/test_i18n_posts_generation.py` (en+pt-BR); material `src/plugins/blog/` (`plugin.py`, `structure/`, `readtime/`)
 
 **Exit criteria:** repo quality gates green for `libs/ssg` + any touched
 `ssg-*` lib (`make quality`); playwright covers the 320/390/768px sweep

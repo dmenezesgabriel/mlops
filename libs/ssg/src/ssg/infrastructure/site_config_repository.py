@@ -9,6 +9,7 @@ import yaml
 
 from ssg.application.ports import SiteRepository
 from ssg.domain import (
+    Author,
     ContentCollection,
     Page,
     Site,
@@ -347,7 +348,7 @@ class SiteConfigRepository(SiteRepository):
 
     def _parse_page_authors(
         self, page_map: Mapping[object, object], config_path: Path
-    ) -> tuple[dict[str, str], ...]:
+    ) -> tuple[Author, ...]:
         authors_value = page_map.get("authors")
         if authors_value is None:
             return ()
@@ -355,29 +356,26 @@ class SiteConfigRepository(SiteRepository):
             raise ValueError(
                 f"Invalid site config {config_path}: expected authors list"
             )
-        parsed_authors: list[dict[str, str]] = []
-        for author in cast(list[object], authors_value):
-            if isinstance(author, str):
-                parsed_authors.append({"name": author, "url": ""})
-                continue
-            if isinstance(author, dict):
-                author_map = cast(dict[object, object], author)
-                parsed_authors.append(
-                    {
-                        "name": self._optional_string(
-                            author_map, "name", "", config_path
-                        ),
-                        "url": self._optional_string(
-                            author_map, "url", "", config_path
-                        ),
-                    }
-                )
-                continue
-            raise ValueError(
-                f"Invalid site config {config_path}: "
-                "expected author mapping or string"
+        return tuple(
+            self._parse_page_author(author, config_path)
+            for author in cast(list[object], authors_value)
+        )
+
+    def _parse_page_author(self, author: object, config_path: Path) -> Author:
+        if isinstance(author, str):
+            return Author(name=author)
+        if isinstance(author, dict):
+            author_map = cast(dict[object, object], author)
+            return Author(
+                name=self._optional_string(
+                    author_map, "name", "", config_path
+                ),
+                url=self._optional_string(author_map, "url", "", config_path),
             )
-        return tuple(parsed_authors)
+        raise ValueError(
+            f"Invalid site config {config_path}: "
+            "expected author mapping or string"
+        )
 
     def _page_source_path(
         self,

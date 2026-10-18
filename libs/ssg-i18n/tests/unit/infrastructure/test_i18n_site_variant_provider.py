@@ -1,9 +1,10 @@
 import re
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from ssg.domain import BuildContext, ContentCollection, Page, Site
+from ssg.domain import Author, BuildContext, ContentCollection, Page, Site
 from ssg_i18n.application.ports.text_translator import TextTranslator
 from ssg_i18n.domain.value_objects.locale import Locale
 from ssg_i18n.infrastructure.i18n_site_variant_provider import (
@@ -851,3 +852,71 @@ def test_variants_translates_page_meta_labels(tmp_path: Path) -> None:
     portuguese_i18n = variants[1].site.extensions["i18n"]
     assert portuguese_i18n["label_edit_page"] == "Editar página"
     assert portuguese_i18n["label_last_updated"] == "Última atualização:"
+
+
+def _dated_posts_collection(content_root: Path) -> ContentCollection:
+    collection = _write_collection(
+        content_root, "blog", (("first-post", "First words.\n"),)
+    )
+    page = replace(
+        collection.pages[0],
+        date=datetime(2026, 2, 1, tzinfo=UTC),
+        authors=(Author(name="Ada Lovelace", url="https://example.com/ada"),),
+        draft=True,
+        pin=True,
+    )
+    return replace(collection, kind="posts", pages=(page,))
+
+
+def test_variants_preserves_dated_posts_collection_kind(
+    tmp_path: Path,
+) -> None:
+    # A posts collection must stay dated-posts after localization: dropping
+    # the kind silently removes the posts index and feed from every locale
+    # but the default one.
+    collection = _dated_posts_collection(tmp_path / "content")
+    provider = I18nSiteVariantProvider(RecordingTextTranslator({}))
+
+    variants = provider.variants(
+        _make_site(collection), _make_context(tmp_path)
+    )
+
+    assert [v.site.collections[0].kind for v in variants] == ["posts", "posts"]
+
+
+def test_variants_preserves_post_publishing_metadata(tmp_path: Path) -> None:
+    # date/authors/draft/pin are publishing controls the builder reads after
+    # localization: losing them publishes drafts, drops the feed's pubDate
+    # and reorders the index in non-default locales.
+    collection = _dated_posts_collection(tmp_path / "content")
+    provider = I18nSiteVariantProvider(RecordingTextTranslator({}))
+
+    variants = provider.variants(
+        _make_site(collection), _make_context(tmp_path)
+    )
+
+    localized_page = variants[1].site.collections[0].pages[0]
+    assert localized_page.date == datetime(2026, 2, 1, tzinfo=UTC)
+    assert localized_page.authors == (
+        Author(name="Ada Lovelace", url="https://example.com/ada"),
+    )
+    assert localized_page.draft is True
+    assert localized_page.pin is True
+
+
+def test_variants_translates_readtime_label(tmp_path: Path) -> None:
+    # Read-time is reader-facing chrome; its label must reach every locale
+    # through the same injected label sources as the other UI strings.
+    collection = _write_collection(
+        tmp_path / "content", "coll0", (("a", "First words.\n"),)
+    )
+    translator = RecordingTextTranslator({"min read": "min de leitura"})
+    provider = I18nSiteVariantProvider(translator)
+
+    variants = provider.variants(
+        _make_site(collection), _make_context(tmp_path)
+    )
+
+    assert variants[1].site.extensions["i18n"]["label_min_read"] == (
+        "min de leitura"
+    )

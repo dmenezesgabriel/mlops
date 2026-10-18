@@ -4,6 +4,7 @@ from pathlib import Path
 from ssg.application.ports.page_renderer import PageRenderer
 from ssg.domain import (
     Article,
+    Author,
     ContentCollection,
     Page,
     RenderedIndex,
@@ -22,7 +23,7 @@ def test_render_feed_emits_rss_with_absolute_urls(tmp_path: Path) -> None:
         title="First Post",
         source_path=tmp_path / "first.md",
         date=datetime(2026, 1, 15, tzinfo=UTC),
-        authors=({"name": "Alice"},),
+        authors=(Author(name="Alice"),),
     )
     collection = ContentCollection(
         name="blog",
@@ -64,6 +65,9 @@ def test_render_feed_works_with_variant_protocol(tmp_path: Path) -> None:
             return ""
 
         def render_index(self, rendered_index: RenderedIndex) -> str:
+            return ""
+
+        def render_posts_index(self, rendered_index: RenderedIndex) -> str:
             return ""
 
         def render_sitemap(

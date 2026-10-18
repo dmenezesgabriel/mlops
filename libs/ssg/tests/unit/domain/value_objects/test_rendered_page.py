@@ -7,6 +7,7 @@ from ssg.domain.value_objects.rendered_page import RenderedPage
 def test_rendered_page_allows_authors_and_readtime() -> None:
     from ssg.domain import (
         Article,
+        Author,
         ContentCollection,
         Page,
         Site,
@@ -32,9 +33,9 @@ def test_rendered_page_allows_authors_and_readtime() -> None:
         navigation=SiteNavigation(home_href="index.html", sections=()),
         previous_link=None,
         next_link=None,
-        authors=({"name": "Alice", "url": "https://x"},),
+        authors=(Author(name="Alice", url="https://x"),),
         readtime_minutes=2,
         last_updated=date(2026, 1, 1),
     )
-    assert rendered.authors == ({"name": "Alice", "url": "https://x"},)
+    assert rendered.authors == (Author(name="Alice", url="https://x"),)
     assert rendered.readtime_minutes == 2

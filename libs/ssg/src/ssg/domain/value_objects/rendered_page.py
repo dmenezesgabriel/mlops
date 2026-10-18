@@ -3,6 +3,7 @@ from datetime import date
 from typing import TYPE_CHECKING
 
 from ssg.domain.value_objects.alternate_link import AlternateLink
+from ssg.domain.value_objects.author import Author
 from ssg.domain.value_objects.language_link import LanguageLink
 from ssg.domain.value_objects.pager_link import PagerLink
 from ssg.domain.value_objects.site_navigation import SiteNavigation
@@ -33,5 +34,5 @@ class RenderedPage:
     # when a SocialCardRenderer plugin is installed); falls back to
     # site.image in head.html when unset.
     social_image: str | None = None
-    authors: tuple[dict[str, str], ...] = ()
+    authors: tuple[Author, ...] = ()
     readtime_minutes: int | None = None

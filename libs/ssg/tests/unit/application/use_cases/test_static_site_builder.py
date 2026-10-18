@@ -60,6 +60,7 @@ class SpyPageRenderer:
     def __init__(self) -> None:
         self.render_page_calls: list[RenderedPage] = []
         self.render_index_calls: list[RenderedIndex] = []
+        self.render_posts_index_calls: list[RenderedIndex] = []
         self.render_feed_calls: list[
             tuple[Site, ContentCollection, tuple[RenderedPage, ...]]
         ] = []
@@ -78,6 +79,10 @@ class SpyPageRenderer:
     def render_index(self, rendered_index: RenderedIndex) -> str:
         self.render_index_calls.append(rendered_index)
         return "<html>Index</html>"
+
+    def render_posts_index(self, rendered_index: RenderedIndex) -> str:
+        self.render_posts_index_calls.append(rendered_index)
+        return "<html>Posts Index</html>"
 
     def render_feed(
         self,
@@ -2323,6 +2328,8 @@ def test_build_emits_posts_index_and_feed_for_dated_posts_collection(
     collection_output_path = output_path / "blog"
     assert (collection_output_path / "index.html").exists()
     assert (collection_output_path / "feed.xml").exists()
+    # The blog index uses the posts template, not the site/collection grid.
+    assert len(page_renderer.render_posts_index_calls) == 1
     assert page_renderer.render_feed_calls[0][0] == site
     assert page_renderer.render_feed_calls[0][1] == collection
     assert len(page_renderer.render_feed_calls[0][2]) == 1

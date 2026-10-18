@@ -1,30 +1,50 @@
-{% extends "base.html" %}
-
-{% block content %}
-<main class="site-main">
-  <article class="post-index">
-    <header class="post-index__header">
-      <h1 class="post-index__title">{{ rendered_index.collections[0].title if rendered_index.collections else '' }}</h1>
-    </header>
-    <ul class="post-list">
-      {% for collection in rendered_index.collections %}
-        {% for page in collection.pages %}
-      <li class="post-list__item">
-        <a class="post-list__link" href="{{ collection.output_slug }}/{{ page.file_name() }}">
-          <span class="post-list__title">{{ page.title }}</span>
-        </a>
-        <div class="post-list__meta">
-          {% if page.date %}
-          <time class="post-list__date" datetime="{{ page.date.isoformat() }}">{{ page.date.strftime('%Y-%m-%d') }}</time>
-          {% endif %}
-          {% if page.readtime_minutes %}
-          <span class="post-list__readtime">{{ page.readtime_minutes }} min</span>
-          {% endif %}
-        </div>
-      </li>
-        {% endfor %}
-      {% endfor %}
-    </ul>
-  </article>
-</main>
+{% extends 'base.html' %}
+{% set site = rendered_index.site %}
+{% set collection = rendered_index.collections[0] %}
+{% set navigation = rendered_index.navigation %}
+{% set language_links = rendered_index.language_links %}
+{% set version_links = rendered_index.version_links %}
+{% set alternate_links = rendered_index.alternate_links %}
+{% set home_current = false %}
+{% block html_language %}{{ site.html_language() }}{% endblock %}
+{% block head %}
+  {% set title = collection.title ~ ' - ' ~ site.title %}
+  {% set description = site.description %}
+  {% set asset_prefix = '../' %}
+  {% set canonical_path = collection.output_slug ~ '/' %}
+  {% set og_type = 'website' %}
+  {% set social_image = rendered_index.social_image %}
+  {% include 'partials/head.html' %}
+  <link rel="alternate" type="application/rss+xml" title="{{ collection.title }}" href="feed.xml">
+{% endblock %}
+{% block body %}
+  {% include 'partials/header.html' %}
+  <div class="site-shell sidebar-layout">
+    {% include 'partials/navigation.html' %}
+    <main class="content" id="main-content" tabindex="-1">
+      <article class="post-index">
+        <header class="post-index__header story-step">
+          <h1 class="post-index__title">{{ collection.title }}</h1>
+        </header>
+        <ul class="post-list">
+          {% for page in collection.pages %}
+          <li class="post-list__item">
+            <a class="post-list__link" href="{{ page.file_name() }}">
+              <span class="post-list__title">{{ page.title }}</span>
+            </a>
+            <div class="post-list__meta">
+              {% if page.date %}
+              <time class="post-list__date" datetime="{{ page.date.isoformat() }}">{{ page.date | format_date(site.locale) }}</time>
+              {% endif %}
+              {% if page.readtime_minutes %}
+              <span class="post-list__readtime">{{ page.readtime_minutes }} {{ site.extension_setting('i18n', 'label_min_read', 'min read') }}</span>
+              {% endif %}
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+      </article>
+    </main>
+  </div>
+  {% include 'partials/footer.html' %}
 {% endblock %}

@@ -12,7 +12,7 @@
     </p>
   {% endif %}
   {% if rendered_page.readtime_minutes %}
-    <p class="page-readtime">{{ rendered_page.readtime_minutes }} min read</p>
+    <p class="page-readtime">{{ rendered_page.readtime_minutes }} {{ site.extension_setting('i18n', 'label_min_read', 'min read') }}</p>
   {% endif %}
   {% if rendered_page.edit_url %}
     <a class="edit-link" href="{{ rendered_page.edit_url }}">

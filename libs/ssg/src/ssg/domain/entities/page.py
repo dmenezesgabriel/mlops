@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from ssg.domain.value_objects.author import Author
+
 
 @dataclass(frozen=True)
 class Page:
@@ -14,7 +16,7 @@ class Page:
     # lookups and edit links, which must never target generated output.
     original_source_path: Path | None = None
     date: datetime | None = None
-    authors: tuple[dict[str, str], ...] = ()
+    authors: tuple[Author, ...] = ()
     draft: bool = False
     pin: bool = False
     readtime_minutes: int | None = None

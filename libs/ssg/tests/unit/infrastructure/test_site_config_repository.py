@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from ssg.domain import SiteVersion, SiteVersioning
+from ssg.domain import Author, SiteVersion, SiteVersioning
 from ssg.infrastructure.site_config_repository import SiteConfigRepository
 
 
@@ -1146,13 +1146,13 @@ def test_load_reads_post_metadata(tmp_path: Path) -> None:
     assert collection.kind == "posts"
     first_page = collection.pages[0]
     assert first_page.date == datetime(2026, 1, 15, tzinfo=UTC)
-    assert first_page.authors == ({"name": "Alice", "url": ""},)
+    assert first_page.authors == (Author(name="Alice", url=""),)
     assert first_page.draft is False
     assert first_page.pin is False
     second_page = collection.pages[1]
     assert second_page.date == datetime(2026, 2, 20, 9, 30, tzinfo=UTC)
     assert second_page.authors == (
-        {"name": "Bob", "url": "https://example.com/bob"},
+        Author(name="Bob", url="https://example.com/bob"),
     )
     assert second_page.draft is True
 

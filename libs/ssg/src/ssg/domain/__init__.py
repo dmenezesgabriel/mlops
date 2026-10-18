@@ -10,6 +10,7 @@ from ssg.domain.value_objects.article_heading import (
     ArticleHeading,
     demote_top_level_headings,
 )
+from ssg.domain.value_objects.author import Author
 from ssg.domain.value_objects.build_context import BuildContext
 from ssg.domain.value_objects.language_link import LanguageLink
 from ssg.domain.value_objects.navigation_link import NavigationLink
@@ -36,6 +37,7 @@ __all__ = [
     "alternate_links_for",
     "ArticleHeading",
     "demote_top_level_headings",
+    "Author",
     "BuildContext",
     "LanguageLink",
     "NavigationLink",

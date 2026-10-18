@@ -44,6 +44,9 @@ class JinjaPageRenderer(PageRenderer):
     def render_index(self, rendered_index: RenderedIndex) -> str:
         return self._index_template.render(rendered_index=rendered_index)
 
+    def render_posts_index(self, rendered_index: RenderedIndex) -> str:
+        return self._posts_index_template.render(rendered_index=rendered_index)
+
     def render_sitemap(
         self, site: Site, collections: tuple[ContentCollection, ...]
     ) -> str:

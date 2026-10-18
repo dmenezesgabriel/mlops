@@ -264,6 +264,7 @@ class I18nSiteVariantProvider(SiteVariantProvider):
             "label_back_to_top": "Back to top",
             "label_edit_page": "Edit page",
             "label_last_updated": "Last updated:",
+            "label_min_read": "min read",
             "label_alert_note": "Note",
             "label_alert_tip": "Tip",
             "label_alert_important": "Important",
@@ -292,6 +293,9 @@ class I18nSiteVariantProvider(SiteVariantProvider):
             ),
             videos=collection.videos,
             images=collection.images,
+            # kind selects post-specific build artifacts (index + feed); it
+            # must survive localization or non-default locales emit none.
+            kind=collection.kind,
         )
 
     def _localized_page(
@@ -318,6 +322,12 @@ class I18nSiteVariantProvider(SiteVariantProvider):
             # The generated translation stands in for source_path; keep the
             # authored file as provenance for git history and edit links.
             original_source_path=page.original_source_path or page.source_path,
+            # Publishing controls the builder reads per variant: a lost date
+            # empties feed pubDates, a lost draft publishes the post.
+            date=page.date,
+            authors=page.authors,
+            draft=page.draft,
+            pin=page.pin,
         )
 
     def _ensure_translated_file(
