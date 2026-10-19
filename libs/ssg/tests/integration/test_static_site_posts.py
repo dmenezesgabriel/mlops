@@ -51,13 +51,59 @@ def test_posts_collection_renders_index_feed_and_read_time(
     _assert_post_page_meta(output_path)
 
 
+@pytest.mark.integration
+def test_unpublished_posts_reach_no_built_artifact(tmp_path: Path) -> None:
+    # Regression: the index and feed filtered drafts, but the page file, the
+    # social card, the sitemap and the search index did not.
+    config_path = _write_posts_site(tmp_path)
+    output_path = tmp_path / "site" / "build"
+
+    _build_site(config_path, output_path)
+
+    for slug in ("draft", "future"):
+        assert not (output_path / "blog" / f"{slug}.html").exists()
+        assert not (
+            output_path / "assets" / "social" / "blog" / f"{slug}.png"
+        ).exists()
+        assert f"blog/{slug}.html" not in _read_text(
+            output_path / "sitemap.xml"
+        )
+        assert f"blog/{slug}.html" not in _read_text(
+            output_path / "search-index.json"
+        )
+        # Sidebar navigation lists a collection's pages by link.
+        index_html = _read_text(output_path / "blog" / "index.html")
+        assert f"{slug}.html" not in index_html
+
+
+def _read_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+@pytest.mark.integration
+def test_all_draft_posts_collection_still_builds_an_empty_index(
+    tmp_path: Path,
+) -> None:
+    # A blog with nothing published yet keeps its index URL instead of
+    # crashing on an empty page list.
+    config_path = _write_site(tmp_path, _ONLY_DRAFT_PAGES, ("draft",))
+    output_path = tmp_path / "site" / "build"
+
+    _build_site(config_path, output_path)
+
+    assert not (output_path / "blog" / "draft.html").exists()
+    index_html = _read_text(output_path / "blog" / "index.html")
+    assert "Draft Post" not in index_html
+    assert "<item>" not in _read_text(output_path / "blog" / "feed.xml")
+
+
 def _posts_index_html(output_path: Path) -> str:
-    return (output_path / "blog" / "index.html").read_text(encoding="utf-8")
+    return _read_text(output_path / "blog" / "index.html")
 
 
 def _post_list_html(index_html: str) -> str:
-    # The sidebar navigation lists every page by title, drafts included; the
-    # published set is only what sits inside the post list itself.
+    # The published set is what sits inside the post list; the surrounding
+    # navigation carries the same published pages.
     start = index_html.index('class="post-list"')
     end = index_html.index("</ul>", start)
     return index_html[start:end]
@@ -120,7 +166,49 @@ def _assert_post_page_meta(output_path: Path) -> None:
     assert "minutes of reading" in post_html
 
 
+_POSTS_PAGES = (
+    "      - slug: intro\n"
+    "        title: Intro Post\n"
+    "        source: intro.md\n"
+    "        date: 2026-03-03\n"
+    "        authors:\n"
+    "          - Ada Lovelace\n"
+    "          - name: Grace Hopper\n"
+    "            url: https://example.com/grace\n"
+    "      - slug: pinned\n"
+    "        title: Pinned Post\n"
+    "        source: pinned.md\n"
+    "        date: 2026-01-01\n"
+    "        pin: true\n"
+    "      - slug: draft\n"
+    "        title: Draft Post\n"
+    "        source: draft.md\n"
+    "        date: 2026-02-01\n"
+    "        draft: true\n"
+    "      - slug: future\n"
+    "        title: Future Post\n"
+    "        source: future.md\n"
+    "        date: 2999-01-01\n"
+)
+
+_ONLY_DRAFT_PAGES = (
+    "      - slug: draft\n"
+    "        title: Draft Post\n"
+    "        source: draft.md\n"
+    "        date: 2026-02-01\n"
+    "        draft: true\n"
+)
+
+
 def _write_posts_site(tmp_path: Path) -> Path:
+    return _write_site(
+        tmp_path, _POSTS_PAGES, ("intro", "pinned", "draft", "future")
+    )
+
+
+def _write_site(
+    tmp_path: Path, pages_yaml: str, slugs: tuple[str, ...]
+) -> Path:
     site_path = tmp_path / "site"
     content_root = tmp_path / "content" / "blog"
     site_path.mkdir()
@@ -139,32 +227,10 @@ def _write_posts_site(tmp_path: Path) -> Path:
         "    kind: posts\n"
         "    source_root: ../content/blog\n"
         "    output_slug: blog\n"
-        "    pages:\n"
-        "      - slug: intro\n"
-        "        title: Intro Post\n"
-        "        source: intro.md\n"
-        "        date: 2026-03-03\n"
-        "        authors:\n"
-        "          - Ada Lovelace\n"
-        "          - name: Grace Hopper\n"
-        "            url: https://example.com/grace\n"
-        "      - slug: pinned\n"
-        "        title: Pinned Post\n"
-        "        source: pinned.md\n"
-        "        date: 2026-01-01\n"
-        "        pin: true\n"
-        "      - slug: draft\n"
-        "        title: Draft Post\n"
-        "        source: draft.md\n"
-        "        date: 2026-02-01\n"
-        "        draft: true\n"
-        "      - slug: future\n"
-        "        title: Future Post\n"
-        "        source: future.md\n"
-        "        date: 2999-01-01\n",
+        "    pages:\n" + pages_yaml,
         encoding="utf-8",
     )
-    for slug in ("intro", "pinned", "draft", "future"):
+    for slug in slugs:
         (content_root / f"{slug}.md").write_text(
             f"# {slug.title()} Post\n\nA paragraph of prose for {slug}.\n",
             encoding="utf-8",

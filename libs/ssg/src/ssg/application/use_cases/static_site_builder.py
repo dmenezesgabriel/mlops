@@ -51,13 +51,6 @@ from ssg.domain.readtime import calculate_readtime_minutes
 LOGGER = getLogger(__name__)
 
 
-def is_published_post(page: Page, now: datetime) -> bool:
-    """A post is published unless it is a draft or dated in the future."""
-    if page.draft:
-        return False
-    return page.date is None or page.date <= now
-
-
 def post_sort_key(rendered: RenderedPage) -> tuple[int, float, str]:
     """Pinned posts lead; the rest sort newest first, then by slug."""
     published = rendered.page.date
@@ -204,6 +197,12 @@ class StaticSiteBuilder:
         selected_collections = site_variant.site.selected_collections(
             collection_name
         )
+        # One clock reading per variant: emission, navigation, sitemap and
+        # search all agree on which posts are published.
+        now = datetime.now(UTC)
+        visible_collections = tuple(
+            collection.published(now) for collection in selected_collections
+        )
         site_variant.output_path.mkdir(parents=True, exist_ok=True)
         LOGGER.info(
             "site_variant_build_started",
@@ -216,11 +215,11 @@ class StaticSiteBuilder:
             },
         )
         self._write_assets(site_variant)
-        self._write_index(site_variant, site_variants, selected_collections)
+        self._write_index(site_variant, site_variants, visible_collections)
         variant_context = replace(
             context, output_path=site_variant.output_path
         )
-        for collection in selected_collections:
+        for collection in visible_collections:
             self._build_collection(
                 site_variant,
                 site_variants,
@@ -229,11 +228,9 @@ class StaticSiteBuilder:
                 affected_pages,
             )
         self._search_index.write(site_variant.output_path)
-        self._write_sitemap(site_variant, selected_collections)
+        self._write_sitemap(site_variant, visible_collections)
         self._write_robots_txt(site_variant)
-        self._write_not_found(
-            site_variant, site_variants, selected_collections
-        )
+        self._write_not_found(site_variant, site_variants, visible_collections)
         self._write_service_worker(site_variant, site_variants)
 
     def _build_collection(
@@ -387,13 +384,13 @@ class StaticSiteBuilder:
         site_variants: tuple[SiteVariant, ...],
         context: BuildContext,
     ) -> tuple[RenderedPage, ...]:
-        now = datetime.now(UTC)
+        # The caller already dropped drafts and future dates through
+        # ContentCollection.published, so every page here is emit-ready.
         posts = [
             self._render_post(
                 site_variant, site_variants, collection, page, context
             )
             for page in collection.pages
-            if is_published_post(page, now)
         ]
         posts.sort(key=post_sort_key)
         return tuple(posts)

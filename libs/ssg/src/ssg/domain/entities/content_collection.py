@@ -1,4 +1,5 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from datetime import datetime
 from pathlib import Path
 
 from ssg.domain.entities.page import Page
@@ -97,7 +98,28 @@ class ContentCollection:
     def is_dated_posts(self) -> bool:
         return self.kind in ("posts", "dated-posts")
 
+    def published(self, now: datetime) -> "ContentCollection":
+        """The emit-ready collection: drafts and future dates stay out.
+
+        Only dated-posts collections gate on `draft`/`date`; a plain
+        collection is returned unchanged so its pages keep building.
+        """
+        if not self.is_dated_posts:
+            return self
+
+        published_pages = tuple(
+            page for page in self.pages if page.is_published(now)
+        )
+        if len(published_pages) == len(self.pages):
+            return self
+
+        return replace(self, pages=published_pages)
+
     def root_href(self) -> str:
+        # A posts collection whose every entry is still a draft has no page
+        # to point at; its index is the collection's public entry point.
+        if not self.pages:
+            return f"{self.output_slug}/index.html"
         return f"{self.output_slug}/{self.first_page().file_name()}"
 
     def previous_page(self, current_page: Page) -> Page | None:

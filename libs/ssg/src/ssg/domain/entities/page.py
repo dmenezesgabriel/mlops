@@ -27,3 +27,9 @@ class Page:
 
     def file_name(self) -> str:
         return f"{self.slug}.html"
+
+    def is_published(self, now: datetime) -> bool:
+        """A page is published unless it is a draft or dated in the future."""
+        if self.draft:
+            return False
+        return self.date is None or self.date <= now

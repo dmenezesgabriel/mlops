@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -160,3 +161,86 @@ def test_page_index_rejects_unknown_slug(tmp_path: Path) -> None:
     # Act / Assert
     with pytest.raises(ValueError, match="expected one of"):
         collection.page_index("missing")
+
+
+def _posts_page(
+    slug: str, source_root: Path, date: datetime | None, draft: bool = False
+) -> Page:
+    return Page(
+        slug=slug,
+        title=slug.title(),
+        source_path=source_root / f"{slug}.md",
+        date=date,
+        draft=draft,
+    )
+
+
+def _posts_collection(
+    tmp_path: Path, pages: tuple[Page, ...]
+) -> ContentCollection:
+    return ContentCollection(
+        name="blog",
+        title="Blog",
+        source_root=tmp_path,
+        output_slug="blog",
+        pages=pages,
+        videos={},
+        kind="posts",
+    )
+
+
+def test_published_drops_draft_and_future_dated_posts(tmp_path: Path) -> None:
+    # Arrange
+    now = datetime(2026, 3, 1, tzinfo=UTC)
+    collection = _posts_collection(
+        tmp_path,
+        (
+            _posts_page("intro", tmp_path, datetime(2026, 2, 1, tzinfo=UTC)),
+            _posts_page("future", tmp_path, datetime(2026, 3, 2, tzinfo=UTC)),
+            _posts_page(
+                "draft", tmp_path, datetime(2026, 1, 1, tzinfo=UTC), draft=True
+            ),
+        ),
+    )
+
+    # Act
+    published = collection.published(now)
+
+    # Assert
+    assert tuple(page.slug for page in published.pages) == ("intro",)
+    assert published.name == collection.name
+    assert published.kind == "posts"
+    # The published view is also a usable navigation source.
+    assert published.page_index("intro") == 0
+
+
+def test_published_keeps_every_page_of_a_plain_collection(
+    tmp_path: Path,
+) -> None:
+    # Arrange — draft/date only gate dated-posts collections.
+    now = datetime(2026, 3, 1, tzinfo=UTC)
+    page = _posts_page(
+        "draft", tmp_path, datetime(2026, 1, 1, tzinfo=UTC), draft=True
+    )
+    collection = ContentCollection(
+        name="docs",
+        title="Docs",
+        source_root=tmp_path,
+        output_slug="docs",
+        pages=(page,),
+        videos={},
+    )
+
+    # Act & Assert
+    assert collection.published(now) is collection
+
+
+def test_root_href_falls_back_to_the_index_for_an_empty_collection(
+    tmp_path: Path,
+) -> None:
+    # Arrange — a blog whose every post is still a draft publishes no pages
+    # but still owns its index URL.
+    collection = _posts_collection(tmp_path, ())
+
+    # Act & Assert
+    assert collection.root_href() == "blog/index.html"

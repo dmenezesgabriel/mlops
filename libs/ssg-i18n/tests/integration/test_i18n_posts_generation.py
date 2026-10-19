@@ -41,6 +41,17 @@ def test_i18n_posts_emit_index_and_feed_per_locale(tmp_path: Path) -> None:
     # Assert
     _assert_default_locale_posts(output_path)
     _assert_translated_posts(output_path)
+    _assert_unpublished_posts_reach_no_artifact(output_path)
+
+
+def _assert_unpublished_posts_reach_no_artifact(output_path: Path) -> None:
+    # Regression: localization must not resurrect a draft as a built page.
+    for locale in ("", "pt-BR/"):
+        assert not (output_path / locale / "blog" / "draft.html").exists()
+        sitemap = (output_path / locale / "sitemap.xml").read_text(
+            encoding="utf-8"
+        )
+        assert "blog/draft.html" not in sitemap
 
 
 def _builder(
@@ -84,8 +95,8 @@ def _assert_translated_posts(output_path: Path) -> None:
 
 
 def _post_list_html(index_html: str) -> str:
-    # The sidebar navigation lists every page by title, drafts included; the
-    # published set is only what sits inside the post list itself.
+    # The published set is what sits inside the post list; the surrounding
+    # navigation carries the same published pages.
     start = index_html.index('class="post-list"')
     end = index_html.index("</ul>", start)
     return index_html[start:end]
