@@ -32,14 +32,13 @@ Steps:
    - Evidence: material `src/plugins/social/`; consumes SX-16's `og:image` emission
 7. [x] Versioning (SX-21)
    - Evidence: material `docs/setup/setting-up-versioning.md:18-25` (mike layout, reimplemented); `domain/value_objects/site_versioning.py` + `application/versioned_output.py` (per-version emit, alias byte-copies, `versions.json` registry, root redirect + mirrored 404) + `application/version_links.py`; `partials/header.html` + `static/js/site.js` (`mountVersionSwitcher` same-page switch); `Site.absolute_url` version-prefixes canonical/hreflang/sitemap; `site/site.yaml` versioning enabled (`current: 0.1`, `default: latest`); `tests/playwright/test_built_site_versioning.py` (5 tests)
-   - Evidence: material `docs/setup/setting-up-versioning.md:18-25` (mike)
 8. [x] Blog (SX-22)
    - Evidence: `templates/posts_index.html` + `jinja_page_renderer.render_posts_index` + `use_cases/static_site_builder.py` (`_with_readtime`, `_emit_posts_artifacts`, `is_published_post`/`post_sort_key`) + `domain/value_objects/author.py`; `libs/ssg-i18n/src/ssg_i18n/infrastructure/i18n_site_variant_provider.py` (localizes `kind` + page metadata + `label_min_read`); tests `libs/ssg/tests/integration/test_static_site_posts.py` + `libs/ssg-i18n/tests/integration/test_i18n_posts_generation.py` (en+pt-BR); material `src/plugins/blog/` (`plugin.py`, `structure/`, `readtime/`)
 
 **Exit criteria:** repo quality gates green for `libs/ssg` + any touched
 `ssg-*` lib (`make quality`); playwright covers the 320/390/768px sweep
 and the offline smoke; every feature works in both locales and degrades
-without JS (site convention); G-326…G-328 closed.
+without JS (site convention); G-326…G-328 and G-333…G-335 closed.
 
 ## M11 — container image standard (backlog §C, DK-1…6)
 
@@ -76,8 +75,13 @@ M11 standalone — touches only Dockerfiles, compose files and the two
 Makefile build/run targets. DK-1 and DK-2 are the two independent
 highest-value slices (supply chain, host safety) and can run in either
 order; DK-3/DK-4 each add a `USER` change verified by `make
-test-videos-docker` / `make test-diagrams-docker`; DK-5 is the smallest.
-No DK step depends on another.
+test-videos-docker` / `make test-diagrams-docker`; DK-5 is the smallest;
+DK-6 interlocks with the in-flight electricity refactor and follows DK-2.
+No DK step depends on another except DK-6 on that refactor.
+
+Cross-cutting fixes (backlog §B): AF-181 (draft leak) and AF-182
+(import-linter blocks every commit) are S1 and run before M11;
+AF-183…AF-186 batch behind them.
 
 Closed most recently: M9 → `docs/archive/ssg-site/`;
 M8 → `docs/archive/athena-emulator/milestones.md`.
