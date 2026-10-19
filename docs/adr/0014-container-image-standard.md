@@ -45,8 +45,10 @@ commit memory it never uses, which is why Trino already carries a 4 GiB cap
    different underlying version", while by pinning the digest "you're
    guaranteed to always use the same image version, even if a publisher
    replaces the tag with a new image". Because that also "opt[s] out of
-   automated security fixes", base images are bumped by Dependabot with
-   `package-ecosystem: docker`, which the same page recommends.
+   automated security fixes", base images are bumped by Dependabot — Dockerfiles
+   with `package-ecosystem: docker` and compose `image:` references with
+   `package-ecosystem: docker-compose`, the two ecosystems GitHub lists
+   separately (Dependabot, *Supported ecosystems and repositories*).
 2. **Multi-stage only when a build toolchain is needed.** Compilers and build
    caches stay in a builder stage; a stage is added only when a measurement
    shows the toolchain is present and unused at runtime.
@@ -81,8 +83,13 @@ commit memory it never uses, which is why Trino already carries a 4 GiB cap
    "enables it to receive signals like `SIGTERM` and `SIGKILL`". An init wrapper
    is never a blanket default, and never on a SageMaker image (quoted above).
 9. **Every compose service carries a measured `deploy.resources.limits.memory`.**
-   JVM heaps are pinned to fit inside the cap (`KAFKA_HEAP_OPTS`, Flink
-   `*.memory.process.size`), following the Trino/Kafka/Flink precedent.
+   `resources.limits` is the Compose Deploy Specification key for the amount a
+   container "must" be prevented from allocating, and the Compose plugin applies
+   it on a plain `docker compose up` — verified 2026-10-18: a 64 MiB cap on
+   Compose v5.5.1 gave `HostConfig.Memory=67108864`. JVM heaps are pinned to fit
+   inside the cap: `KAFKA_HEAP_OPTS` reaches `exec java` through the official
+   image's `kafka-server-start.sh`/`kafka-run-class.sh`, and Flink honours
+   `jobmanager.memory.process.size`/`taskmanager.memory.process.size`.
 10. **Distroless and musl bases are rejected by default.** The serving images
     link the glibc OpenMP runtime and the SageMaker toolkit assumes glibc;
     Alpine would force source builds. Revisit only for an image measured to

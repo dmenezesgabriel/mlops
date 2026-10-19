@@ -5,6 +5,8 @@ Scope: every Dockerfile and compose file in the repo, read against
 is registered in `docs/gaps.md`; anything that needs a build or run to settle
 stays in *Suspects* below. No image was built in this session (shared-host load
 gate — AGENTS "Host resources"), so no size or start-time number appears here.
+The one run measured was a throwaway `alpine` service, used to confirm that the
+compose cap below actually binds.
 
 Inventory: 14 Dockerfiles, 5 compose files, 13 unpinned `FROM` lines, 9 unpinned
 compose `image:` references.
@@ -26,9 +28,20 @@ compose `image:` references.
 
 Compose services: `trino` caps at 4 GiB (`docker-compose.yml:45-48`) and the
 electricity stack caps moto/Kafka/both Flink roles with pinned heaps
-(`projects/electricity_price_streaming/docker-compose.yml:15-18,35-39,51-54,69-72`).
+(`projects/electricity_price_streaming/docker-compose.yml:15-18,36-39,51-54,69-72`).
 The root `moto`/`athena`/`jupyterlab` and the california/telco/wine `moto`
-stacks are uncapped.
+stacks are uncapped. The electricity Flink services also run the stock `flink`
+image, which ships no Python, so the PyFlink job they mount cannot execute
+there (G-351).
+
+Measured this session (not a build): on Compose v5.5.1 a
+`deploy.resources.limits.memory: 64m` service came up with
+`HostConfig.Memory=67108864` and `docker stats` reporting a 64 MiB limit — the
+cap key does bind on a plain `docker compose up`, so the six uncapped services
+(G-346) are genuinely unbounded today. Every tag named in the two compose
+stacks resolves on its registry (`python:3.12-slim` ×2, `flink` ×2,
+`apache/kafka`, `trinodb/trino`, `motoserver/moto`, `manimcommunity/manim`), so
+the digest migration (G-341, G-342) has a live tag to pin for each.
 
 ## Registered deviations
 
@@ -42,6 +55,7 @@ stacks are uncapped.
 | G-346 | root `moto`/`athena`/`jupyterlab` + 3 project `moto` stacks carry no memory cap |
 | G-347 | `diagrams` runs as root; `Makefile:151` (and `:118` for videos) works around the resulting host-UID mismatch with `chmod 777` |
 | G-348 | no built image carries OCI annotations |
+| G-351 | the electricity Flink services mount a PyFlink job against the stock `flink` image, which ships no Python |
 
 ## Suspects (need a build or run)
 
@@ -49,7 +63,6 @@ stacks are uncapped.
 |---|---|---|
 | `build-essential` in the 4 training images | `projects/*/Dockerfile:8` | every pinned package ships a manylinux wheel, but removing the ~200 MB toolchain needs a build + serving test to confirm |
 | `libgomp1` variance | `projects/wine_quality_classification/Dockerfile:8` and `Dockerfile.inference:7-8` install neither `libgomp1` nor a replacement, while the other 3 training and 3 inference images do | sklearn wheels vendor their OpenMP runtime; whether the wine image runs without the apt package is unmeasured |
-| Athena has no memory cap | `docker-compose.yml:60-89` | the query semaphore bounds concurrency, not RSS; `docker stats` needed |
 | image sizes / CVE counts | all | host load prevented builds this session |
 
 ## Not findings
@@ -69,8 +82,15 @@ stacks are uncapped.
 
 - Docker, *Building best practices* — multi-stage, minimal base, `USER`,
   `LABEL`, `CMD` exec form, `.dockerignore`, "Pin base image versions"
-  (digest pinning + Dependabot `package-ecosystem: docker`):
+  (digest pinning + automated bumps):
   https://docs.docker.com/build/building/best-practices/
+- GitHub, *Dependabot — supported ecosystems and repositories* — `docker` (v1,
+  Dockerfiles) and `docker-compose` (v2/v3, compose files) are separate
+  ecosystems; digest pinning needs both:
+  https://docs.github.com/en/code-security/dependabot/ecosystems-supported-by-dependabot/supported-ecosystems-and-repositories
+- Compose, *Deploy Specification — `resources.limits`* — the platform "must
+  prevent the container to allocate more"; deploy is optional to a platform:
+  https://github.com/compose-spec/compose-spec/blob/main/deploy.md
 - uv, *Using uv in Docker* — copy uv from the official image, pin the version
   or digest, cache mounts, `--no-editable`, cache/intermediate layers:
   https://docs.astral.sh/uv/guides/integration/docker/
@@ -81,3 +101,13 @@ stacks are uncapped.
   https://pip.pypa.io/en/stable/topics/secure-installs/
 - OCI, *image-spec — Annotations* (`org.opencontainers.image.*`):
   https://github.com/opencontainers/image-spec/blob/main/annotations.md
+- Apache Kafka, `bin/kafka-server-start.sh` + `bin/kafka-run-class.sh` —
+  `KAFKA_HEAP_OPTS` is passed to `exec java`, so the official image's heap is
+  pin-able from compose (G-342, ADR-0014 §9):
+  https://github.com/apache/kafka/blob/trunk/bin/kafka-server-start.sh
+- Apache Flink, *Configuration* — `jobmanager.memory.process.size` and
+  `taskmanager.memory.process.size` are the container memory knobs:
+  https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/config/
+- Apache Flink, *Docker — Using Flink Python on Docker* — the stock image has no
+  Python; a custom image is required for PyFlink (G-351):
+  https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/resource-providers/standalone/docker/

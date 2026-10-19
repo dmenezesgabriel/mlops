@@ -41,7 +41,7 @@ Steps:
 and the offline smoke; every feature works in both locales and degrades
 without JS (site convention); G-326…G-328 closed.
 
-## M11 — container image standard (backlog §C, DK-1…5)
+## M11 — container image standard (backlog §C, DK-1…6)
 
 Goal: every built image and every compose service reference follows
 `docs/adr/0014-container-image-standard.md` — digest-pinned bases, locked
@@ -56,12 +56,13 @@ Steps:
 3. [ ] `videos` image (DK-3)
 4. [ ] `diagrams` image (DK-4)
 5. [ ] `jupyterlab` + `termux` images (DK-5)
+6. [ ] Flink streaming image: PyFlink-capable image for the electricity stack (DK-6)
 
-**Exit criteria:** G-341…G-348 closed or waived; each family built once and
-its existing tests green (`make test-docker` / `make test-diagrams-docker` /
-`make test-videos-docker` / the project image tests); `docker compose config`
-clean for all 5 compose files; base-bump automation (Dependabot `docker`)
-enabled.
+**Exit criteria:** G-341…G-348 and G-351 closed or waived; each family built
+once and its existing tests green (`make test-docker` / `make
+test-diagrams-docker` / `make test-videos-docker` / the project image tests);
+`docker compose config` clean for all 5 compose files; base-bump automation
+(Dependabot `docker` + `docker-compose`) enabled.
 
 ## Sequence & dependencies
 
