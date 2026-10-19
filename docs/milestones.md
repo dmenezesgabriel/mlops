@@ -41,6 +41,28 @@ Steps:
 and the offline smoke; every feature works in both locales and degrades
 without JS (site convention); G-326…G-328 closed.
 
+## M11 — container image standard (backlog §C, DK-1…5)
+
+Goal: every built image and every compose service reference follows
+`docs/adr/0014-container-image-standard.md` — digest-pinned bases, locked
+Python installs, OCI labels, non-root where we own the runtime, root only
+where the SageMaker contract requires it, and a measured memory cap per
+service. Audit + unmeasured suspects:
+`docs/audits/container-images-2026-10-18.md`.
+
+Steps:
+1. [ ] SageMaker image family: digest + hashed export + labels, root kept with the AWS comment (DK-1)
+2. [ ] compose stacks: digest pins + memory caps (DK-2)
+3. [ ] `videos` image (DK-3)
+4. [ ] `diagrams` image (DK-4)
+5. [ ] `jupyterlab` + `termux` images (DK-5)
+
+**Exit criteria:** G-341…G-348 closed or waived; each family built once and
+its existing tests green (`make test-docker` / `make test-diagrams-docker` /
+`make test-videos-docker` / the project image tests); `docker compose config`
+clean for all 5 compose files; base-bump automation (Dependabot `docker`)
+enabled.
+
 ## Sequence & dependencies
 
 M10 standalone — touches `libs/ssg`(+ `ssg-*` libs where a feature needs
@@ -48,6 +70,13 @@ them) and `site/`. SX-15/SX-16 are correctness + quick wins first;
 SX-19 runs after SX-18 so the service worker caches the final navigation
 behavior; SX-20 and SX-21 depend on SX-16 (`og:image` emission, canonical
 per-version URLs); SX-22 last — largest, self-contained.
+
+M11 standalone — touches only Dockerfiles, compose files and the two
+Makefile build/run targets. DK-1 and DK-2 are the two independent
+highest-value slices (supply chain, host safety) and can run in either
+order; DK-3/DK-4 each add a `USER` change verified by `make
+test-videos-docker` / `make test-diagrams-docker`; DK-5 is the smallest.
+No DK step depends on another.
 
 Closed most recently: M9 → `docs/archive/ssg-site/`;
 M8 → `docs/archive/athena-emulator/milestones.md`.
