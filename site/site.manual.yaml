@@ -61,71 +61,155 @@ collections:
         mlops_lifecycle: ../videos/output/previews/mlops_lifecycle.mp4
       images:
         mlops_lifecycle: ../diagrams/output/mlops_lifecycle.png
-  - name: sagemaker_xgboost
-    title: SageMaker XGBoost
-    source_root: ../projects/sagemaker_xgboost
-    output_slug: sagemaker-xgboost
+  - name: telco_customer_churn
+    title: Telco Customer Churn
+    source_root: ../projects/telco_customer_churn
+    output_slug: telco-customer-churn
     pages:
       - slug: overview
         title: Overview
-        source: README.md
-      - slug: train
+        source: notebooks/index.ipynb
+      - slug: problem-framing
+        title: Problem Framing
+        source: docs/01_problem_framing.md
+      - slug: data-collection
+        title: Data Collection
+        source: docs/02_data_collection.md
+      - slug: exploratory-data-analysis
+        title: Exploratory Data Analysis
+        source: notebooks/eda.ipynb
+      - slug: data-preprocessing
+        title: Data Preprocessing
+        source: docs/03_data_preprocessing.md
+      - slug: feature-engineering
+        title: Feature Engineering
+        source: notebooks/feature_engineering.ipynb
+      - slug: model-training
         title: Train
         source: notebooks/training.ipynb
-      - slug: batch-transform
-        title: Batch Transform
-        source: notebooks/batch_transform.ipynb
-      - slug: pipeline
-        title: Pipeline
-        source: notebooks/pipeline.ipynb
-  - name: sagemaker_catboost
-    title: SageMaker CatBoost
-    source_root: ../projects/sagemaker_catboost
-    output_slug: sagemaker-catboost
+      - slug: hyperparameter-tuning
+        title: Tune
+        source: notebooks/tuning.ipynb
+      - slug: model-evaluation
+        title: Evaluate
+        source: notebooks/evaluation.ipynb
+      - slug: model-deployment
+        title: Deploy
+        source: notebooks/deploy.ipynb
+      - slug: model-monitoring
+        title: Monitoring
+        source: notebooks/monitoring.ipynb
+  - name: california_house_pricing
+    title: California House Pricing
+    source_root: ../projects/california_house_pricing
+    output_slug: california-house-pricing
     pages:
       - slug: overview
         title: Overview
-        source: README.md
-      - slug: train
+        source: notebooks/index.ipynb
+      - slug: problem-framing
+        title: Problem Framing
+        source: docs/01_problem_framing.md
+      - slug: data-collection
+        title: Data Collection
+        source: docs/02_data_collection.md
+      - slug: exploratory-data-analysis
+        title: Exploratory Data Analysis
+        source: notebooks/eda.ipynb
+      - slug: data-preprocessing
+        title: Data Preprocessing
+        source: docs/03_data_preprocessing.md
+      - slug: feature-engineering
+        title: Feature Engineering
+        source: notebooks/feature_engineering.ipynb
+      - slug: model-training
         title: Train
         source: notebooks/training.ipynb
-      - slug: batch-transform
-        title: Batch Transform
-        source: notebooks/batch_transform.ipynb
-      - slug: pipeline
-        title: Pipeline
-        source: notebooks/pipeline.ipynb
-  - name: sagemaker_lightgbm
-    title: SageMaker LightGBM
-    source_root: ../projects/sagemaker_lightgbm
-    output_slug: sagemaker-lightgbm
+      - slug: hyperparameter-tuning
+        title: Tune
+        source: notebooks/tuning.ipynb
+      - slug: model-evaluation
+        title: Evaluate
+        source: notebooks/evaluation.ipynb
+      - slug: model-deployment
+        title: Deploy
+        source: notebooks/deploy.ipynb
+      - slug: model-monitoring
+        title: Monitoring
+        source: notebooks/monitoring.ipynb
+  - name: electricity_price_streaming
+    title: Electricity Price Streaming
+    source_root: ../projects/electricity_price_streaming
+    output_slug: electricity-price-streaming
     pages:
       - slug: overview
         title: Overview
-        source: README.md
-      - slug: train
+        source: notebooks/index.ipynb
+      - slug: problem-framing
+        title: Problem Framing
+        source: docs/01_problem_framing.md
+      - slug: data-collection
+        title: Data Collection
+        source: docs/02_data_collection.md
+      - slug: exploratory-data-analysis
+        title: Exploratory Data Analysis
+        source: notebooks/eda.ipynb
+      - slug: data-preprocessing
+        title: Data Preprocessing
+        source: docs/03_data_preprocessing.md
+      - slug: feature-engineering
+        title: Feature Engineering
+        source: notebooks/feature_engineering.ipynb
+      - slug: model-training
         title: Train
         source: notebooks/training.ipynb
-      - slug: batch-transform
-        title: Batch Transform
-        source: notebooks/batch_transform.ipynb
-      - slug: pipeline
-        title: Pipeline
-        source: notebooks/pipeline.ipynb
-  - name: sagemaker_scikit_learn
-    title: SageMaker scikit-learn
-    source_root: ../projects/sagemaker_scikit_learn
-    output_slug: sagemaker-scikit-learn
+      - slug: hyperparameter-tuning
+        title: Tune
+        source: notebooks/tuning.ipynb
+      - slug: model-evaluation
+        title: Evaluate
+        source: notebooks/evaluation.ipynb
+      - slug: model-deployment
+        title: Deploy
+        source: notebooks/deploy.ipynb
+      - slug: model-monitoring
+        title: Monitoring
+        source: notebooks/monitoring.ipynb
+  - name: wine_quality_classification
+    title: Wine Quality Classification
+    source_root: ../projects/wine_quality_classification
+    output_slug: wine-quality-classification
     pages:
       - slug: overview
         title: Overview
-        source: README.md
-      - slug: train
+        source: notebooks/index.ipynb
+      - slug: problem-framing
+        title: Problem Framing
+        source: docs/01_problem_framing.md
+      - slug: data-collection
+        title: Data Collection
+        source: docs/02_data_collection.md
+      - slug: exploratory-data-analysis
+        title: Exploratory Data Analysis
+        source: notebooks/eda.ipynb
+      - slug: data-preprocessing
+        title: Data Preprocessing
+        source: docs/03_data_preprocessing.md
+      - slug: feature-engineering
+        title: Feature Engineering
+        source: notebooks/feature_engineering.ipynb
+      - slug: model-training
         title: Train
         source: notebooks/training.ipynb
-      - slug: batch-transform
-        title: Batch Transform
-        source: notebooks/batch_transform.ipynb
-      - slug: pipeline
-        title: Pipeline
-        source: notebooks/pipeline.ipynb
+      - slug: hyperparameter-tuning
+        title: Tune
+        source: notebooks/tuning.ipynb
+      - slug: model-evaluation
+        title: Evaluate
+        source: notebooks/evaluation.ipynb
+      - slug: model-deployment
+        title: Deploy
+        source: notebooks/deploy.ipynb
+      - slug: model-monitoring
+        title: Monitoring
+        source: notebooks/monitoring.ipynb

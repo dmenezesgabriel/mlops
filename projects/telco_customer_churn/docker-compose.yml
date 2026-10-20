@@ -1,0 +1,27 @@
+name: telco-customer-churn
+
+# Infrastructure for the churn batch-scoring tutorial: a dedicated moto
+# container serving the S3/STS endpoints the SageMaker local-mode jobs use.
+# The Feast offline store needs no service — it is DuckDB over the parquet
+# under data/processed/. The container name pins the DNS alias on the shared
+# mlops_net network so it never collides with the root stack's own `moto`.
+services:
+  moto:
+    image: motoserver/moto:5.1.16
+    container_name: telco-customer-churn-moto
+    command: -H 0.0.0.0
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 5000), 3).close()"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    networks:
+      mlops_net:
+        aliases:
+          - telco-customer-churn-moto
+
+networks:
+  mlops_net:
+    name: mlops_net
+    external: true

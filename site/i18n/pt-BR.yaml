@@ -67,10 +67,10 @@ translations:
   SageMaker scikit-learn: SageMaker scikit-learn
   Batch Transform: Transformacao em Lote
   Pipeline: Pipeline
-  sagemaker-xgboost: sagemaker-xgboost
-  sagemaker-catboost: sagemaker-catboost
-  sagemaker-lightgbm: sagemaker-lightgbm
-  sagemaker-scikit-learn: sagemaker-scikit-learn
+  sagemaker-xgboost: telco-customer-churn
+  sagemaker-catboost: california-house-pricing
+  sagemaker-lightgbm: electricity-price-streaming
+  sagemaker-scikit-learn: wine-quality-classification
   "Offline SageMaker local mode — XGBoost training": "Modo local offline do SageMaker — treinamento com XGBoost"
   "Offline SageMaker local mode — CatBoost training": "Modo local offline do SageMaker — treinamento com CatBoost"
   "Offline SageMaker local mode — LightGBM training": "Modo local offline do SageMaker — treinamento com LightGBM"
@@ -166,10 +166,10 @@ glossary:
   DuckDB: DuckDB
   MLflow: MLflow
   SageMaker: SageMaker
-  sagemaker-xgboost: sagemaker-xgboost
-  sagemaker-catboost: sagemaker-catboost
-  sagemaker-lightgbm: sagemaker-lightgbm
-  sagemaker-scikit-learn: sagemaker-scikit-learn
+  sagemaker-xgboost: telco-customer-churn
+  sagemaker-catboost: california-house-pricing
+  sagemaker-lightgbm: electricity-price-streaming
+  sagemaker-scikit-learn: wine-quality-classification
   sagemaker-local: sagemaker-local
   scikit-learn: scikit-learn
   CatBoost: CatBoost

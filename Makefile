@@ -10,7 +10,7 @@ VIDEO_OUTPUT_DIR ?= videos/output
 # of the gate output measured on 2026-10-10. Sub-makes inherit MAKEFLAGS, and each package loop names
 # the package when it fails, so the failing directory stays visible.
 MAKEFLAGS += --no-print-directory
-.PHONY: install scaffold format lint type-check test test-bdd test-e2e test-videos-docker coverage complexity dependencies architecture security maintainability quality build-site preview-site evaluate-translation render-video check-videos diagrams-build diagrams-render jupyterlab-build jupyterlab collect preprocess features train tune evaluate deploy monitor mlflow
+.PHONY: install scaffold format lint type-check test test-bdd test-e2e test-videos-docker coverage complexity dependencies architecture security maintainability quality build-site preview-site evaluate-translation render-video check-videos diagrams-build diagrams-render jupyterlab-build jupyterlab up-% ps down collect preprocess features train tune evaluate deploy monitor mlflow
 SITE_CONFIG ?= site/site.yaml
 SITE_OUTPUT ?= site/build
 
@@ -25,7 +25,7 @@ scaffold:
 	$(MAKE) -C projects/$(PROJECT) format
 	cd projects/$(PROJECT) && uv run ruff check --fix .
 
-PACKAGES = libs/mlops-shared libs/data-science-scaffold libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting libs/ssg-latex libs/ssg-mermaid libs/ssg-social libs/videos libs/diagrams libs/videos-linter libs/sagemaker-local libs/athena-local docker/moto projects/$(PROJECT) projects/ml_specialization projects/sagemaker_catboost projects/sagemaker_lightgbm projects/sagemaker_scikit_learn projects/sagemaker_xgboost projects/athena_emulator
+PACKAGES = libs/mlops-shared libs/data-science-scaffold libs/ssg libs/ssg-i18n libs/ssg-i18n-machine-translation libs/ssg-notebook-render libs/ssg-syntax-highlighting libs/ssg-latex libs/ssg-mermaid libs/ssg-social libs/videos libs/diagrams libs/videos-linter libs/sagemaker-local libs/athena-local docker/moto projects/$(PROJECT) projects/ml_specialization projects/telco_customer_churn projects/california_house_pricing projects/electricity_price_streaming projects/wine_quality_classification projects/athena_emulator
 
 format:
 	for package in $(PACKAGES); do \
@@ -167,6 +167,17 @@ test-diagrams-docker: libs/diagrams/Dockerfile
 
 collect preprocess features train tune evaluate deploy monitor:
 	uv run python -m $(PROJECT).interfaces.cli $@ --config projects/$(PROJECT)/configs/project.yaml
+
+# --no-deps keeps each service independently on demand: `make up-jupyterlab`
+# starts only jupyterlab; add `make up-moto up-trino up-athena` as needed.
+up-%:
+	docker compose up -d --no-deps --wait $*
+
+ps:
+	docker compose ps
+
+down:
+	docker compose down
 
 jupyterlab-build:
 	docker compose build jupyterlab

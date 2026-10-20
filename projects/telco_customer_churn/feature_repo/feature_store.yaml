@@ -1,0 +1,14 @@
+# Feast repo config — batch-only project.
+# The online store is sqlite only because Feast requires one to be declared;
+# no feature view in this repo is `online=True`, so nothing is ever
+# materialized to it. Feature retrieval happens through the offline store
+# (DuckDB over the processed parquet) for both training and batch scoring.
+project: telco_customer_churn
+provider: local
+registry: data/registry.db
+offline_store:
+  type: duckdb
+online_store:
+  type: sqlite
+  path: data/online_store.db
+entity_key_serialization_version: 3

@@ -159,7 +159,20 @@ def _assert_configured_pages(page: Page, base_url: str) -> None:
 
 
 def _assert_page_chrome(page: Page, path: str) -> None:
-    body_text = page.locator("body").inner_text()
+    # Code samples and rendered math legitimately contain template syntax (for
+    # example `docker ps --format 'table {{.Names}}'` or KaTeX annotations), so
+    # only prose is checked for unrendered Jinja or transclusion markers.
+    body_text = page.evaluate(
+        """() => {
+            const clone = document.body.cloneNode(true);
+            clone
+                .querySelectorAll(
+                    "pre, code, script, style, .katex, annotation, math"
+                )
+                .forEach((node) => node.remove());
+            return clone.textContent;
+        }"""
+    )
     assert "{{" not in body_text, path
     assert "}}" not in body_text, path
     assert "SSG_TRANSCLUSION" not in body_text, path
@@ -713,10 +726,27 @@ def _assert_page_meta_visible_without_js(page: Page, base_url: str) -> None:
 
 def _configured_paths() -> tuple[str, ...]:
     # Keep in sync with slugs listed in site/site.yaml → pages[].slug
-    sagemaker_pages = tuple(
-        f"/sagemaker-{framework}/{slug}.html"
-        for framework in ("xgboost", "catboost", "lightgbm", "scikit-learn")
-        for slug in ("overview", "train", "batch-transform", "pipeline")
+    project_pages = tuple(
+        f"/{collection}/{slug}.html"
+        for collection in [
+            "telco-customer-churn",
+            "california-house-pricing",
+            "electricity-price-streaming",
+            "wine-quality-classification",
+        ]
+        for slug in [
+            "overview",
+            "problem-framing",
+            "data-collection",
+            "exploratory-data-analysis",
+            "data-preprocessing",
+            "feature-engineering",
+            "model-training",
+            "hyperparameter-tuning",
+            "model-evaluation",
+            "model-deployment",
+            "model-monitoring",
+        ]
     )
     return (
         "/",
@@ -727,8 +757,8 @@ def _configured_paths() -> tuple[str, ...]:
         "/nyc-taxi-demand-forecasting/data-preprocessing.html",
         "/nyc-taxi-demand-forecasting/feature-engineering.html",
         "/nyc-taxi-demand-forecasting/model-training.html",
-        *sagemaker_pages,
+        *project_pages,
         "/pt-BR/",
         "/pt-BR/nyc-taxi-demand-forecasting/overview.html",
-        "/pt-BR/sagemaker-xgboost/overview.html",
+        "/pt-BR/telco-customer-churn/overview.html",
     )

@@ -1,0 +1,12 @@
+# Project-local AWS emulator; namespaced so it can coexist with the other
+# project stacks on mlops_net.
+services:
+  moto:
+    image: motoserver/moto:5.1.16
+    container_name: wine-quality-classification-moto
+    command: ["-p", "5000", "-H", "0.0.0.0"]
+    networks: [mlops_net]
+
+networks:
+  mlops_net:
+    external: true

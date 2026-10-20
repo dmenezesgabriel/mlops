@@ -1,0 +1,6 @@
+# Generated artifacts: prepare_data.py rebuilds interim/processed on every run
+# and feast apply regenerates the registry; the vendored raw CSV stays tracked.
+data/interim/
+data/processed/
+feature_repo/data/
+__pycache__/

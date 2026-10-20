@@ -1,0 +1,12 @@
+project: electricity_price_streaming
+provider: local
+registry: data/registry.db
+offline_store:
+  type: duckdb
+online_store:
+  type: dynamodb
+  region: us-east-1
+  endpoint_url: http://electricity-price-streaming-moto:5000
+entity_key_serialization_version: 3
+auth:
+  type: no_auth

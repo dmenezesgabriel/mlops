@@ -9,8 +9,8 @@
 #
 # Keep the ignore list in sync with the site inputs: site/**, the
 # collections referenced by site/site.yaml (projects/nyc_taxi_demand_forecasting,
-# projects/sagemaker_catboost, projects/sagemaker_lightgbm,
-# projects/sagemaker_scikit_learn, projects/sagemaker_xgboost),
+# projects/telco_customer_churn, projects/california_house_pricing,
+# projects/electricity_price_streaming, projects/wine_quality_classification),
 # libs/** (ssg + plugins + anything they import), Makefile, scripts/**,
 # pyproject.toml, uv.lock, .github/**.
 set -euo pipefail
@@ -68,10 +68,10 @@ while IFS= read -r file; do
             # the other projects are gated code but not site inputs.
             case "$file" in
                 projects/nyc_taxi_demand_forecasting/* | \
-                projects/sagemaker_catboost/* | \
-                projects/sagemaker_lightgbm/* | \
-                projects/sagemaker_scikit_learn/* | \
-                projects/sagemaker_xgboost/*) emit true; exit 0 ;;
+                projects/telco_customer_churn/* | \
+                projects/california_house_pricing/* | \
+                projects/electricity_price_streaming/* | \
+                projects/wine_quality_classification/*) emit true; exit 0 ;;
                 *) ;;
             esac
             ;;

@@ -1,0 +1,4 @@
+registry.db
+*.db
+data/*.parquet
+data/*.csv

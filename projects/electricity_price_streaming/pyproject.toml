@@ -1,0 +1,80 @@
+[project]
+name = "electricity-price-streaming"
+version = "0.1.0"
+description = "NSW electricity price direction streaming: Kafka + Apache Flink + SageMaker endpoint, with Feast for the offline training join."
+requires-python = ">=3.11"
+dependencies = [
+  "feast[aws,duckdb]>=0.56.0",
+  "kafka-python>=2.2.0",
+  "pandas>=2.2.0",
+  "pyarrow>=18.0.0",
+  "sagemaker-local",
+  "scikit-learn>=1.6.0",
+]
+
+[project.optional-dependencies]
+notebooks = [
+  "ipykernel>=7.1.0",
+  "nbclient>=0.11.0",
+  "nbconvert>=7.17.1",
+]
+
+[tool.uv.sources]
+sagemaker-local = { workspace = true }
+
+[tool.deptry]
+# Feast loads feature_repo modules from its own directory rather than as
+# installed packages, so deptry cannot resolve their sibling imports.
+extend_exclude = ["feature_repo"]
+# Notebooks import the project package by its own name.
+known_first_party = ["electricity_price_streaming"]
+
+[tool.deptry.package_module_name_map]
+electricity-price-streaming = "electricity_price_streaming"
+nbconvert = "nbconvert"
+
+[tool.deptry.per_rule_ignores]
+# the framework lib and joblib are imported by train.py, which runs
+# only inside sagemaker-local:latest (installed in that image, not
+# the workspace); feature_contract is imported without the package
+# prefix when train.py runs as /opt/ml/code/train.py; pyflink ships
+# in the Flink image rather than the workspace.
+DEP001 = ["catboost", "joblib", "sklearn", "feature_contract", "pyflink"]
+
+# ipykernel/nbclient/nbconvert are declared for `make test-notebooks`
+# (integration notebooks execute via nbclient/nbconvert on ipykernel);
+# deptry only sees static imports, so they read as unused. pyarrow is
+# pandas' parquet engine and sagemaker-local supplies the SDK the
+# notebooks drive.
+DEP002 = ["ipykernel", "nbclient", "nbconvert", "pyarrow", "sagemaker-local"]
+# notebooks and train.py import sagemaker/sklearn/joblib/numpy, which
+# run inside the SageMaker container (or arrive transitively in the dev
+# workspace) rather than as direct dependencies.
+DEP003 = ["joblib", "numpy", "sagemaker", "sklearn", "boto3", "matplotlib"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -rfEs --tb=short --import-mode=importlib"
+console_output_style = "classic"
+markers = [
+    "integration: requires docker + moto + a Jupyter kernel; run inside the offline JupyterLab stack",
+]
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "strict"
+reportMissingParameterType = true
+reportMissingReturnType = true
+reportUnnecessaryCast = true
+reportUnusedIgnoreComment = true
+reportMissingImports = false
+# sklearn loader returns are typed as loose unions; .data/.target can't be
+# narrowed in the example train.py. Frameworks load inside the image, not here.
+reportAttributeAccessIssue = false
+# catboost, joblib and scikit-learn ship no py.typed marker and have no
+# official stub distribution; typings/ declares the members this project uses.
+stubPath = "typings"
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"

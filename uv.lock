@@ -28,17 +28,15 @@ members = [
     "athena-emulator-parity",
     "athena-local",
     "athena-moto-glue-overlay",
+    "california-house-pricing",
     "data-science-scaffold",
     "diagrams-generation",
+    "electricity-price-streaming",
     "ml-specialization",
     "mlops-monorepo",
     "mlops-shared",
     "nyc-taxi-demand-forecasting",
-    "sagemaker-catboost",
-    "sagemaker-lightgbm",
     "sagemaker-local",
-    "sagemaker-scikit-learn",
-    "sagemaker-xgboost",
     "ssg",
     "ssg-i18n",
     "ssg-i18n-machine-translation",
@@ -47,8 +45,28 @@ members = [
     "ssg-notebook-render",
     "ssg-social",
     "ssg-syntax-highlighting",
+    "telco-customer-churn",
     "videos",
     "videos-linter",
+    "wine-quality-classification",
+]
+
+[[package]]
+name = "aiobotocore"
+version = "3.7.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "aioitertools" },
+    { name = "botocore" },
+    { name = "jmespath" },
+    { name = "multidict" },
+    { name = "python-dateutil" },
+    { name = "wrapt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e7/75/42cce839c2ec263ff74b10b650fe36b066fbb124cbee6f247eac0983e1ab/aiobotocore-3.7.0.tar.gz", hash = "sha256:c64d871ed5491a6571948dd48eabd185b46c6c23b64e3afd0c059fc7593ada30", size = 127054, upload-time = "2026-05-09T10:02:52.332Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/90/5f/85535dfb3cfd6442d66d1df1694062c5d6df02f895329e7e120b2a3d2b8b/aiobotocore-3.7.0-py3-none-any.whl", hash = "sha256:680bde7c64679a821a9312641b759d9497f790ba8b2e88c6959e6273ee765b8e", size = 89539, upload-time = "2026-05-09T10:02:50.389Z" },
 ]
 
 [[package]]
@@ -176,6 +194,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/39/98/31b9ad9fbc01f0075ee7221002df5fd2d10b647f451ca5f30edc802d9dd6/aiohttp-3.14.0-cp314-cp314t-win32.whl", hash = "sha256:a8d93334d4961c9d566b1f046c81dee475b7c21eb730728d38237bfa70d1c8e6", size = 490597, upload-time = "2026-06-01T19:40:54.937Z" },
     { url = "https://files.pythonhosted.org/packages/59/1f/299b21441c8de42ff70fddc7cfe65e92f810abcf740739a09b56f7835364/aiohttp-3.14.0-cp314-cp314t-win_amd64.whl", hash = "sha256:2d2ffe9b614f50f069068b3b52e73414e4107fc10b7efc939a76acff9251fdd2", size = 525789, upload-time = "2026-06-01T19:40:57.306Z" },
     { url = "https://files.pythonhosted.org/packages/70/11/7f83fcba9ee05d4c54d61b3f8104da0d43a59adac44dd28effc0c9a10422/aiohttp-3.14.0-cp314-cp314t-win_arm64.whl", hash = "sha256:7a3fc4358e65826c515350f199c210de747cf669998211b1ee6c2e46de364b24", size = 467399, upload-time = "2026-06-01T19:40:59.993Z" },
+]
+
+[[package]]
+name = "aioitertools"
+version = "0.13.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/fd/3c/53c4a17a05fb9ea2313ee1777ff53f5e001aefd5cc85aa2f4c2d982e1e38/aioitertools-0.13.0.tar.gz", hash = "sha256:620bd241acc0bbb9ec819f1ab215866871b4bbd1f73836a55f799200ee86950c", size = 19322, upload-time = "2025-11-06T22:17:07.609Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/10/a1/510b0a7fadc6f43a6ce50152e69dbd86415240835868bb0bd9b5b88b1e06/aioitertools-0.13.0-py3-none-any.whl", hash = "sha256:0be0292b856f08dfac90e31f4739432f4cb6d7520ab9eb73e143f4f2fa5259be", size = 24182, upload-time = "2025-11-06T22:17:06.502Z" },
 ]
 
 [[package]]
@@ -754,6 +781,38 @@ sdist = { url = "https://files.pythonhosted.org/packages/f4/8b/0d3945a13955303b8
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8c/7b/1fc1c09cc0756cf25861a3be10565915953876da48bb228fb9a672b20a42/cachetools-7.1.4-py3-none-any.whl", hash = "sha256:323dc4127934744db5b54eb4924482d7edafbf9554e820d1531c2e08c0e4ef54", size = 16761, upload-time = "2026-05-21T22:40:41.845Z" },
 ]
+
+[[package]]
+name = "california-house-pricing"
+version = "0.1.0"
+source = { editable = "projects/california_house_pricing" }
+dependencies = [
+    { name = "feast", extra = ["aws", "duckdb"] },
+    { name = "pandas" },
+    { name = "pyarrow" },
+    { name = "sagemaker-local" },
+    { name = "scikit-learn" },
+]
+
+[package.optional-dependencies]
+notebooks = [
+    { name = "ipykernel" },
+    { name = "nbclient" },
+    { name = "nbconvert" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "feast", extras = ["aws", "duckdb"], specifier = ">=0.56.0" },
+    { name = "ipykernel", marker = "extra == 'notebooks'", specifier = ">=7.1.0" },
+    { name = "nbclient", marker = "extra == 'notebooks'", specifier = ">=0.11.0" },
+    { name = "nbconvert", marker = "extra == 'notebooks'", specifier = ">=7.17.1" },
+    { name = "pandas", specifier = ">=2.2.0" },
+    { name = "pyarrow", specifier = ">=18.0.0" },
+    { name = "sagemaker-local", editable = "libs/sagemaker-local" },
+    { name = "scikit-learn", specifier = ">=1.6.0" },
+]
+provides-extras = ["notebooks"]
 
 [[package]]
 name = "certifi"
@@ -1624,6 +1683,40 @@ wheels = [
 ]
 
 [[package]]
+name = "electricity-price-streaming"
+version = "0.1.0"
+source = { editable = "projects/electricity_price_streaming" }
+dependencies = [
+    { name = "feast", extra = ["aws", "duckdb"] },
+    { name = "kafka-python" },
+    { name = "pandas" },
+    { name = "pyarrow" },
+    { name = "sagemaker-local" },
+    { name = "scikit-learn" },
+]
+
+[package.optional-dependencies]
+notebooks = [
+    { name = "ipykernel" },
+    { name = "nbclient" },
+    { name = "nbconvert" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "feast", extras = ["aws", "duckdb"], specifier = ">=0.56.0" },
+    { name = "ipykernel", marker = "extra == 'notebooks'", specifier = ">=7.1.0" },
+    { name = "kafka-python", specifier = ">=2.2.0" },
+    { name = "nbclient", marker = "extra == 'notebooks'", specifier = ">=0.11.0" },
+    { name = "nbconvert", marker = "extra == 'notebooks'", specifier = ">=7.17.1" },
+    { name = "pandas", specifier = ">=2.2.0" },
+    { name = "pyarrow", specifier = ">=18.0.0" },
+    { name = "sagemaker-local", editable = "libs/sagemaker-local" },
+    { name = "scikit-learn", specifier = ">=1.6.0" },
+]
+provides-extras = ["notebooks"]
+
+[[package]]
 name = "exceptiongroup"
 version = "1.2.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1732,9 +1825,10 @@ wheels = [
 
 [[package]]
 name = "feast"
-version = "0.63.0"
+version = "0.65.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "attrs" },
     { name = "bigtree" },
     { name = "click" },
     { name = "colorama" },
@@ -1743,7 +1837,6 @@ dependencies = [
     { name = "fastapi" },
     { name = "gunicorn", marker = "sys_platform != 'win32'" },
     { name = "jinja2" },
-    { name = "jsonschema" },
     { name = "mmh3" },
     { name = "numpy" },
     { name = "pandas" },
@@ -1757,6 +1850,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "requests" },
     { name = "sqlalchemy", extra = ["mypy"] },
+    { name = "starlette" },
     { name = "tabulate" },
     { name = "tenacity" },
     { name = "toml" },
@@ -1765,12 +1859,17 @@ dependencies = [
     { name = "uvicorn", extra = ["standard"] },
     { name = "uvicorn-worker" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a3/24/9ae50ae3e2dde8e8a95865866db6cc27a5ac63254e6e88ed74dd622d68ff/feast-0.63.0.tar.gz", hash = "sha256:1c36358f30953d633f77a7439e0cf87670db7b3a1842b5f2e17b79a1313a27a1", size = 6717632, upload-time = "2026-05-04T04:31:30.942Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/df/83/3f3501b449bc17989353c07239c82941a66350126af54920ef0aa1f549bd/feast-0.65.0.tar.gz", hash = "sha256:2f2c8c9ae6179fba9ec161205e7c30ab5a952e203cf444880e208c217691b9e2", size = 7879801, upload-time = "2026-07-20T13:38:31.958Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d8/6f/772a02bd0d1ab3f39dff1cec76710a53663ce788a5c302c8ec125d9001a3/feast-0.63.0-py3-none-any.whl", hash = "sha256:adee66f107fbc9f3109585981e77c4acfbd2348b78352972a17a603b539e27a4", size = 8068639, upload-time = "2026-05-04T04:31:28.657Z" },
+    { url = "https://files.pythonhosted.org/packages/51/45/3d6f346c7136433186ba0a4005bc648ff12e0181c2926ce1f75794ad327c/feast-0.65.0-py3-none-any.whl", hash = "sha256:1b40680587e49202869b85dd17a1a65d1c2aaf6d91bdc2b12d1a100ccca4cd3b", size = 9253730, upload-time = "2026-07-20T13:38:29.14Z" },
 ]
 
 [package.optional-dependencies]
+aws = [
+    { name = "aiobotocore" },
+    { name = "boto3" },
+    { name = "fsspec" },
+]
 duckdb = [
     { name = "ibis-framework", extra = ["duckdb"] },
 ]
@@ -3056,6 +3155,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/26/2d/ef58fed122b268c69c0aa099da20bc67657cdfb2e222688d5731bd5b971d/jupyterlab_widgets-3.0.16.tar.gz", hash = "sha256:423da05071d55cf27a9e602216d35a3a65a3e41cdf9c5d3b643b814ce38c19e0", size = 897423, upload-time = "2025-11-01T21:11:29.724Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ab/b5/36c712098e6191d1b4e349304ef73a8d06aed77e56ceaac8c0a306c7bda1/jupyterlab_widgets-3.0.16-py3-none-any.whl", hash = "sha256:45fa36d9c6422cf2559198e4db481aa243c7a32d9926b500781c830c80f7ecf8", size = 914926, upload-time = "2025-11-01T21:11:28.008Z" },
+]
+
+[[package]]
+name = "kafka-python"
+version = "3.0.11"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d5/6a/8a3bfb819b5350652dfa5365409b7c611eed8ae0b37c84f53d0a26ae9513/kafka_python-3.0.11.tar.gz", hash = "sha256:a003d927e79c801d6cfd1e59ceaaf78807351e75cdb5b8ee9ce4262586f9780f", size = 514717, upload-time = "2026-08-16T16:46:15.481Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d7/9a/191343fd96564cbbed51bd33a53c08144e1ce285e2f10fb1578899e86c28/kafka_python-3.0.11-py3-none-any.whl", hash = "sha256:9d10cab4e11e02545d82c7e5af5702da5aa46dd4eccd11ad92a50bf6dbbecd14", size = 614237, upload-time = "2026-08-16T16:46:13.54Z" },
 ]
 
 [[package]]
@@ -5383,11 +5491,11 @@ wheels = [
 
 [[package]]
 name = "prometheus-client"
-version = "0.25.0"
+version = "0.24.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/1b/fb/d9aa83ffe43ce1f19e557c0971d04b90561b0cfd50762aafb01968285553/prometheus_client-0.25.0.tar.gz", hash = "sha256:5e373b75c31afb3c86f1a52fa1ad470c9aace18082d39ec0d2f918d11cc9ba28", size = 86035, upload-time = "2026-04-09T19:53:42.359Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f0/58/a794d23feb6b00fc0c72787d7e87d872a6730dd9ed7c7b3e954637d8f280/prometheus_client-0.24.1.tar.gz", hash = "sha256:7e0ced7fbbd40f7b84962d5d2ab6f17ef88a72504dcf7c0b40737b43b2a461f9", size = 85616, upload-time = "2026-01-14T15:26:26.965Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8d/9b/d4b1e644385499c8346fa9b622a3f030dce14cd6ef8a1871c221a17a67e7/prometheus_client-0.25.0-py3-none-any.whl", hash = "sha256:d5aec89e349a6ec230805d0df882f3807f74fd6c1a2fa86864e3c2279059fed1", size = 64154, upload-time = "2026-04-09T19:53:41.324Z" },
+    { url = "https://files.pythonhosted.org/packages/74/c3/24a2f845e3917201628ecaba4f18bab4d18a337834c1df2a159ee9d22a42/prometheus_client-0.24.1-py3-none-any.whl", hash = "sha256:150db128af71a5c2482b36e588fc8a6b95e498750da4b17065947c16070f4055", size = 64057, upload-time = "2026-01-14T15:26:24.42Z" },
 ]
 
 [[package]]
@@ -6834,30 +6942,6 @@ wheels = [
 ]
 
 [[package]]
-name = "sagemaker-catboost"
-version = "0.1.0"
-source = { editable = "projects/sagemaker_catboost" }
-dependencies = [
-    { name = "sagemaker-local" },
-]
-
-[package.optional-dependencies]
-notebooks = [
-    { name = "ipykernel" },
-    { name = "nbclient" },
-    { name = "nbconvert" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "ipykernel", marker = "extra == 'notebooks'", specifier = ">=7.1.0" },
-    { name = "nbclient", marker = "extra == 'notebooks'", specifier = ">=0.11.0" },
-    { name = "nbconvert", marker = "extra == 'notebooks'", specifier = ">=7.17.1" },
-    { name = "sagemaker-local", editable = "libs/sagemaker-local" },
-]
-provides-extras = ["notebooks"]
-
-[[package]]
 name = "sagemaker-core"
 version = "1.0.78"
 source = { registry = "https://pypi.org/simple" }
@@ -6875,30 +6959,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/58/30/6d2342e1f9449546b
 wheels = [
     { url = "https://files.pythonhosted.org/packages/64/79/ad3171ecadb0217e18285026c3b3961c86eb73e92117c1a645a8689c6fa1/sagemaker_core-1.0.78-py3-none-any.whl", hash = "sha256:50e15959bc81ddafc81137408e4b1db9a481382eea4d3865459b63e18c182a9f", size = 444643, upload-time = "2026-04-20T10:55:07.761Z" },
 ]
-
-[[package]]
-name = "sagemaker-lightgbm"
-version = "0.1.0"
-source = { editable = "projects/sagemaker_lightgbm" }
-dependencies = [
-    { name = "sagemaker-local" },
-]
-
-[package.optional-dependencies]
-notebooks = [
-    { name = "ipykernel" },
-    { name = "nbclient" },
-    { name = "nbconvert" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "ipykernel", marker = "extra == 'notebooks'", specifier = ">=7.1.0" },
-    { name = "nbclient", marker = "extra == 'notebooks'", specifier = ">=0.11.0" },
-    { name = "nbconvert", marker = "extra == 'notebooks'", specifier = ">=7.17.1" },
-    { name = "sagemaker-local", editable = "libs/sagemaker-local" },
-]
-provides-extras = ["notebooks"]
 
 [[package]]
 name = "sagemaker-local"
@@ -6930,54 +6990,6 @@ dev = [
     { name = "joblib", specifier = "==1.4.2" },
     { name = "moto", extras = ["server"], specifier = "==5.1.16" },
 ]
-
-[[package]]
-name = "sagemaker-scikit-learn"
-version = "0.1.0"
-source = { editable = "projects/sagemaker_scikit_learn" }
-dependencies = [
-    { name = "sagemaker-local" },
-]
-
-[package.optional-dependencies]
-notebooks = [
-    { name = "ipykernel" },
-    { name = "nbclient" },
-    { name = "nbconvert" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "ipykernel", marker = "extra == 'notebooks'", specifier = ">=7.1.0" },
-    { name = "nbclient", marker = "extra == 'notebooks'", specifier = ">=0.11.0" },
-    { name = "nbconvert", marker = "extra == 'notebooks'", specifier = ">=7.17.1" },
-    { name = "sagemaker-local", editable = "libs/sagemaker-local" },
-]
-provides-extras = ["notebooks"]
-
-[[package]]
-name = "sagemaker-xgboost"
-version = "0.1.0"
-source = { editable = "projects/sagemaker_xgboost" }
-dependencies = [
-    { name = "sagemaker-local" },
-]
-
-[package.optional-dependencies]
-notebooks = [
-    { name = "ipykernel" },
-    { name = "nbclient" },
-    { name = "nbconvert" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "ipykernel", marker = "extra == 'notebooks'", specifier = ">=7.1.0" },
-    { name = "nbclient", marker = "extra == 'notebooks'", specifier = ">=0.11.0" },
-    { name = "nbconvert", marker = "extra == 'notebooks'", specifier = ">=7.17.1" },
-    { name = "sagemaker-local", editable = "libs/sagemaker-local" },
-]
-provides-extras = ["notebooks"]
 
 [[package]]
 name = "schema"
@@ -7677,6 +7689,38 @@ sdist = { url = "https://files.pythonhosted.org/packages/f4/8a/14c15ae154895cc13
 wheels = [
     { url = "https://files.pythonhosted.org/packages/02/be/5d2d47b1fb58943194fb59dcf222f7c4e35122ec0ffe8c36e18b5d728f0b/tblib-3.2.2-py3-none-any.whl", hash = "sha256:26bdccf339bcce6a88b2b5432c988b266ebbe63a4e593f6b578b1d2e723d2b76", size = 12893, upload-time = "2025-11-12T12:21:14.407Z" },
 ]
+
+[[package]]
+name = "telco-customer-churn"
+version = "0.1.0"
+source = { editable = "projects/telco_customer_churn" }
+dependencies = [
+    { name = "feast", extra = ["duckdb"] },
+    { name = "pandas" },
+    { name = "pyarrow" },
+    { name = "sagemaker-local" },
+    { name = "scikit-learn" },
+]
+
+[package.optional-dependencies]
+notebooks = [
+    { name = "ipykernel" },
+    { name = "nbclient" },
+    { name = "nbconvert" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "feast", extras = ["duckdb"], specifier = ">=0.56.0" },
+    { name = "ipykernel", marker = "extra == 'notebooks'", specifier = ">=7.1.0" },
+    { name = "nbclient", marker = "extra == 'notebooks'", specifier = ">=0.11.0" },
+    { name = "nbconvert", marker = "extra == 'notebooks'", specifier = ">=7.17.1" },
+    { name = "pandas", specifier = ">=2.2.0" },
+    { name = "pyarrow", specifier = ">=18.0.0" },
+    { name = "sagemaker-local", editable = "libs/sagemaker-local" },
+    { name = "scikit-learn", specifier = ">=1.6.0" },
+]
+provides-extras = ["notebooks"]
 
 [[package]]
 name = "tenacity"
@@ -8546,6 +8590,38 @@ sdist = { url = "https://files.pythonhosted.org/packages/bd/f4/c67440c7fb409a71b
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3f/0e/fa3b193432cfc60c93b42f3be03365f5f909d2b3ea410295cf36df739e31/widgetsnbextension-4.0.15-py3-none-any.whl", hash = "sha256:8156704e4346a571d9ce73b84bee86a29906c9abfd7223b7228a28899ccf3366", size = 2196503, upload-time = "2025-11-01T21:15:53.565Z" },
 ]
+
+[[package]]
+name = "wine-quality-classification"
+version = "0.1.0"
+source = { editable = "projects/wine_quality_classification" }
+dependencies = [
+    { name = "feast", extra = ["duckdb"] },
+    { name = "pandas" },
+    { name = "pyarrow" },
+    { name = "sagemaker-local" },
+    { name = "scikit-learn" },
+]
+
+[package.optional-dependencies]
+notebooks = [
+    { name = "ipykernel" },
+    { name = "nbclient" },
+    { name = "nbconvert" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "feast", extras = ["duckdb"], specifier = ">=0.56.0" },
+    { name = "ipykernel", marker = "extra == 'notebooks'", specifier = ">=7.1.0" },
+    { name = "nbclient", marker = "extra == 'notebooks'", specifier = ">=0.11.0" },
+    { name = "nbconvert", marker = "extra == 'notebooks'", specifier = ">=7.17.1" },
+    { name = "pandas", specifier = ">=2.2.0" },
+    { name = "pyarrow", specifier = ">=18.0.0" },
+    { name = "sagemaker-local", editable = "libs/sagemaker-local" },
+    { name = "scikit-learn", specifier = ">=1.6.0" },
+]
+provides-extras = ["notebooks"]
 
 [[package]]
 name = "wrapt"
