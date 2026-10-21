@@ -193,6 +193,7 @@ jobs:
           context: libs/diagrams
           file: libs/diagrams/Dockerfile
           tags: mlops-diagrams-prod
+          build-args: GIT_REVISION=${{ github.sha }}
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max

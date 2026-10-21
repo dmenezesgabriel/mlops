@@ -40,7 +40,7 @@ Steps:
 and the offline smoke; every feature works in both locales and degrades
 without JS (site convention); G-326…G-328 and G-333…G-335 closed.
 
-## M11 — container image standard (backlog §C, DK-1…6)
+## M11 — container image standard (backlog §C, DK-1…7)
 
 Goal: every built image and every compose service reference follows
 `docs/adr/0014-container-image-standard.md` — digest-pinned bases, locked
@@ -53,9 +53,10 @@ Steps:
 1. [x] SageMaker image family: digest + per-image hashed locks + OCI labels, root kept with the AWS comment (DK-1) — 9/9 images built and inspected 2026-10-21; ADR-0015.
 2. [x] compose stacks: digest pins + memory caps (DK-2) — 9 refs on 4 manifest-list digests; 6 caps (512m moto/athena, 4g jupyterlab) verified through `docker stats`; Dependabot `docker-compose` enabled; 5/5 `docker compose config` clean
 3. [x] `videos` image (DK-3) — base `manimcommunity/manim:v0.20.1@sha256:f18f…`, uv `0.13.4@sha256:9f13…`, non-editable install, `USER 1000:1000`, OCI labels; `make test-videos-docker` 22 passed and real render artifacts host-owned; open G-353 (narration/target overlap fails the linter).
-4. [ ] `diagrams` image (DK-4)
+4. [x] `diagrams` image (DK-4) — base `python:3.11-slim@sha256:cce1…`, uv `0.13.4@sha256:9f13…`, non-editable install, `USER 1000:1000`, OCI labels; `make test-diagrams-docker` 61 passed/1 skipped and a real render produced a 1549×741 PNG owned 1000:1000 (a 4242:4242 run wrote as 4242).
 5. [ ] `jupyterlab` + `termux` images (DK-5)
 6. [ ] Flink streaming image: PyFlink-capable image for the electricity stack (DK-6)
+7. [ ] `athena` image labels + compose build arg (DK-7)
 
 **Exit criteria:** G-341…G-348 and G-351 closed or waived; each family built
 once and its existing tests green (`make test-docker` / `make
@@ -76,8 +77,9 @@ Makefile build/run targets. DK-1 and DK-2 are the two independent
 highest-value slices (supply chain, host safety) and can run in either
 order; DK-3/DK-4 each add a `USER` change verified by `make
 test-videos-docker` / `make test-diagrams-docker`; DK-5 is the smallest;
-DK-6 interlocks with the in-flight electricity refactor and follows DK-2.
-No DK step depends on another except DK-6 on that refactor.
+DK-6 interlocks with the in-flight electricity refactor and follows DK-2;
+DK-7 is labels-only on the already-conformant athena image. No DK step
+depends on another except DK-6 on that refactor.
 
 Cross-cutting fixes (backlog §B): AF-181 (draft leak) and AF-182
 (import-linter blocks every commit) are S1 and run before M11;

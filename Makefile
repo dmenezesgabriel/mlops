@@ -143,13 +143,12 @@ check-videos:
 	@echo "=== All video checks passed ==="
 
 diagrams-build: libs/diagrams/Dockerfile
-	docker build $(DOCKER_BUILD_FLAGS) -f libs/diagrams/Dockerfile -t mlops-diagrams-prod libs/diagrams
+	docker build $(DOCKER_BUILD_FLAGS) --build-arg GIT_REVISION=$(GIT_REVISION) -f libs/diagrams/Dockerfile -t mlops-diagrams-prod libs/diagrams
 
 diagrams-render:
 	mkdir -p diagrams/output
-	chmod 777 diagrams/output
 	docker run --rm \
-	  -v "$(CURDIR)/libs/diagrams/src:/app/src:ro" \
+	  --user "$(HOST_UID):$(HOST_GID)" \
 	  -v "$(CURDIR)/diagrams/definition:/app/definition:ro" \
 	  -v "$(CURDIR)/diagrams/output:/app/output:delegated" \
 	  mlops-diagrams-prod diagrams-cli mlops_lifecycle --definitions-dir /app/definition --output-dir /app/output
@@ -157,12 +156,16 @@ diagrams-render:
 render-diagram: diagrams-build
 	$(MAKE) diagrams-render
 
+# The read-only tests mount carries host __pycache__ trees whose embedded
+# co_filename sends pytest-bdd to a path that does not exist in the container;
+# keep bytecode out of the mount and disable the unwritable pytest cache.
 test-diagrams-docker: libs/diagrams/Dockerfile
-	docker build $(DOCKER_BUILD_FLAGS) -f libs/diagrams/Dockerfile -t mlops-diagrams-test libs/diagrams
+	docker build $(DOCKER_BUILD_FLAGS) --build-arg GIT_REVISION=$(GIT_REVISION) -f libs/diagrams/Dockerfile -t mlops-diagrams-test libs/diagrams
 	docker run --rm \
-	  -v "$(CURDIR)/libs/diagrams/src:/app/src:ro" \
+	  -e PYTHONPYCACHEPREFIX=/tmp/pycache \
+	  -e PYTHONDONTWRITEBYTECODE=1 \
 	  -v "$(CURDIR)/libs/diagrams/tests:/app/tests:ro" \
-	  mlops-diagrams-test pytest /app/tests/ -q -rfEs --tb=short
+	  mlops-diagrams-test pytest /app/tests/ -q -rfEs --tb=short -p no:cacheprovider
 
 collect preprocess features train tune evaluate deploy monitor:
 	uv run python -m $(PROJECT).interfaces.cli $@ --config projects/$(PROJECT)/configs/project.yaml
