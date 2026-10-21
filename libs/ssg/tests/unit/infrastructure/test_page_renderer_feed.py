@@ -1,14 +1,11 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
-from ssg.application.ports.page_renderer import PageRenderer
 from ssg.domain import (
     Article,
     Author,
     ContentCollection,
     Page,
-    RenderedIndex,
-    RenderedNotFound,
     RenderedPage,
     Site,
 )
@@ -56,63 +53,3 @@ def test_render_feed_emits_rss_with_absolute_urls(tmp_path: Path) -> None:
     assert "<rss" in rss
     assert "https://example.com/docs/blog/first.html" in rss
     assert "2026" in rss
-
-
-def test_render_feed_works_with_variant_protocol(tmp_path: Path) -> None:
-    # Ensure the Protocol accept variant parameter (we pass None).
-    class Dummy(PageRenderer):
-        def render_page(self, rendered_page: RenderedPage) -> str:
-            return ""
-
-        def render_index(self, rendered_index: RenderedIndex) -> str:
-            return ""
-
-        def render_posts_index(self, rendered_index: RenderedIndex) -> str:
-            return ""
-
-        def render_sitemap(
-            self, site: Site, collections: tuple[ContentCollection, ...]
-        ) -> str:
-            return ""
-
-        def render_robots_txt(self, site: Site) -> str:
-            return ""
-
-        def render_not_found(
-            self, rendered_not_found: RenderedNotFound
-        ) -> str:
-            return ""
-
-        def render_service_worker(self, manifest) -> str:
-            return ""
-
-        def render_version_redirect(self, site: Site, target: str) -> str:
-            return ""
-
-        def render_feed(
-            self,
-            site: Site,
-            collection: ContentCollection,
-            posts: tuple[RenderedPage, ...],
-            variant=None,
-        ) -> str:
-            return "<rss/>"
-
-        def assets(self) -> dict[str, str]:
-            return {}
-
-    assert (
-        Dummy().render_feed(
-            Site(title="T", description="", collections=()),
-            ContentCollection(
-                name="c",
-                title="C",
-                source_root=tmp_path,
-                output_slug="c",
-                pages=(),
-                videos={},
-            ),
-            (),
-        )
-        == "<rss/>"
-    )

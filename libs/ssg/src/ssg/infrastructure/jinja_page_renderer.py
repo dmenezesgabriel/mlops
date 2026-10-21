@@ -6,7 +6,6 @@ from ssg.domain import (
     RenderedNotFound,
     RenderedPage,
     Site,
-    SiteVariant,
 )
 from ssg.infrastructure.frontend.jinja_environment import (
     create_frontend_environment,
@@ -73,10 +72,9 @@ class JinjaPageRenderer(PageRenderer):
         site: Site,
         collection: ContentCollection,
         posts: tuple[RenderedPage, ...],
-        variant: SiteVariant | None = None,
     ) -> str:
         return self._feed_template.render(
-            site=site, collection=collection, posts=posts, variant=variant
+            site=site, collection=collection, posts=posts
         )
 
     def assets(self) -> dict[str, str]:

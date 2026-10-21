@@ -255,6 +255,7 @@ class StaticSiteBuilder:
             },
         )
 
+        rendered_pages: dict[Page, RenderedPage] = {}
         for page in collection.pages:
             if affected_pages is not None and page not in affected_pages:
                 LOGGER.info(
@@ -290,6 +291,7 @@ class StaticSiteBuilder:
                 body,
                 social_image,
             )
+            rendered_pages[page] = rendered_page
             location = f"{collection.output_slug}/{page.file_name()}"
             self._search_index.update_page(
                 output_path,
@@ -312,7 +314,11 @@ class StaticSiteBuilder:
             )
         if collection.is_dated_posts:
             self._emit_posts_artifacts(
-                site_variant, site_variants, collection, context
+                site_variant,
+                site_variants,
+                collection,
+                context,
+                rendered_pages,
             )
 
     def _emit_posts_artifacts(
@@ -321,9 +327,14 @@ class StaticSiteBuilder:
         site_variants: tuple[SiteVariant, ...],
         collection: ContentCollection,
         context: BuildContext,
+        rendered_pages: dict[Page, RenderedPage],
     ) -> None:
         posts = self._prepare_posts(
-            collection, site_variant, site_variants, context
+            collection,
+            site_variant,
+            site_variants,
+            context,
+            rendered_pages,
         )
         collection_output_path = (
             site_variant.output_path / collection.output_slug
@@ -383,11 +394,16 @@ class StaticSiteBuilder:
         site_variant: SiteVariant,
         site_variants: tuple[SiteVariant, ...],
         context: BuildContext,
+        rendered_pages: dict[Page, RenderedPage],
     ) -> tuple[RenderedPage, ...]:
         # The caller already dropped drafts and future dates through
         # ContentCollection.published, so every page here is emit-ready.
+        # Reuse the pages this build already rendered; a preview's skipped
+        # pages still need one render so the index and feed stay complete.
         posts = [
-            self._render_post(
+            rendered_pages[page]
+            if page in rendered_pages
+            else self._render_post(
                 site_variant, site_variants, collection, page, context
             )
             for page in collection.pages

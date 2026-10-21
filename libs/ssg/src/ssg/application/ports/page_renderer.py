@@ -7,7 +7,6 @@ from ssg.domain import (
     RenderedNotFound,
     RenderedPage,
     Site,
-    SiteVariant,
 )
 
 
@@ -37,7 +36,6 @@ class PageRenderer(Protocol):
         site: Site,
         collection: ContentCollection,
         posts: tuple[RenderedPage, ...],
-        variant: SiteVariant | None = None,
     ) -> str: ...
 
     def assets(self) -> dict[str, str]: ...

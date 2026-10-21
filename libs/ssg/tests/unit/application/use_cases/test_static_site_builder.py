@@ -89,7 +89,6 @@ class SpyPageRenderer:
         site: Site,
         collection: ContentCollection,
         posts: tuple[RenderedPage, ...],
-        variant=None,
     ) -> str:
         self.render_feed_calls.append((site, collection, posts))
         return "<rss/>"
@@ -2333,3 +2332,121 @@ def test_build_emits_posts_index_and_feed_for_dated_posts_collection(
     assert page_renderer.render_feed_calls[0][0] == site
     assert page_renderer.render_feed_calls[0][1] == collection
     assert len(page_renderer.render_feed_calls[0][2]) == 1
+
+
+def _two_post_blog(tmp_path: Path) -> tuple[Site, Page, Page]:
+    page_newest = Page(
+        slug="post-1",
+        title="Post 1",
+        source_path=tmp_path / "post-1.md",
+        date=datetime(2026, 2, 1, tzinfo=UTC),
+    )
+    page_oldest = Page(
+        slug="post-2",
+        title="Post 2",
+        source_path=tmp_path / "post-2.md",
+        date=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    collection = ContentCollection(
+        name="blog",
+        title="Blog",
+        source_root=tmp_path,
+        output_slug="blog",
+        pages=(page_newest, page_oldest),
+        videos={},
+        kind="posts",
+    )
+    return (
+        Site(
+            title="Learning Site",
+            description="",
+            collections=(collection,),
+            url="https://example.com/docs",
+        ),
+        page_newest,
+        page_oldest,
+    )
+
+
+def test_full_build_renders_each_dated_post_once(tmp_path: Path) -> None:
+    # Arrange — the posts index and feed reuse the pages the collection
+    # build already rendered instead of rendering every post a second time.
+    site, page_newest, page_oldest = _two_post_blog(tmp_path)
+    content_renderer = SpyContentRenderer()
+    page_renderer = SpyPageRenderer()
+    card_renderer = SpySocialCardRenderer()
+    builder = StaticSiteBuilder(
+        site_repository=SpySiteRepository(site),
+        content_renderers=(content_renderer,),
+        page_renderer=page_renderer,
+        article_outline_builder=SpyArticleOutlineBuilder(),
+        site_variant_provider=SingleSiteVariantProvider(),
+        dependency_tracker=InMemoryDependencyTracker(),
+        search_index=InMemorySearchIndex(),
+        social_card_renderer=card_renderer,
+    )
+
+    # Act
+    builder.build(tmp_path / "site.yaml", tmp_path / "build")
+
+    # Assert
+    assert [call[1] for call in content_renderer.render_calls] == [
+        page_newest,
+        page_oldest,
+    ]
+    assert [card.title for card in card_renderer.render_calls] == [
+        "Learning Site",
+        "Post 1",
+        "Post 2",
+    ]
+    posts = page_renderer.render_feed_calls[0][2]
+    assert {post.page.slug for post in posts} == {"post-1", "post-2"}
+    assert all(post.readtime_minutes for post in posts)
+
+
+def test_incremental_build_renders_each_dated_post_once(
+    tmp_path: Path,
+) -> None:
+    # Arrange — a preview rebuild writes only the affected post's HTML but
+    # still needs an emit-ready page for every post in the index and feed.
+    site, page_newest, page_oldest = _two_post_blog(tmp_path)
+    content_renderer = SpyContentRenderer()
+    page_renderer = SpyPageRenderer()
+    card_renderer = SpySocialCardRenderer()
+    dependency_tracker = InMemoryDependencyTracker()
+    dependency_tracker.register_dependency(
+        page_oldest, page_oldest.source_path
+    )
+    builder = StaticSiteBuilder(
+        site_repository=SpySiteRepository(site),
+        content_renderers=(content_renderer,),
+        page_renderer=page_renderer,
+        article_outline_builder=SpyArticleOutlineBuilder(),
+        site_variant_provider=SingleSiteVariantProvider(),
+        dependency_tracker=dependency_tracker,
+        search_index=InMemorySearchIndex(),
+        social_card_renderer=card_renderer,
+    )
+
+    # Act
+    builder.build(
+        tmp_path / "site.yaml",
+        tmp_path / "build",
+        changed_paths={page_oldest.source_path},
+    )
+
+    # Assert
+    assert [call.page.slug for call in page_renderer.render_page_calls] == [
+        page_oldest.slug
+    ]
+    assert [call[1] for call in content_renderer.render_calls] == [
+        page_oldest,
+        page_newest,
+    ]
+    assert [card.title for card in card_renderer.render_calls] == [
+        "Learning Site",
+        "Post 2",
+        "Post 1",
+    ]
+    posts = page_renderer.render_feed_calls[0][2]
+    assert {post.page.slug for post in posts} == {"post-1", "post-2"}
