@@ -1,21 +1,27 @@
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
 
-# Training image for the churn batch-scoring project. Mirrors the
-# libs/sagemaker-local/docker standard (same pins + serve runtime) but ships
-# only xgboost instead of every bundled framework. Serves online endpoints,
-# so the serving stack is included here too.
+ARG GIT_REVISION=unknown
+
+LABEL org.opencontainers.image.title="telco-customer-churn-train" \
+      org.opencontainers.image.source="https://github.com/dmenezesgabriel/mlops" \
+      org.opencontainers.image.revision="${GIT_REVISION}" \
+      org.opencontainers.image.licenses="NOASSERTION"
+
+# SageMaker requires this image to run as root: the platform writes model
+# artifacts under /opt/ml and invokes the training/serving entry points as
+# root. Do not add a USER instruction; see ADR-0014 §3.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential libgomp1 procps \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir \
-        numpy==1.26.4 \
-        pandas==2.2.3 \
-        scikit-learn==1.6.1 \
-        xgboost==2.1.4 \
-        joblib==1.4.2 \
-        flask==3.1.1 \
-        gunicorn==23.0.0 \
-        'sagemaker-training==5.1.1'
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements/telco-train.txt /tmp/requirements.txt
+RUN python -m pip install --no-cache-dir --require-hashes --requirement /tmp/requirements.txt \
+    && rm -f /tmp/requirements.txt
+
+# Training image for the churn batch-scoring project. Mirrors the
+# libs/sagemaker-local/docker standard (same hashed-lock install + serve runtime) but
+# ships only xgboost instead of every bundled framework. Serves online
+# endpoints, so the serving stack is included here too.
 
 # The serving entry point and inference hooks come from the library's docker
 # assets (single source of truth). Build with context = libs/sagemaker-local/docker

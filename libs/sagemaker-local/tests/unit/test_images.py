@@ -36,21 +36,44 @@ class TestBuildImage:
         stub_build(runner, monkeypatch)
 
         assert (
-            images.build_image("sagemaker-local:latest")
+            images.build_image("sagemaker-local:latest", revision="deadbeef")
             == "sagemaker-local:latest"
         )
 
         cmd, workdir = runner.calls[0]
         assert cmd[0:3] == ["docker", "build", "-t"]
         assert cmd[3] == "sagemaker-local:latest"
+        assert "--build-arg" in cmd
+        assert "GIT_REVISION=deadbeef" in cmd
+        assert cmd[-1] == "."
         assert workdir == str(images.dockerfile_dir())
+
+    def test_reads_the_git_head_when_no_revision_is_given(self, monkeypatch):
+        runner = FakeRunner(exit_codes=[0, 0], stdout="abc123\n")
+        stub_build(runner, monkeypatch)
+
+        images.build_image("sagemaker-local:latest")
+
+        git_cmd, _ = runner.calls[0]
+        docker_cmd, _ = runner.calls[1]
+        assert git_cmd == ["git", "rev-parse", "HEAD"]
+        assert "GIT_REVISION=abc123" in docker_cmd
+
+    def test_uses_unknown_when_git_is_unavailable(self, monkeypatch):
+        runner = FakeRunner(exit_codes=[1, 0])
+        stub_build(runner, monkeypatch)
+
+        images.build_image("sagemaker-local:latest")
+
+        docker_cmd, _ = runner.calls[1]
+        assert "GIT_REVISION=unknown" in docker_cmd
 
     def test_raises_with_offending_tag_and_stderr(self, monkeypatch):
         runner = FakeRunner(exit_codes=[1], stderr="step 3 failed")
         stub_build(runner, monkeypatch)
 
         with pytest.raises(RuntimeError) as exc_info:
-            images.build_image("sagemaker-local:latest")
+            images.build_image("sagemaker-local:latest", revision="deadbeef")
 
         message = str(exc_info.value)
         assert "sagemaker-local:latest" in message

@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: docker
+    directories:
+      - /
+      - /docker/athena
+      - /libs/diagrams
+      - /libs/sagemaker-local/docker
+      - /libs/videos
+      - /projects/*
+      - /termux
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

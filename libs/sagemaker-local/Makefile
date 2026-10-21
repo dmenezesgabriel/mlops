@@ -1,5 +1,5 @@
 .SILENT:
-.PHONY: format lint type-check test test-docker coverage complexity dependencies security maintainability
+.PHONY: format lint type-check test test-docker lock-requirements coverage complexity dependencies security maintainability
 
 format:
 	uv run ruff format .
@@ -18,6 +18,24 @@ test:
 # daemon-dependent docker tests are opt-in.
 test-docker:
 	uv run pytest -m docker
+
+# Regenerate the per-image hashed locks. Target: CPython 3.12, linux/amd64.
+# sagemaker-training and inotify-simple are the only sdist-only runtime
+# packages measured on PyPI (2026-10-21); every other one must be a wheel.
+# pip applies build options in file order, so a trailing `--only-binary :all:`
+# would cancel the two `--no-binary` exceptions. Train locks therefore keep
+# only the exceptions; their hash set is already wheel-only for the rest.
+lock-requirements:
+	for input in docker/requirements/*.in; do \
+		name="$${input%.in}"; \
+		extra=""; \
+		case "$$name" in *-inference) ;; *) extra="--no-binary sagemaker-training --no-binary inotify-simple";; esac; \
+		uv pip compile --generate-hashes --emit-build-options \
+			--python-version 3.12 --python-platform x86_64-manylinux_2_28 \
+			--only-binary :all: $$extra "$$input" \
+			--output-file "$$name.txt"; \
+		case "$$name" in *-inference) ;; *) sed -i '/^--only-binary :all:$$/d' "$$name.txt";; esac; \
+	done
 
 coverage:
 	uv run pytest -m "not docker" --cov --cov-report=term-missing:skip-covered --cov-fail-under=95

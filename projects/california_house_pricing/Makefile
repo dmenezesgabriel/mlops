@@ -1,12 +1,13 @@
 .SILENT:
 .PHONY: format lint up-% ps down type-check quality sync build-images test test-notebooks coverage complexity dependencies security maintainability
+GIT_REVISION ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 
 format:
 	uv run ruff format src typings
 
 build-images:
-	docker build -f Dockerfile -t california-house-pricing:train ../../libs/sagemaker-local/docker
-	docker build -f Dockerfile.inference -t california-house-pricing:inference ../../libs/sagemaker-local/docker
+	docker build --build-arg GIT_REVISION=$(GIT_REVISION) -f Dockerfile -t california-house-pricing:train ../../libs/sagemaker-local/docker
+	docker build --build-arg GIT_REVISION=$(GIT_REVISION) -f Dockerfile.inference -t california-house-pricing:inference ../../libs/sagemaker-local/docker
 
 test:
 	uv run pytest -m "not integration"

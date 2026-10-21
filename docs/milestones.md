@@ -50,7 +50,7 @@ service. Audit + unmeasured suspects:
 `docs/audits/container-images-2026-10-18.md`.
 
 Steps:
-1. [ ] SageMaker image family: digest + hashed export + labels, root kept with the AWS comment (DK-1)
+1. [x] SageMaker image family: digest + per-image hashed locks + OCI labels, root kept with the AWS comment (DK-1) — 9/9 images built and inspected 2026-10-21; ADR-0015.
 2. [ ] compose stacks: digest pins + memory caps (DK-2)
 3. [ ] `videos` image (DK-3)
 4. [ ] `diagrams` image (DK-4)

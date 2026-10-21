@@ -17,8 +17,9 @@ import yaml
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 IMAGE_TAG = "telco-customer-churn"
 DEPLOY_NOTEBOOK = PROJECT_DIR / "notebooks" / "deploy.ipynb"
+DOCKER_CONTEXT = PROJECT_DIR.parent.parent / "libs/sagemaker-local/docker"
 
-# The framework line the inference Dockerfile must install.
+# The framework the inference image must install from its hashed lock.
 INFERENCE_FRAMEWORK_LINE = "xgboost==2.1.4"
 
 
@@ -34,13 +35,13 @@ def _local_config() -> dict[str, object]:
 
 def test_train_image_serves_online_endpoints() -> None:
     dockerfile = _read("Dockerfile")
-    assert "sagemaker-training==5.1.1" in dockerfile
+    assert "requirements/telco-train.txt" in dockerfile
     assert "COPY --chmod=0755 serve serve_app.py /opt/ml/serve/" in dockerfile
 
 
 def test_inference_image_drops_training_toolkit() -> None:
     dockerfile_inference = _read("Dockerfile.inference")
-    assert "sagemaker-training==5.1.1" not in dockerfile_inference
+    assert "requirements/telco-inference.txt" in dockerfile_inference
     assert (
         "COPY --chmod=0755 serve serve_app.py /opt/ml/serve/"
         in dockerfile_inference
@@ -48,7 +49,8 @@ def test_inference_image_drops_training_toolkit() -> None:
 
 
 def test_inference_image_pins_framework() -> None:
-    assert INFERENCE_FRAMEWORK_LINE in _read("Dockerfile.inference")
+    lock = (DOCKER_CONTEXT / "requirements/telco-inference.txt").read_text()
+    assert INFERENCE_FRAMEWORK_LINE in lock
 
 
 def test_deploy_notebook_uses_matching_image_tags() -> None:

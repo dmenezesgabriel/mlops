@@ -1,19 +1,27 @@
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+
+ARG GIT_REVISION=unknown
+
+LABEL org.opencontainers.image.title="california-house-pricing-inference" \
+      org.opencontainers.image.source="https://github.com/dmenezesgabriel/mlops" \
+      org.opencontainers.image.revision="${GIT_REVISION}" \
+      org.opencontainers.image.licenses="NOASSERTION"
+
+# SageMaker requires this image to run as root: the platform writes model
+# artifacts under /opt/ml and invokes the training/serving entry points as
+# root. Do not add a USER instruction; see ADR-0014 §3.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements/california-inference.txt /tmp/requirements.txt
+RUN python -m pip install --no-cache-dir --require-hashes --requirement /tmp/requirements.txt \
+    && rm -f /tmp/requirements.txt
 
 # Inference-only image for the LightGBM example: used by batch transform (and
 # suitable for online serving). Leaner than the training image: no
 # sagemaker-training toolkit, no build toolchain, no pandas.
 # scikit-learn is required because lightgbm.sklearn imports it at module load.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgomp1 \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir \
-        numpy==1.26.4 \
-        scikit-learn==1.6.1 \
-        lightgbm==4.6.0 \
-        joblib==1.4.2 \
-        flask==3.1.1 \
-        gunicorn==23.0.0
 
 # The serving entry point and inference hooks come from the library's docker
 # assets (single source of truth). Build with context = libs/sagemaker-local/docker
