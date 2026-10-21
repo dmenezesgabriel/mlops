@@ -52,7 +52,7 @@ service. Audit + unmeasured suspects:
 Steps:
 1. [x] SageMaker image family: digest + per-image hashed locks + OCI labels, root kept with the AWS comment (DK-1) — 9/9 images built and inspected 2026-10-21; ADR-0015.
 2. [x] compose stacks: digest pins + memory caps (DK-2) — 9 refs on 4 manifest-list digests; 6 caps (512m moto/athena, 4g jupyterlab) verified through `docker stats`; Dependabot `docker-compose` enabled; 5/5 `docker compose config` clean
-3. [ ] `videos` image (DK-3)
+3. [x] `videos` image (DK-3) — base `manimcommunity/manim:v0.20.1@sha256:f18f…`, uv `0.13.4@sha256:9f13…`, non-editable install, `USER 1000:1000`, OCI labels; `make test-videos-docker` 22 passed and real render artifacts host-owned; open G-353 (narration/target overlap fails the linter).
 4. [ ] `diagrams` image (DK-4)
 5. [ ] `jupyterlab` + `termux` images (DK-5)
 6. [ ] Flink streaming image: PyFlink-capable image for the electricity stack (DK-6)

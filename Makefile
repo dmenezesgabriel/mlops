@@ -4,6 +4,9 @@ QUALITY ?= preview
 MANIM_IMAGE ?= manimcommunity/manim:v0.20.1
 MANIM_CUSTOM_IMAGE ?= mlops-manim-prod
 VIDEO_OUTPUT_DIR ?= videos/output
+GIT_REVISION ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
+HOST_UID ?= $(shell id -u)
+HOST_GID ?= $(shell id -g)
 
 .SILENT:
 # Each `$(MAKE) -C <package>` would print "Entering/Leaving directory" twice per package: a third
@@ -48,11 +51,9 @@ test:
 	done
 
 test-videos-docker: libs/videos/Dockerfile
-	docker build -f libs/videos/Dockerfile -t mlops-manim-test .
+	docker build --build-arg GIT_REVISION=$(GIT_REVISION) -f libs/videos/Dockerfile -t mlops-manim-test .
 	docker run --rm \
-	  -v "$(CURDIR)/libs/videos/src:/app/libs/videos/src:ro" \
 	  -v "$(CURDIR)/libs/videos/tests:/app/libs/videos/tests:ro" \
-	  -v "$(CURDIR)/libs/videos-linter/src:/app/libs/videos-linter/src:ro" \
 	  -w /tmp \
 	  mlops-manim-test sh -lc \
 	  '. /opt/venv/bin/activate && python -m pytest /app/libs/videos/tests/integration/ -m docker -q -rfEs --tb=short'
@@ -113,14 +114,12 @@ preview-site:
 	uv run python -m ssg.infrastructure.cli preview --config $(SITE_CONFIG) --output $(SITE_OUTPUT)
 
 render-video: libs/videos/Dockerfile
-	docker build -f libs/videos/Dockerfile -t $(MANIM_CUSTOM_IMAGE) .
+	docker build --build-arg GIT_REVISION=$(GIT_REVISION) -f libs/videos/Dockerfile -t $(MANIM_CUSTOM_IMAGE) .
 	mkdir -p $(VIDEO_OUTPUT_DIR)
-	chmod 777 $(VIDEO_OUTPUT_DIR)
 	docker run --rm \
-	  -v "$(CURDIR)/libs/videos/src:/app/libs/videos/src:ro" \
-	  -v "$(CURDIR)/libs/videos-linter/src:/app/libs/videos-linter/src:ro" \
+	  --user "$(HOST_UID):$(HOST_GID)" \
 	  -v "$(CURDIR)/videos/definition:/app/definition:ro" \
-	  -v "$(CURDIR)/videos/output:/app/output:delegated" \
+	  -v "$(abspath $(VIDEO_OUTPUT_DIR)):/app/output:delegated" \
 	  $(MANIM_CUSTOM_IMAGE) sh -lc \
 	  '. /opt/venv/bin/activate && videos $(CONCEPT_ID) --definitions-dir /app/definition --output-dir /app/output --quality $(QUALITY)'
 
