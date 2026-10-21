@@ -9,7 +9,7 @@
 # pinned just above it, not to the host.
 services:
   moto:
-    image: motoserver/moto:5.1.16
+    image: motoserver/moto:5.1.16@sha256:f78c8e0370cabe2516395f351fb27e1df1aa6dc2d728d6de16d5dfbc9ccf595d
     container_name: electricity-price-streaming-moto
     command: ["-p", "5000", "-H", "0.0.0.0"]
     deploy:
@@ -19,7 +19,7 @@ services:
     networks: [mlops_net]
 
   kafka:
-    image: apache/kafka:3.8.0
+    image: apache/kafka:3.8.0@sha256:c89f315cff967322c5d2021434b32271393cb193aa7ec1d43e97341924e57069
     container_name: electricity-price-streaming-kafka
     environment:
       KAFKA_NODE_ID: 1
@@ -40,7 +40,7 @@ services:
     networks: [mlops_net]
 
   flink-jobmanager:
-    image: flink:1.20-scala_2.12-java11
+    image: flink:1.20-scala_2.12-java11@sha256:671e890a10e783374d626a6870756c6ad86983e8f94e8a21b6d1408a1f86be2c
     container_name: electricity-price-streaming-flink-jm
     command: jobmanager
     environment:
@@ -57,7 +57,7 @@ services:
     networks: [mlops_net]
 
   flink-taskmanager:
-    image: flink:1.20-scala_2.12-java11
+    image: flink:1.20-scala_2.12-java11@sha256:671e890a10e783374d626a6870756c6ad86983e8f94e8a21b6d1408a1f86be2c
     container_name: electricity-price-streaming-flink-tm
     command: taskmanager
     depends_on: [flink-jobmanager]

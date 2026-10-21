@@ -1,6 +1,8 @@
 services:
   moto:
-    image: motoserver/moto:5.1.16
+    # Manifest-list digests (ADR-0014 §1); Dependabot's docker-compose
+    # ecosystem bumps them.
+    image: motoserver/moto:5.1.16@sha256:f78c8e0370cabe2516395f351fb27e1df1aa6dc2d728d6de16d5dfbc9ccf595d
     # The Glue overlay (docker/moto/) adds the column-statistics and
     # user-defined-function operations the Trino hive connector needs
     # (docker/moto/glue_overlay.py). The official image stays unchanged; the
@@ -9,6 +11,12 @@ services:
       - ./docker/moto:/docker/moto:ro
     entrypoint: ["/bin/sh", "/docker/moto/entrypoint.sh"]
     command: -H 0.0.0.0
+    # Idle at 59 MiB measured 2026-10-21; 512m matches the project stacks and
+    # keeps a runaway S3/Glue process off the shared host.
+    deploy:
+      resources:
+        limits:
+          memory: 512m
     ports:
       - "5000:5000"
     # TCP-connect check, not urlopen: moto answers several paths with non-2xx
@@ -23,7 +31,7 @@ services:
       - mlops_net
 
   trino:
-    image: trinodb/trino:483
+    image: trinodb/trino:483@sha256:db58cc93e593a2706553745f276bb119c9810e69918be56ecde088ba7ccb0534
     # File mounts only: the image's /etc/trino also carries node.properties,
     # jvm.config and log.properties, which a directory mount would hide. The
     # catalog mount intentionally replaces the sample catalogs (tpch et al.)
@@ -67,6 +75,12 @@ services:
     environment:
       ATHENA_LOCAL_TRINO_URL: "http://trino:8080"
       ATHENA_MOTO_ENDPOINT_URL: "http://moto:5000"
+    # Idle at 126 MiB measured 2026-10-21; Trino pages are parsed one page at a
+    # time, so 512m covers the query plane.
+    deploy:
+      resources:
+        limits:
+          memory: 512m
     # Slim image has no curl; the interpreter check mirrors the image's
     # HEALTHCHECK so `depends_on: athena: service_healthy` works for compose
     # consumers (jupyterlab) even if the image check changes.
@@ -130,6 +144,13 @@ services:
       GH_TOKEN: "${GH_TOKEN:-}"
       GITHUB_TOKEN: "${GITHUB_TOKEN:-}"
       OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+    # Runs the full test suite and every notebook. Measured peak 597 MiB on a
+    # 1M-row pandas/sklearn fit (2026-10-21); 4 GiB leaves headroom for the
+    # suite without letting a runaway kernel reach the host.
+    deploy:
+      resources:
+        limits:
+          memory: 4g
     # Consumers inside jupyterlab hit the emulator and moto at boot, so a cold
     # `docker compose up` sequences behind a healthy athena.
     depends_on:

@@ -7,9 +7,13 @@ name: telco-customer-churn
 # mlops_net network so it never collides with the root stack's own `moto`.
 services:
   moto:
-    image: motoserver/moto:5.1.16
+    image: motoserver/moto:5.1.16@sha256:f78c8e0370cabe2516395f351fb27e1df1aa6dc2d728d6de16d5dfbc9ccf595d
     container_name: telco-customer-churn-moto
     command: -H 0.0.0.0
+    deploy:
+      resources:
+        limits:
+          memory: 512m
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 5000), 3).close()"]
       interval: 5s

@@ -51,7 +51,7 @@ service. Audit + unmeasured suspects:
 
 Steps:
 1. [x] SageMaker image family: digest + per-image hashed locks + OCI labels, root kept with the AWS comment (DK-1) — 9/9 images built and inspected 2026-10-21; ADR-0015.
-2. [ ] compose stacks: digest pins + memory caps (DK-2)
+2. [x] compose stacks: digest pins + memory caps (DK-2) — 9 refs on 4 manifest-list digests; 6 caps (512m moto/athena, 4g jupyterlab) verified through `docker stats`; Dependabot `docker-compose` enabled; 5/5 `docker compose config` clean
 3. [ ] `videos` image (DK-3)
 4. [ ] `diagrams` image (DK-4)
 5. [ ] `jupyterlab` + `termux` images (DK-5)

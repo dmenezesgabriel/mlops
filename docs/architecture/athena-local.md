@@ -184,12 +184,13 @@ Trino statement and records `CANCELLED` (ADR-0009).
 ## 7. Deployment View
 
 - `docker-compose.yml` services (ADR-0002):
-  - `moto` — `motoserver/moto:5.1.16`, publishes `5000:5000` — S3, Glue, STS.
+  - `moto` — `motoserver/moto:5.1.16@sha256:f78c8e0370cabe2516395f351fb27e1df1aa6dc2d728d6de16d5dfbc9ccf595d`, publishes `5000:5000` — S3, Glue, STS.
     `./docker/moto` mounts read-only at `/docker/moto` and the entrypoint shim
     applies the Glue overlay (the column-statistics and user-defined-function
     ops, plus the GetPartitions expression/`_cast` bridges) the Trino Hive
-    connector needs — the official image itself is unchanged (§11).
-  - `trino` — `trinodb/trino:483`; `docker/trino/config.properties` mounts as
+    connector needs — the official image itself is unchanged (§11). A
+    512 MiB cap bounds the S3/Glue plane (idle 59 MiB measured 2026-10-21).
+  - `trino` — `trinodb/trino:483@sha256:db58cc93e593a2706553745f276bb119c9810e69918be56ecde088ba7ccb0534`; `docker/trino/config.properties` mounts as
     a file and `docker/trino/catalog/` as a dir (a single dir mount would hide
     the image's own `/etc/trino` files). The `hive` catalog uses
     `hive.metastore=glue` at `http://moto:5000`, region `us-east-1`, static
@@ -212,15 +213,18 @@ Trino statement and records `CANCELLED` (ADR-0009).
     `ATHENA_MOTO_ENDPOINT_URL` (default `http://127.0.0.1:5000`, compose
     `http://moto:5000`), `ATHENA_LOCAL_MAX_CONCURRENT_QUERIES` (default 4,
     bounds the executor semaphore), `ATHENA_LOCAL_MAX_RETAINED_EXECUTIONS`
-    (default 10 000, bounds retained execution history); `/health`
-    healthcheck; `depends_on` trino `service_healthy` + moto
-    `service_started`.
+    (default 10 000, bounds retained execution history); a 512 MiB cap (idle
+    126 MiB; 105 MiB under eight concurrent `SELECT 1` queries, measured
+    2026-10-21); `/health` healthcheck; `depends_on` trino `service_healthy`
+    + moto `service_started`.
   - Request hardening: `POST /` rejects bodies over 1 MiB — the canonical
     model's largest member is `QueryString` at 262144 chars — with a shaped
     `InvalidRequestException` before dispatch.
   - `jupyterlab` gets `AWS_ENDPOINT_URL=http://moto:5000` and
-    `AWS_ENDPOINT_URL_ATHENA=http://athena:5001`, and `depends_on: athena:
-    service_healthy` so a cold `docker compose up` sequences correctly.
+    `AWS_ENDPOINT_URL_ATHENA=http://athena:5001`; a 4 GiB cap (597 MiB peak
+    measured on a 1 M-row pandas/sklearn fit, 2026-10-21, and 363 MiB under
+    the cap) and `depends_on: athena: service_healthy` so a cold
+    `docker compose up` sequences correctly.
 - Clients point only Athena traffic at `http://localhost:5001`:
   - boto3/awswrangler: `endpoint_url` / `athena_endpoint_url`
     (`awswrangler/_utils.py:255-280`) / `AWS_ENDPOINT_URL_ATHENA`.
