@@ -5,7 +5,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 echo "Building mlops-jupyterlab image..."
-proot-distro build -t mlops-jupyterlab -f "$SCRIPT_DIR/Dockerfile" "$PROJECT_ROOT"
+GIT_REVISION="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
+proot-distro build -t mlops-jupyterlab \
+  --build-arg GIT_REVISION="$GIT_REVISION" \
+  -f "$SCRIPT_DIR/Dockerfile" "$PROJECT_ROOT"
 
 echo "Installing mlops-jupyterlab..."
 proot-distro remove mlops-jupyterlab 2>/dev/null || true

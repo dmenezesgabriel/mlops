@@ -182,7 +182,7 @@ down:
 	docker compose down
 
 jupyterlab-build:
-	docker compose build jupyterlab
+	GIT_REVISION=$(GIT_REVISION) docker compose build jupyterlab
 
 jupyterlab:
 	docker network inspect mlops_net >/dev/null 2>&1 || docker network create mlops_net

@@ -1,4 +1,11 @@
-FROM ghcr.io/astral-sh/uv:python3.12-trixie-slim
+FROM ghcr.io/astral-sh/uv:python3.12-trixie-slim@sha256:0d42b7b065ada5139af940bf3fb178b926675450e786badc854c9f73736cc6c4
+
+ARG GIT_REVISION=unknown
+
+LABEL org.opencontainers.image.title="jupyterlab" \
+      org.opencontainers.image.source="https://github.com/dmenezesgabriel/mlops" \
+      org.opencontainers.image.revision="${GIT_REVISION}" \
+      org.opencontainers.image.licenses="NOASSERTION"
 
 ENV SHELL=/usr/bin/zsh \
     PYTHONDONTWRITEBYTECODE=1 \

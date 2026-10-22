@@ -103,7 +103,10 @@ services:
       - mlops_net
 
   jupyterlab:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_REVISION: "${GIT_REVISION:-unknown}"
     image: mlops-jupyterlab
     user: "${UID:-1000}:${GID:-1000}"
     group_add:

@@ -54,7 +54,7 @@ Steps:
 2. [x] compose stacks: digest pins + memory caps (DK-2) — 9 refs on 4 manifest-list digests; 6 caps (512m moto/athena, 4g jupyterlab) verified through `docker stats`; Dependabot `docker-compose` enabled; 5/5 `docker compose config` clean
 3. [x] `videos` image (DK-3) — base `manimcommunity/manim:v0.20.1@sha256:f18f…`, uv `0.13.4@sha256:9f13…`, non-editable install, `USER 1000:1000`, OCI labels; `make test-videos-docker` 22 passed and real render artifacts host-owned; open G-353 (narration/target overlap fails the linter).
 4. [x] `diagrams` image (DK-4) — base `python:3.11-slim@sha256:cce1…`, uv `0.13.4@sha256:9f13…`, non-editable install, `USER 1000:1000`, OCI labels; `make test-diagrams-docker` 61 passed/1 skipped and a real render produced a 1549×741 PNG owned 1000:1000 (a 4242:4242 run wrote as 4242).
-5. [ ] `jupyterlab` + `termux` images (DK-5)
+5. [x] `jupyterlab` + `termux` images (DK-5) — both pin uv `python3.12-trixie-slim@sha256:0d42…` (amd64 `abd83c…`, arm64 `c030b9…`) and carry the four OCI labels; `ARG GIT_REVISION` is fed by compose/Makefile and `termux/build.sh`; jupyterlab rebuilt (labels `revision=85929c9…`, `User=jupyter`, uv 0.13.4/Python 3.12.15); contract test 6; termux static only (no proot-distro on the host, arm64 manifest verified)
 6. [ ] Flink streaming image: PyFlink-capable image for the electricity stack (DK-6)
 7. [ ] `athena` image labels + compose build arg (DK-7)
 
