@@ -1,4 +1,4 @@
-FROM manimcommunity/manim:v0.20.1@sha256:f18f53f2e4eaf2ea41713437d34363fb3f5cc6008b03fd798676ac0359396c3b
+FROM manimcommunity/manim:v0.22.0@sha256:3c3ce944c09d6fa73de59fe1e7a95e334e193ae9c2275d65937054e675f87b03
 
 ARG GIT_REVISION=unknown
 
