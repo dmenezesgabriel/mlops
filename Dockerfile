@@ -1,4 +1,4 @@
-FROM ghcr.io/astral-sh/uv:python3.12-trixie-slim@sha256:0d42b7b065ada5139af940bf3fb178b926675450e786badc854c9f73736cc6c4
+FROM ghcr.io/astral-sh/uv:python3.12-trixie-slim@sha256:9b8477a5f2e2f96fa99eaecb7680c1c4c9f527926430f3b630bfb2c3641f8f20
 
 ARG GIT_REVISION=unknown
 
