@@ -303,9 +303,24 @@ def create_table_with_iceberg_markers(
     database_name: str,
     table_name: str,
     table_input: dict[str, Any],
+    open_table_format_input: dict[str, Any] | None = None,
 ) -> FakeTable:
+    if open_table_format_input is None:
+        table = _ORIGINAL_CREATE_TABLE(
+            self, database_name, table_name, table_input
+        )
+    else:
+        table = _ORIGINAL_CREATE_TABLE(
+            self,
+            database_name,
+            table_name,
+            table_input,
+            open_table_format_input,
+        )
+    # moto 5.2 sets table_type=ICEBERG from IcebergInput inside FakeTable,
+    # so mark after registration to see the type it derived.
     _mark_iceberg_columns(table_input)
-    return _ORIGINAL_CREATE_TABLE(self, database_name, table_name, table_input)
+    return table
 
 
 def update_table_with_iceberg_markers(

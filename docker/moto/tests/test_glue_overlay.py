@@ -853,6 +853,29 @@ def test_create_iceberg_table_marks_columns() -> None:
 
 
 @mock_aws
+def test_create_iceberg_table_from_open_table_format_marks_columns() -> None:
+    # moto 5.2 derives table_type=ICEBERG from OpenTableFormatInput inside
+    # FakeTable, so the marker must run after registration to see it.
+    client = boto3.client("glue", region_name="us-east-1")
+    client.create_database(DatabaseInput={"Name": "analytics"})
+    client.create_table(
+        DatabaseName="analytics",
+        TableInput={
+            "Name": "events",
+            "StorageDescriptor": {
+                "Columns": [{"Name": "amount", "Type": "bigint"}]
+            },
+        },
+        OpenTableFormatInput={"IcebergInput": {"MetadataOperation": "CREATE"}},
+    )
+
+    table = client.get_table(DatabaseName="analytics", Name="events")["Table"]
+    assert table["Parameters"]["table_type"] == "ICEBERG"
+    for column in table["StorageDescriptor"]["Columns"]:
+        assert column["Parameters"]["iceberg.field.current"] == "true"
+
+
+@mock_aws
 def test_create_non_iceberg_table_leaves_columns_unmarked() -> None:
     # The table_type gate mutant (== for !=) marks every non-ICEBERG table;
     # asserting a plain table stays marker-free is what kills it.
