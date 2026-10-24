@@ -4,7 +4,7 @@
 # talks to this same moto endpoint via online_store.endpoint_url.
 services:
   moto:
-    image: motoserver/moto:5.1.16@sha256:f78c8e0370cabe2516395f351fb27e1df1aa6dc2d728d6de16d5dfbc9ccf595d
+    image: motoserver/moto:5.2.4@sha256:120b1589c6df7e35d2092935f6ff724486bb2c4189d0e36ce795baba1400ffd2
     container_name: california-house-pricing-moto
     command: ["-p", "5000", "-H", "0.0.0.0"]
     deploy:
