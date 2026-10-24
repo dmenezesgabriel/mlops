@@ -110,7 +110,8 @@ def test_render_target_runs_as_the_host_identity() -> None:
 def test_both_builds_pass_the_git_revision() -> None:
     makefile = _read(MAKEFILE)
     build_args = "--build-arg GIT_REVISION=$(GIT_REVISION)"
-    assert makefile.count(build_args) == 2, (
-        "render-video and test-videos-docker must both label the build"
-    )
+    for target in ("render-video", "test-videos-docker"):
+        assert build_args in _recipe(makefile, target), (
+            f"{target} must label the build with GIT_REVISION"
+        )
     assert REVISION_DEFAULT in makefile
