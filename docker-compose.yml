@@ -2,7 +2,7 @@ services:
   moto:
     # Manifest-list digests (ADR-0014 §1); Dependabot's docker-compose
     # ecosystem bumps them.
-    image: motoserver/moto:5.1.16@sha256:f78c8e0370cabe2516395f351fb27e1df1aa6dc2d728d6de16d5dfbc9ccf595d
+    image: motoserver/moto:5.2.4@sha256:120b1589c6df7e35d2092935f6ff724486bb2c4189d0e36ce795baba1400ffd2
     # The Glue overlay (docker/moto/) adds the column-statistics and
     # user-defined-function operations the Trino hive connector needs
     # (docker/moto/glue_overlay.py). The official image stays unchanged; the
