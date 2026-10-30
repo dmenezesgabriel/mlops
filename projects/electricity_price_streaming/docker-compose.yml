@@ -40,7 +40,7 @@ services:
     networks: [mlops_net]
 
   flink-jobmanager:
-    image: flink:1.20-scala_2.12-java11@sha256:671e890a10e783374d626a6870756c6ad86983e8f94e8a21b6d1408a1f86be2c
+    image: flink:1.20-scala_2.12-java11@sha256:d14a9135153c9de1ee7c2b3b1c66ace134dc626873c811a3b50c080943c19d4c
     container_name: electricity-price-streaming-flink-jm
     command: jobmanager
     environment:
@@ -57,7 +57,7 @@ services:
     networks: [mlops_net]
 
   flink-taskmanager:
-    image: flink:1.20-scala_2.12-java11@sha256:671e890a10e783374d626a6870756c6ad86983e8f94e8a21b6d1408a1f86be2c
+    image: flink:1.20-scala_2.12-java11@sha256:d14a9135153c9de1ee7c2b3b1c66ace134dc626873c811a3b50c080943c19d4c
     container_name: electricity-price-streaming-flink-tm
     command: taskmanager
     depends_on: [flink-jobmanager]
