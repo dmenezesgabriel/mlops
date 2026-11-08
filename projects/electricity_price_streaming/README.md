@@ -12,8 +12,10 @@ Feast does not ingest from a topic. All Docker Compose, no AWS.
 ## Stack
 
 - `docker-compose.yml` — `electricity-price-streaming-moto` (S3/DynamoDB),
-  KRaft `kafka`, and a Flink `jobmanager`/`taskmanager` pair, all on
-  `mlops_net`.
+  KRaft `kafka`, and a Flink `jobmanager`/`taskmanager` pair built from
+  `docker/flink/` (Python + PyFlink + the Kafka connector), all on
+  `mlops_net`. The job reads `SAGEMAKER_ENDPOINT_URL` from the environment;
+  both Flink roles pass it through from the shell or compose env.
 - `feature_repo/` — Feast repo: `market_profile` (online) +
   `direction_labels` (offline), used for the training join.
 - `flink_job/` — `enrich_and_score.py` (tick features → endpoint → output
@@ -21,7 +23,8 @@ Feast does not ingest from a topic. All Docker Compose, no AWS.
 - `src/electricity_price_streaming/` — `prepare_data.py` (ELEC2 → tables +
   replay stream), `feature_contract.py`, `train.py` (CatBoost).
 - Images `electricity-price-streaming:train` / `:inference` —
-  `make build-images`.
+  `make build-images`; `electricity-price-streaming:flink` —
+  `make flink-image`.
 
 ## Lifecycle notebooks
 

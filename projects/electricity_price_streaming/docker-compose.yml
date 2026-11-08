@@ -1,12 +1,14 @@
 # Streaming stack: moto (S3 + DynamoDB for Feast online) + Kafka in KRaft
-# mode (no zookeeper) + a Flink jobmanager/taskmanager pair that runs the
-# PyFlink scoring job. All namespaced so it coexists with sibling stacks on
-# mlops_net.
+# mode (no zookeeper) + a Flink jobmanager/taskmanager pair built from
+# ./docker/flink: the stock Flink image ships no Python, so the mounted
+# PyFlink job cannot run there. All namespaced so it coexists with sibling
+# stacks on mlops_net.
 #
 # Every service is memory-capped. The three JVMs (Kafka, both Flink roles)
 # otherwise size their heap from *host* RAM, so on a shared host an idle demo
-# stack can commit gigabytes it never uses. Each cap is sized to the heap
-# pinned just above it, not to the host.
+# stack can commit gigabytes it never uses. Each JVM cap is sized to the
+# process size pinned just above it, not to the host; the Flink caps also
+# carry the PyFlink workers that run beside each JVM.
 services:
   moto:
     image: motoserver/moto:5.1.16@sha256:f78c8e0370cabe2516395f351fb27e1df1aa6dc2d728d6de16d5dfbc9ccf595d
@@ -40,10 +42,15 @@ services:
     networks: [mlops_net]
 
   flink-jobmanager:
-    image: flink:1.20-scala_2.12-java11@sha256:671e890a10e783374d626a6870756c6ad86983e8f94e8a21b6d1408a1f86be2c
+    build:
+      context: ./docker/flink
+      args:
+        GIT_REVISION: "${GIT_REVISION:-unknown}"
+    image: electricity-price-streaming:flink
     container_name: electricity-price-streaming-flink-jm
     command: jobmanager
     environment:
+      SAGEMAKER_ENDPOINT_URL: "${SAGEMAKER_ENDPOINT_URL:-}"
       FLINK_PROPERTIES: |
         jobmanager.rpc.address: flink-jobmanager
         parallelism.default: 1
@@ -57,11 +64,16 @@ services:
     networks: [mlops_net]
 
   flink-taskmanager:
-    image: flink:1.20-scala_2.12-java11@sha256:671e890a10e783374d626a6870756c6ad86983e8f94e8a21b6d1408a1f86be2c
+    build:
+      context: ./docker/flink
+      args:
+        GIT_REVISION: "${GIT_REVISION:-unknown}"
+    image: electricity-price-streaming:flink
     container_name: electricity-price-streaming-flink-tm
     command: taskmanager
     depends_on: [flink-jobmanager]
     environment:
+      SAGEMAKER_ENDPOINT_URL: "${SAGEMAKER_ENDPOINT_URL:-}"
       FLINK_PROPERTIES: |
         jobmanager.rpc.address: flink-jobmanager
         taskmanager.numberOfTaskSlots: 2

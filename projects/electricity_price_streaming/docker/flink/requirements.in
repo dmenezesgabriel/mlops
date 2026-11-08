@@ -1,0 +1,4 @@
+# PyFlink for the electricity streaming stack's Flink image.
+# Regenerate with: make -C projects/electricity_price_streaming flink-lock
+# The version must match the Flink distribution in the pinned base image.
+apache-flink==1.20.5

@@ -1,5 +1,5 @@
 .SILENT:
-.PHONY: format lint up-% ps down type-check quality sync build-images test test-notebooks coverage complexity dependencies security maintainability
+.PHONY: format lint up-% ps down type-check quality sync build-images flink-image flink-lock test test-notebooks coverage complexity dependencies security maintainability
 GIT_REVISION ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 
 format:
@@ -8,6 +8,12 @@ format:
 build-images:
 	docker build --build-arg GIT_REVISION=$(GIT_REVISION) -f Dockerfile -t electricity-price-streaming:train ../../libs/sagemaker-local/docker
 	docker build --build-arg GIT_REVISION=$(GIT_REVISION) -f Dockerfile.inference -t electricity-price-streaming:inference ../../libs/sagemaker-local/docker
+
+flink-image:
+	GIT_REVISION=$(GIT_REVISION) docker compose -p $(COMPOSE_PROJECT) build flink-jobmanager
+
+flink-lock:
+	uv pip compile --generate-hashes --python-version 3.10 --python-platform x86_64-manylinux2014 docker/flink/requirements.in --output-file docker/flink/requirements.txt
 
 test:
 	uv run pytest -m "not integration"
@@ -48,11 +54,12 @@ maintainability:
 quality: format lint type-check coverage complexity dependencies security maintainability
 
 # Per-service lifecycle: bring up only what the current notebook needs
-# (make up-moto / up-kafka / up-flink), check status, tear down.
+# (make up-moto / up-kafka / up-flink-jobmanager up-flink-taskmanager),
+# check status, tear down.
 COMPOSE_PROJECT ?= electricity-price-streaming
 
 up-%:
-	docker compose -p $(COMPOSE_PROJECT) up -d --wait $*
+	GIT_REVISION=$(GIT_REVISION) docker compose -p $(COMPOSE_PROJECT) up -d --wait $*
 
 ps:
 	docker compose -p $(COMPOSE_PROJECT) ps

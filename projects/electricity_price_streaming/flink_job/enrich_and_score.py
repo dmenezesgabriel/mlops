@@ -9,8 +9,10 @@ The streaming path deliberately does not call Feast: Feast's stream sources
 tick already carries the market state the model was trained on. Feast stays
 on the offline training join; it is not part of the live scoring path.
 
-Run inside the flink taskmanager image (pyflink installed):
-  flink run -py /opt/flink_job/enrich_and_score.py
+Run inside the streaming image (`make flink-image`), which ships PyFlink and
+the Kafka connector:
+  docker exec electricity-price-streaming-flink-jm \
+      flink run -py /opt/flink_job/enrich_and_score.py
 """
 
 from __future__ import annotations
@@ -62,7 +64,8 @@ class ScoreTick:
 
 def main() -> None:
     env = StreamExecutionEnvironment.get_execution_environment()
-    env.add_jars("file:///opt/flink/lib/flink-sql-connector-kafka-*.jar")
+    # The Kafka connector ships in /opt/flink/lib in the image built from
+    # docker/flink/Dockerfile, so the JVM's class loader already sees it.
     # DataStream path: raw strings -> map through the scorer -> kafka sink.
     from pyflink.common.serialization import SimpleStringSchema
     from pyflink.datastream.connectors.kafka import (

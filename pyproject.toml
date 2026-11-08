@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Local-first MLOps monorepo with real-world projects and generic static publishing."
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "ipykernel>=7.2.0",
+]
 
 [dependency-groups]
 dev = [
