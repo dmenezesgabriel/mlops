@@ -2,7 +2,7 @@
 
 FROM ghcr.io/astral-sh/uv:0.13.5@sha256:32a7bb39b496babbd997b0a39a4d66c126bdaf5661b302bf6f06abda8deca6ff AS uv
 
-FROM python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9 AS dependency-export
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928 AS dependency-export
 
 ENV UV_CACHE_DIR=/tmp/uv-cache
 WORKDIR /build
@@ -13,7 +13,7 @@ COPY projects/ projects/
 COPY docker/moto/ docker/moto/
 RUN ["/usr/local/bin/uv", "export", "--package", "athena-local", "--no-dev", "--no-emit-project", "--no-emit-workspace", "--no-emit-local", "--locked", "--python", "/usr/local/bin/python", "--no-python-downloads", "--output-file", "/tmp/athena-requirements.txt"]
 
-FROM python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9 AS runtime
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928 AS runtime
 
 ENV HOME=/tmp \
     PYTHONDONTWRITEBYTECODE=1 \
